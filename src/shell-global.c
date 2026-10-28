@@ -1141,8 +1141,8 @@ shell_global_get_pointer (ShellGlobal         *global,
     *x = point.x;
   if (y)
     *y = point.y;
-
-  *mods = raw_mods & CLUTTER_MODIFIER_MASK;
+  if (mods)
+    *mods = raw_mods & CLUTTER_MODIFIER_MASK;
 }
 
 /**
