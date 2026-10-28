@@ -232,7 +232,7 @@ export class WindowMenuManager {
             throw new Error('Unsupported window menu type');
         const menu = new WindowMenu(window, this._sourceActor);
 
-        this._manager.addMenu(menu);
+        this._manager.add_menu(menu);
 
         menu.connect('activate', () => {
             window.check_alive(global.get_current_time());

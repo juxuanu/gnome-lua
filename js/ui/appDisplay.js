@@ -3029,7 +3029,7 @@ export const AppIcon = GObject.registerClass({
                 () => this._menu.close(Shell.PopupAnimation.NONE), this);
 
             Main.uiGroup.add_child(this._menu.actor);
-            this._menuManager.addMenu(this._menu);
+            this._menuManager.add_menu(this._menu);
         }
 
         this.emit('menu-state-changed', true);

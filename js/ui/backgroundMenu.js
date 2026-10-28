@@ -37,7 +37,7 @@ export function addBackgroundMenu(actor, layoutManager) {
     actor.reactive = true;
     actor._backgroundMenu = new BackgroundMenu(layoutManager);
     actor._backgroundManager = new Shell.PopupMenuManager();
-    actor._backgroundManager.addMenu(actor._backgroundMenu);
+    actor._backgroundManager.add_menu(actor._backgroundMenu);
 
     function openMenu(x, y) {
         Main.layoutManager.setDummyCursorGeometry(x, y, 0, 0);

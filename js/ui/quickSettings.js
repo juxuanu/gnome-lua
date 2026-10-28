@@ -32,7 +32,7 @@ export const QuickSettingsItem = GObject.registerClass({
             this.menu.actor.hide();
 
             this._menuManager = new Shell.PopupMenuManager();
-            this._menuManager.addMenu(this.menu);
+            this._menuManager.add_menu(this.menu);
         }
     }
 });

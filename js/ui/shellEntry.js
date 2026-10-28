@@ -149,7 +149,7 @@ export function addContextMenu(entry, params) {
     entry._menuManager = new Shell.PopupMenuManager({
         action_mode: params.actionMode,
     });
-    entry._menuManager.addMenu(entry.menu);
+    entry._menuManager.add_menu(entry.menu);
 
     const clickGesture = new Clutter.ClickGesture();
     clickGesture.set_recognize_on_press(true);

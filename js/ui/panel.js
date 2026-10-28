@@ -751,7 +751,7 @@ export class Panel extends St.Widget {
         if (!indicator.menu || indicator.menu._openChangedConnected)
             return;
 
-        this.menuManager.addMenu(indicator.menu);
+        this.menuManager.add_menu(indicator.menu);
 
         indicator.menu._openChangedConnected = true;
         indicator.menu.connectObject('open-state-changed',
