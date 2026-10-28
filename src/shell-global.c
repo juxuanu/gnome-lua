@@ -1120,7 +1120,7 @@ shell_global_notify_error (ShellGlobal  *global,
  * @global: the #ShellGlobal
  * @x: (out): the X coordinate of the pointer, in global coordinates
  * @y: (out): the Y coordinate of the pointer, in global coordinates
- * @mods: (out): the current set of modifier keys that are pressed down
+ * @mods: (out) (optional): the current set of modifier keys that are pressed down
  *
  * Gets the pointer coordinates and current modifier key state.
  */
