@@ -175,3 +175,18 @@ never call extension code directly.
 4. Commit subject is exactly `ui: port <module> to C`, using the JS base name
    (`ui: port panelMenu to C`, `misc: port util to C`, `gdm: port loginDialog to C`).
    The body lists the hooks added and the JS API that changed. No unrelated edits.
+
+## Pitfalls found by CI
+
+* `ClutterActor` creates the class layout manager in `constructed()`. In a
+  subclass of `StBoxLayout` (or any actor with a class layout manager) never
+  call `st_box_layout_set_orientation()` or touch the layout manager from
+  `init()`; override `constructed()`, chain up, then set it. Non-construct
+  properties passed to `g_object_new()` are applied after `constructed()`.
+* GI flags values must be bit combinations of the declared members; `~0`
+  is rejected by GJS for a flags argument.
+* `(closure user_data) (destroy destroy)` go on the callback parameter's
+  annotation, never on `user_data`; `g-ir-scanner` runs with fatal warnings.
+* Asynchronous completions must not fire into JS during shutdown; ease
+  completions are dropped by `_shell_ease_shutdown()`, your own timeouts and
+  GTasks must be cleared on `ShellGlobal::shutdown` or made no-ops.
