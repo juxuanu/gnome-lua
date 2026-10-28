@@ -168,6 +168,14 @@ gboolean shell_window_manager_get_overview_animating      (ShellWindowManager *s
 void     shell_window_manager_set_overview_animating      (ShellWindowManager *self,
                                                            gboolean            animating);
 
+/* The drags of the icons of the application grid and the dash */
+void     shell_window_manager_begin_item_drag             (ShellWindowManager *self,
+                                                           GObject            *source);
+void     shell_window_manager_cancelled_item_drag         (ShellWindowManager *self,
+                                                           GObject            *source);
+void     shell_window_manager_end_item_drag               (ShellWindowManager *self,
+                                                           GObject            *source);
+
 ShellCtrlAltTabManager *shell_window_manager_get_ctrl_alt_tab_manager (ShellWindowManager *self);
 void     shell_window_manager_set_ctrl_alt_tab_manager    (ShellWindowManager     *self,
                                                            ShellCtrlAltTabManager *manager);

@@ -153,10 +153,10 @@ export async function run() {
 
     for (let i = 0; i < 2; i++) {
         Scripting.scriptEvent('applicationsShowStart');
-        Main.overview.dash.showAppsButton.checked = true;
+        Main.overview.dash.show_apps_button.checked = true;
         await Scripting.waitLeisure();
         Scripting.scriptEvent('applicationsShowDone');
-        Main.overview.dash.showAppsButton.checked = false;
+        Main.overview.dash.show_apps_button.checked = false;
         await Scripting.waitLeisure();
     }
     /* eslint-enable no-await-in-loop */

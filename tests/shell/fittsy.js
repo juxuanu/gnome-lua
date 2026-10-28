@@ -48,7 +48,7 @@ export async function run() {
 
     await Scripting.waitLeisure();
 
-    const showApps = Main.overview.dash.showAppsButton;
+    const showApps = Main.overview.dash.show_apps_button;
     console.debug('Checking that dash extends to bottom screen edge');
     checkFittsiness('fittsyDash',
         showApps, Orientation.VERTICAL, bottomEdge);

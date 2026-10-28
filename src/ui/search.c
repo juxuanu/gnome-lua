@@ -13,7 +13,7 @@
  *  - The state the view kept on the provider (`provider.display`,
  *    `provider.searchInProgress`) is kept by the view.
  *  - The view does not create the applications provider (it is still
- *    implemented in appDisplay.js, which this module cannot import): it is
+ *    implemented in app-display.c, which this module does not use): it is
  *    handed to the view when it is created and registered before the remote
  *    providers, as before.
  *  - `Main.overview.toggle ()`, which activating a result and the launch
@@ -4281,8 +4281,8 @@ shell_search_results_view_class_init (ShellSearchResultsViewClass *klass)
    * ShellSearchResultsView:application-provider:
    *
    * The provider of the applications, which is registered before the remote
-   * providers. It is implemented by appDisplay.js, so the view cannot create
-   * it itself (`new AppDisplay.AppSearchProvider ()`).
+   * providers. It is #ShellAppSearchProvider (app-display.c), which the view
+   * does not create itself (`new AppDisplay.AppSearchProvider ()`).
    */
   view_props[VIEW_PROP_APPLICATION_PROVIDER] =
     g_param_spec_object ("application-provider", NULL, NULL,

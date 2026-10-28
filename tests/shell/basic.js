@@ -96,11 +96,11 @@ export async function run() {
 
     Scripting.scriptEvent('applicationsShowStart');
     console.debug('Showing applications');
-    Main.overview.dash.showAppsButton.checked = true;
+    Main.overview.dash.show_apps_button.checked = true;
     await Scripting.waitLeisure();
     Scripting.scriptEvent('applicationsShowDone');
     console.debug('Hiding applications');
-    Main.overview.dash.showAppsButton.checked = false;
+    Main.overview.dash.show_apps_button.checked = false;
     await Scripting.waitLeisure();
 
     console.debug('Hiding overview');

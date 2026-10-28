@@ -8,7 +8,7 @@
  *
  *  - The overview, the icon and `Main.activateWindow ()` are not reachable
  *    from C. The menu emits signals where the JS called them, which the
- *    owner of the menu (appDisplay.js) connects:
+ *    owner of the menu (app-display.c) connects:
  *    #ShellAppMenu::overview-hide-requested (`Main.overview.hide ()`),
  *    #ShellAppMenu::animate-launch (`sourceActor.animateLaunch ()`, which was
  *    only called if the source actor had that method) and

@@ -372,7 +372,7 @@ G_DECLARE_DERIVABLE_TYPE (ShellGridSearchResult, shell_grid_search_result,
  * @parent_class: the parent class
  *
  * The result shown as an icon in a grid (`GridSearchResult`).
- * `SystemActionIcon` in appDisplay.js extends it.
+ * `SystemActionIcon` in app-display.c extends it.
  */
 struct _ShellGridSearchResultClass
 {

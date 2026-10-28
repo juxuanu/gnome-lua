@@ -120,7 +120,7 @@ export class Overview extends Signals.EventEmitter {
     get dashIconSize() {
         logError(new Error('Usage of Overview.\'dashIconSize\' is deprecated, ' +
             'use \'dash.iconSize\' property instead'));
-        return this.dash.iconSize;
+        return this.dash.icon_size;
     }
 
     get animationInProgress() {
@@ -620,7 +620,7 @@ export class Overview extends Signals.EventEmitter {
 
     selectApp(id) {
         this.showApps();
-        this._overview.controls.appDisplay.selectApp(id);
+        this._overview.controls.appDisplay.select_app(id);
     }
 
     async runStartupAnimation() {
@@ -655,7 +655,7 @@ export class Overview extends Signals.EventEmitter {
         logError(new Error('Usage of Overview.\'getShowAppsButton\' is deprecated, ' +
             'use \'dash.showAppsButton\' property instead'));
 
-        return this.dash.showAppsButton;
+        return this.dash.show_apps_button;
     }
 
     get searchController() {

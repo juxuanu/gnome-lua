@@ -1424,6 +1424,9 @@ enum
 {
   OVERVIEW_HIDE_REQUESTED,
   SCREENSHOT_REQUESTED,
+  ITEM_DRAG_BEGIN,
+  ITEM_DRAG_CANCELLED,
+  ITEM_DRAG_END,
 
   LAST_SIGNAL
 };
@@ -3815,6 +3818,54 @@ shell_window_manager_set_overview_animating (ShellWindowManager *self,
 }
 
 /**
+ * shell_window_manager_begin_item_drag:
+ * @self: a #ShellWindowManager
+ * @source: the item which is dragged
+ *
+ * Emits #ShellWindowManager::item-drag-begin.
+ */
+void
+shell_window_manager_begin_item_drag (ShellWindowManager *self,
+                                      GObject            *source)
+{
+  g_return_if_fail (SHELL_IS_WINDOW_MANAGER (self));
+
+  g_signal_emit (self, signals[ITEM_DRAG_BEGIN], 0, source);
+}
+
+/**
+ * shell_window_manager_cancelled_item_drag:
+ * @self: a #ShellWindowManager
+ * @source: the item which was dragged
+ *
+ * Emits #ShellWindowManager::item-drag-cancelled.
+ */
+void
+shell_window_manager_cancelled_item_drag (ShellWindowManager *self,
+                                          GObject            *source)
+{
+  g_return_if_fail (SHELL_IS_WINDOW_MANAGER (self));
+
+  g_signal_emit (self, signals[ITEM_DRAG_CANCELLED], 0, source);
+}
+
+/**
+ * shell_window_manager_end_item_drag:
+ * @self: a #ShellWindowManager
+ * @source: the item which was dragged
+ *
+ * Emits #ShellWindowManager::item-drag-end.
+ */
+void
+shell_window_manager_end_item_drag (ShellWindowManager *self,
+                                    GObject            *source)
+{
+  g_return_if_fail (SHELL_IS_WINDOW_MANAGER (self));
+
+  g_signal_emit (self, signals[ITEM_DRAG_END], 0, source);
+}
+
+/**
  * shell_window_manager_get_ctrl_alt_tab_manager:
  * @self: a #ShellWindowManager
  *
@@ -4311,6 +4362,55 @@ shell_window_manager_class_init (ShellWindowManagerClass *klass)
                   0, NULL, NULL, NULL,
                   G_TYPE_NONE, 1,
                   COGL_TYPE_TEXTURE);
+
+  /**
+   * ShellWindowManager::item-drag-begin:
+   * @self: the #ShellWindowManager
+   * @source: the dragged #ShellAppViewItem
+   *
+   * Emitted when the drag of an icon of the application grid, the dash or
+   * the search results starts (`Main.overview.beginItemDrag ()`). The
+   * application views and the dash listen to it; main.js hands it on to the
+   * overview, which is still JS.
+   */
+  signals[ITEM_DRAG_BEGIN] =
+    g_signal_new ("item-drag-begin",
+                  G_TYPE_FROM_CLASS (klass),
+                  G_SIGNAL_RUN_LAST,
+                  0, NULL, NULL, NULL,
+                  G_TYPE_NONE, 1,
+                  G_TYPE_OBJECT);
+
+  /**
+   * ShellWindowManager::item-drag-cancelled:
+   * @self: the #ShellWindowManager
+   * @source: the dragged #ShellAppViewItem
+   *
+   * Emitted when the drag of an icon was cancelled
+   * (`Main.overview.cancelledItemDrag ()`).
+   */
+  signals[ITEM_DRAG_CANCELLED] =
+    g_signal_new ("item-drag-cancelled",
+                  G_TYPE_FROM_CLASS (klass),
+                  G_SIGNAL_RUN_LAST,
+                  0, NULL, NULL, NULL,
+                  G_TYPE_NONE, 1,
+                  G_TYPE_OBJECT);
+
+  /**
+   * ShellWindowManager::item-drag-end:
+   * @self: the #ShellWindowManager
+   * @source: the dragged #ShellAppViewItem
+   *
+   * Emitted when the drag of an icon ended (`Main.overview.endItemDrag ()`).
+   */
+  signals[ITEM_DRAG_END] =
+    g_signal_new ("item-drag-end",
+                  G_TYPE_FROM_CLASS (klass),
+                  G_SIGNAL_RUN_LAST,
+                  0, NULL, NULL, NULL,
+                  G_TYPE_NONE, 1,
+                  G_TYPE_OBJECT);
 }
 
 static void

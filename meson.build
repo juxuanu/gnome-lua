@@ -206,6 +206,15 @@ cdata.set('HAVE_XWAYLAND', have_xwayland)
 cdata.set('HAVE_MALCONTENT', have_malcontent)
 cdata.set('HAVE_MALCONTENT_0_14', have_malcontent_0_14)
 
+cdata.set('SYSTEM_FOLDER_APPS', run_command(
+  generate_app_list, '--c-strings', 'data/default-apps/system-folder.txt',
+  check: true,
+).stdout().strip())
+cdata.set('UTILITIES_FOLDER_APPS', run_command(
+  generate_app_list, '--c-strings', 'data/default-apps/utilities-folder.txt',
+  check: true,
+).stdout().strip())
+
 cdata.set('HAVE_FDWALK', cc.has_function('fdwalk'))
 cdata.set('HAVE_MALLINFO', cc.has_function('mallinfo'))
 cdata.set('HAVE_MALLINFO2', cc.has_function('mallinfo2'))

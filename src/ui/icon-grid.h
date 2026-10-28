@@ -7,8 +7,8 @@
  * #ShellBaseIcon is the icon (an icon actor and an optional label),
  * #ShellIconGridLayout the layout manager which distributes items over pages
  * and #ShellIconGrid the viewport that holds the items. #ShellBaseIcon and
- * #ShellIconGrid are derivable: appDisplay.js still extends #ShellIconGrid
- * (`AppGrid`) with GObject.registerClass().
+ * #ShellIconGrid are derivable: app-display.c extends #ShellIconGrid
+ * (`AppGrid`).
  *
  * The icon of a #ShellBaseIcon is made by the `create_icon` virtual function,
  * whose default implementation calls the function set with

@@ -19,6 +19,11 @@ def print_as_array(ids):
     print(',\n'.join(mapped_ids))
     print(']')
 
+def print_as_c_strings(ids):
+    # Initializer elements of a C array of strings, on a single line so
+    # that Meson can put it in config.h
+    print(', '.join(map(lambda i: f'"{i}"', ids)))
+
 def print_as_pages(ids):
     mapped_ids = []
     for i, id in enumerate(ids):
@@ -30,11 +35,14 @@ def print_as_pages(ids):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--pages', action='store_true')
+parser.add_argument('--c-strings', action='store_true')
 parser.add_argument('file')
 args = parser.parse_args()
 
 ids = read_app_ids(args.file)
 if args.pages:
     print_as_pages(ids)
+elif args.c_strings:
+    print_as_c_strings(ids)
 else:
     print_as_array(ids)

@@ -6,8 +6,6 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as AppDisplay from './appDisplay.js';
-import * as Dash from './dash.js';
 import * as Main from './main.js';
 import * as Overview from './overview.js';
 import * as Util from '../misc/util.js';
@@ -194,7 +192,7 @@ class ControlsManagerLayout extends Clutter.LayoutManager {
 
         // Dash
         const maxDashHeight = Math.round(box.get_height() * DASH_MAX_HEIGHT_RATIO);
-        this._dash.setMaxSize(width, maxDashHeight);
+        this._dash.set_max_size(width, maxDashHeight);
 
         let [, dashHeight] = this._dash.get_preferred_height(width);
         dashHeight = Math.min(dashHeight, maxDashHeight);
@@ -361,7 +359,21 @@ class ControlsManager extends St.Widget {
             x_align: Clutter.ActorAlign.CENTER,
         });
 
-        this.dash = new Dash.Dash();
+        this.dash = new Shell.Dash({window_manager: Main.wm});
+
+        // The dash and the app grid ask the window manager for the overview
+        // (see src/ui/app-display.c): hand the drags of their items on to
+        // the overview, and the drags of windows to the dash
+        Main.wm.connectObject(
+            'item-drag-begin', (_wm, source) => Main.overview.beginItemDrag(source),
+            'item-drag-cancelled', (_wm, source) => Main.overview.cancelledItemDrag(source),
+            'item-drag-end', (_wm, source) => Main.overview.endItemDrag(source),
+            this);
+        Main.overview.connectObject(
+            'window-drag-begin', () => this.dash.window_drag_begin(),
+            'window-drag-cancelled', () => this.dash.window_drag_end(),
+            'window-drag-end', () => this.dash.window_drag_end(),
+            this);
 
         this._workspaceAdjustment = Main.createWorkspacesAdjustment(this);
 
@@ -369,11 +381,17 @@ class ControlsManager extends St.Widget {
         this._stateAdjustment.connectObject('notify::value',
             () => this._update(), this);
 
+        // The size of the icon that is dragged out of the app grid and the
+        // search results is the one of the dash
+        const appSearchProvider = new Shell.AppSearchProvider({window_manager: Main.wm});
+        this.dash.bind_property('icon-size', appSearchProvider, 'drag-icon-size',
+            GObject.BindingFlags.SYNC_CREATE);
+
         this._searchController = new Shell.SearchController({
             search_entry: this._searchEntry,
-            show_apps_button: this.dash.showAppsButton,
+            show_apps_button: this.dash.show_apps_button,
             ctrl_alt_tab_manager: Main.ctrlAltTabManager,
-            application_provider: new AppDisplay.AppSearchProvider(),
+            application_provider: appSearchProvider,
         });
         this._searchController.connectObject(
             'notify::search-active', () => this._onSearchChanged(),
@@ -408,7 +426,9 @@ class ControlsManager extends St.Widget {
             this,
             this._workspaceAdjustment,
             this._stateAdjustment);
-        this._appDisplay = new AppDisplay.AppDisplay();
+        this._appDisplay = new Shell.AppDisplay({window_manager: Main.wm});
+        this.dash.bind_property('icon-size', this._appDisplay, 'drag-icon-size',
+            GObject.BindingFlags.SYNC_CREATE);
 
         this.add_child(this._searchEntryBin);
         this.add_child(this._appDisplay);
@@ -428,7 +448,7 @@ class ControlsManager extends St.Widget {
             this.dash,
             this._stateAdjustment);
 
-        this.dash.showAppsButton.connectObject('notify::checked',
+        this.dash.show_apps_button.connectObject('notify::checked',
             () => this._onShowAppsButtonToggled(), this);
 
         Main.ctrlAltTabManager.add_group_full(
@@ -438,7 +458,7 @@ class ControlsManager extends St.Widget {
             Shell.CtrlAltTabSortGroup.MIDDLE,
             this,
             () => {
-                this.dash.showAppsButton.checked = true;
+                this.dash.show_apps_button.checked = true;
                 this.appDisplay.navigate_focus(
                     null, St.DirectionType.TAB_FORWARD, false);
             });
@@ -450,7 +470,7 @@ class ControlsManager extends St.Widget {
             Shell.CtrlAltTabSortGroup.MIDDLE,
             this,
             () => {
-                this.dash.showAppsButton.checked = false;
+                this.dash.show_apps_button.checked = false;
                 this._workspacesDisplay.navigate_focus(
                     null, St.DirectionType.TAB_FORWARD, false);
             });
@@ -680,7 +700,7 @@ class ControlsManager extends St.Widget {
         if (this._ignoreShowAppsButtonToggle)
             return;
 
-        const checked = this.dash.showAppsButton.checked;
+        const checked = this.dash.show_apps_button.checked;
 
         const value = checked
             ? ControlsState.APP_GRID : ControlsState.WINDOW_PICKER;
@@ -693,8 +713,8 @@ class ControlsManager extends St.Widget {
 
     _toggleAppsPage() {
         if (Main.overview.visible) {
-            const checked = this.dash.showAppsButton.checked;
-            this.dash.showAppsButton.checked = !checked;
+            const checked = this.dash.show_apps_button.checked;
+            this.dash.show_apps_button.checked = !checked;
         } else {
             Main.overview.show(ControlsState.APP_GRID);
         }
@@ -721,7 +741,7 @@ class ControlsManager extends St.Widget {
                 duration: SIDE_CONTROLS_ANIMATION_TIME,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
                 onComplete: () => {
-                    this.dash.showAppsButton.checked =
+                    this.dash.show_apps_button.checked =
                         finalState === ControlsState.APP_GRID;
                 },
             });
@@ -765,7 +785,7 @@ class ControlsManager extends St.Widget {
             },
         });
 
-        this.dash.showAppsButton.checked =
+        this.dash.show_apps_button.checked =
             state === ControlsState.APP_GRID;
 
         this._ignoreShowAppsButtonToggle = false;
@@ -778,7 +798,7 @@ class ControlsManager extends St.Widget {
             duration: Overview.ANIMATION_TIME,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onStopped: () => {
-                this.dash.showAppsButton.checked = false;
+                this.dash.show_apps_button.checked = false;
                 this._ignoreShowAppsButtonToggle = false;
 
                 if (callback)
@@ -819,7 +839,7 @@ class ControlsManager extends St.Widget {
         if (target === ControlsState.HIDDEN)
             this.prepareToLeaveOverview();
 
-        this.dash.showAppsButton.checked =
+        this.dash.show_apps_button.checked =
             target === ControlsState.APP_GRID;
 
         this._stateAdjustment.remove_transition('value');
@@ -846,7 +866,7 @@ class ControlsManager extends St.Widget {
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             }));
 
-        this.dash.showAppsButton.checked = false;
+        this.dash.show_apps_button.checked = false;
         this._ignoreShowAppsButtonToggle = false;
 
         // Set the opacity here to avoid a 1-frame flicker

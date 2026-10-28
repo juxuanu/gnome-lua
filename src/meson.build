@@ -174,6 +174,8 @@ libshell_public_headers = [
   'ui/window-preview.h',
   'ui/workspace.h',
   'ui/workspace-thumbnail.h',
+  'ui/app-display.h',
+  'ui/dash.h',
   'shell-camera-monitor.h',
   'shell-edge-drag-gesture.h',
   'shell-global.h',
@@ -225,7 +227,8 @@ libshell_private_headers = [
   'shell-app-cache-private.h',
   'shell-app-system-private.h',
   'shell-global-private.h',
-  'shell-wm-private.h'
+  'shell-wm-private.h',
+  'ui/deferred-work.h'
 ]
 
 if have_xwayland
@@ -301,6 +304,8 @@ libshell_sources = [
   'ui/window-preview.c',
   'ui/workspace.c',
   'ui/workspace-thumbnail.c',
+  'ui/app-display.c',
+  'ui/dash.c',
   'shell-camera-monitor.c',
   'misc/gnome-session.c',
   'misc/ibus-manager.c',
@@ -354,6 +359,7 @@ endif
 
 libshell_private_sources = [
   'shell-app-cache.c',
+  'ui/deferred-work.c',
 ]
 
 libshell_enums = gnome.mkenums_simple('shell-enum-types',

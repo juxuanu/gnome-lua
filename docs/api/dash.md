@@ -3,7 +3,7 @@
 Scope: adding launcher-style icon buttons to the dash (the dock in the
 overview). A button is an icon with a label and one action. It is not an
 application icon: it has no `Shell.App`, no running state and no menu. Models
-`DashItemContainer` (`js/ui/dash.js`) hosting a `St.Button`, as `ShowAppsIcon`
+`DashItemContainer` (`src/ui/dash.c`, was `js/ui/dash.js`) hosting a `St.Button`, as `ShowAppsIcon`
 does, but in an extension-owned group beside the app icons.
 
 Not in v1:

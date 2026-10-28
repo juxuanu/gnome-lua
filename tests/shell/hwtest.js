@@ -143,7 +143,7 @@ export async function run() {
     await Scripting.sleep(1000);
 
     Scripting.scriptEvent('applicationsShowStart');
-    Main.overview.dash.showAppsButton.checked = true;
+    Main.overview.dash.show_apps_button.checked = true;
 
     await Scripting.waitLeisure();
     Scripting.scriptEvent('applicationsShowDone');
