@@ -1971,7 +1971,6 @@ dash_clear_drag_placeholder (ShellDash *self)
     }
 
   self->drag_placeholder_pos = -1;
-  self->ext_items = g_ptr_array_new_with_free_func (dash_ext_item_free);
 }
 
 static void
@@ -3620,6 +3619,7 @@ shell_dash_init (ShellDash *self)
   self->max_height = -1;
   self->icon_size = 64;
   self->drag_placeholder_pos = -1;
+  self->ext_items = g_ptr_array_new_with_free_func (dash_ext_item_free);
 }
 
 /**
