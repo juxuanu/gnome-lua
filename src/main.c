@@ -4,6 +4,10 @@
 
 #include "config.h"
 
+#ifdef __SANITIZE_ADDRESS__
+#include <sanitizer/common_interface_defs.h>
+#endif
+
 #if defined (HAVE_MALLINFO) || defined (HAVE_MALLINFO2)
 #include <malloc.h>
 #endif
@@ -453,6 +457,11 @@ dump_gjs_stack_on_signal_handler (int signo)
    * code is running */
   shell_lua_dump_stack ();
   gjs_dumpstack ();
+#ifdef __SANITIZE_ADDRESS__
+  /* The C side of a fatal warning (gnome-lua): the sanitizer symbolizes
+   * the stack of the frame that raised it */
+  __sanitizer_print_stack_trace ();
+#endif
   alarm (0);
 
   raise (signo);
