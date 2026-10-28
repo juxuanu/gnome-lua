@@ -27,7 +27,7 @@ class DarkModeToggle extends QuickToggle {
     }
 
     _toggleMode() {
-        Main.layoutManager.screenTransition.run();
+        Main.layoutManager.screen_transition.run();
         this._settings.set_string('color-scheme',
             this.checked ? 'default' : 'prefer-dark');
     }

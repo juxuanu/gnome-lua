@@ -6,7 +6,6 @@ import Mtk from 'gi://Mtk';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Layout from './layout.js';
 
 import * as Main from './main.js';
 import * as OverviewControls from './overviewControls.js';
@@ -290,7 +289,7 @@ class WorkspacesView extends WorkspacesViewBase {
         const {transitioning, initialState, finalState} =
             this._overviewAdjustment.getStateTransitionParams();
 
-        const isPrimary = Main.layoutManager.primaryIndex === this._monitorIndex;
+        const isPrimary = Main.layoutManager.primary_index === this._monitorIndex;
 
         if (isPrimary && transitioning) {
             const initialFitMode = this._getFitModeForState(initialState);
@@ -598,7 +597,7 @@ class SecondaryMonitorDisplay extends St.Widget {
 
         super._init({
             style_class: 'secondary-monitor-workspaces',
-            constraints: new Layout.MonitorConstraint({
+            constraints: new Shell.MonitorConstraint({
                 index: this._monitorIndex,
                 work_area: true,
             }),
@@ -866,7 +865,7 @@ export class WorkspacesDisplay extends St.Widget {
             this._activeWorkspaceChanged.bind(this), this);
 
         this._swipeTracker = new SwipeTracker.SwipeTracker(
-            Main.layoutManager.overviewGroup,
+            Main.layoutManager.overview_group,
             Clutter.Orientation.HORIZONTAL,
             Shell.ActionMode.OVERVIEW,
             {
@@ -889,7 +888,7 @@ export class WorkspacesDisplay extends St.Widget {
             'window-drag-end', this._windowDragEnd.bind(this), this);
 
         this._primaryVisible = true;
-        this._primaryIndex = Main.layoutManager.primaryIndex;
+        this._primaryIndex = Main.layoutManager.primary_index;
         this._workspacesViews = [];
 
         this._settings = new Gio.Settings({schema_id: MUTTER_SCHEMA});
@@ -1020,7 +1019,7 @@ export class WorkspacesDisplay extends St.Widget {
 
         this._primaryVisible = visible;
 
-        const primaryIndex = Main.layoutManager.primaryIndex;
+        const primaryIndex = Main.layoutManager.primary_index;
         const primaryWorkspace = this._workspacesViews[primaryIndex];
         if (primaryWorkspace)
             primaryWorkspace.visible = visible;
@@ -1060,10 +1059,10 @@ export class WorkspacesDisplay extends St.Widget {
         for (let i = 0; i < this._workspacesViews.length; i++)
             this._workspacesViews[i].destroy();
 
-        this._primaryIndex = Main.layoutManager.primaryIndex;
+        this._primaryIndex = Main.layoutManager.primary_index;
         this._workspacesViews = [];
-        const monitors = Main.layoutManager.monitors;
-        for (let i = 0; i < monitors.length; i++) {
+        const nMonitors = Main.layoutManager.n_monitors;
+        for (let i = 0; i < nMonitors; i++) {
             let view;
             if (i === this._primaryIndex) {
                 view = new WorkspacesView(i,
@@ -1081,7 +1080,7 @@ export class WorkspacesDisplay extends St.Widget {
                     this._scrollAdjustment,
                     this._fitModeAdjustment,
                     this._overviewAdjustment);
-                Main.layoutManager.overviewGroup.add_child(view);
+                Main.layoutManager.overview_group.add_child(view);
             }
 
             this._workspacesViews.push(view);

@@ -40,7 +40,7 @@ export async function run() {
     defineScriptEvent('fittsyTopBarHorzLTR', 'Top bar extends to left screen edge');
     defineScriptEvent('fittsyTopBarHorzRTL', 'Top bar extends to right screen edge');
 
-    const {primaryMonitor} = Main.layoutManager;
+    const primaryMonitor = Main.layoutManager.primary_monitor;
     const topEdge = primaryMonitor.y + EPSILON;
     const bottomEdge = primaryMonitor.y + primaryMonitor.height - EPSILON;
     const leftEdge = primaryMonitor.x + EPSILON;

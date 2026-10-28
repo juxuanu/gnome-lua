@@ -4,7 +4,6 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Layout from './layout.js';
 import * as SwipeTracker from './swipeTracker.js';
 import * as Util from '../misc/util.js';
 
@@ -206,7 +205,7 @@ export const MonitorGroup = GObject.registerClass({
 
         this._monitor = monitor;
 
-        const constraint = new Layout.MonitorConstraint({index: monitor.index});
+        const constraint = new Shell.MonitorConstraint({index: monitor.index});
         this.add_constraint(constraint);
 
         this._container = new Clutter.Actor();
@@ -228,7 +227,7 @@ export const MonitorGroup = GObject.registerClass({
             const ws = workspaceManager.get_workspace_by_index(i);
             const fullscreen = ws.list_windows().some(w => w.get_monitor() === monitor.index && w.is_fullscreen());
 
-            if (i > 0 && vertical && !fullscreen && monitor.index === Main.layoutManager.primaryIndex) {
+            if (i > 0 && vertical && !fullscreen && monitor.index === Main.layoutManager.primary_index) {
                 // We have to shift windows up or down by the height of the panel to prevent having a
                 // visible gap between the windows while switching workspaces. Since fullscreen windows
                 // hide the panel, they don't need to be shifted up or down.
@@ -251,7 +250,7 @@ export const MonitorGroup = GObject.registerClass({
 
         this.progress = this.getWorkspaceProgress(activeWorkspace);
 
-        if (monitor.index === Main.layoutManager.primaryIndex) {
+        if (monitor.index === Main.layoutManager.primary_index) {
             this._workspacesAdjustment = Main.createWorkspacesAdjustment(this);
             this.bind_property_full('progress',
                 this._workspacesAdjustment, 'value',
@@ -406,12 +405,14 @@ export class WorkspaceAnimationController {
         if (!workspaceIndices)
             workspaceIndices = [...Array(nWorkspaces).keys()];
 
+        const {layoutManager} = Main;
         const monitors = Meta.prefs_get_workspaces_only_on_primary()
-            ? [Main.layoutManager.primaryMonitor] : Main.layoutManager.monitors;
+            ? [layoutManager.primary_monitor]
+            : [...Array(layoutManager.n_monitors).keys()].map(i => layoutManager.get_monitor(i));
 
         for (const monitor of monitors) {
             if (Meta.prefs_get_workspaces_only_on_primary() &&
-                monitor.index !== Main.layoutManager.primaryIndex)
+                monitor.index !== Main.layoutManager.primary_index)
                 continue;
 
             const group = new MonitorGroup(monitor, workspaceIndices, this.movingWindow);
@@ -485,7 +486,7 @@ export class WorkspaceAnimationController {
                 mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
             };
 
-            if (monitorGroup.index === Main.layoutManager.primaryIndex) {
+            if (monitorGroup.index === Main.layoutManager.primary_index) {
                 params.onComplete = () => {
                     this._finishWorkspaceSwitch(this._switchData);
                     onComplete();
@@ -507,7 +508,7 @@ export class WorkspaceAnimationController {
 
     _switchWorkspaceBegin(tracker, monitor) {
         if (Meta.prefs_get_workspaces_only_on_primary() &&
-            monitor !== Main.layoutManager.primaryIndex)
+            monitor !== Main.layoutManager.primary_index)
             return;
 
         const workspaceManager = global.workspace_manager;
@@ -562,7 +563,7 @@ export class WorkspaceAnimationController {
                 mode: Clutter.AnimationMode.EASE_OUT_CUBIC,
             };
 
-            if (monitorGroup.index === Main.layoutManager.primaryIndex) {
+            if (monitorGroup.index === Main.layoutManager.primary_index) {
                 params.onComplete = () => {
                     if (!newWs.active)
                         newWs.activate(endTime);

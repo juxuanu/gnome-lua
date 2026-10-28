@@ -12,7 +12,6 @@ import * as Signals from '../misc/signals.js';
 export const ANIMATION_TIME = 250;
 
 import * as DND from './dnd.js';
-import * as LayoutManager from './layout.js';
 import * as Main from './main.js';
 import * as OverviewControls from './overviewControls.js';
 import * as SwipeTracker from './swipeTracker.js';
@@ -34,7 +33,7 @@ class OverviewActor extends St.BoxLayout {
             orientation: Clutter.Orientation.VERTICAL,
         });
 
-        this.add_constraint(new LayoutManager.MonitorConstraint({primary: true}));
+        this.add_constraint(new Shell.MonitorConstraint({primary: true}));
 
         this._controls = new OverviewControls.ControlsManager();
         this.add_child(this._controls);
@@ -165,7 +164,7 @@ export class Overview extends Signals.EventEmitter {
             opacity: 0,
             reactive: true,
         });
-        Main.layoutManager.overviewGroup.add_child(this._coverPane);
+        Main.layoutManager.overview_group.add_child(this._coverPane);
         this._coverPane.hide();
 
         // XDND
@@ -174,7 +173,7 @@ export class Overview extends Signals.EventEmitter {
         };
 
 
-        Main.layoutManager.overviewGroup.connect('scroll-event',
+        Main.layoutManager.overview_group.connect('scroll-event',
             this._onScrollEvent.bind(this));
         Main.xdndHandler.connect('drag-begin', this._onDragBegin.bind(this));
         Main.xdndHandler.connect('drag-end', this._onDragEnd.bind(this));
@@ -211,7 +210,7 @@ export class Overview extends Signals.EventEmitter {
 
         this._overview = new OverviewActor();
         this._overview._delegate = this;
-        Main.layoutManager.overviewGroup.add_child(this._overview);
+        Main.layoutManager.overview_group.add_child(this._overview);
 
         Main.layoutManager.connect('monitors-changed', this._relayout.bind(this));
         this._relayout();
@@ -365,12 +364,12 @@ export class Overview extends Signals.EventEmitter {
             this._visible = true;
             this._visibleTarget = true;
 
-            Main.layoutManager.overviewGroup.set_child_above_sibling(
+            Main.layoutManager.overview_group.set_child_above_sibling(
                 this._coverPane, null);
             this._coverPane.show();
             this._changeShownState(OverviewShownState.SHOWING);
 
-            Main.layoutManager.showOverview();
+            Main.layoutManager.show_overview();
             this._syncGrab();
 
             this._animationInProgress = true;
@@ -496,7 +495,7 @@ export class Overview extends Signals.EventEmitter {
         if (!this._syncGrab())
             return;
 
-        Main.layoutManager.showOverview();
+        Main.layoutManager.show_overview();
         this._animateVisible(state);
     }
 
@@ -510,7 +509,7 @@ export class Overview extends Signals.EventEmitter {
         this._visibleTarget = true;
         this._activationTime = GLib.get_monotonic_time() / GLib.USEC_PER_SEC;
 
-        Main.layoutManager.overviewGroup.set_child_above_sibling(
+        Main.layoutManager.overview_group.set_child_above_sibling(
             this._coverPane, null);
         this._coverPane.show();
 
@@ -567,7 +566,7 @@ export class Overview extends Signals.EventEmitter {
         this._animationInProgress = true;
         this._visibleTarget = false;
 
-        Main.layoutManager.overviewGroup.set_child_above_sibling(
+        Main.layoutManager.overview_group.set_child_above_sibling(
             this._coverPane, null);
         this._coverPane.show();
 
@@ -587,7 +586,7 @@ export class Overview extends Signals.EventEmitter {
             this._changeShownState(OverviewShownState.HIDDEN);
             this._animateVisible(OverviewControls.ControlsState.WINDOW_PICKER);
         } else {
-            Main.layoutManager.hideOverview();
+            Main.layoutManager.hide_overview();
             this._changeShownState(OverviewShownState.HIDDEN);
         }
 
@@ -621,7 +620,7 @@ export class Overview extends Signals.EventEmitter {
         this._shown = true;
         this._visible = true;
         this._visibleTarget = true;
-        Main.layoutManager.showOverview();
+        Main.layoutManager.show_overview();
         // We should call this._syncGrab() here, but moved it to happen after
         // the animation because of a race in the xserver where the grab
         // fails when requested very early during startup.

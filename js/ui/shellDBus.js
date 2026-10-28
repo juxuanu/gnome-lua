@@ -275,7 +275,7 @@ export class GnomeShell {
             return;
         }
 
-        Main.layoutManager.screenTransition.run();
+        Main.layoutManager.screen_transition.run();
 
         invocation.return_value(null);
     }

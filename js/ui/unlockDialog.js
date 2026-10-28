@@ -9,7 +9,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Layout from './layout.js';
 import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
 import * as SwipeTracker from './swipeTracker.js';
@@ -768,7 +767,7 @@ export const UnlockDialog = GObject.registerClass({
 
         // Main Box
         const mainBox = new St.Widget();
-        mainBox.add_constraint(new Layout.MonitorConstraint({primary: true}));
+        mainBox.add_constraint(new Shell.MonitorConstraint({primary: true}));
         mainBox.add_child(this._stack);
         mainBox.add_child(this._notificationsBox);
         mainBox.add_child(this._authIndicatorButton);
@@ -823,7 +822,7 @@ export const UnlockDialog = GObject.registerClass({
     }
 
     _createBackground(monitorIndex) {
-        const monitor = Main.layoutManager.monitors[monitorIndex];
+        const monitor = Main.layoutManager.get_monitor(monitorIndex);
         const widget = new St.Widget({
             style_class: 'screen-shield-background',
             x: monitor.x,
@@ -866,7 +865,7 @@ export const UnlockDialog = GObject.registerClass({
         this._bgManagers = [];
         this._backgroundGroup.destroy_all_children();
 
-        for (let i = 0; i < Main.layoutManager.monitors.length; i++)
+        for (let i = 0; i < Main.layoutManager.n_monitors; i++)
             this._createBackground(i);
         this._updateBackgroundEffects();
     }
@@ -1048,7 +1047,7 @@ export const UnlockDialog = GObject.registerClass({
     }
 
     _swipeBegin(tracker, monitor) {
-        if (monitor !== Main.layoutManager.primaryIndex)
+        if (monitor !== Main.layoutManager.primary_index)
             return;
 
         this._adjustment.remove_transition('value');

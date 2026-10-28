@@ -1,7 +1,6 @@
 import Gio from 'gi://Gio';
+import Shell from 'gi://Shell';
 import * as Signals from '../misc/signals.js';
-
-import * as ObjectManager from '../misc/objectManager.js';
 
 const SmartcardTokenIface = `
 <node>
@@ -12,6 +11,23 @@ const SmartcardTokenIface = `
   <property name="UsedToLogin" type="b" access="read"/>
 </interface>
 </node>`;
+
+const SMARTCARD_TOKEN_PROPERTIES = ['Name', 'Driver', 'IsInserted', 'UsedToLogin'];
+
+/**
+ * The proxies of the object manager are plain Gio.DBusProxy objects created
+ * in C, so GJS did not add the accessors of the interface properties to them.
+ *
+ * @param {Gio.DBusProxy} token - a token proxy
+ */
+function _addTokenProperties(token) {
+    for (const name of SMARTCARD_TOKEN_PROPERTIES) {
+        Object.defineProperty(token, name, {
+            configurable: true,
+            get: () => token.get_cached_property(name)?.deepUnpack() ?? null,
+        });
+    }
+}
 
 let _smartcardManager = null;
 
@@ -29,19 +45,19 @@ class SmartcardManager extends Signals.EventEmitter {
     constructor() {
         super();
 
-        this._objectManager = new ObjectManager.ObjectManager({
+        this._objectManager = new Shell.DBusObjectManager({
             connection: Gio.DBus.session,
             name: 'org.gnome.SettingsDaemon.Smartcard',
-            objectPath: '/org/gnome/SettingsDaemon/Smartcard',
-            knownInterfaces: [SmartcardTokenIface],
-            onLoaded: this._onLoaded.bind(this),
+            object_path: '/org/gnome/SettingsDaemon/Smartcard',
+            known_interfaces: [SmartcardTokenIface],
         });
+        this._objectManager.connect('loaded', this._onLoaded.bind(this));
         this._insertedTokens = {};
         this._loginToken = null;
     }
 
     _onLoaded() {
-        const tokens = this._objectManager.getProxiesForInterface('org.gnome.SettingsDaemon.Smartcard.Token');
+        const tokens = this._objectManager.get_proxies_for_interface('org.gnome.SettingsDaemon.Smartcard.Token');
 
         for (let i = 0; i < tokens.length; i++)
             this._addToken(tokens[i]);
@@ -76,6 +92,7 @@ class SmartcardManager extends Signals.EventEmitter {
         if (objectPath.endsWith('/login_token'))
             return;
 
+        _addTokenProperties(token);
         this._updateToken(token);
 
         token.connectObject('g-properties-changed', (proxy, properties) => {

@@ -9,7 +9,6 @@ import Mtk from 'gi://Mtk';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Layout from './layout.js';
 import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
 import * as Workspace from './workspace.js';
@@ -353,9 +352,9 @@ const UIAreaSelector = GObject.registerClass({
 
     resetArea() {
         // This can called when running headless without any monitors.
-        if (Main.layoutManager.primaryIndex !== -1) {
+        if (Main.layoutManager.primary_index !== -1) {
             const monitor =
-                Main.layoutManager.monitors[Main.layoutManager.primaryIndex];
+                Main.layoutManager.get_monitor(Main.layoutManager.primary_index);
 
             this._startX = monitor.x + Math.floor(monitor.width * 3 / 8);
             this._startY = monitor.y + Math.floor(monitor.height * 3 / 8);
@@ -1563,7 +1562,7 @@ export class ScreenshotUI extends St.Widget {
             source: global.stage,
             coordinate: Clutter.BindCoordinate.ALL,
         }));
-        Main.layoutManager.screenshotUIGroup.add_child(
+        Main.layoutManager.screenshot_ui_group.add_child(
             this._stageScreenshotContainer);
 
         this._screencastAreaIndicator = new UIAreaIndicator({
@@ -1583,7 +1582,7 @@ export class ScreenshotUI extends St.Widget {
         global.stage.add_child(this._screencastAreaIndicator);
         Shell.util_set_hidden_from_pick(this._screencastAreaIndicator, true);
 
-        Main.layoutManager.screenshotUIGroup.add_child(this);
+        Main.layoutManager.screenshot_ui_group.add_child(this);
 
         this._stageScreenshot = new St.Widget({style_class: 'screenshot-ui-screen-screenshot'});
         this._stageScreenshot.add_constraint(new Clutter.BindConstraint({
@@ -1611,7 +1610,7 @@ export class ScreenshotUI extends St.Widget {
 
         this._primaryMonitorBin = new St.Widget({layout_manager: new Clutter.BinLayout()});
         this._primaryMonitorBin.add_constraint(
-            new Layout.MonitorConstraint({'primary': true}));
+            new Shell.MonitorConstraint({'primary': true}));
         this.add_child(this._primaryMonitorBin);
 
         this._panel = new St.BoxLayout({
@@ -1940,11 +1939,11 @@ export class ScreenshotUI extends St.Widget {
         this._windowSelectors = [];
         this._screenSelectors = [];
 
-        for (let i = 0; i < Main.layoutManager.monitors.length; i++) {
+        for (let i = 0; i < Main.layoutManager.n_monitors; i++) {
             const bin = new St.Widget({
                 layout_manager: new Clutter.BinLayout(),
             });
-            bin.add_constraint(new Layout.MonitorConstraint({'index': i}));
+            bin.add_constraint(new Shell.MonitorConstraint({'index': i}));
             this.insert_child_below(bin, this._primaryMonitorBin);
             this._monitorBins.push(bin);
 
@@ -1954,7 +1953,7 @@ export class ScreenshotUI extends St.Widget {
                 y_expand: true,
                 visible: this._windowButton.checked,
             });
-            if (i === Main.layoutManager.primaryIndex)
+            if (i === Main.layoutManager.primary_index)
                 windowSelector.add_style_pseudo_class('primary-monitor');
 
             bin.add_child(windowSelector);
@@ -1992,8 +1991,8 @@ export class ScreenshotUI extends St.Widget {
             });
         }
 
-        if (Main.layoutManager.primaryIndex !== -1)
-            this._screenSelectors[Main.layoutManager.primaryIndex].checked = true;
+        if (Main.layoutManager.primary_index !== -1)
+            this._screenSelectors[Main.layoutManager.primary_index].checked = true;
     }
 
     async open(mode = UIMode.SCREENSHOT) {
@@ -2079,7 +2078,7 @@ export class ScreenshotUI extends St.Widget {
         // pop their grabs.
         Main.layoutManager.emit('system-modal-opened');
 
-        const {screenshotUIGroup} = Main.layoutManager;
+        const screenshotUIGroup = Main.layoutManager.screenshot_ui_group;
         screenshotUIGroup.get_parent().set_child_above_sibling(
             screenshotUIGroup, null);
 
@@ -2116,7 +2115,7 @@ export class ScreenshotUI extends St.Widget {
 
         this._stageScreenshotContainer.get_parent().remove_child(
             this._stageScreenshotContainer);
-        Main.layoutManager.screenshotUIGroup.insert_child_at_index(
+        Main.layoutManager.screenshot_ui_group.insert_child_at_index(
             this._stageScreenshotContainer, 0);
         this._stageScreenshotContainer.hide();
 
@@ -2290,7 +2289,7 @@ export class ScreenshotUI extends St.Widget {
         } else if (this._screenButton.checked) {
             const index =
                 this._screenSelectors.findIndex(screen => screen.checked);
-            const monitor = Main.layoutManager.monitors[index];
+            const monitor = Main.layoutManager.get_monitor(index);
 
             x = monitor.x;
             y = monitor.y;
@@ -2402,7 +2401,7 @@ export class ScreenshotUI extends St.Widget {
         } else if (this._screenButton.checked) {
             const index =
                 this._screenSelectors.findIndex(screen => screen.checked);
-            const monitor = Main.layoutManager.monitors[index];
+            const monitor = Main.layoutManager.get_monitor(index);
 
             this._screencastAreaIndicator.setSelectionRect(
                 monitor.x, monitor.y, monitor.width, monitor.height);
@@ -2582,9 +2581,9 @@ export class ScreenshotUI extends St.Widget {
             increment = CTRL_SELECTION_KEYBOARD_INCREMENT;
         } else if (modifier & Clutter.ModifierType.SHIFT_MASK) {
             if (direction === St.DirectionType.LEFT || direction === St.DirectionType.RIGHT)
-                increment = Main.layoutManager.primaryMonitor.width;
+                increment = Main.layoutManager.primary_monitor.width;
             else if (direction === St.DirectionType.DOWN || direction === St.DirectionType.UP)
-                increment = Main.layoutManager.primaryMonitor.height;
+                increment = Main.layoutManager.primary_monitor.height;
         } else {
             increment = SELECTION_KEYBOARD_INCREMENT;
         }

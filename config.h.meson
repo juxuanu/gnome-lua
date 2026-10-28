@@ -42,3 +42,9 @@
 
 /* Whether GNOME Shell is built with XWayland support */
 #mesondefine HAVE_XWAYLAND
+
+/* Whether GNOME Shell is built with libmalcontent (parental controls) */
+#mesondefine HAVE_MALCONTENT
+
+/* Whether libmalcontent is new enough for session limits (0.14.0) */
+#mesondefine HAVE_MALCONTENT_0_14

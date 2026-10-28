@@ -643,7 +643,7 @@ class TestHarness {
 
                         this._parentalControlsManagerSessionLimitsChangedCallback = sessionLimitsChangedCallback;
                     },
-                    sessionLimitsEnabled: () => {
+                    session_limits_enabled: () => {
                         return this._sessionLimitsEnabled;
                     },
                 };

@@ -133,6 +133,7 @@ libshell_public_headers = [
   'ui/osd-monitor-labeler.h',
   'ui/page-indicators.h',
   'ui/workspace-switcher-popup.h',
+  'ui/layout.h',
   'shell-camera-monitor.h',
   'shell-edge-drag-gesture.h',
   'shell-global.h',
@@ -146,6 +147,9 @@ libshell_public_headers = [
   'misc/history.h',
   'misc/permission-store.h',
   'misc/system-actions.h',
+  'misc/dbus-object-manager.h',
+  'misc/parental-controls-manager.h',
+  'misc/weather.h',
   'shell-mount-operation.h',
   'shell-perf-log.h',
   'shell-screenshot.h',
@@ -169,7 +173,7 @@ if have_xwayland
 endif
 
 if have_networkmanager
-  libshell_public_headers += 'shell-network-agent.h'
+  libshell_public_headers += ['shell-network-agent.h', 'misc/modem-manager.h']
 endif
 
 libshell_private_headers = [
@@ -213,6 +217,7 @@ libshell_sources = [
   'ui/osd-monitor-labeler.c',
   'ui/page-indicators.c',
   'ui/workspace-switcher-popup.c',
+  'ui/layout.c',
   'shell-camera-monitor.c',
   'misc/gnome-session.c',
   'misc/ibus-manager.c',
@@ -222,6 +227,9 @@ libshell_sources = [
   'misc/history.c',
   'misc/permission-store.c',
   'misc/system-actions.c',
+  'misc/dbus-object-manager.c',
+  'misc/parental-controls-manager.c',
+  'misc/weather.c',
   'shell-edge-drag-gesture.c',
   'shell-global.c',
   'shell-invert-lightness-effect.c',
@@ -254,7 +262,7 @@ if have_xwayland
 endif
 
 if have_networkmanager
-  libshell_sources += 'shell-network-agent.c'
+  libshell_sources += ['shell-network-agent.c', 'misc/modem-manager.c']
 endif
 
 libshell_private_sources = [
@@ -321,6 +329,27 @@ dbus_generated += gnome.gdbus_codegen('switcheroo-control',
   namespace: 'Shell'
 )
 
+# Private proxies of misc/weather.c and misc/modem-manager.c
+dbus_generated += gnome.gdbus_codegen('weather-integration-dbus',
+  sources: '../data/dbus-interfaces/org.gnome.Shell.WeatherIntegration.xml',
+  interface_prefix: 'org.gnome.Shell.',
+  namespace: 'Shell'
+)
+
+if have_networkmanager
+  dbus_generated += gnome.gdbus_codegen('modem-manager-dbus',
+    sources: [
+      '../data/dbus-interfaces/org.freedesktop.ModemManager.Modem.Gsm.Network.xml',
+      '../data/dbus-interfaces/org.freedesktop.ModemManager.Modem.Cdma.xml',
+      '../data/dbus-interfaces/org.freedesktop.ModemManager1.Modem.xml',
+      '../data/dbus-interfaces/org.freedesktop.ModemManager1.Modem.Modem3gpp.xml',
+      '../data/dbus-interfaces/org.freedesktop.ModemManager1.Modem.ModemCdma.xml',
+    ],
+    interface_prefix: 'org.freedesktop.',
+    namespace: 'Shell'
+  )
+endif
+
 libshell_no_gir_sources += dbus_generated
 
 libshell_link_with = []
@@ -330,7 +359,7 @@ endif
 
 libshell = library('shell-' + mutter_api_version,
   sources: libshell_gir_sources + libshell_no_gir_sources,
-  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, glycin_dep, ibus_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep],
+  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, glycin_dep, ibus_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep, gweather_dep, geoclue_dep, malcontent_dep],
   include_directories: [conf_inc, include_directories('tray')],
   c_args: gnome_shell_cflags,
   link_with: libshell_link_with,
@@ -353,6 +382,7 @@ libshell_gir_includes = [
   'GioUnix-2.0',
   'GnomeDesktop-4.0',
   'IBus-1.0',
+  'GWeather-4.0',
   'PolkitAgent-1.0',
   'GdkPixbuf-2.0'
 ]

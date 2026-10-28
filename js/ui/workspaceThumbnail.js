@@ -260,7 +260,7 @@ export const WorkspaceThumbnail = GObject.registerClass({
 
         this.connect('destroy', this._onDestroy.bind(this));
 
-        const workArea = Main.layoutManager.getWorkAreaForMonitor(this.monitorIndex);
+        const workArea = Main.layoutManager.get_work_area_for_monitor(this.monitorIndex);
         this.setPorthole(workArea.x, workArea.y, workArea.width, workArea.height);
 
         const windows = global.get_window_actors().filter(actor => {
@@ -1254,12 +1254,12 @@ export const ThumbnailsBox = GObject.registerClass({
     }
 
     _updatePorthole() {
-        if (!Main.layoutManager.monitors[this._monitorIndex]) {
+        if (!Main.layoutManager.get_monitor(this._monitorIndex)) {
             const {x, y, width, height} = global.stage;
             this._porthole = {x, y, width, height};
         } else {
             this._porthole =
-                Main.layoutManager.getWorkAreaForMonitor(this._monitorIndex);
+                Main.layoutManager.get_work_area_for_monitor(this._monitorIndex);
         }
 
         this.queue_relayout();

@@ -11,7 +11,6 @@ import St from 'gi://St';
 import * as Main from './main.js';
 import * as PanelMenu from './panelMenu.js';
 import * as Calendar from './calendar.js';
-import * as Weather from '../misc/weather.js';
 
 import {formatDateWithCFormatString, formatTime, clearCachedLocalTimeZone} from '../misc/dateUtils.js';
 import {loadInterfaceXML} from '../misc/fileUtils.js';
@@ -549,7 +548,7 @@ class WeatherSection extends St.Button {
             x_expand: true,
         });
 
-        this._weatherClient = new Weather.WeatherClient();
+        this._weatherClient = new Shell.WeatherClient();
 
         const box = new St.BoxLayout({
             style_class: 'weather-box',
@@ -595,7 +594,7 @@ class WeatherSection extends St.Button {
     }
 
     vfunc_clicked() {
-        this._weatherClient.activateApp();
+        this._weatherClient.activate_app();
 
         Main.overview.hide();
         Main.panel.closeCalendar();
@@ -694,7 +693,7 @@ class WeatherSection extends St.Button {
     _updateForecasts() {
         this._forecastGrid.destroy_all_children();
 
-        if (!this._weatherClient.hasLocation)
+        if (!this._weatherClient.has_location)
             return;
 
         const {info} = this._weatherClient;
@@ -722,18 +721,18 @@ class WeatherSection extends St.Button {
         if (!this.visible)
             return;
 
-        if (this._weatherClient.hasLocation)
+        if (this._weatherClient.has_location)
             this._titleLabel.text = _('Weather');
         else
             this._titleLabel.text = _('Select Weather Location…');
 
-        if (this._weatherClient.hasLocation)
+        if (this._weatherClient.has_location)
             this._titleLabel.remove_style_class_name('no-location');
         else
             this._titleLabel.add_style_class_name('no-location');
 
-        this._forecastGrid.visible = this._weatherClient.hasLocation;
-        this._titleLocation.visible = this._weatherClient.hasLocation;
+        this._forecastGrid.visible = this._weatherClient.has_location;
+        this._titleLocation.visible = this._weatherClient.has_location;
 
         this._updateForecasts();
     }

@@ -17,8 +17,6 @@ import * as WindowManager from './windowManager.js';
 import * as WorkspaceThumbnail from './workspaceThumbnail.js';
 import * as WorkspacesView from './workspacesView.js';
 
-import {STARTUP_ANIMATION_TIME} from './layout.js';
-
 export const SMALL_WORKSPACE_RATIO = 0.15;
 const DASH_MAX_HEIGHT_RATIO = 0.16;
 const VERTICAL_SPACING_RATIO = 0.02;
@@ -67,11 +65,11 @@ class ControlsManagerLayout extends Clutter.LayoutManager {
     }
 
     _updateWorkAreaBox() {
-        const monitor = Main.layoutManager.primaryMonitor;
+        const monitor = Main.layoutManager.primary_monitor;
         if (!monitor)
             return;
 
-        const workArea = Main.layoutManager.getWorkAreaForMonitor(monitor.index);
+        const workArea = Main.layoutManager.get_work_area_for_monitor(monitor.index);
         const startX = workArea.x - monitor.x;
         const startY = workArea.y - monitor.y;
         this._workAreaBox.set_origin(startX, startY);
@@ -354,9 +352,9 @@ class ControlsManager extends St.Widget {
             () => this._onSearchChanged(), this);
 
         Main.layoutManager.connectObject('monitors-changed', () =>
-            this._thumbnailsBox.setMonitorIndex(Main.layoutManager.primaryIndex), this);
+            this._thumbnailsBox.setMonitorIndex(Main.layoutManager.primary_index), this);
         this._thumbnailsBox = new WorkspaceThumbnail.ThumbnailsBox(
-            this._workspaceAdjustment, Main.layoutManager.primaryIndex);
+            this._workspaceAdjustment, Main.layoutManager.primary_index);
         this._thumbnailsBox.connectObject('notify::should-show', () => {
             this._thumbnailsBox.show();
             this._thumbnailsBox.ease_property('expand-fraction',
@@ -822,12 +820,12 @@ class ControlsManager extends St.Widget {
         startupPromises.push(
             this.easeAsync({
                 opacity: 255,
-                duration: STARTUP_ANIMATION_TIME,
+                duration: Shell.STARTUP_ANIMATION_TIME,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             }));
 
         // Search bar falls from the ceiling
-        const {primaryMonitor} = Main.layoutManager;
+        const primaryMonitor = Main.layoutManager.primary_monitor;
         const [, y] = this._searchEntryBin.get_transformed_position();
         const yOffset = y - primaryMonitor.y;
 
@@ -835,7 +833,7 @@ class ControlsManager extends St.Widget {
         startupPromises.push(
             this._searchEntryBin.easeAsync({
                 translation_y: 0,
-                duration: STARTUP_ANIMATION_TIME,
+                duration: Shell.STARTUP_ANIMATION_TIME,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             }));
 
@@ -845,8 +843,8 @@ class ControlsManager extends St.Widget {
         startupPromises.push(
             this.dash.easeAsync({
                 translation_y: 0,
-                delay: STARTUP_ANIMATION_TIME,
-                duration: STARTUP_ANIMATION_TIME,
+                delay: Shell.STARTUP_ANIMATION_TIME,
+                duration: Shell.STARTUP_ANIMATION_TIME,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             }));
 

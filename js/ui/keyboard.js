@@ -295,7 +295,7 @@ const Key = GObject.registerClass({
         }
 
         this.keyButton._extendedKeys = this._extendedKeyboard;
-        Main.layoutManager.addTopChrome(this._menu.actor);
+        Main.layoutManager.add_top_chrome(this._menu.actor, Shell.ChromeFlags.NONE);
     }
 
     _showSubkeys() {
@@ -966,7 +966,7 @@ export class KeyboardManager extends Signals.EventEmitter {
             this._keyboard?.gestureProgress(progress);
         });
         bottomDragGesture.connect('end', () => {
-            this._keyboard?.gestureActivate(Main.layoutManager.bottomIndex);
+            this._keyboard?.gestureActivate(Main.layoutManager.bottom_index);
         });
         bottomDragGesture.connect('cancel', () => {
             this._keyboard?.gestureCancel();
@@ -1018,7 +1018,7 @@ export class KeyboardManager extends Signals.EventEmitter {
     }
 
     open(monitor) {
-        Main.layoutManager.keyboardIndex = monitor;
+        Main.layoutManager.keyboard_index = monitor;
 
         if (this._keyboard)
             this._keyboard.open();
@@ -1124,9 +1124,9 @@ export const Keyboard = GObject.registerClass({
         this._keyboardController.setOskCompletion(false);
         this._keyboardController.destroy();
 
-        Main.layoutManager.untrackChrome(this);
-        Main.layoutManager.keyboardBox.remove_child(this);
-        Main.layoutManager.keyboardBox.hide();
+        Main.layoutManager.untrack_chrome(this);
+        Main.layoutManager.keyboard_box.remove_child(this);
+        Main.layoutManager.keyboard_box.hide();
 
         if (this._languagePopup) {
             this._languagePopup.destroy();
@@ -1135,8 +1135,8 @@ export const Keyboard = GObject.registerClass({
     }
 
     _setupKeyboard() {
-        Main.layoutManager.keyboardBox.add_child(this);
-        Main.layoutManager.trackChrome(this);
+        Main.layoutManager.keyboard_box.add_child(this);
+        Main.layoutManager.track_chrome(this);
 
         this._keyboardController = new KeyboardController();
 
@@ -1275,7 +1275,7 @@ export const Keyboard = GObject.registerClass({
 
         if (!this._showIdleId) {
             this._showIdleId = GLib.idle_add_once(GLib.PRIORITY_DEFAULT_IDLE, () => {
-                this.open(Main.layoutManager.focusIndex);
+                this.open(Main.layoutManager.focus_index);
                 this._showIdleId = 0;
             });
             GLib.Source.set_name_by_id(this._showIdleId, '[gnome-shell] this.open');
@@ -1474,7 +1474,7 @@ export const Keyboard = GObject.registerClass({
             this._languagePopup.destroy();
 
         this._languagePopup = new LanguageSelectionPopup(keyActor);
-        Main.layoutManager.addTopChrome(this._languagePopup.actor);
+        Main.layoutManager.add_top_chrome(this._languagePopup.actor, Shell.ChromeFlags.NONE);
         this._languagePopup.open(Shell.PopupAnimation.FULL);
     }
 
@@ -1518,7 +1518,7 @@ export const Keyboard = GObject.registerClass({
     }
 
     _relayout() {
-        const monitor = Main.layoutManager.keyboardMonitor;
+        const monitor = Main.layoutManager.keyboard_monitor;
         const [minHeight] = this.get_preferred_height(-1);
 
         if (!monitor)
@@ -1560,7 +1560,7 @@ export const Keyboard = GObject.registerClass({
             enabled = false;
 
         if (enabled)
-            this.open(Main.layoutManager.focusIndex);
+            this.open(Main.layoutManager.focus_index);
         else
             this.close(true);
     }
@@ -1673,7 +1673,7 @@ export const Keyboard = GObject.registerClass({
         if (this._focusWindow)
             this._animateWindow(this._focusWindow, true);
 
-        Main.layoutManager.keyboardBox.show();
+        Main.layoutManager.keyboard_box.show();
         this.ease({
             translation_y: -this.height,
             opacity: 255,
@@ -1688,7 +1688,7 @@ export const Keyboard = GObject.registerClass({
     }
 
     _animateShowComplete() {
-        const keyboardBox = Main.layoutManager.keyboardBox;
+        const keyboardBox = Main.layoutManager.keyboard_box;
         this._keyboardHeightNotifyId = keyboardBox.connect('notify::height', () => {
             this.translation_y = -this.height;
         });
@@ -1699,7 +1699,7 @@ export const Keyboard = GObject.registerClass({
             this._animateWindow(this._focusWindow, false);
 
         if (this._keyboardHeightNotifyId) {
-            Main.layoutManager.keyboardBox.disconnect(this._keyboardHeightNotifyId);
+            Main.layoutManager.keyboard_box.disconnect(this._keyboardHeightNotifyId);
             this._keyboardHeightNotifyId = 0;
         }
         this.ease({
@@ -1717,13 +1717,13 @@ export const Keyboard = GObject.registerClass({
     }
 
     _animateHideComplete() {
-        Main.layoutManager.keyboardBox.hide();
+        Main.layoutManager.keyboard_box.hide();
         global.compositor.enable_unredirect();
     }
 
     gestureProgress(delta) {
         this._gestureInProgress = true;
-        Main.layoutManager.keyboardBox.show();
+        Main.layoutManager.keyboard_box.show();
         const progress = Math.min(delta, this.height) / this.height;
         this.translation_y = -this.height * progress;
         this.opacity = 255 * progress;
@@ -1787,7 +1787,7 @@ export const Keyboard = GObject.registerClass({
             return;
 
         const finalY = show
-            ? this._focusWindowStartY - Main.layoutManager.keyboardBox.height
+            ? this._focusWindowStartY - Main.layoutManager.keyboard_box.height
             : this._focusWindowStartY;
 
         let unmanaged = false;
@@ -1841,10 +1841,10 @@ export const Keyboard = GObject.registerClass({
     }
 
     setCursorLocation(window, x, y, w, h) {
-        const monitor = Main.layoutManager.keyboardMonitor;
+        const monitor = Main.layoutManager.keyboard_monitor;
 
         if (window && monitor) {
-            const keyboardHeight = Main.layoutManager.keyboardBox.height;
+            const keyboardHeight = Main.layoutManager.keyboard_box.height;
             const keyboardY1 = (monitor.y + monitor.height) - keyboardHeight;
 
             if (this._focusWindow === window) {

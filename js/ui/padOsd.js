@@ -13,7 +13,6 @@ import St from 'gi://St';
 import * as Signals from '../misc/signals.js';
 
 import * as Main from './main.js';
-import * as Layout from './layout.js';
 
 import {loadInterfaceXML} from '../misc/fileUtils.js';
 
@@ -697,7 +696,7 @@ export const PadOsd = GObject.registerClass({
         Main.uiGroup.add_child(this);
 
         this._monitorIndex = monitorIndex;
-        const constraint = new Layout.MonitorConstraint({index: monitorIndex});
+        const constraint = new Shell.MonitorConstraint({index: monitorIndex});
         this.add_constraint(constraint);
 
         this._titleBox = new St.BoxLayout({

@@ -49,12 +49,12 @@ export function finish() {
     expectEqual(global.stage.width, global.screen_width, 'Stage Width');
     expectEqual(global.stage.height, global.screen_height, 'Stage Height');
 
-    expectEqual(Main.layoutManager.monitors.length, monitors.length, 'Monitors length');
-    expectEqual(Main.layoutManager.primaryMonitor, Main.layoutManager.monitors[0], 'Primary Monitor');
-    expectEqual(Main.layoutManager._bgManagers.length, monitors.length, 'Background Managers length');
+    expectEqual(Main.layoutManager.n_monitors, monitors.length, 'Monitors length');
+    expectEqual(Main.layoutManager.primary_monitor.index, Main.layoutManager.get_monitor(0).index, 'Primary Monitor');
+    expectEqual(Main.layoutManager.get_n_background_managers(), monitors.length, 'Background Managers length');
 
     for (let i = 0; i < monitors.length; ++i) {
-        const monitor = Main.layoutManager.monitors[i];
+        const monitor = Main.layoutManager.get_monitor(i);
         expectEqual(monitor.index, i, `Monitor ${i} index`);
         expectEqual(monitor.x, monitors[i].x, `Monitor ${i} x`);
         expectEqual(monitor.y, monitors[i].y, `Monitor ${i} y`);

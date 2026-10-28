@@ -10,7 +10,6 @@ import St from 'gi://St';
 import * as AppDisplay from './appDisplay.js';
 import * as IconGrid from './iconGrid.js';
 import * as Main from './main.js';
-import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as RemoteSearch from './remoteSearch.js';
 import {ensureActorVisibleInScrollView} from '../misc/animationUtils.js';
 
@@ -599,7 +598,7 @@ export const SearchResultsView = GObject.registerClass({
 
         global.focus_manager.add_group(this);
 
-        this._parentalControlsManager = ParentalControlsManager.getDefault();
+        this._parentalControlsManager = Shell.ParentalControlsManager.get_default();
         this._parentalControlsManager.connect('app-filter-changed', this._reloadRemoteProviders.bind(this));
 
         this._content = new MaxWidthBox({
@@ -681,7 +680,7 @@ export const SearchResultsView = GObject.registerClass({
         provider.searchInProgress = false;
 
         // Filter out unwanted providers.
-        if (provider.appInfo && !this._parentalControlsManager.shouldShowApp(provider.appInfo))
+        if (provider.appInfo && !this._parentalControlsManager.should_show_app(provider.appInfo))
             return;
 
         this._providers.push(provider);

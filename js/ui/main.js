@@ -25,7 +25,7 @@ import * as PadOsd from './padOsd.js';
 import * as Panel from './panel.js';
 import * as RunDialog from './runDialog.js';
 import * as WelcomeDialog from './welcomeDialog.js';
-import * as Layout from './layout.js';
+import * as BackgroundMenu from './backgroundMenu.js';
 import * as LookingGlass from './lookingGlass.js';
 import * as NotificationDaemon from './notificationDaemon.js';
 import * as WindowAttentionHandler from './windowAttentionHandler.js';
@@ -40,7 +40,6 @@ import * as WindowManager from './windowManager.js';
 import * as Magnifier from './magnifier.js';
 import * as KbdA11yDialog from './kbdA11yDialog.js';
 import {formatError} from '../misc/errorUtils.js';
-import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as Util from '../misc/util.js';
 
 const WELCOME_DIALOG_LAST_SHOWN_VERSION = 'welcome-dialog-last-shown-version';
@@ -198,7 +197,7 @@ export async function start() {
     St.Settings.get().connect('notify::color-scheme', _loadDefaultStylesheet);
 
     // Initialize ParentalControlsManager before the UI
-    ParentalControlsManager.getDefault();
+    Shell.ParentalControlsManager.get_default();
 
     await _initializeUI();
 
@@ -237,7 +236,30 @@ async function _initializeUI() {
     new AnimationsSettings();
 
     // Setup the stage hierarchy early
-    layoutManager = new Layout.LayoutManager();
+    layoutManager = new Shell.LayoutManager();
+    _shellMain.layout_manager = layoutManager;
+
+    // The layout manager lives in C: it asks for the JS-only parts of the shell
+    layoutManager.connect('background-added', (_layoutManager, bgActor) => {
+        BackgroundMenu.addBackgroundMenu(bgActor, layoutManager);
+    });
+    layoutManager.connect('hot-corner-activated', (_layoutManager, _monitorIndex, inFullscreen) => {
+        if (!overview || (inFullscreen && !overview.visible))
+            return false;
+
+        if (!overview.shouldToggleByCornerOrButton())
+            return false;
+
+        overview.toggle();
+        return overview.animationInProgress;
+    });
+    layoutManager.connect('startup-animation-requested', () => {
+        overview.runStartupAnimation()
+            .catch(logError)
+            .finally(() => layoutManager.startup_animation_finished());
+        return true;
+    });
+
     // The signal is emitted from JS (screenshot) and from C (modal dialogs):
     // forward it both ways, once
     let forwardingSystemModalOpened = false;
@@ -258,12 +280,12 @@ async function _initializeUI() {
 
     // The modal dialogs live in C: they are added to the layout manager's
     // modal dialog group
-    Shell.ModalDialog.set_default_container(layoutManager.modalDialogGroup);
+    Shell.ModalDialog.set_default_container(layoutManager.modal_dialog_group);
 
     // Various parts of the codebase still refer to Main.uiGroup
     // instead of using the layoutManager. This keeps that code
     // working until it's updated.
-    uiGroup = layoutManager.uiGroup;
+    uiGroup = layoutManager.ui_group;
 
     padOsdService = new PadOsd.PadOsdService();
     xdndHandler = new Shell.XdndHandler({
@@ -327,7 +349,7 @@ async function _initializeUI() {
         loop.run();
     });
 
-    layoutManager.init();
+    layoutManager.begin_startup();
     overview.init();
 
     pointerA11yTimeout = new Shell.PointerA11yTimeout({ui_group: uiGroup});
@@ -741,7 +763,7 @@ _shellMain.connect('notify::modal-count', () => {
 _shellMain.connect('notify::action-mode', () => {
     actionMode = _shellMain.action_mode;
 });
-_shellMain.connect('modal-ended', () => layoutManager.modalEnded());
+_shellMain.connect('modal-ended', () => layoutManager.modal_ended());
 
 /**
  * Ensure we are in a mode where all keyboard and mouse input goes to

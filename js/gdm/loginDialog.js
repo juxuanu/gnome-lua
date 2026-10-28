@@ -34,7 +34,6 @@ import {ConflictingSessionDialog} from './conflictingSessionDialog.js';
 import * as CtrlAltTab from '../ui/ctrlAltTab.js';
 import * as GdmUtil from './util.js';
 import * as Settings from './settings.js';
-import * as Layout from '../ui/layout.js';
 import * as Main from '../ui/main.js';
 import * as MessageTray from '../ui/messageTray.js';
 import * as Realmd from './realmd.js';
@@ -382,7 +381,7 @@ export const LoginDialog = GObject.registerClass({
 
         this.get_accessible().set_role(Atk.Role.WINDOW);
 
-        this.add_constraint(new Layout.MonitorConstraint({primary: true}));
+        this.add_constraint(new Shell.MonitorConstraint({primary: true}));
         this.connect('destroy', this._onDestroy.bind(this));
         parentActor.add_child(this);
 
@@ -604,7 +603,7 @@ export const LoginDialog = GObject.registerClass({
         const centerX = dialogBox.x1 + (dialogBox.x2 - dialogBox.x1) / 2;
 
         actorBox.x1 = Math.floor(centerX - natWidth / 2);
-        actorBox.y1 = dialogBox.y1 + Main.layoutManager.panelBox.height;
+        actorBox.y1 = dialogBox.y1 + Main.layoutManager.panel_box.height;
         actorBox.x2 = actorBox.x1 + natWidth;
         actorBox.y2 = actorBox.y1 + natHeight;
 
@@ -1105,8 +1104,8 @@ export const LoginDialog = GObject.registerClass({
     }
 
     _bindOpacity() {
-        this._bindings = Main.layoutManager.uiGroup.get_children()
-            .filter(c => c !== Main.layoutManager.screenShieldGroup)
+        this._bindings = Main.layoutManager.ui_group.get_children()
+            .filter(c => c !== Main.layoutManager.screen_shield_group)
             .map(c => this.bind_property('opacity', c, 'opacity', 0));
     }
 

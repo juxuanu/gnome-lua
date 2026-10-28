@@ -99,7 +99,7 @@ Plain snapshot tables, not handles; call again after `monitors.changed`.
 | `shell.monitors.get(n)` | table or nil |
 
 A monitor table: `index` (1-based), `x`, `y`, `width`, `height` (logical
-pixels, global coordinates, from `Monitor` in `js/ui/layout.js`), `scale`
+pixels, global coordinates, from `ShellMonitor` in `src/ui/layout.h`), `scale`
 (`geometry_scale`, integer or fractional), `primary` (boolean),
 `work_area` (`{x, y, width, height}`, the area not covered by the panel and
 struts, `LayoutManager.getWorkAreaForMonitor`).

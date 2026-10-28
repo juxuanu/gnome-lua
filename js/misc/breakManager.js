@@ -747,8 +747,8 @@ class BreakDispatcher extends GObject.Object {
         if (this._brightnessEffect === null) {
             this._brightnessEffect = new Clutter.BrightnessContrastEffect({name: 'brightness'});
             this._brightnessEffect.set_enabled(false);
-            Main.layoutManager.uiGroup.add_effect(this._brightnessEffect);
-            Main.layoutManager.uiGroup.connect('destroy', () => (this._brightnessEffect = null));
+            Main.layoutManager.ui_group.add_effect(this._brightnessEffect);
+            Main.layoutManager.ui_group.connect('destroy', () => (this._brightnessEffect = null));
         }
     }
 
@@ -757,7 +757,7 @@ class BreakDispatcher extends GObject.Object {
         this._notificationSource = null;
 
         if (this._brightnessEffect !== null)
-            Main.layoutManager.uiGroup.remove_effect(this._brightnessEffect);
+            Main.layoutManager.ui_group.remove_effect(this._brightnessEffect);
         this._brightnessEffect = null;
 
         this._removeCountdown();
@@ -886,7 +886,7 @@ class BreakDispatcher extends GObject.Object {
         this._brightnessEffect.set_brightness(startVal);
         this._brightnessEffect.set_enabled(true);
 
-        Main.layoutManager.uiGroup.ease_property(
+        Main.layoutManager.ui_group.ease_property(
             '@effects.brightness.brightness', finishColor,
             {
                 duration: BRIGHTNESS_FADE_TIME_SECONDS * 1000,
@@ -1467,7 +1467,7 @@ class OsdBreakCountdownLabel extends St.Widget {
     }
 
     _position() {
-        const workArea = Main.layoutManager.getWorkAreaForMonitor(Main.layoutManager.primaryIndex);
+        const workArea = Main.layoutManager.get_work_area_for_monitor(Main.layoutManager.primary_index);
 
         if (Clutter.get_default_text_direction() === Clutter.TextDirection.RTL)
             this._box.x = workArea.x + (workArea.width - this._box.width);

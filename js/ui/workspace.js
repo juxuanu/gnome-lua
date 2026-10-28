@@ -494,7 +494,7 @@ export const WorkspaceLayout = GObject.registerClass({
             colSpacing += oversize;
 
         if (containerBox) {
-            const monitor = Main.layoutManager.monitors[this._monitorIndex];
+            const monitor = Main.layoutManager.get_monitor(this._monitorIndex);
 
             const bottomPoint = new Graphene.Point3D({y: containerBox.y2});
             const transformedBottomPoint =
@@ -518,7 +518,7 @@ export const WorkspaceLayout = GObject.registerClass({
         // We look for the largest scale that allows us to fit the
         // largest row/tallest column on the workspace.
         this._layoutStrategy = new UnalignedLayoutStrategy({
-            monitor: Main.layoutManager.monitors[this._monitorIndex],
+            monitor: Main.layoutManager.get_monitor(this._monitorIndex),
             rowSpacing,
             columnSpacing,
         });
@@ -585,10 +585,10 @@ export const WorkspaceLayout = GObject.registerClass({
         if (this._container) {
             if (this._workAreaChangedId)
                 return;
-            this._workarea = Main.layoutManager.getWorkAreaForMonitor(this._monitorIndex);
+            this._workarea = Main.layoutManager.get_work_area_for_monitor(this._monitorIndex);
             this._workareasChangedId =
                 global.display.connect('workareas-changed', () => {
-                    this._workarea = Main.layoutManager.getWorkAreaForMonitor(this._monitorIndex);
+                    this._workarea = Main.layoutManager.get_work_area_for_monitor(this._monitorIndex);
                     this.layout_changed();
                 });
         } else if (this._workareasChangedId) {
@@ -949,7 +949,7 @@ class WorkspaceBackground extends Shell.WorkspaceBackground {
         });
 
         this._monitorIndex = monitorIndex;
-        this._workarea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
+        this._workarea = Main.layoutManager.get_work_area_for_monitor(monitorIndex);
 
         this._stateAdjustment = stateAdjustment;
         this._stateAdjustment.connectObject('notify::value', () => {
@@ -987,7 +987,7 @@ class WorkspaceBackground extends Shell.WorkspaceBackground {
         });
 
         global.display.connectObject('workareas-changed', () => {
-            this._workarea = Main.layoutManager.getWorkAreaForMonitor(monitorIndex);
+            this._workarea = Main.layoutManager.get_work_area_for_monitor(monitorIndex);
             this._updateRoundedClipBounds();
             this.queue_relayout();
         }, this);
@@ -1008,7 +1008,7 @@ class WorkspaceBackground extends Shell.WorkspaceBackground {
     }
 
     _updateRoundedClipBounds() {
-        const monitor = Main.layoutManager.monitors[this._monitorIndex];
+        const monitor = Main.layoutManager.get_monitor(this._monitorIndex);
 
         const rect = new Graphene.Rect();
         rect.origin.x = this._workarea.x - monitor.x;
@@ -1063,9 +1063,9 @@ class Workspace extends St.Widget {
         this._overviewAdjustment = overviewAdjustment;
 
         this.monitorIndex = monitorIndex;
-        this._monitor = Main.layoutManager.monitors[this.monitorIndex];
+        this._monitor = Main.layoutManager.get_monitor(this.monitorIndex);
 
-        if (monitorIndex !== Main.layoutManager.primaryIndex)
+        if (monitorIndex !== Main.layoutManager.primary_index)
             this.add_style_class_name('external-monitor');
 
         const clickGesture = new Clutter.ClickGesture({

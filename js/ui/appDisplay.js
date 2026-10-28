@@ -13,8 +13,6 @@ import * as AppFavorites from './appFavorites.js';
 import {AppMenu} from './appMenu.js';
 import * as DND from './dnd.js';
 import * as IconGrid from './iconGrid.js';
-import * as Layout from './layout.js';
-import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as Search from './search.js';
 import * as SwipeTracker from './swipeTracker.js';
 
@@ -626,7 +624,7 @@ var BaseAppView = GObject.registerClass({
         this._orderedItems = [];
 
         // Filter the apps through the user’s parental controls.
-        this._parentalControlsManager = ParentalControlsManager.getDefault();
+        this._parentalControlsManager = Shell.ParentalControlsManager.get_default();
         this._parentalControlsManager.connectObject('app-filter-changed',
             () => this._redisplay(), this);
 
@@ -697,7 +695,7 @@ var BaseAppView = GObject.registerClass({
     }
 
     _swipeBegin(tracker, monitor) {
-        if (monitor !== Main.layoutManager.primaryIndex)
+        if (monitor !== Main.layoutManager.primary_index)
             return;
 
         const adjustment = this._adjustment;
@@ -847,7 +845,7 @@ var BaseAppView = GObject.registerClass({
     _dragMaybeSwitchPageImmediately(dragEvent) {
         // When there's an adjacent monitor, this gesture conflicts with
         // dragging to the adjacent monitor, so disable in multi-monitor setups
-        if (Main.layoutManager.monitors.length > 1)
+        if (Main.layoutManager.n_monitors > 1)
             return false;
 
         // Already animating
@@ -1516,7 +1514,7 @@ export class AppDisplay extends BaseAppView {
                 return false;
             }
             return !this._appFavorites.isFavorite(appInfo.get_id()) &&
-                this._parentalControlsManager.shouldShowApp(appInfo);
+                this._parentalControlsManager.should_show_app(appInfo);
         });
 
         const apps = this._appInfoList.map(app => app.get_id());
@@ -1616,7 +1614,7 @@ export class AppDisplay extends BaseAppView {
     }
 
     addFolderDialog(dialog) {
-        Main.layoutManager.overviewGroup.add_child(dialog);
+        Main.layoutManager.overview_group.add_child(dialog);
         dialog.connect('open-state-changed', (o, isOpen) => {
             this._currentDialog?.disconnectObject(this);
 
@@ -1758,7 +1756,7 @@ export class AppSearchProvider {
 
         this._systemActions = Shell.SystemActions.get_default();
 
-        this._parentalControlsManager = ParentalControlsManager.getDefault();
+        this._parentalControlsManager = Shell.ParentalControlsManager.get_default();
     }
 
     getResultMetas(apps) {
@@ -1817,7 +1815,7 @@ export class AppSearchProvider {
         groups.forEach(group => {
             group = group.filter(appID => {
                 const app = this._appSys.lookup_app(appID);
-                return app && this._parentalControlsManager.shouldShowApp(app.app_info);
+                return app && this._parentalControlsManager.should_show_app(app.app_info);
             });
             results = results.concat(group.sort(
                 (a, b) => usage.compare(a, b)));
@@ -2173,7 +2171,7 @@ class FolderView extends BaseAppView {
             if (!app)
                 return;
 
-            if (!this._parentalControlsManager.shouldShowApp(app.get_app_info()))
+            if (!this._parentalControlsManager.should_show_app(app.get_app_info()))
                 return;
 
             if (this._apps.indexOf(app) !== -1)
@@ -2472,7 +2470,7 @@ export const AppFolderDialog = GObject.registerClass({
             accessible_role: Atk.Role.PANEL,
         });
 
-        this.add_constraint(new Layout.MonitorConstraint({primary: true}));
+        this.add_constraint(new Shell.MonitorConstraint({primary: true}));
 
         const clickGesture = new Clutter.ClickGesture();
         clickGesture.connect('may-recognize', () => {

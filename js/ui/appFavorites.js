@@ -1,6 +1,5 @@
 import * as MessageTray from './messageTray.js';
 import Shell from 'gi://Shell';
-import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as Signals from '../misc/signals.js';
 
 class AppFavorites extends Signals.EventEmitter {
@@ -8,7 +7,7 @@ class AppFavorites extends Signals.EventEmitter {
         super();
 
         // Filter the apps through the user’s parental controls.
-        this._parentalControlsManager = ParentalControlsManager.getDefault();
+        this._parentalControlsManager = Shell.ParentalControlsManager.get_default();
         this._parentalControlsManager.connect('app-filter-changed',
             () => this._updateFavorites());
 
@@ -44,7 +43,7 @@ class AppFavorites extends Signals.EventEmitter {
     reload() {
         const ids = global.settings.get_strv(this.FAVORITE_APPS_KEY);
         const apps = ids.map(id => this._appSystem.lookup_app(id))
-                      .filter(app => app !== null && this._parentalControlsManager.shouldShowApp(app.app_info));
+                      .filter(app => app !== null && this._parentalControlsManager.should_show_app(app.app_info));
         this._favorites = {};
         for (let i = 0; i < apps.length; i++) {
             const app = apps[i];
@@ -83,7 +82,7 @@ class AppFavorites extends Signals.EventEmitter {
         if (!app)
             return false;
 
-        if (!this._parentalControlsManager.shouldShowApp(app.app_info))
+        if (!this._parentalControlsManager.should_show_app(app.app_info))
             return false;
 
         const ids = this._getIds();

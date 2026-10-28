@@ -190,3 +190,10 @@ never call extension code directly.
 * Asynchronous completions must not fire into JS during shutdown; ease
   completions are dropped by `_shell_ease_shutdown()`, your own timeouts and
   GTasks must be cleared on `ShellGlobal::shutdown` or made no-ops.
+* A public method named `shell_<type>_init`, `_dispose`, `_finalize` or `_constructed` collides with the
+  GObject instance functions; the JS `init()` of `LayoutManager` became `begin_startup()`.
+* GI methods have no optional arguments: JS callers of a ported `addChrome (actor, params)` must now pass
+  every argument (`add_chrome (actor, Shell.ChromeFlags.NONE)`). Prefer a flags argument over several
+  booleans, and a second function (`track_chrome_with_flags ()`) over an "unset" value.
+* Boxed values (`ShellMonitor`) returned from properties or getters are copies for JS: object identity
+  (`===`) between two reads is gone, compare an index.

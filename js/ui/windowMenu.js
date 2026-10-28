@@ -21,7 +21,7 @@ export class WindowMenu extends Shell.PopupMenu {
 
         this.actor.add_style_class_name('window-menu');
 
-        Main.layoutManager.uiGroup.add_child(this.actor);
+        Main.layoutManager.ui_group.add_child(this.actor);
         this.actor.hide();
 
         this._buildMenu(window);

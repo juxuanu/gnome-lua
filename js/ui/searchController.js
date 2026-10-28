@@ -302,7 +302,7 @@ export const SearchController = GObject.registerClass({
             this._text.has_key_focus() &&
             this._text.text === '' &&
             !this._text.has_preedit() &&
-            !Main.layoutManager.keyboardBox.contains(targetActor)) {
+            !Main.layoutManager.keyboard_box.contains(targetActor)) {
             // the user clicked outside after activating the entry, but
             // with no search term entered and no keyboard button pressed
             // - cancel the search

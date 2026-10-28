@@ -753,7 +753,7 @@ export const Inspector = GObject.registerClass({
         if (!this._eventHandler)
             return;
 
-        const primary = Main.layoutManager.primaryMonitor;
+        const primary = Main.layoutManager.primary_monitor;
 
         const [, , natWidth, natHeight] =
             this._eventHandler.get_preferred_size();
@@ -1589,10 +1589,10 @@ export class LookingGlass extends St.BoxLayout {
         // We want it to appear to slide out from underneath the panel
         Main.uiGroup.add_child(this);
         Main.uiGroup.set_child_below_sibling(this,
-            Main.layoutManager.panelBox);
-        Main.layoutManager.panelBox.connect('notify::allocation',
+            Main.layoutManager.panel_box);
+        Main.layoutManager.panel_box.connect('notify::allocation',
             this._queueResize.bind(this));
-        Main.layoutManager.keyboardBox.connect('notify::allocation',
+        Main.layoutManager.keyboard_box.connect('notify::allocation',
             this._queueResize.bind(this));
 
         this._objInspector = new ObjInspector(this);
@@ -1851,12 +1851,12 @@ export class LookingGlass extends St.BoxLayout {
     }
 
     _resize() {
-        const primary = Main.layoutManager.primaryMonitor;
+        const primary = Main.layoutManager.primary_monitor;
         const myWidth = primary.width * 0.7;
-        const availableHeight = primary.height - Main.layoutManager.keyboardBox.height;
+        const availableHeight = primary.height - Main.layoutManager.keyboard_box.height;
         const myHeight = Math.min(primary.height * 0.7, availableHeight * 0.9);
         this.x = primary.x + (primary.width - myWidth) / 2;
-        this._hiddenY = primary.y + Main.layoutManager.panelBox.height - myHeight;
+        this._hiddenY = primary.y + Main.layoutManager.panel_box.height - myHeight;
         this._targetY = this._hiddenY + myHeight;
         this.y = this._hiddenY;
         this.width = myWidth;

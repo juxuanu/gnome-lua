@@ -12,7 +12,7 @@ export class BackgroundMenu extends Shell.PopupMenu {
 
     _init(layoutManager) {
         super._init({
-            source_actor: layoutManager.dummyCursor,
+            source_actor: layoutManager.dummy_cursor,
             arrow_alignment: 0,
             arrow_side: St.Side.TOP,
         });
@@ -24,14 +24,14 @@ export class BackgroundMenu extends Shell.PopupMenu {
 
         this.actor.add_style_class_name('background-menu');
 
-        layoutManager.uiGroup.add_child(this.actor);
+        layoutManager.ui_group.add_child(this.actor);
         this.actor.hide();
     }
 }
 
 /**
  * @param {Meta.BackgroundActor} actor
- * @param {import('./layout.js').LayoutManager} layoutManager
+ * @param {Shell.LayoutManager} layoutManager
  */
 export function addBackgroundMenu(actor, layoutManager) {
     actor.reactive = true;
@@ -40,7 +40,7 @@ export function addBackgroundMenu(actor, layoutManager) {
     actor._backgroundManager.add_menu(actor._backgroundMenu);
 
     function openMenu(x, y) {
-        Main.layoutManager.setDummyCursorGeometry(x, y, 0, 0);
+        Main.layoutManager.set_dummy_cursor_geometry(x, y, 0, 0);
         actor._backgroundMenu.open(Shell.PopupAnimation.FULL);
     }
 

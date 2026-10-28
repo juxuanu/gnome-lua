@@ -63,7 +63,7 @@ class DashItemContainer extends St.Widget {
         this._labelText = '';
         this.label = new St.Label({style_class: 'dash-label'});
         this.label.hide();
-        Main.layoutManager.addChrome(this.label);
+        Main.layoutManager.add_chrome(this.label, Shell.ChromeFlags.NONE);
         this.label.connectObject('destroy', () => (this.label = null), this);
 
         this.child = null;

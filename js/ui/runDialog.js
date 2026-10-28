@@ -6,7 +6,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from './main.js';
-import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as ShellEntry from './shellEntry.js';
 import * as Util from '../misc/util.js';
 
@@ -40,7 +39,7 @@ export class RunDialog extends Shell.ModalDialog {
             destroy_on_close: false,
         });
 
-        this._parentalControlsManager = ParentalControlsManager.getDefault();
+        this._parentalControlsManager = Shell.ParentalControlsManager.get_default();
         this._parentalControlsManager.connect('notify::any-parental-controls-enabled', () => {
             this._updateEnableInternalCommands();
         });
@@ -143,7 +142,7 @@ export class RunDialog extends Shell.ModalDialog {
 
     _updateEnableInternalCommands() {
         this._enableInternalCommands =
-            !this._parentalControlsManager.anyParentalControlsEnabled &&
+            !this._parentalControlsManager.any_parental_controls_enabled &&
             global.settings.get_boolean('development-tools');
     }
 

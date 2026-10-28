@@ -85,7 +85,7 @@ class AppSwitcherPopup extends SwitcherPopup.SwitcherPopup {
         // those calculations
         if (this._thumbnails) {
             const childBox = this._switcherList.get_allocation_box();
-            const primary = Main.layoutManager.primaryMonitor;
+            const primary = Main.layoutManager.primary_monitor;
 
             const leftPadding = this.get_theme_node().get_padding(St.Side.LEFT);
             const rightPadding = this.get_theme_node().get_padding(St.Side.RIGHT);
@@ -753,7 +753,7 @@ class AppSwitcher extends SwitcherPopup.SwitcherList {
         const totalSpacing = this._list.spacing * (this._items.length - 1);
 
         // We just assume the whole screen here due to weirdness happening with the passed width
-        const primary = Main.layoutManager.primaryMonitor;
+        const primary = Main.layoutManager.primary_monitor;
         const parentPadding = this.get_parent().get_theme_node().get_horizontal_padding();
         const availWidth = primary.width - parentPadding - this.get_theme_node().get_horizontal_padding();
 

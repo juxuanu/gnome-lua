@@ -493,7 +493,7 @@ export class Panel extends St.Widget {
             () => this.remove_style_pseudo_class('overview'),
             this);
 
-        Main.layoutManager.panelBox.add_child(this);
+        Main.layoutManager.panel_box.add_child(this);
         Main.ctrlAltTabManager.addGroup(this,
             _('Top Bar'), 'shell-focus-top-bar-symbolic',
             {sortGroup: CtrlAltTab.SortGroup.TOP});
@@ -509,7 +509,7 @@ export class Panel extends St.Widget {
     }
 
     vfunc_get_preferred_width(_forHeight) {
-        const primaryMonitor = Main.layoutManager.primaryMonitor;
+        const primaryMonitor = Main.layoutManager.primary_monitor;
 
         if (primaryMonitor)
             return [0, primaryMonitor.width];
@@ -530,10 +530,10 @@ export class Panel extends St.Widget {
         const centerWidth = centerNaturalWidth;
 
         // get workspace area and center date entry relative to it
-        const monitor = Main.layoutManager.findMonitorForActor(this);
+        const monitor = Main.layoutManager.find_monitor_for_actor(this);
         let centerOffset = 0;
         if (monitor) {
-            const workArea = Main.layoutManager.getWorkAreaForMonitor(monitor.index);
+            const workArea = Main.layoutManager.get_work_area_for_monitor(monitor.index);
             centerOffset = 2 * (workArea.x - monitor.x) + workArea.width - monitor.width;
         }
 

@@ -24,6 +24,7 @@ enum
   PROP_ACTION_MODE,
   PROP_MODAL_COUNT,
   PROP_SESSION_MODE,
+  PROP_LAYOUT_MANAGER,
 
   N_PROPS
 };
@@ -69,6 +70,7 @@ struct _ShellMain
   guint modal_count;
   ShellActionMode action_mode;
   ShellSessionMode *session_mode;
+  ShellLayoutManager *layout_manager;
 };
 
 G_DEFINE_FINAL_TYPE (ShellMain, shell_main, G_TYPE_OBJECT)
@@ -189,6 +191,10 @@ shell_main_get_property (GObject    *object,
       g_value_set_object (value, self->session_mode);
       break;
 
+    case PROP_LAYOUT_MANAGER:
+      g_value_set_object (value, self->layout_manager);
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -213,6 +219,10 @@ shell_main_set_property (GObject      *object,
       shell_main_set_session_mode (self, g_value_get_object (value));
       break;
 
+    case PROP_LAYOUT_MANAGER:
+      shell_main_set_layout_manager (self, g_value_get_object (value));
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -226,6 +236,7 @@ shell_main_dispose (GObject *object)
 
   g_clear_pointer (&self->modal_stack, g_ptr_array_unref);
   g_clear_object (&self->session_mode);
+  g_clear_object (&self->layout_manager);
 
   G_OBJECT_CLASS (shell_main_parent_class)->dispose (object);
 }
@@ -281,6 +292,20 @@ shell_main_class_init (ShellMainClass *klass)
                          G_PARAM_EXPLICIT_NOTIFY |
                          G_PARAM_STATIC_STRINGS);
 
+  /**
+   * ShellMain:layout-manager:
+   *
+   * The layout manager of the shell (`Main.layoutManager`). main.js sets it
+   * right after creating it, so that the ported UI code can reach the
+   * monitors and the chrome.
+   */
+  props[PROP_LAYOUT_MANAGER] =
+    g_param_spec_object ("layout-manager", NULL, NULL,
+                         SHELL_TYPE_LAYOUT_MANAGER,
+                         G_PARAM_READWRITE |
+                         G_PARAM_EXPLICIT_NOTIFY |
+                         G_PARAM_STATIC_STRINGS);
+
   g_object_class_install_properties (object_class, N_PROPS, props);
 
   /**
@@ -289,7 +314,7 @@ shell_main_class_init (ShellMainClass *klass)
    *
    * Emitted when the last modal was popped, after the modal count has
    * dropped to 0 and the grab has been dismissed, and before the action mode
-   * goes back to %SHELL_ACTION_MODE_NORMAL (`layoutManager.modalEnded ()`).
+   * goes back to %SHELL_ACTION_MODE_NORMAL (`layoutManager.modal_ended ()`).
    */
   signals[MODAL_ENDED] =
     g_signal_new ("modal-ended",
@@ -640,6 +665,39 @@ shell_main_set_session_mode (ShellMain        *self,
 
   if (g_set_object (&self->session_mode, session_mode))
     g_object_notify_by_pspec (G_OBJECT (self), props[PROP_SESSION_MODE]);
+}
+
+/**
+ * shell_main_get_layout_manager:
+ * @self: a #ShellMain
+ *
+ * Returns: (transfer none) (nullable): the layout manager, once main.js has
+ *   created it
+ */
+ShellLayoutManager *
+shell_main_get_layout_manager (ShellMain *self)
+{
+  g_return_val_if_fail (SHELL_IS_MAIN (self), NULL);
+
+  return self->layout_manager;
+}
+
+/**
+ * shell_main_set_layout_manager:
+ * @self: a #ShellMain
+ * @layout_manager: (nullable): the layout manager of the shell
+ *
+ * Sets #ShellMain:layout-manager.
+ */
+void
+shell_main_set_layout_manager (ShellMain          *self,
+                               ShellLayoutManager *layout_manager)
+{
+  g_return_if_fail (SHELL_IS_MAIN (self));
+  g_return_if_fail (layout_manager == NULL || SHELL_IS_LAYOUT_MANAGER (layout_manager));
+
+  if (g_set_object (&self->layout_manager, layout_manager))
+    g_object_notify_by_pspec (G_OBJECT (self), props[PROP_LAYOUT_MANAGER]);
 }
 
 /**

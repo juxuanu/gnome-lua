@@ -184,7 +184,7 @@ export function zoomOutActor(actor) {
 }
 
 function zoomOutActorAtPos(actor, x, y) {
-    const monitor = Main.layoutManager.findMonitorForActor(actor);
+    const monitor = Main.layoutManager.find_monitor_for_actor(actor);
     if (!monitor)
         return;
 

@@ -31,7 +31,6 @@ import Shell from 'gi://Shell';
 import * as Gettext from 'gettext';
 import * as Main from '../ui/main.js';
 import * as MessageTray from '../ui/messageTray.js';
-import * as ParentalControlsManager from './parentalControlsManager.js';
 
 import {loadInterfaceXML} from './fileUtils.js';
 
@@ -173,7 +172,7 @@ export const TimeLimitsManager = GObject.registerClass({
         };
 
         this._parentalControlsManagerFactory = parentalControlsManagerFactory ?? {
-            new: ParentalControlsManager.getDefault,
+            new: Shell.ParentalControlsManager.get_default,
         };
         this._parentalControlsManager = this._parentalControlsManagerFactory.new();
 
@@ -265,7 +264,7 @@ export const TimeLimitsManager = GObject.registerClass({
         } catch (e) {
             if (e.matches(Gio.DBusError, Gio.DBusError.SERVICE_UNKNOWN)) {
                 // Limits should only be enabled when the daemon is available.
-                if (this._parentalControlsManager.sessionLimitsEnabled())
+                if (this._parentalControlsManager.session_limits_enabled())
                     throw e;
                 else
                     console.debug('Parental controls timer daemon not available');
@@ -306,7 +305,7 @@ export const TimeLimitsManager = GObject.registerClass({
     }
 
     _storingTransitionsEnabled() {
-        return this._parentalControlsManager.sessionLimitsEnabled() ||
+        return this._parentalControlsManager.session_limits_enabled() ||
             this._screenTimeLimitSettings.get_boolean('history-enabled');
     }
 
@@ -628,7 +627,7 @@ export const TimeLimitsManager = GObject.registerClass({
     async _loadTransitions() {
         // When parental controls session limits are enabled, additionally update
         // the cached estimated times from the parental controls timer daemon.
-        if (this._parentalControlsManager.sessionLimitsEnabled()) {
+        if (this._parentalControlsManager.session_limits_enabled()) {
             await this._updateEstimatedTimes();
             console.debug('TimeLimitsManager: Loaded time estimates from the timer daemon');
         }
@@ -743,7 +742,7 @@ export const TimeLimitsManager = GObject.registerClass({
 
         // Record all of the usage records to the parental controls timer daemon
         // if the parental controls session limits are in place.
-        if (this._parentalControlsManager.sessionLimitsEnabled()) {
+        if (this._parentalControlsManager.session_limits_enabled()) {
             const usageRecords = [];
 
             for (var j = 0; j < this._stateTransitions.length - 1; j++) {
@@ -941,7 +940,7 @@ export const TimeLimitsManager = GObject.registerClass({
 
         // Work out estimated times for the parental controls session limits calculations.
         const [, currentSessionStart, currentSessionEnd, nextSessionStart] = this._estimatedTimes;
-        const parentalControlsSessionLimitsEnabled = this._parentalControlsManager.sessionLimitsEnabled();
+        const parentalControlsSessionLimitsEnabled = this._parentalControlsManager.session_limits_enabled();
 
         if (parentalControlsSessionLimitsEnabled) {
             // Parental controls session limits have either just been enabled
@@ -1053,7 +1052,7 @@ export const TimeLimitsManager = GObject.registerClass({
      * @type {boolean}
      */
     get parentalControlsSessionLimitsEnabled() {
-        return this._parentalControlsManager.sessionLimitsEnabled();
+        return this._parentalControlsManager.session_limits_enabled();
     }
 
     /**
@@ -1204,8 +1203,8 @@ class TimeLimitsDispatcher extends GObject.Object {
         if (this._desaturationEffect === null) {
             this._desaturationEffect = new Clutter.DesaturateEffect({name: 'desaturate'});
             this._desaturationEffect.set_enabled(false);
-            Main.layoutManager.uiGroup.add_effect(this._desaturationEffect);
-            Main.layoutManager.uiGroup.connect('destroy', () => (this._desaturationEffect = null));
+            Main.layoutManager.ui_group.add_effect(this._desaturationEffect);
+            Main.layoutManager.ui_group.connect('destroy', () => (this._desaturationEffect = null));
         }
     }
 
@@ -1214,7 +1213,7 @@ class TimeLimitsDispatcher extends GObject.Object {
         this._notificationSource = null;
 
         if (this._desaturationEffect !== null)
-            Main.layoutManager.uiGroup.remove_effect(this._desaturationEffect);
+            Main.layoutManager.ui_group.remove_effect(this._desaturationEffect);
         this._desaturationEffect = null;
     }
 
@@ -1251,7 +1250,7 @@ class TimeLimitsDispatcher extends GObject.Object {
             if (this._manager.grayscaleEnabled) {
                 this._desaturationEffect.factor = 0.0;
                 this._desaturationEffect.set_enabled(true);
-                Main.layoutManager.uiGroup.ease_property(
+                Main.layoutManager.ui_group.ease_property(
                     '@effects.desaturate.factor', GRAYSCALE_SATURATION,
                     {
                         duration: GRAYSCALE_FADE_TIME_SECONDS * 1000,

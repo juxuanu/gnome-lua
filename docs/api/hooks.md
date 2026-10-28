@@ -19,7 +19,7 @@ Every new hook point gets a row here in the same commit that declares it.
 | `session.mode-changed` | no | `mode: s` | `ShellSessionMode` (`src/ui/session-mode.c`), after `::updated` on every mode change, including the initial mode | 1.0 |
 | `panel.indicator-added` | no | `name:s box:s owner:s` | `Panel._addToPanelBox` (`js/ui/panel.js`), later `src/ui/panel.c` | 1.0 (M2) |
 | `panel.menu-opened` | no | `name:s box:s` | the `open-state-changed` handler installed by `Panel._onMenuSet` | 1.0 (M2) |
-| `monitors.changed` | no | `count:i primary:i` | `LayoutManager::monitors-changed` (`js/ui/layout.js`) | 1.0 (M2) |
+| `monitors.changed` | no | `count:i primary:i` | `ShellLayoutManager::monitors-changed` (`src/ui/layout.c`) | 1.0 (M2) |
 | `overview.showing` | yes | `reason:s target:s` | `Overview.show()` (`js/ui/overview.js`) | 1.0 (M3) |
 | `overview.shown` | no | `target:s` | `Overview._showDone()` | 1.0 (M3) |
 | `overview.hiding` | yes | `reason:s` | `Overview.hide()` | 1.0 (M3) |
@@ -94,7 +94,7 @@ an unknown value like `other`.
 
 | Key | Values |
 |---|---|
-| `overview.showing` `reason` | `hot-corner` (`layout.js` HotCorner), `activities-button` (`panel.js`), `overlay-key`, `keybinding`, `gesture`, `drag`, `dbus` (`shellDBus.js`), `other` |
+| `overview.showing` `reason` | `hot-corner` (`layout.c` hot corner, handled in `main.js`), `activities-button` (`panel.js`), `overlay-key`, `keybinding`, `gesture`, `drag`, `dbus` (`shellDBus.js`), `other` |
 | `overview.hiding` `reason` | the values above, plus `escape`, `window-activated` (`Main.activateWindow`), `app-launched`, `search`, `session` (session mode change or lock) |
 | `target` | `window-picker`, `app-grid` |
 

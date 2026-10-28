@@ -48,7 +48,7 @@ export class ScreenShield extends Signals.EventEmitter {
     constructor() {
         super();
 
-        this.actor = Main.layoutManager.screenShieldGroup;
+        this.actor = Main.layoutManager.screen_shield_group;
 
         this._lockScreenState = MessageTray.State.HIDDEN;
         this._lockScreenGroup = new St.Widget({

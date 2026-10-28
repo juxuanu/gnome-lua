@@ -309,14 +309,14 @@ class WorkspaceTracker {
     _windowLeftMonitor(metaDisplay, monitorIndex, _metaWin) {
         // If the window left the primary monitor, that
         // might make that workspace empty
-        if (monitorIndex === Main.layoutManager.primaryIndex)
+        if (monitorIndex === Main.layoutManager.primary_index)
             this._queueCheckWorkspaces();
     }
 
     _windowEnteredMonitor(metaDisplay, monitorIndex, _metaWin) {
         // If the window entered the primary monitor, that
         // might make that workspace non-empty
-        if (monitorIndex === Main.layoutManager.primaryIndex)
+        if (monitorIndex === Main.layoutManager.primary_index)
             this._queueCheckWorkspaces();
     }
 
@@ -397,7 +397,7 @@ class TilePreview extends St.Widget {
         this._monitorIndex = monitorIndex;
         this._rect = tileRect;
 
-        const monitor = Main.layoutManager.monitors[monitorIndex];
+        const monitor = Main.layoutManager.get_monitor(monitorIndex);
 
         this._updateStyle(monitor);
 
@@ -448,7 +448,7 @@ class TilePreview extends St.Widget {
 
     _updateStyle(monitor) {
         const styles = ['tile-preview'];
-        if (this._monitorIndex === Main.layoutManager.primaryIndex)
+        if (this._monitorIndex === Main.layoutManager.primary_index)
             styles.push('on-primary');
         if (this._rect.x === monitor.x)
             styles.push('tile-preview-left');
@@ -1177,7 +1177,7 @@ export class WindowManager {
                 xScale = geom.width / actor.width;
                 yScale = geom.height / actor.height;
             } else {
-                const monitor = Main.layoutManager.monitors[actor.meta_window.get_monitor()];
+                const monitor = Main.layoutManager.get_monitor(actor.meta_window.get_monitor());
                 if (!monitor) {
                     this._minimizeWindowDone();
                     return;
@@ -1247,7 +1247,7 @@ export class WindowManager {
                     geom.width / actor.width,
                     geom.height / actor.height);
             } else {
-                const monitor = Main.layoutManager.monitors[actor.meta_window.get_monitor()];
+                const monitor = Main.layoutManager.get_monitor(actor.meta_window.get_monitor());
                 if (!monitor) {
                     actor.show();
                     this._unminimizeWindowDone();
@@ -1790,7 +1790,7 @@ export class WindowManager {
             // workspaces is added at the start/end
             if (window.is_always_on_all_workspaces() ||
                 (Meta.prefs_get_workspaces_only_on_primary() &&
-                 window.get_monitor() !== Main.layoutManager.primaryIndex))
+                 window.get_monitor() !== Main.layoutManager.primary_index))
                 return;
         }
 

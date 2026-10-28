@@ -35,6 +35,10 @@ json_glib_req = '>= 1.6'
 rsvg_req = '>= 2.46'
 glycin_req = '>= 2.0'
 ibus_req = '>= 1.5.33'
+gweather_req = '>= 4.0'
+geoclue_req = '>= 2.5.2'
+nma_req = '>= 1.8.38'
+malcontent_req = '>= 0.6.0'
 
 nm_req = '>= 1.24'
 secret_req = '>= 0.18'
@@ -96,6 +100,17 @@ json_glib_dep = dependency('json-glib-1.0', version: json_glib_req)
 rsvg_dep = dependency('librsvg-2.0', version: rsvg_req)
 glycin_dep = dependency('glycin-2', version: glycin_req)
 ibus_dep = dependency('ibus-1.0', version: ibus_req)
+# misc/weather.c: GWeather.Info and the Geoclue simple client
+gweather_dep = dependency('gweather4', version: gweather_req)
+geoclue_dep = dependency('libgeoclue-2.0', version: geoclue_req)
+
+# misc/parental-controls-manager.c; the JS looked for the typelib at run
+# time (and for session limits, for libmalcontent >= 0.14.0)
+malcontent_dep = dependency('malcontent-0', version: malcontent_req,
+  required: get_option('malcontent'))
+have_malcontent = malcontent_dep.found()
+have_malcontent_0_14 = have_malcontent and \
+  malcontent_dep.version().version_compare('>= 0.14.0')
 # misc/system-actions.c: ActUserManager and gdm_get_session_ids ()
 accountsservice_dep = dependency('accountsservice')
 gdm_dep = dependency('gdm')
@@ -117,6 +132,8 @@ nm_deps = []
 if get_option('networkmanager')
   nm_deps += dependency('libnm', version: nm_req)
   nm_deps += dependency('libsecret-1', version: secret_req)
+  # misc/modem-manager.c: NMA.MobileProvidersDatabase
+  nm_deps += dependency('libnma-gtk4', version: nma_req)
 
   have_networkmanager = true
 else
@@ -185,6 +202,8 @@ cdata.set('HAVE_NETWORKMANAGER', have_networkmanager)
 cdata.set('HAVE_PIPEWIRE', have_pipewire)
 cdata.set('HAVE_SYSTEMD', have_systemd)
 cdata.set('HAVE_XWAYLAND', have_xwayland)
+cdata.set('HAVE_MALCONTENT', have_malcontent)
+cdata.set('HAVE_MALCONTENT_0_14', have_malcontent_0_14)
 
 cdata.set('HAVE_FDWALK', cc.has_function('fdwalk'))
 cdata.set('HAVE_MALLINFO', cc.has_function('mallinfo'))

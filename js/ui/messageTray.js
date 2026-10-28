@@ -6,7 +6,6 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Layout from './layout.js';
 import * as Main from './main.js';
 import * as MessageList from './messageList.js';
 import * as SignalTracker from '../misc/signalTracker.js';
@@ -742,8 +741,8 @@ export class MessageTray extends St.Widget {
             this._onStatusChanged(this._presence.status);
         });
 
-        const constraint = new Layout.MonitorConstraint({primary: true});
-        Main.layoutManager.panelBox.bind_property('visible',
+        const constraint = new Shell.MonitorConstraint({primary: true});
+        Main.layoutManager.panel_box.bind_property('visible',
             constraint, 'work-area',
             GObject.BindingFlags.SYNC_CREATE);
         this.add_constraint(constraint);
@@ -788,8 +787,8 @@ export class MessageTray extends St.Widget {
         this._notificationTimeoutId = 0;
         this._notificationRemoved = false;
 
-        Main.layoutManager.addChrome(this);
-        Main.layoutManager.trackChrome(this._bannerBin);
+        Main.layoutManager.add_chrome(this, Shell.ChromeFlags.NONE);
+        Main.layoutManager.track_chrome(this._bannerBin);
 
         global.display.connectObject('in-fullscreen-changed',
             () => this._updateState(), this);
@@ -1064,7 +1063,7 @@ export class MessageTray extends St.Widget {
     // _updateState() figures out what (if anything) needs to be done
     // at the present time.
     _updateState() {
-        const hasMonitor = Main.layoutManager.primaryMonitor != null;
+        const hasMonitor = Main.layoutManager.primary_monitor != null;
         this.visible = !this._bannerBlocked && hasMonitor && this._banner != null;
         if (this._bannerBlocked || !hasMonitor)
             return;
@@ -1091,7 +1090,7 @@ export class MessageTray extends St.Widget {
         if (this._notificationState === State.HIDDEN) {
             const nextNotification = this._notificationQueue[0] || null;
             if (hasNotifications && nextNotification) {
-                const limited = this._busy || Main.layoutManager.primaryMonitor.inFullscreen;
+                const limited = this._busy || Main.layoutManager.primary_monitor.get_in_fullscreen();
                 const showNextNotification = !limited || nextNotification.forFeedback || nextNotification.urgency === Urgency.CRITICAL;
                 if (showNextNotification)
                     this._showNotification();

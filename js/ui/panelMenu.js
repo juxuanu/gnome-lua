@@ -184,7 +184,7 @@ export const Button = GObject.registerClass({
         // Setting the max-height won't do any good if the minimum height of the
         // menu is higher then the screen; it's useful if part of the menu is
         // scrollable so the minimum height is smaller than the natural height
-        const workArea = Main.layoutManager.getWorkAreaForMonitor(Main.layoutManager.primaryIndex);
+        const workArea = Main.layoutManager.get_work_area_for_monitor(Main.layoutManager.primary_index);
         const scaleFactor = St.ThemeContext.get_for_stage(global.stage).scale_factor;
         const verticalMargins = this.menu.actor.margin_top + this.menu.actor.margin_bottom;
 

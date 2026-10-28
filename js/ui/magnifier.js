@@ -167,7 +167,7 @@ export class Magnifier extends Signals.EventEmitter {
     }
 
     _updateContentScale() {
-        const monitor = Main.layoutManager.findMonitorForPoint(this.xMouse,
+        const monitor = Main.layoutManager.find_monitor_for_point(this.xMouse,
             this.yMouse);
         this._mouseSprite.content.monitorScale = monitor
             ? monitor.geometry_scale : 1;

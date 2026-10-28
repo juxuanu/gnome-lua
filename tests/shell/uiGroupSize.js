@@ -35,23 +35,23 @@ async function changeMonitors(change) {
 export async function run() {
     Main.overview.show();
     await Scripting.waitLeisure();
-    checkAllocation(Main.layoutManager.uiGroup);
-    checkAllocation(Main.layoutManager.overviewGroup);
+    checkAllocation(Main.layoutManager.ui_group);
+    checkAllocation(Main.layoutManager.overview_group);
 
     let monitor = null;
     try {
         await changeMonitors(() => {
             monitor = MetaTest.TestMonitor.new(global.context, 1920, 1080, 60.0);
         });
-        checkAllocation(Main.layoutManager.uiGroup);
-        checkAllocation(Main.layoutManager.overviewGroup);
+        checkAllocation(Main.layoutManager.ui_group);
+        checkAllocation(Main.layoutManager.overview_group);
 
         await changeMonitors(() => {
             monitor.destroy();
             monitor = null;
         });
-        checkAllocation(Main.layoutManager.uiGroup);
-        checkAllocation(Main.layoutManager.overviewGroup);
+        checkAllocation(Main.layoutManager.ui_group);
+        checkAllocation(Main.layoutManager.overview_group);
     } finally {
         monitor?.destroy();
     }

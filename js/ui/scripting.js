@@ -222,11 +222,11 @@ function _collect(scriptModule, outputFile) {
         Shell.write_string_to_stream(out, '"events":\n');
         Shell.PerfLog.get_default().dump_events(out);
 
-        const monitors = Main.layoutManager.monitors;
-        const primary = Main.layoutManager.primaryIndex;
+        const nMonitors = Main.layoutManager.n_monitors;
+        const primary = Main.layoutManager.primary_index;
         Shell.write_string_to_stream(out, ',\n"monitors":\n[');
-        for (let i = 0; i < monitors.length; i++) {
-            const monitor = monitors[i];
+        for (let i = 0; i < nMonitors; i++) {
+            const monitor = Main.layoutManager.get_monitor(i);
             if (i !== 0)
                 Shell.write_string_to_stream(out, ', ');
             const prefix = i === primary ? '*' : '';

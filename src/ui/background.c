@@ -2061,7 +2061,7 @@ struct _ShellBackgroundManager
 
 G_DEFINE_FINAL_TYPE (ShellBackgroundManager, shell_background_manager, G_TYPE_OBJECT)
 
-/* Main.layoutManager.screenTransition, which only exists in JS for now */
+/* Main.layoutManager.screen_transition, set by the layout manager */
 static ClutterActor *screen_transition = NULL;
 
 /*
@@ -2699,7 +2699,7 @@ shell_background_manager_destroy (ShellBackgroundManager *self)
  * @screen_transition_actor: (nullable): the actor of the screen transition
  *
  * Tells the backgrounds about the screen transition of the layout manager
- * (Main.layoutManager.screenTransition). While it is visible a replaced
+ * (Main.layoutManager.screen_transition). While it is visible a replaced
  * background actor is destroyed immediately instead of fading out.
  */
 void

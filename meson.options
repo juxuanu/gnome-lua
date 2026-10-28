@@ -45,3 +45,9 @@ option('systemd',
   value: true,
   description: 'Enable systemd integration'
 )
+
+option('malcontent',
+  type: 'feature',
+  value: 'auto',
+  description: 'Enable parental controls support (libmalcontent)'
+)

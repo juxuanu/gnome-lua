@@ -8,7 +8,6 @@ import St from 'gi://St';
 
 import * as AppFavorites from './appFavorites.js';
 import * as Main from './main.js';
-import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 
 export class AppMenu extends Shell.PopupMenu {
     static {
@@ -45,7 +44,7 @@ export class AppMenu extends Shell.PopupMenu {
 
         this._app = null;
         this._appSystem = Shell.AppSystem.get_default();
-        this._parentalControlsManager = ParentalControlsManager.getDefault();
+        this._parentalControlsManager = Shell.ParentalControlsManager.get_default();
         this._appFavorites = AppFavorites.getAppFavorites();
         this._enableFavorites = favoritesSection;
         this._showSingleWindows = showSingleWindows;
@@ -156,7 +155,7 @@ export class AppMenu extends Shell.PopupMenu {
         const canFavorite = appInfo &&
             this._enableFavorites &&
             global.settings.is_writable('favorite-apps') &&
-            this._parentalControlsManager.shouldShowApp(appInfo);
+            this._parentalControlsManager.should_show_app(appInfo);
 
         this._toggleFavoriteItem.visible = canFavorite;
 

@@ -102,7 +102,7 @@ export const SwitcherPopup = GObject.registerClass({
         this.set_allocation(box);
 
         const childBox = new Clutter.ActorBox();
-        const primary = Main.layoutManager.primaryMonitor;
+        const primary = Main.layoutManager.primary_monitor;
 
         const leftPadding = this.get_theme_node().get_padding(St.Side.LEFT);
         const rightPadding = this.get_theme_node().get_padding(St.Side.RIGHT);
