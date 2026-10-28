@@ -96,6 +96,16 @@ jobs:
           meson compile -C build
           meson install -C build --destdir "$RUNNER_TEMP/shell-destdir"
 
+      # M6 exit criterion: no JavaScript engine is linked any more
+      - name: Check that nothing links GJS or SpiderMonkey
+        run: |
+          for bin in build/src/gnome-shell build/src/libshell-51.so build/subprojects/shell-lua/src/libshell-lua-1.so; do
+            [ -e "$bin" ] || continue
+            if ldd "$bin" | grep -Ei 'libgjs|libmozjs'; then
+              echo "$bin links a JavaScript engine"; exit 1
+            fi
+          done
+
       # Upstream `test` job.
       - name: Test gnome-shell
         env:
