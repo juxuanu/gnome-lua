@@ -22,6 +22,9 @@
 /* Define if we have NetworkManager */
 #mesondefine HAVE_NETWORKMANAGER
 
+/* Define if the portal helper (captive portal login) is built */
+#mesondefine HAVE_PORTAL_HELPER
+
 /* Define if we have Pipewire */
 #mesondefine HAVE_PIPEWIRE
 

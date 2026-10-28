@@ -42,7 +42,7 @@ Every new hook point gets a row here in the same commit that declares it.
 | `notification.showing` | yes | N | `tray_on_notification_request_banner ()` in `src/ui/message-tray.c` (`MessageTray._onNotificationRequestBanner`), after the checks that already skip the banner (acknowledged, low urgency, banners off) and before the notification is queued or its shown banner updated | 1.0 (M4) |
 | `notification.shown` | no | N | `tray_show_notification ()` in `src/ui/message-tray.c` (`MessageTray._showNotification`), when the banner starts to slide in | 1.0 (M4) |
 | `notification.activated` | no | N | `shell_notification_real_activate ()` in `src/ui/message-tray.c` (`Notification.activate`), before `::activated` is emitted | 1.0 (M4) |
-| `screenshot.taken` | no | `kind:s clipboard:b` + `file:s` when saved | `_storeScreenshot` (`js/ui/screenshot.js`) | 1.0 (M4) |
+| `screenshot.taken` | no | `kind:s clipboard:b` + `file:s` when saved | `store_screenshot ()` in `src/ui/screenshot-ui.c` (`_storeScreenshot`), after the screenshot was stored in the clipboard and (unless saving to disk is disabled) in a file, for the screenshot UI, the screenshot key bindings and "Take Screenshot" of the window menu. Not emitted for the screenshots taken through the `org.gnome.Shell.Screenshot` D-Bus interface | 1.0 (M4) |
 | `osk.shown` | no | `monitor:i` | `osk_animate_show ()` in `src/ui/keyboard.c`, when the keyboard starts to slide in (`monitor` is the 1-based monitor it is on) | 1.0 (M4) |
 | `osk.hidden` | no | (empty) | `osk_animate_hide ()` in `src/ui/keyboard.c`, when a shown keyboard starts to slide out | 1.0 (M4) |
 
@@ -51,7 +51,7 @@ The three `1.0` rows at the top are declared today
 (`src/ui/panel.c`), and the two `osk.*` rows by `shell_osk_manager_class_init ()`
 (`src/ui/keyboard.c`), and `search.query` by `shell_search_results_view_class_init ()`
 (`src/ui/search.c`), and the three `notification.*` rows by `shell_notification_class_init ()` and
-`shell_message_tray_class_init ()` (`src/ui/message-tray.c`), and `dash.item-added` by `shell_dash_class_init ()` (`src/ui/dash.c`), so they exist once those classes are loaded, before any extension. Every other row is **reserved**: the name,
+`shell_message_tray_class_init ()` (`src/ui/message-tray.c`), and `screenshot.taken` by `shell_screenshot_ui_class_init ()` (`src/ui/screenshot-ui.c`), and `dash.item-added` by `shell_dash_class_init ()` (`src/ui/dash.c`), so they exist once those classes are loaded, before any extension. Every other row is **reserved**: the name,
 cancellability and payload are the contract, but the hook is declared by the
 code that owns it when that module is ported (milestone in the last column).
 `shell.hooks.list()` lists only declared hooks, so extensions feature-detect

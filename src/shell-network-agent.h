@@ -26,15 +26,15 @@ G_DECLARE_FINAL_TYPE (ShellNetworkAgent,
                       NMSecretAgentOld)
 
 void               shell_network_agent_add_vpn_secret (ShellNetworkAgent *self,
-                                                       gchar             *request_id,
-                                                       gchar             *setting_key,
-                                                       gchar             *setting_value);
+                                                       const char        *request_id,
+                                                       const char        *setting_key,
+                                                       const char        *setting_value);
 void               shell_network_agent_set_password (ShellNetworkAgent *self,
-                                                     gchar             *request_id,
-                                                     gchar             *setting_key,
-                                                     gchar             *setting_value);
+                                                     const char        *request_id,
+                                                     const char        *setting_key,
+                                                     const char        *setting_value);
 void               shell_network_agent_respond      (ShellNetworkAgent *self,
-                                                     gchar             *request_id,
+                                                     const char        *request_id,
                                                      ShellNetworkAgentResponse response);
 
 void               shell_network_agent_search_vpn_plugin (ShellNetworkAgent   *self,

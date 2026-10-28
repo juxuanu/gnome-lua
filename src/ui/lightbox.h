@@ -3,8 +3,8 @@
  * lightbox.h: A dark translucent "shade" covering the contents of a
  * container, with optional highlighted children. Port of js/ui/lightbox.js.
  *
- * Unlike most ports this type is derivable: screenshot.js still subclasses
- * it (Flashspot) through GObject.registerClass().
+ * Unlike most ports this type is derivable: screenshot-ui.c subclasses it
+ * (ShellFlashspot).
  */
 
 #pragma once

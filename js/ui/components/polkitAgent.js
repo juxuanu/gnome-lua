@@ -9,7 +9,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from '../main.js';
-import * as UserWidget from '../userWidget.js';
 
 /** @enum {number} */
 const DialogMode = {
@@ -64,8 +63,9 @@ const AuthenticationDialog = GObject.registerClass({
         });
         bodyContent.add_child(userBox);
 
-        this._userAvatar = new UserWidget.Avatar(this._user, {
-            iconSize: DIALOG_ICON_SIZE,
+        this._userAvatar = new Shell.UserAvatar({
+            user: this._user,
+            icon_size: DIALOG_ICON_SIZE,
         });
         this._userAvatar.x_align = Clutter.ActorAlign.CENTER;
         userBox.add_child(this._userAvatar);

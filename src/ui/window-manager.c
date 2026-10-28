@@ -4352,8 +4352,8 @@ shell_window_manager_class_init (ShellWindowManagerClass *klass)
    * @texture: the texture with the contents of a window
    *
    * Emitted when "Take Screenshot" is activated in a window menu. main.js
-   * connects it to `Screenshot.captureScreenshot (texture, null, 1, null)`,
-   * which is still JS.
+   * connects it to shell_screenshot_capture_screenshot_async (texture, NULL,
+   * 1, NULL, 0, 0, 1, %SHELL_SCREENSHOT_KIND_WINDOW, ...).
    */
   signals[SCREENSHOT_REQUESTED] =
     g_signal_new ("screenshot-requested",

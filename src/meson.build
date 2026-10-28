@@ -169,6 +169,11 @@ libshell_public_headers = [
   'ui/search-controller.h',
   'ui/pad-osd.h',
   'ui/inhibit-shortcuts-dialog.h',
+  'ui/user-widget.h',
+  'ui/end-session-dialog.h',
+  'ui/access-dialog.h',
+  'ui/audio-device-selection.h',
+  'ui/shell-mount-operation-ui.h',
   'ui/window-manager.h',
   'ui/workspace-animation.h',
   'ui/window-preview.h',
@@ -197,6 +202,23 @@ libshell_public_headers = [
   'misc/dbus-utils.h',
   'misc/date-utils.h',
   'ui/shell-dbus.h',
+  'ui/screenshot-ui.h',
+  'ui/status/accessibility.h',
+  'ui/status/auto-rotate.h',
+  'ui/status/background-apps.h',
+  'ui/status/backlight.h',
+  'ui/status/brightness.h',
+  'ui/status/camera.h',
+  'ui/status/dark-mode.h',
+  'ui/status/do-not-disturb.h',
+  'ui/status/location.h',
+  'ui/status/night-light.h',
+  'ui/status/power-profiles.h',
+  'ui/status/remote-access.h',
+  'ui/status/rfkill.h',
+  'ui/status/system.h',
+  'ui/status/thunderbolt.h',
+  'ui/status/volume.h',
   'shell-mount-operation.h',
   'shell-perf-log.h',
   'shell-screenshot.h',
@@ -219,7 +241,16 @@ if have_xwayland
 endif
 
 if have_networkmanager
-  libshell_public_headers += ['shell-network-agent.h', 'misc/modem-manager.h']
+  libshell_public_headers += [
+    'shell-network-agent.h',
+    'misc/modem-manager.h',
+    'ui/components/network-agent.h',
+    'ui/status/network.h',
+  ]
+endif
+
+if have_bluetooth
+  libshell_public_headers += ['ui/status/bluetooth.h']
 endif
 
 libshell_private_headers = [
@@ -299,6 +330,11 @@ libshell_sources = [
   'ui/search-controller.c',
   'ui/pad-osd.c',
   'ui/inhibit-shortcuts-dialog.c',
+  'ui/user-widget.c',
+  'ui/end-session-dialog.c',
+  'ui/access-dialog.c',
+  'ui/audio-device-selection.c',
+  'ui/shell-mount-operation-ui.c',
   'ui/window-manager.c',
   'ui/workspace-animation.c',
   'ui/window-preview.c',
@@ -323,6 +359,23 @@ libshell_sources = [
   'misc/dbus-utils.c',
   'misc/date-utils.c',
   'ui/shell-dbus.c',
+  'ui/screenshot-ui.c',
+  'ui/status/accessibility.c',
+  'ui/status/auto-rotate.c',
+  'ui/status/background-apps.c',
+  'ui/status/backlight.c',
+  'ui/status/brightness.c',
+  'ui/status/camera.c',
+  'ui/status/dark-mode.c',
+  'ui/status/do-not-disturb.c',
+  'ui/status/location.c',
+  'ui/status/night-light.c',
+  'ui/status/power-profiles.c',
+  'ui/status/remote-access.c',
+  'ui/status/rfkill.c',
+  'ui/status/system.c',
+  'ui/status/thunderbolt.c',
+  'ui/status/volume.c',
   'shell-edge-drag-gesture.c',
   'shell-global.c',
   'shell-invert-lightness-effect.c',
@@ -354,7 +407,16 @@ if have_xwayland
 endif
 
 if have_networkmanager
-  libshell_sources += ['shell-network-agent.c', 'misc/modem-manager.c']
+  libshell_sources += [
+    'shell-network-agent.c',
+    'misc/modem-manager.c',
+    'ui/components/network-agent.c',
+    'ui/status/network.c',
+  ]
+endif
+
+if have_bluetooth
+  libshell_sources += ['ui/status/bluetooth.c']
 endif
 
 libshell_private_sources = [
@@ -482,6 +544,18 @@ dbus_generated += gnome.gdbus_codegen('shell-dbus-generated',
   namespace: 'ShellDBus'
 )
 
+# The skeleton of the screenshot service and the proxy of the screencast
+# service of ui/screenshot-ui.c (types ShellDBusScreenshot and
+# ShellDBusScreencast; ShellScreenshot is the backend)
+dbus_generated += gnome.gdbus_codegen('screenshot-dbus',
+  sources: [
+    '../data/dbus-interfaces/org.gnome.Shell.Screenshot.xml',
+    '../data/dbus-interfaces/org.gnome.Shell.Screencast.xml',
+  ],
+  interface_prefix: 'org.gnome.Shell.',
+  namespace: 'ShellDBus'
+)
+
 # The skeletons of ui/notification-daemon.c (types ShellFreedesktopNotifications
 # and ShellGtkNotifications)
 dbus_generated += gnome.gdbus_codegen('notifications-dbus',
@@ -500,6 +574,116 @@ dbus_generated += gnome.gdbus_codegen('hotplug-sniffer-dbus',
   namespace: 'Shell'
 )
 
+# The proxies of ui/status/night-light.c (type ShellSettingsDaemonColor),
+# ui/status/rfkill.c (ShellSettingsDaemonRfkill), ui/status/backlight.c
+# (ShellSettingsDaemonPowerKeyboard), ui/status/power-profiles.c
+# (ShellPowerProfiles), ui/status/background-apps.c (ShellBackgroundMonitor)
+# and ui/status/thunderbolt.c (ShellBolt1Manager and ShellBolt1Device)
+dbus_generated += gnome.gdbus_codegen('night-light-dbus',
+  sources: '../data/dbus-interfaces/org.gnome.SettingsDaemon.Color.xml',
+  interface_prefix: 'org.gnome.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('rfkill-dbus',
+  sources: '../data/dbus-interfaces/org.gnome.SettingsDaemon.Rfkill.xml',
+  interface_prefix: 'org.gnome.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('backlight-dbus',
+  sources: '../data/dbus-interfaces/org.gnome.SettingsDaemon.Power.Keyboard.xml',
+  interface_prefix: 'org.gnome.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('power-profiles-dbus',
+  sources: '../data/dbus-interfaces/org.freedesktop.UPower.PowerProfiles.xml',
+  interface_prefix: 'org.freedesktop.UPower.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('background-monitor-dbus',
+  sources: '../data/dbus-interfaces/org.freedesktop.background.Monitor.xml',
+  interface_prefix: 'org.freedesktop.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('bolt-dbus',
+  sources: [
+    '../data/dbus-interfaces/org.freedesktop.bolt1.Manager.xml',
+    '../data/dbus-interfaces/org.freedesktop.bolt1.Device.xml',
+  ],
+  interface_prefix: 'org.freedesktop.',
+  namespace: 'Shell'
+)
+
+# The skeletons and proxies of ui/access-dialog.c (types ShellPortalAccess and
+# ShellPortalRequest), ui/end-session-dialog.c
+# (ShellSessionManagerEndSessionDialog and ShellSoftwareOfflineUpdates),
+# ui/audio-device-selection.c (ShellAudioDeviceSelection) and
+# ui/shell-mount-operation-ui.c (ShellMountOperationHandler)
+dbus_generated += gnome.gdbus_codegen('portal-access-dbus',
+  sources: [
+    '../data/dbus-interfaces/org.freedesktop.impl.portal.Access.xml',
+    '../data/dbus-interfaces/org.freedesktop.impl.portal.Request.xml',
+  ],
+  interface_prefix: 'org.freedesktop.impl.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('end-session-dialog-dbus',
+  sources: '../data/dbus-interfaces/org.gnome.SessionManager.EndSessionDialog.xml',
+  interface_prefix: 'org.gnome.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('software-offline-updates-dbus',
+  sources: '../data/dbus-interfaces/org.gnome.Software.OfflineUpdates.xml',
+  interface_prefix: 'org.gnome.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('audio-device-selection-dbus',
+  sources: '../data/dbus-interfaces/org.gnome.Shell.AudioDeviceSelection.xml',
+  interface_prefix: 'org.gnome.Shell.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('mount-operation-handler-dbus',
+  sources: '../data/dbus-interfaces/org.Gtk.MountOperationHandler.xml',
+  interface_prefix: 'org.Gtk.',
+  namespace: 'Shell'
+)
+
+# The skeleton and the proxy of ui/status/location.c (types ShellGeoClue2Agent
+# and ShellGeoClue2Manager) and the proxy of ui/status/system.c
+# (ShellUPowerDevice)
+dbus_generated += gnome.gdbus_codegen('geoclue-dbus',
+  sources: [
+    '../data/dbus-interfaces/org.freedesktop.GeoClue2.Agent.xml',
+    '../data/dbus-interfaces/org.freedesktop.GeoClue2.Manager.xml',
+  ],
+  interface_prefix: 'org.freedesktop.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('upower-device-dbus',
+  sources: '../data/dbus-interfaces/org.freedesktop.UPower.Device.xml',
+  interface_prefix: 'org.freedesktop.',
+  namespace: 'Shell'
+)
+
+# The proxy of ui/status/bluetooth.c (type ShellBluetoothRfkill). It has a
+# namespace of its own: ui/status/rfkill.c has the same interface.
+if have_bluetooth
+  dbus_generated += gnome.gdbus_codegen('bluetooth-rfkill-dbus',
+    sources: '../data/dbus-interfaces/org.gnome.SettingsDaemon.Rfkill.xml',
+    interface_prefix: 'org.gnome.SettingsDaemon.',
+    namespace: 'ShellBluetooth'
+  )
+endif
+
 if have_networkmanager
   dbus_generated += gnome.gdbus_codegen('modem-manager-dbus',
     sources: [
@@ -514,6 +698,16 @@ if have_networkmanager
   )
 endif
 
+# The proxy of ui/status/network.c (type ShellPortalHelper); the captive
+# portal login goes through the portal helper only if it is built
+if have_portal_helper
+  dbus_generated += gnome.gdbus_codegen('portal-helper-dbus',
+    sources: '../data/dbus-interfaces/org.gnome.Shell.PortalHelper.xml',
+    interface_prefix: 'org.gnome.Shell.',
+    namespace: 'Shell'
+  )
+endif
+
 libshell_no_gir_sources += dbus_generated
 
 libshell_link_with = []
@@ -523,7 +717,7 @@ endif
 
 libshell = library('shell-' + mutter_api_version,
   sources: libshell_gir_sources + libshell_no_gir_sources,
-  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, glycin_dep, ibus_dep, json_glib_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep, gweather_dep, geoclue_dep, malcontent_dep, rsvg_dep],
+  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, glycin_dep, ibus_dep, json_glib_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep, gweather_dep, geoclue_dep, malcontent_dep, rsvg_dep, libgvc_dep, upower_dep] + (have_bluetooth ? [bluetooth_dep] : []),
   include_directories: [conf_inc, include_directories('tray')],
   c_args: gnome_shell_cflags,
   link_with: libshell_link_with,
@@ -540,6 +734,7 @@ libshell_dep = declare_dependency(
 )
 
 libshell_gir_includes = [
+  'AccountsService-1.0',
   'Atspi-2.0',
   'Clutter-@0@'.format(mutter_api_version),
   'Meta-@0@'.format(mutter_api_version),
@@ -567,6 +762,7 @@ libshell_gir = gnome.generate_gir(libshell,
   nsversion: mutter_api_version,
   namespace: 'Shell',
   includes: libshell_gir_includes,
+  dependencies: [libgvc_dep],
   extra_args: ['--quiet'],
   kwargs: introspection_common,
 )

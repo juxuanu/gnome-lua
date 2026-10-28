@@ -26,7 +26,6 @@ import 'gi://Polkit?version=1.0';
 import 'gi://PolkitAgent?version=1.0';
 import 'gi://Rsvg?version=2.0';
 import 'gi://Soup?version=3.0';
-import 'gi://UPowerGlib?version=1.0';
 
 import * as Config from './config.js';
 
@@ -41,12 +40,6 @@ gi.require('St', Config.LIBMUTTER_API_VERSION);
 /**
  * Compile-time optional dependencies
  */
-
-if (Config.HAVE_BLUETOOTH)
-    gi.require('GnomeBluetooth', '3.0');
-else
-    console.debug('GNOME Shell was compiled without GNOME Bluetooth support');
-
 
 if (Config.HAVE_NETWORKMANAGER) {
     gi.require('NM', '1.0');

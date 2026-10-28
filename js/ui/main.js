@@ -5,12 +5,9 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as AccessDialog from './accessDialog.js';
-import * as AudioDeviceSelection from './audioDeviceSelection.js';
 import * as BreakManager from '../misc/breakManager.js';
 import * as Config from '../misc/config.js';
 import * as Components from './components.js';
-import * as EndSessionDialog from './endSessionDialog.js';
 import * as ExtensionSystem from './extensionSystem.js';
 import * as ExtensionDownloader from './extensionDownloader.js';
 import * as ExtensionUtils from '../misc/extensionUtils.js';
@@ -19,11 +16,9 @@ import * as Overview from './overview.js';
 import * as PanelItems from './panelItems.js';
 import * as WelcomeDialog from './welcomeDialog.js';
 import * as LookingGlass from './lookingGlass.js';
-import * as Screenshot from './screenshot.js';
 import * as ScreenShield from './screenShield.js';
 import {LoginDialog} from '../gdm/loginDialog.js';
 import {UnlockDialog} from './unlockDialog.js';
-import * as ShellMountOperation from './shellMountOperation.js';
 import * as TimeLimitsManager from '../misc/timeLimitsManager.js';
 import * as KbdA11yDialog from './kbdA11yDialog.js';
 import {formatError} from '../misc/errorUtils.js';
@@ -177,7 +172,7 @@ export async function start() {
         screenshotOverviewHiddenId = overview.connect('hidden', () => {
             overview.disconnect(screenshotOverviewHiddenId);
             screenshotOverviewHiddenId = 0;
-            Screenshot.showScreenshotUI();
+            screenshotUI.open(Shell.ScreenshotUIMode.SCREENSHOT);
         });
     });
 
@@ -189,10 +184,12 @@ export async function start() {
 
     await _initializeUI();
 
-    shellAccessDialogDBusService = new AccessDialog.AccessDialogDBus();
-    shellAudioSelectionDBusService = new AudioDeviceSelection.AudioDeviceSelectionDBus();
+    shellAccessDialogDBusService = new Shell.AccessDialogDBus();
+    shellAudioSelectionDBusService = new Shell.AudioDeviceSelectionDBus();
+    shellAudioSelectionDBusService.connect('overview-hide-requested',
+        () => overview.hide());
     _createShellDBusServices();
-    shellMountOpDBusService = new ShellMountOperation.GnomeShellMountOpHandler();
+    shellMountOpDBusService = new Shell.MountOpHandler();
 
     const watchId = Gio.DBus.session.watch_name('org.gnome.Shell.Notifications',
         Gio.BusNameWatcherFlags.AUTO_START,
@@ -360,7 +357,7 @@ function _createShellDBusServices() {
             extension.state, extension.error ?? '');
     });
 
-    _screenshotService = new Screenshot.ScreenshotService();
+    _screenshotService = new Shell.ScreenshotService({screenshot_ui: screenshotUI});
 }
 
 /** @private */
@@ -408,7 +405,7 @@ async function _initializeUI() {
         return true;
     });
 
-    // The signal is emitted from JS (screenshot) and from C (modal dialogs):
+    // The signal is emitted from C (modal dialogs, the screenshot UI) and from JS:
     // forward it both ways, once
     let forwardingSystemModalOpened = false;
     layoutManager.connect('system-modal-opened', () => {
@@ -468,7 +465,7 @@ async function _initializeUI() {
     global.connect('shutdown',
         () => global.stage.context.get_backend().set_input_method(null));
 
-    screenshotUI = new Screenshot.ScreenshotUI();
+    screenshotUI = new Shell.ScreenshotUI({window_manager: wm});
 
     brightnessManager = new Shell.BrightnessManager();
     for (const name of Shell.BrightnessManager.get_keybinding_names())
@@ -552,7 +549,7 @@ async function _initializeUI() {
 
     // Provide the bus object for gnome-session to
     // initiate logouts.
-    endSessionDialog = new EndSessionDialog.EndSessionDialog();
+    endSessionDialog = new Shell.EndSessionDialog();
 
     // We're ready for the session manager to move to the next phase
     GLib.idle_add_once(GLib.PRIORITY_DEFAULT, () => {
@@ -637,12 +634,16 @@ function _connectWindowManager() {
     wm.connect('overview-hide-requested', () => {
         overview.hide();
     });
-    wm.connect('screenshot-requested', async (_wm, texture) => {
-        try {
-            await Screenshot.captureScreenshot(texture, null, 1, null);
-        } catch (e) {
-            logError(e, 'Error capturing screenshot');
-        }
+    wm.connect('screenshot-requested', (_wm, texture) => {
+        Shell.Screenshot.capture_screenshot_async(
+            texture, null, 1, null, 0, 0, 1, Shell.ScreenshotKind.WINDOW,
+            null, (_source, res) => {
+                try {
+                    Shell.Screenshot.capture_screenshot_finish(res);
+                } catch (e) {
+                    logError(e, 'Error capturing screenshot');
+                }
+            });
     });
 
     // Handlers must not return a value: a true one stops the JS emission

@@ -3,16 +3,11 @@
  * automount-manager.c: Mounts the volumes of the removable media when they
  * are added. Port of js/ui/components/automountManager.js.
  *
- * The dialogs that ask for a password or a choice during the mount are still
- * JS (js/ui/shellMountOperation.js). The manager reaches them with three
- * signals that the component manager connects (js/ui/components.js):
- *
- *  - #ShellAutomountManager::create-mount-operation (`new ShellMountOperation
- *    (volume, {existingDialog})`) returns the #GMountOperation to mount with;
- *  - #ShellAutomountManager::close-mount-operation (`operation.close ()`);
- *  - #ShellAutomountManager::borrow-dialog (`operation.borrowDialog ()`).
- *
- * Without a handler the volumes are mounted without a mount operation.
+ * The dialogs that ask for a password or a choice during the mount are
+ * created by #ShellMountOperationUI (js/ui/shellMountOperation.js): the
+ * manager holds one for each volume that is being mounted, mounts the volume
+ * with its mount operation, asks it for the password dialog it showed (to
+ * reuse it when the password was wrong) and closes it when the mount is over.
  *
  * Differences from the JS module, other than the renames listed in
  * docs/PORT_STATUS.md:
@@ -25,8 +20,9 @@
  *  - A mount that was cancelled (the component was disabled) does not log
  *    "Unable to mount volume"; after ShellGlobal::shutdown the completions do
  *    nothing.
- *  - A password is not asked again when nothing handles
- *    #ShellAutomountManager::create-mount-operation (it would loop).
+ *  - The create-mount-operation, close-mount-operation and borrow-dialog
+ *    signals which connected the JS dialogs through js/ui/components.js are
+ *    gone.
  *  - The entry of a volume that was mounted without a mount operation is
  *    removed from the table of the active operations.
  *  - The expiry timeouts of `allowAutorun` are dropped when the manager is
@@ -46,6 +42,7 @@
 #include "misc/gnome-session.h"
 #include "shell-global.h"
 #include "ui/components/automount-manager.h"
+#include "ui/shell-mount-operation-ui.h"
 
 #define SETTINGS_SCHEMA "org.gnome.desktop.media-handling"
 #define SETTING_ENABLE_AUTOMOUNT "automount"
@@ -54,23 +51,12 @@
 
 #define ALLOW_AUTORUN_KEY "shell-allow-autorun"
 
-enum
-{
-  CREATE_MOUNT_OPERATION,
-  CLOSE_MOUNT_OPERATION,
-  BORROW_DIALOG,
-
-  LAST_SIGNAL
-};
-
-static guint signals[LAST_SIGNAL] = { 0, };
-
 struct _ShellAutomountManager
 {
   GObject parent;
 
   GSettings *settings;
-  GHashTable *active_operations;      /* GVolume -> GMountOperation (nullable) */
+  GHashTable *active_operations;      /* GVolume -> ShellMountOperationUI (nullable) */
   GHashTable *expire_ids;             /* GVolume -> source id */
   ShellSessionManager *session;       /* nullable */
   GCancellable *inhibit_cancellable;
@@ -217,24 +203,11 @@ inhibitors_changed_cb (ShellSessionManager    *session,
 /* The mount operations                                                      */
 /* ------------------------------------------------------------------------ */
 
-/* Returns the mount operation to use for @volume, or %NULL */
-static GMountOperation *
-create_mount_operation (ShellAutomountManager *self,
-                        GVolume               *volume,
-                        GObject               *existing_dialog)
-{
-  GMountOperation *operation = NULL;
-
-  g_signal_emit (self, signals[CREATE_MOUNT_OPERATION], 0,
-                 volume, existing_dialog, &operation);
-  return operation;
-}
-
 static void
 close_operation (ShellAutomountManager *self,
                  GVolume               *volume)
 {
-  g_autoptr (GMountOperation) operation = NULL;
+  g_autoptr (ShellMountOperationUI) operation = NULL;
   gpointer value;
 
   if (!g_hash_table_lookup_extended (self->active_operations, volume, NULL, &value))
@@ -245,7 +218,7 @@ close_operation (ShellAutomountManager *self,
   g_hash_table_remove (self->active_operations, volume);
 
   if (operation != NULL && !self->shutting_down)
-    g_signal_emit (self, signals[CLOSE_MOUNT_OPERATION], 0, operation);
+    shell_mount_operation_ui_close (operation);
 }
 
 static void
@@ -261,7 +234,7 @@ typedef struct
 static void
 mount_volume (ShellAutomountManager *self,
               GVolume               *volume,
-              GMountOperation       *operation,
+              ShellMountOperationUI *operation,
               gboolean               allow_autorun)
 {
   if (allow_autorun)
@@ -270,7 +243,9 @@ mount_volume (ShellAutomountManager *self,
   g_hash_table_insert (self->active_operations, g_object_ref (volume),
                        operation != NULL ? g_object_ref (operation) : NULL);
 
-  g_volume_mount (volume, G_MOUNT_MOUNT_NONE, operation, self->cancellable,
+  g_volume_mount (volume, G_MOUNT_MOUNT_NONE,
+                  operation != NULL ? shell_mount_operation_ui_get_mount_op (operation) : NULL,
+                  self->cancellable,
                   on_volume_mounted, g_object_ref (self));
 }
 
@@ -278,21 +253,15 @@ static void
 reask_password (ShellAutomountManager *self,
                 GVolume               *volume)
 {
-  g_autoptr (GObject) existing_dialog = NULL;
-  g_autoptr (GMountOperation) operation = NULL;
+  g_autoptr (ShellModalDialog) existing_dialog = NULL;
+  g_autoptr (ShellMountOperationUI) operation = NULL;
   gpointer previous = NULL;
 
   g_hash_table_lookup_extended (self->active_operations, volume, NULL, &previous);
   if (previous != NULL)
-    g_signal_emit (self, signals[BORROW_DIALOG], 0, previous, &existing_dialog);
+    existing_dialog = shell_mount_operation_ui_borrow_dialog (previous);
 
-  operation = create_mount_operation (self, volume, existing_dialog);
-  if (operation == NULL)
-    {
-      close_operation (self, volume);
-      return;
-    }
-
+  operation = shell_mount_operation_ui_new (volume, existing_dialog);
   mount_volume (self, volume, operation, FALSE);
 }
 
@@ -404,7 +373,7 @@ check_and_mount_volume (ShellAutomountManager *self,
 
   if (params->use_mount_op)
     {
-      g_autoptr (GMountOperation) operation = create_mount_operation (self, volume, NULL);
+      g_autoptr (ShellMountOperationUI) operation = shell_mount_operation_ui_new (volume, NULL);
 
       mount_volume (self, volume, operation, params->allow_autorun);
     }
@@ -613,21 +582,6 @@ shell_automount_manager_disable (ShellAutomountManager *self)
   g_clear_handle_id (&self->mount_all_id, g_source_remove);
 }
 
-static gboolean
-accumulate_first_object (GSignalInvocationHint *ihint,
-                         GValue                *return_accu,
-                         const GValue          *handler_return,
-                         gpointer               data)
-{
-  GObject *object = g_value_get_object (handler_return);
-
-  if (object == NULL)
-    return TRUE;
-
-  g_value_set_object (return_accu, object);
-  return FALSE;
-}
-
 static void
 unref_if_set (gpointer object)
 {
@@ -701,69 +655,6 @@ shell_automount_manager_class_init (ShellAutomountManagerClass *klass)
 
   object_class->constructed = shell_automount_manager_constructed;
   object_class->dispose = shell_automount_manager_dispose;
-
-  /**
-   * ShellAutomountManager::create-mount-operation:
-   * @self: the manager
-   * @volume: the volume that is going to be mounted
-   * @existing_dialog: (nullable): the dialog of the previous operation of
-   *   @volume, when the password is asked again; the new operation uses it
-   *   instead of creating its own
-   *
-   * Emitted when the manager needs a mount operation to mount @volume
-   * (`new ShellMountOperation (volume, {existingDialog})`). The first handler
-   * to return an operation wins; the volume is mounted without operation if
-   * there is none.
-   *
-   * Returns: (transfer none) (nullable): the mount operation
-   */
-  signals[CREATE_MOUNT_OPERATION] =
-    g_signal_new ("create-mount-operation",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0,
-                  accumulate_first_object, NULL, NULL,
-                  G_TYPE_MOUNT_OPERATION, 2,
-                  G_TYPE_VOLUME, G_TYPE_OBJECT);
-
-  /**
-   * ShellAutomountManager::close-mount-operation:
-   * @self: the manager
-   * @operation: a mount operation returned by
-   *   #ShellAutomountManager::create-mount-operation
-   *
-   * Emitted when the mount of the volume of @operation is over
-   * (`operation.close ()`): the handler closes its dialogs.
-   */
-  signals[CLOSE_MOUNT_OPERATION] =
-    g_signal_new ("close-mount-operation",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0, NULL, NULL, NULL,
-                  G_TYPE_NONE, 1,
-                  G_TYPE_MOUNT_OPERATION);
-
-  /**
-   * ShellAutomountManager::borrow-dialog:
-   * @self: the manager
-   * @operation: a mount operation returned by
-   *   #ShellAutomountManager::create-mount-operation
-   *
-   * Emitted when the password of the volume of @operation must be asked
-   * again (`operation.borrowDialog ()`). The handler returns the dialog that
-   * is open, which stops answering to @operation, and the manager hands it
-   * to the next #ShellAutomountManager::create-mount-operation.
-   *
-   * Returns: (transfer none) (nullable): the dialog of @operation
-   */
-  signals[BORROW_DIALOG] =
-    g_signal_new ("borrow-dialog",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0,
-                  accumulate_first_object, NULL, NULL,
-                  G_TYPE_OBJECT, 1,
-                  G_TYPE_MOUNT_OPERATION);
 }
 
 static void

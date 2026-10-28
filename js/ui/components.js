@@ -1,39 +1,13 @@
 import Shell from 'gi://Shell';
 
 import * as Main from './main.js';
-import * as ShellMountOperation from './shellMountOperation.js';
 
 // The components that are C classes: name -> function that creates the object
 const NATIVE_COMPONENTS = {
-    automountManager: () => {
-        const manager = new Shell.AutomountManager();
-        _connectMountOperations(manager);
-        return manager;
-    },
+    automountManager: () => new Shell.AutomountManager(),
     autorunManager: () => new Shell.AutorunManager({message_tray: Main.messageTray}),
+    networkAgent: () => new Shell.NetworkAgentComponent(),
 };
-
-/**
- * The dialogs of the mount operations of the automount manager are still
- * JS: the manager asks for them with signals.
- *
- * @param {Shell.AutomountManager} manager - the automount manager
- */
-function _connectMountOperations(manager) {
-    const operations = new WeakMap();
-
-    manager.connect('create-mount-operation', (_manager, volume, existingDialog) => {
-        const operation = new ShellMountOperation.ShellMountOperation(volume, {existingDialog});
-        operations.set(operation.mountOp, operation);
-        return operation.mountOp;
-    });
-    manager.connect('close-mount-operation', (_manager, mountOp) => {
-        operations.get(mountOp)?.close();
-    });
-    manager.connect('borrow-dialog', (_manager, mountOp) => {
-        return operations.get(mountOp)?.borrowDialog() ?? null;
-    });
-}
 
 export class ComponentManager {
     constructor() {

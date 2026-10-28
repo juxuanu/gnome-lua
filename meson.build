@@ -104,6 +104,14 @@ ibus_dep = dependency('ibus-1.0', version: ibus_req)
 # misc/weather.c: GWeather.Info and the Geoclue simple client
 gweather_dep = dependency('gweather4', version: gweather_req)
 geoclue_dep = dependency('libgeoclue-2.0', version: geoclue_req)
+# ui/status/system.c: UpDeviceState
+upower_dep = dependency('upower-glib')
+# ui/status/bluetooth.c: BluetoothClient. libgnome-bluetooth does not install
+# its headers (the JS used the typelib), the few declarations it needs are in
+# the C file
+bluetooth_dep = dependency('gnome-bluetooth-3.0', version: '>= 3.34',
+  required: get_option('bluetooth'))
+have_bluetooth = bluetooth_dep.found()
 
 # misc/parental-controls-manager.c; the JS looked for the typelib at run
 # time (and for session limits, for libmalcontent >= 0.14.0)
@@ -200,6 +208,7 @@ cdata.set_quoted('VERSION', meson.project_version())
 cdata.set_quoted('PACKAGE_VERSION', meson.project_version())
 
 cdata.set('HAVE_NETWORKMANAGER', have_networkmanager)
+cdata.set('HAVE_PORTAL_HELPER', have_portal_helper)
 cdata.set('HAVE_PIPEWIRE', have_pipewire)
 cdata.set('HAVE_SYSTEMD', have_systemd)
 cdata.set('HAVE_XWAYLAND', have_xwayland)
@@ -319,6 +328,8 @@ libgvc = subproject('gvc',
   ]
 )
 libgvc_gir = libgvc.get_variable('libgvc_gir')
+# ui/status/volume.c: GvcMixerControl
+libgvc_dep = libgvc.get_variable('libgvc_dep')
 
 # Embedded Lua 5.5 runtime + extension manager (subprojects/shell-lua).
 # Built shared so g-ir-scanner can dump it; vendors Lua via its own wrap.

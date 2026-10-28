@@ -10,27 +10,9 @@ import * as Config from '../misc/config.js';
 import * as Main from './main.js';
 import * as Util from '../misc/util.js';
 
-import * as RemoteAccessStatus from './status/remoteAccess.js';
-import * as PowerProfileStatus from './status/powerProfiles.js';
-import * as RFKillStatus from './status/rfkill.js';
-import * as CameraStatus from './status/camera.js';
-import * as VolumeStatus from './status/volume.js';
-import * as BrightnessStatus from './status/brightness.js';
-import * as SystemStatus from './status/system.js';
-import * as LocationStatus from './status/location.js';
-import * as NightLightStatus from './status/nightLight.js';
-import * as DarkModeStatus from './status/darkMode.js';
-import * as DoNotDisturb from './status/doNotDisturb.js';
-import * as BacklightStatus from './status/backlight.js';
-import * as ThunderboltStatus from './status/thunderbolt.js';
-import * as AutoRotateStatus from './status/autoRotate.js';
-import * as BackgroundAppsStatus from './status/backgroundApps.js';
-
 import {MediaMessage, MprisSource} from './mpris.js';
-import {ATIndicator} from './status/accessibility.js';
 import {InputSourceIndicator} from './status/keyboard.js';
 import {DwellClickIndicator} from './status/dwellClick.js';
-import {ScreenRecordingIndicator, ScreenSharingIndicator} from './status/remoteAccess.js';
 
 const BUTTON_DND_ACTIVATION_TIMEOUT = 250;
 
@@ -323,40 +305,45 @@ class QuickSettings extends Shell.PanelMenuButton {
 
     async _setupIndicators() {
         if (Config.HAVE_NETWORKMANAGER) {
-            /** @type {import('./status/network.js')} */
-            const NetworkStatus = await import('./status/network.js');
-
-            this._network = new NetworkStatus.Indicator();
+            this._network = new Shell.NetworkIndicator();
+            this._network.connect('overview-hide-requested',
+                () => Main.overview.hide());
         } else {
             this._network = null;
         }
 
-        if (Config.HAVE_BLUETOOTH) {
-            /** @type {import('./status/bluetooth.js')} */
-            const BluetoothStatus = await import('./status/bluetooth.js');
-
-            this._bluetooth = new BluetoothStatus.Indicator();
-        } else {
+        if (Config.HAVE_BLUETOOTH)
+            this._bluetooth = new Shell.BluetoothIndicator();
+        else
             this._bluetooth = null;
-        }
 
-        this._system = new SystemStatus.Indicator();
-        this._camera = new CameraStatus.Indicator();
-        this._volumeOutput = new VolumeStatus.OutputIndicator();
-        this._volumeInput = new VolumeStatus.InputIndicator();
-        this._brightness = new BrightnessStatus.Indicator();
-        this._remoteAccess = new RemoteAccessStatus.RemoteAccessApplet();
-        this._location = new LocationStatus.Indicator();
-        this._thunderbolt = new ThunderboltStatus.Indicator();
-        this._nightLight = new NightLightStatus.Indicator();
-        this._darkMode = new DarkModeStatus.Indicator();
-        this._doNotDisturb = new DoNotDisturb.Indicator();
-        this._backlight = new BacklightStatus.Indicator();
-        this._powerProfiles = new PowerProfileStatus.Indicator();
-        this._rfkill = new RFKillStatus.Indicator();
-        this._autoRotate = new AutoRotateStatus.Indicator();
+        this._system = new Shell.SystemStatusIndicator();
+        this._system.connect('screenshot-ui-requested', () => {
+            Main.screenshotUI.open(Shell.ScreenshotUIMode.SCREENSHOT);
+        });
+        this._camera = new Shell.CameraIndicator();
+        this._volumeOutput = new Shell.VolumeOutputIndicator();
+        this._volumeInput = new Shell.VolumeInputIndicator();
+        this._brightness = new Shell.BrightnessIndicator({
+            brightness_manager: Main.brightnessManager,
+        });
+        this._remoteAccess = new Shell.RemoteAccessApplet();
+        Main.screenshotUI.bind_property('screencast-in-progress',
+            this._remoteAccess, 'screencast-in-progress',
+            GObject.BindingFlags.SYNC_CREATE);
+        this._location = new Shell.LocationIndicator();
+        this._thunderbolt = new Shell.ThunderboltIndicator();
+        this._nightLight = new Shell.NightLightIndicator();
+        this._darkMode = new Shell.DarkModeIndicator();
+        this._doNotDisturb = new Shell.DoNotDisturbIndicator();
+        this._backlight = new Shell.BacklightIndicator();
+        this._powerProfiles = new Shell.PowerProfilesIndicator();
+        this._rfkill = new Shell.RfkillIndicator();
+        this._autoRotate = new Shell.AutoRotateIndicator();
         this._unsafeMode = new UnsafeModeIndicator();
-        this._backgroundApps = new BackgroundAppsStatus.Indicator();
+        this._backgroundApps = new Shell.BackgroundAppsIndicator();
+        this._backgroundApps.connect('overview-hide-requested',
+            () => Main.overview.hide());
 
         // add privacy-related indicators before any external indicators
         let pos = 0;
@@ -442,11 +429,11 @@ const PANEL_ITEM_IMPLEMENTATIONS = {
     'activities': ActivitiesButton,
     'quickSettings': QuickSettings,
     'dateMenu': Shell.DateMenuButton,
-    'a11y': ATIndicator,
+    'a11y': Shell.ATIndicator,
     'keyboard': InputSourceIndicator,
     'dwellClick': DwellClickIndicator,
-    'screenRecording': ScreenRecordingIndicator,
-    'screenSharing': ScreenSharingIndicator,
+    'screenRecording': Shell.ScreenRecordingIndicator,
+    'screenSharing': Shell.ScreenSharingIndicator,
 };
 
 /**
@@ -468,8 +455,26 @@ export function createPanelItem(role) {
 
     if (role === 'dateMenu')
         _setupDateMenu(item);
+    else if (role === 'screenRecording')
+        _setupScreenRecording(item);
 
     return item;
+}
+
+/**
+ * The screenshot UI is not known to the screen recording indicator (C,
+ * Shell.ScreenRecordingIndicator): it shows while the screenshot UI records
+ * a screencast, and a click on it stops the screencast.
+ *
+ * @param {Shell.ScreenRecordingIndicator} indicator - the new indicator
+ */
+function _setupScreenRecording(indicator) {
+    Main.screenshotUI.connectObject('notify::screencast-in-progress', () => {
+        indicator.screencast_in_progress =
+            Main.screenshotUI.screencast_in_progress;
+    }, indicator);
+    indicator.connect('stop-screencast-requested',
+        () => Main.screenshotUI.stop_screencast());
 }
 
 /**

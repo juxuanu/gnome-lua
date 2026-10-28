@@ -46,6 +46,12 @@ option('systemd',
   description: 'Enable systemd integration'
 )
 
+option('bluetooth',
+  type: 'feature',
+  value: 'auto',
+  description: 'Enable Bluetooth support (libgnome-bluetooth)'
+)
+
 option('malcontent',
   type: 'feature',
   value: 'auto',

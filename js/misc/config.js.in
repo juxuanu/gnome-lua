@@ -1,5 +1,3 @@
-const pkg = imports.package;
-
 /* The name of this package (not localized) */
 export const PACKAGE_NAME = '@PACKAGE_NAME@';
 /* The version of this package */
@@ -18,5 +16,5 @@ export const PKGDATADIR = '@datadir@/@PACKAGE_NAME@';
 /* g-i package versions */
 export const LIBMUTTER_API_VERSION = '@LIBMUTTER_API_VERSION@';
 
-export const HAVE_BLUETOOTH = pkg.checkSymbol('GnomeBluetooth', '3.0',
-    'Client.default_adapter_state');
+/* 1 if the Bluetooth indicator (ui/status/bluetooth.c) is built, 0 otherwise */
+export const HAVE_BLUETOOTH = @HAVE_BLUETOOTH@;

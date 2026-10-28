@@ -7,11 +7,11 @@
  * Differences from the JS module, other than the renames listed in
  * docs/PORT_STATUS.md:
  *
- *  - "Take Screenshot" cannot call js/ui/screenshot.js (M4). The window is
- *    painted here and the texture is handed to the JS through the
- *    #ShellWindowMenuManager::screenshot-requested signal, which
+ *  - "Take Screenshot" does not reach the screenshot module (screenshot-ui.c)
+ *    itself. The window is painted here and the texture is handed to main.js
+ *    through the #ShellWindowMenuManager::screenshot-requested signal, which
  *    window-manager.c forwards as #ShellWindowManager::screenshot-requested
- *    and main.js connects to Screenshot.captureScreenshot ().
+ *    and main.js connects to shell_screenshot_capture_screenshot_async ().
  *  - `Main.layoutManager` and `Main.sessionMode` are read from #ShellMain.
  *  - A window menu type other than %META_WINDOW_MENU_WM logs a warning
  *    instead of throwing.
@@ -697,7 +697,7 @@ shell_window_menu_manager_class_init (ShellWindowMenuManagerClass *klass)
    * @texture: the texture with the contents of the window
    *
    * Emitted when "Take Screenshot" is activated in a window menu. window-manager.c
-   * passes the texture to `Screenshot.captureScreenshot ()`, which is still JS.
+   * passes the texture to shell_screenshot_capture_screenshot_async ().
    */
   manager_signals[MANAGER_SCREENSHOT_REQUESTED] =
     g_signal_new ("screenshot-requested",

@@ -12,7 +12,6 @@ import * as Batch from './batch.js';
 import {logErrorUnlessCancelled} from '../misc/errorUtils.js';
 import * as Params from '../misc/params.js';
 import * as UserVerifier from './userVerifier.js';
-import * as UserWidget from '../ui/userWidget.js';
 import * as WebLogin from './webLogin.js';
 
 const TimerChildIface = Shell.dbus_load_interface_xml('org.freedesktop.MalcontentTimer1.Child');
@@ -616,14 +615,14 @@ export const AuthPrompt = GObject.registerClass({
     _closeWebLoginDialog() {
         this._webLoginDialog.hide();
 
-        this._userWell.get_child()?.showAvatar();
+        this._userWell.get_child()?.show_avatar();
         this._mainBox.show();
 
         this.webLoginActive = false;
     }
 
     _openWebLoginDialog() {
-        this._userWell.get_child()?.hideAvatar();
+        this._userWell.get_child()?.hide_avatar();
         this._mainBox.hide();
 
         this._webLoginDialog.update(this._webLoginParams);
@@ -923,7 +922,10 @@ export const AuthPrompt = GObject.registerClass({
         if (oldChild)
             oldChild.destroy();
 
-        const userWidget = new UserWidget.UserWidget(user, Clutter.Orientation.VERTICAL);
+        const userWidget = new Shell.UserWidget({
+            user,
+            orientation: Clutter.Orientation.VERTICAL,
+        });
         this._userWell.set_child(userWidget);
     }
 

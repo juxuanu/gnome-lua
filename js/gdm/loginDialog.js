@@ -35,9 +35,7 @@ import * as GdmUtil from './util.js';
 import * as Settings from './settings.js';
 import * as Main from '../ui/main.js';
 import * as Realmd from './realmd.js';
-import * as UserWidget from '../ui/userWidget.js';
 import {MessageType} from './userVerifier.js';
-import * as A11y from '../ui/status/accessibility.js';
 
 const _FADE_ANIMATION_TIME = 250;
 const _SCROLL_ANIMATION_TIME = 500;
@@ -79,7 +77,7 @@ export const UserListItem = GObject.registerClass({
             this._setSelected(this.hover);
         });
 
-        this._userWidget = new UserWidget.UserWidget(this.user);
+        this._userWidget = new Shell.UserWidget({user: this.user});
         layout.add_child(this._userWidget);
 
         this._userWidget.bind_property('label-actor',
@@ -334,16 +332,16 @@ class A11yMenuButton extends St.Button {
             n_columns: N_A11Y_MENU_COLUMNS,
         });
 
-        this._menu.add_item(new A11y.HighContrastToggle(), 1);
-        this._menu.add_item(new A11y.MagnifierToggle(), 1);
-        this._menu.add_item(new A11y.LargeTextToggle(), 1);
-        this._menu.add_item(new A11y.ScreenReaderToggle(), 1);
-        this._menu.add_item(new A11y.ScreenKeyboardToggle(), 1);
-        this._menu.add_item(new A11y.VisualBellToggle(), 1);
-        this._menu.add_item(new A11y.StickyKeysToggle(), 1);
-        this._menu.add_item(new A11y.SlowKeysToggle(), 1);
-        this._menu.add_item(new A11y.BounceKeysToggle(), 1);
-        this._menu.add_item(new A11y.MouseKeysToggle(), 1);
+        this._menu.add_item(new Shell.HighContrastToggle(), 1);
+        this._menu.add_item(new Shell.MagnifierToggle(), 1);
+        this._menu.add_item(new Shell.LargeTextToggle(), 1);
+        this._menu.add_item(new Shell.ScreenReaderToggle(), 1);
+        this._menu.add_item(new Shell.ScreenKeyboardToggle(), 1);
+        this._menu.add_item(new Shell.VisualBellToggle(), 1);
+        this._menu.add_item(new Shell.StickyKeysToggle(), 1);
+        this._menu.add_item(new Shell.SlowKeysToggle(), 1);
+        this._menu.add_item(new Shell.BounceKeysToggle(), 1);
+        this._menu.add_item(new Shell.MouseKeysToggle(), 1);
 
         Main.uiGroup.add_child(this._menu.actor);
         this._menu.actor.hide();
