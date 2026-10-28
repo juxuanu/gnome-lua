@@ -1212,7 +1212,9 @@ add_item_to_page (ShellIconGridLayout *self,
 
   page = get_page (self, page_index);
 
-  if (index == -1)
+  /* Array.splice () appended for any index past the end (the saved page
+   * layout can name a position the page does not have yet) */
+  if (index < 0 || index > (int) page->children->len)
     index = (int) page->children->len;
 
   item_data = g_new0 (ItemData, 1);
