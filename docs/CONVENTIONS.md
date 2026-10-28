@@ -197,3 +197,20 @@ never call extension code directly.
   booleans, and a second function (`track_chrome_with_flags ()`) over an "unset" value.
 * Boxed values (`ShellMonitor`) returned from properties or getters are copies for JS: object identity
   (`===`) between two reads is gone, compare an index.
+* A gesture or action stored in a struct field and cleared in `dispose()` must be
+  `g_object_ref_sink()`ed: the actor it was added to sinks the floating reference
+  and drops it when the actor is finalized, which the JS garbage collector can do
+  before the owning object is disposed (`ShellDraggable` crashed at shutdown).
+* Set weak pointers only through `g_set_weak_pointer (&field, value)`. Assigning
+  the field first makes the helper a no-op, nothing is registered, and
+  `g_clear_weak_pointer()` in `dispose()` raises a fatal "couldn't find weak ref".
+* A JS signal handler returning `true` stops the emission for every later handler:
+  write `() => { obj.prop = true; }`, never `() => (obj.prop = true)`.
+* `g_ptr_array_insert()` asserts on an index past the end where `Array.splice()`
+  appended; clamp indexes that come from saved state.
+* Signals with a return value cannot return a string array (`gi-docgen` crashes
+  on it); return a `GVariant` (`as`) or an object.
+* glib-mkenums reads one enum value per line: no multi-line `A | B | C` values.
+* Shutdown runs a nested main loop in `main.js` (waiting for the time limits
+  manager), so pending JS promises and timeouts still fire after the actors were
+  destroyed; C ports must not reach destroyed actors from async completions.
