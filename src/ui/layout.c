@@ -1201,6 +1201,7 @@ struct _ShellLayoutManager
   GSettings *interface_settings;
   MetaMonitorManager *monitor_manager;
   gulong monitors_changed_id;
+  ShellGlobal *global; /* weak */
   gulong shutdown_id;
   gulong session_updated_id;
   ShellSessionMode *session_mode; /* weak */
@@ -1882,9 +1883,13 @@ clear_update_region_later (ShellLayoutManager *self)
 {
   if (self->update_region_later != 0)
     {
-      MetaLaters *laters = meta_compositor_get_laters (shell_global_get_compositor (shell_global_get ()));
+      /* Without a global there is no compositor left to own the later */
+      if (self->global != NULL)
+        {
+          MetaLaters *laters = meta_compositor_get_laters (shell_global_get_compositor (self->global));
 
-      meta_laters_remove (laters, self->update_region_later);
+          meta_laters_remove (laters, self->update_region_later);
+        }
       self->update_region_later = 0;
     }
 }
@@ -2458,6 +2463,7 @@ shell_layout_manager_constructed (GObject *object)
   clutter_actor_add_child (CLUTTER_ACTOR (self->ui_group), window_group);
   g_object_unref (window_group);
 
+  g_set_weak_pointer (&self->global, global);
   self->shutdown_id = g_signal_connect (global, "shutdown",
                                         G_CALLBACK (on_shutdown), self);
 
@@ -2575,7 +2581,6 @@ static void
 shell_layout_manager_dispose (GObject *object)
 {
   ShellLayoutManager *self = SHELL_LAYOUT_MANAGER (object);
-  ShellGlobal *global = shell_global_get ();
 
   g_clear_handle_id (&self->startup_prepared_timeout_id, g_source_remove);
 
@@ -2588,11 +2593,11 @@ shell_layout_manager_dispose (GObject *object)
       destroy_panel_barrier (self);
     }
 
-  if (self->shutdown_id != 0)
-    {
-      g_signal_handler_disconnect (global, self->shutdown_id);
-      self->shutdown_id = 0;
-    }
+  /* ShellGlobal may already be gone when the JS owner is collected */
+  if (self->shutdown_id != 0 && self->global != NULL)
+    g_signal_handler_disconnect (self->global, self->shutdown_id);
+  self->shutdown_id = 0;
+  g_clear_weak_pointer (&self->global);
 
   if (self->monitors_changed_id != 0 && self->monitor_manager != NULL)
     g_signal_handler_disconnect (self->monitor_manager, self->monitors_changed_id);
