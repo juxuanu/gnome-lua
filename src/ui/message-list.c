@@ -3716,7 +3716,7 @@ struct _ShellMessageViewFade
   float fade_margin;
   float opacity;
   ClutterActor *highlight_actor; /* weak */
-  StAdjustment *vadjustment;     /* connected, not owned */
+  StAdjustment *vadjustment;     /* weak; the view's, connected */
   gulong vadjustment_notify_id;  /* on the actor of the meta */
 };
 
@@ -3784,11 +3784,13 @@ fade_vadjustment_changed_cb (StAdjustment         *adjustment,
 static void
 fade_disconnect_vadjustment (ShellMessageViewFade *self)
 {
+  /* The adjustment can be finalized before the view it belongs to is
+   * destroyed, hence the weak pointer */
   if (self->vadjustment != NULL)
     {
       g_signal_handlers_disconnect_by_func (self->vadjustment,
                                             fade_vadjustment_changed_cb, self);
-      self->vadjustment = NULL;
+      g_clear_weak_pointer (&self->vadjustment);
     }
 }
 
@@ -3809,7 +3811,7 @@ fade_actor_vadjustment_changed (ShellMessageViewFade *self)
     return;
 
   fade_disconnect_vadjustment (self);
-  self->vadjustment = new_adjustment;
+  g_set_weak_pointer (&self->vadjustment, new_adjustment);
   if (self->vadjustment != NULL)
     {
       g_signal_connect (self->vadjustment, "changed",

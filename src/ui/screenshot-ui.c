@@ -152,6 +152,9 @@ ensure_shutdown_watch (void)
     }
 }
 
+/* Never from a class_init: the classes are also instantiated by the GIR
+ * scanner, where there is no global. Instances only exist in the shell. */
+
 static ShellLayoutManager *
 get_layout_manager (void)
 {
@@ -1556,8 +1559,6 @@ static void
 area_selector_stop_drag (ShellScreenshotUIAreaSelector *self)
 {
   ClutterActor *actor = CLUTTER_ACTOR (self);
-  float width = clutter_actor_get_width (actor);
-  float height = clutter_actor_get_height (actor);
 
   if (self->drag_grab != NULL)
     {
@@ -1569,7 +1570,10 @@ area_selector_stop_drag (ShellScreenshotUIAreaSelector *self)
       self->last_x == self->start_x && self->last_y == self->start_y)
     {
       /* The user clicked without dragging. Make up a larger selection
-       * to reduce confusion. */
+       * to reduce confusion. The size is read only here: at construction
+       * the actor is not on the stage yet and has no theme node. */
+      float width = clutter_actor_get_width (actor);
+      float height = clutter_actor_get_height (actor);
       double offset = 20 * get_scale_factor ();
 
       self->start_x -= offset;
@@ -4406,6 +4410,7 @@ add_tooltip (ShellScreenshotUI *self,
 static void
 shell_screenshot_ui_constructed (GObject *object)
 {
+  ensure_shutdown_watch ();
   ShellScreenshotUI *self = SHELL_SCREENSHOT_UI (object);
   ClutterActor *actor = CLUTTER_ACTOR (self);
   ClutterActor *stage = CLUTTER_ACTOR (shell_global_get_stage (shell_global_get ()));
@@ -4850,8 +4855,6 @@ shell_screenshot_ui_class_init (ShellScreenshotUIClass *klass)
                                            G_CALLBACK (screenshot_ui_binding_cb),
                                            (gpointer) entry, NULL);
     }
-
-  ensure_shutdown_watch ();
   declare_hooks ();
 }
 
@@ -5161,6 +5164,7 @@ select_area_shutdown_cb (ShellGlobal    *global,
 static void
 shell_select_area_constructed (GObject *object)
 {
+  ensure_shutdown_watch ();
   ShellSelectArea *self = SHELL_SELECT_AREA (object);
   ClutterActor *actor = CLUTTER_ACTOR (self);
   ShellLayoutManager *layout_manager = get_layout_manager ();
@@ -5224,8 +5228,6 @@ shell_select_area_class_init (ShellSelectAreaClass *klass)
 
   object_class->constructed = shell_select_area_constructed;
   object_class->dispose = shell_select_area_dispose;
-
-  ensure_shutdown_watch ();
 }
 
 static void
@@ -5602,6 +5604,7 @@ pick_pixel_shutdown_cb (ShellGlobal   *global,
 static void
 shell_pick_pixel_constructed (GObject *object)
 {
+  ensure_shutdown_watch ();
   ShellPickPixel *self = SHELL_PICK_PIXEL (object);
   ClutterActor *actor = CLUTTER_ACTOR (self);
   ShellLayoutManager *layout_manager = get_layout_manager ();
@@ -5730,8 +5733,6 @@ shell_pick_pixel_class_init (ShellPickPixelClass *klass)
                          G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, PICK_N_PROPS, pick_props);
-
-  ensure_shutdown_watch ();
 }
 
 static void
@@ -6971,6 +6972,7 @@ service_shutdown_cb (ShellGlobal            *global,
 static void
 shell_screenshot_service_constructed (GObject *object)
 {
+  ensure_shutdown_watch ();
   ShellScreenshotService *self = SHELL_SCREENSHOT_SERVICE (object);
   g_autoptr (GDBusConnection) connection = NULL;
   g_autoptr (GError) error = NULL;
@@ -7112,8 +7114,6 @@ shell_screenshot_service_class_init (ShellScreenshotServiceClass *klass)
                          G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, SERVICE_N_PROPS, service_props);
-
-  ensure_shutdown_watch ();
 }
 
 static void

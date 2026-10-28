@@ -224,3 +224,11 @@ never call extension code directly.
   connects to the actor's `destroy` signal with the meta as data and later
   disconnects it by id, which is then a fatal "no handler with id" critical.
   Keep the handler id and `g_clear_signal_handler()` it.
+* Never reach `shell_global_get ()` (or anything that needs the running shell)
+  from a `class_init`: g-ir-scanner instantiates every class while generating
+  the GIR, with no global, and logs criticals. Do it in `constructed ()`.
+* A widget read in `constructed ()` is not on the stage yet: `clutter_actor_get_width ()`
+  on an `StWidget` there is a fatal St critical (no theme node). Keep the JS
+  short-circuit order, or read sizes only on the path that needs them.
+* Hold another object's adjustment, actor or proxy you connect to but do not
+  own through a weak pointer; it can be finalized before you disconnect.
