@@ -26,10 +26,16 @@ typedef enum {
   SHELL_HOOK_CANCEL,
 } ShellHookVerdict;
 
+#define SHELL_TYPE_HOOK_VERDICT (shell_hook_verdict_get_type ())
+GType shell_hook_verdict_get_type (void) G_GNUC_CONST;
+
 typedef enum {
   SHELL_HOOK_PHASE_BEFORE,
   SHELL_HOOK_PHASE_AFTER,
 } ShellHookPhase;
+
+#define SHELL_TYPE_HOOK_PHASE (shell_hook_phase_get_type ())
+GType shell_hook_phase_get_type (void) G_GNUC_CONST;
 
 /**
  * ShellHookListener:

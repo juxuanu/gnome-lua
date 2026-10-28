@@ -1,0 +1,7 @@
+{
+  "uuid": "hello@gnome-lua.example",
+  "name": "Hello from Lua",
+  "description": "Canonical minimal gnome-lua extension: logs, runs a timer and shows how hooks are connected.",
+  "shell-api": "1",
+  "version": 1
+}

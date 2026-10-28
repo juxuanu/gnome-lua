@@ -38,11 +38,13 @@ typedef enum {
   SHELL_LUA_STATE_PRIVILEGED,  /* Looking Glass / tests: full stdlib + shell.* */
 } ShellLuaStateKind;
 
-/* All zero means "use defaults" (see shell-lua.c for the values). */
+/* A zero field means "use the default for the state kind" (see shell-lua.c:
+ * SANDBOXED = 10000 instructions, 500 ms, 64 MiB; PRIVILEGED = 10000
+ * instructions, unlimited, unlimited). */
 typedef struct {
   guint  hook_interval;        /* instructions between watchdog checks (count hook) */
-  gint64 callback_budget_us;   /* wall-clock budget for one pcall(), microseconds */
-  gsize  memory_limit;         /* bytes the allocator may hand out; 0 = unlimited */
+  gint64 callback_budget_us;   /* wall-clock budget for one pcall(), microseconds; G_MAXINT64 = unlimited */
+  gsize  memory_limit;         /* bytes the allocator may hand out; G_MAXSIZE = unlimited */
 } ShellLuaLimits;
 
 #define SHELL_TYPE_LUA_STATE (shell_lua_state_get_type ())
