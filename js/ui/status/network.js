@@ -10,7 +10,6 @@ import St from 'gi://St';
 
 import * as Config from '../../misc/config.js';
 import * as Main from '../main.js';
-import * as PopupMenu from '../popupMenu.js';
 import * as MessageTray from '../messageTray.js';
 import * as ModemManager from '../../misc/modemManager.js';
 import * as Signals from '../../misc/signals.js';
@@ -172,7 +171,7 @@ const NMMenuItem = GObject.registerClass({
             GObject.ParamFlags.READWRITE,
             ''),
     },
-}, class NMMenuItem extends PopupMenu.PopupBaseMenuItem {
+}, class NMMenuItem extends Shell.PopupBaseMenuItem {
     get state() {
         return this._activeConnection?.state ??
             NM.ActiveConnectionState.DEACTIVATED;
@@ -186,8 +185,8 @@ const NMMenuItem = GObject.registerClass({
         return 0;
     }
 
-    activate() {
-        super.activate(Clutter.get_current_event());
+    vfunc_activate(_event) {
+        super.vfunc_activate(Clutter.get_current_event());
     }
 
     _activeConnectionStateChanged() {
@@ -226,7 +225,7 @@ const NMSectionItem = GObject.registerClass({
 }, class NMSectionItem extends NMMenuItem {
     constructor() {
         super({
-            activate: false,
+            activatable: false,
             can_focus: false,
         });
 
@@ -236,15 +235,18 @@ const NMSectionItem = GObject.registerClass({
         this.styleClass = '';
 
         // Add intermediate section; we need this for submenu support
-        this._mainSection = new PopupMenu.PopupMenuSection();
+        this._mainSection = new Shell.PopupMenuSection();
         this.add_child(this._mainSection.actor);
 
-        this._submenuItem = new PopupMenu.PopupSubMenuMenuItem('', true);
-        this._mainSection.addMenuItem(this._submenuItem);
+        this._submenuItem = new Shell.PopupSubMenuMenuItem({
+            text: '',
+            want_icon: true,
+        });
+        this._mainSection.add_menu_item(this._submenuItem);
         this._submenuItem.hide();
 
-        this.section = new PopupMenu.PopupMenuSection();
-        this._mainSection.addMenuItem(this.section);
+        this.section = new Shell.PopupMenuSection();
+        this._mainSection.add_menu_item(this.section);
 
         // Represents the item as a whole when shown
         this.bind_property('name',
@@ -255,9 +257,9 @@ const NMSectionItem = GObject.registerClass({
             GObject.BindingFlags.DEFAULT);
     }
 
-    _setParent(parent) {
-        super._setParent(parent);
-        this._mainSection._setParent(parent);
+    vfunc_set_parent_menu(parent) {
+        super.vfunc_set_parent_menu(parent);
+        this._mainSection.set_parent_menu(parent);
 
         parent?.connect('menu-closed',
             () => this._mainSection.emit('menu-closed'));
@@ -367,18 +369,18 @@ class NMConnectionItem extends NMMenuItem {
             this._subtitle.text = null;
             this.accessible_name = this.name;
             this.accessible_role = Atk.Role.CHECK_MENU_ITEM;
-            this.setOrnament(this.is_active
-                ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NO_DOT);
+            this.set_ornament(this.is_active
+                ? Shell.Ornament.DOT : Shell.Ornament.NO_DOT);
         } else {
             this.accessible_name = this._getAccessibleName();
             this._subtitle.text = this._getSubtitleLabel();
             this.accessible_role = Atk.Role.MENU_ITEM;
-            this.setOrnament(PopupMenu.Ornament.HIDDEN);
+            this.set_ornament(Shell.Ornament.HIDDEN);
         }
     }
 
-    activate() {
-        super.activate();
+    vfunc_activate() {
+        super.vfunc_activate();
 
         if (this.radio_mode && this._activeConnection != null)
             return; // only activate in radio mode
@@ -441,18 +443,19 @@ const NMDeviceItem = GObject.registerClass({
 
         // Item shown in the 0-connections case
         this._autoConnectItem =
-            this.section.addAction(_('Connect'), () => this._autoConnect(), '');
+            this.section.add_action_with_icon(_('Connect'), null, '',
+                () => this._autoConnect());
 
         // Represents the device as a whole when shown
         this.bind_property('name',
             this._autoConnectItem.label, 'text',
             GObject.BindingFlags.SYNC_CREATE);
         this.bind_property('icon-name',
-            this._autoConnectItem._icon, 'icon-name',
+            this._autoConnectItem.icon, 'icon-name',
             GObject.BindingFlags.SYNC_CREATE);
 
         this._deactivateItem =
-            this.section.addAction(_('Turn Off'), () => this.deactivateConnection());
+            this.section.add_action(_('Turn Off'), () => this.deactivateConnection());
 
         this._client.connectObject(
             'notify::connectivity', () => this.notify('icon-name'),
@@ -526,13 +529,13 @@ const NMDeviceItem = GObject.registerClass({
         return this._autoConnectItem;
     }
 
-    activate() {
-        super.activate();
+    vfunc_activate() {
+        super.vfunc_activate();
 
         if (this._activeConnection)
             this.deactivateConnection();
         else
-            this._getActivatableItem()?.activate();
+            this._getActivatableItem()?.activate(null);
     }
 
     activateConnection(connection) {
@@ -550,7 +553,7 @@ const NMDeviceItem = GObject.registerClass({
 
     _resortItem(item) {
         const pos = this._itemSorter.upsert(item);
-        this.section.moveMenuItem(item, pos);
+        this.section.move_menu_item(item, pos);
     }
 
     _addConnection(connection) {
@@ -577,7 +580,7 @@ const NMDeviceItem = GObject.registerClass({
             this);
 
         const pos = this._itemSorter.upsert(item);
-        this.section.addMenuItem(item, pos);
+        this.section.insert_menu_item(item, pos);
         this._connectionItems.set(connection, item);
         this._sync();
     }
@@ -997,9 +1000,9 @@ const WirelessNetwork = GObject.registerClass({
 registerDestroyableType(WirelessNetwork);
 
 const NMWirelessNetworkItem = GObject.registerClass(
-class NMWirelessNetworkItem extends PopupMenu.PopupBaseMenuItem {
+class NMWirelessNetworkItem extends Shell.PopupBaseMenuItem {
     _init(network) {
-        super._init({style_class: 'nm-network-item'});
+        super._init({extra_style_class: 'nm-network-item'});
 
         this._network = network;
 
@@ -1256,7 +1259,7 @@ const NMWirelessDeviceItem = GObject.registerClass({
                 this);
 
             const pos = this._itemSorter.upsert(item);
-            this.section.addMenuItem(item, pos);
+            this.section.insert_menu_item(item, pos);
             this._networks.push(network);
         }
 
@@ -1276,7 +1279,7 @@ const NMWirelessDeviceItem = GObject.registerClass({
 
     _resortItem(item) {
         const pos = this._itemSorter.upsert(item);
-        this.section.moveMenuItem(item, pos);
+        this.section.move_menu_item(item, pos);
 
         this._updateItemsVisibility();
     }
@@ -1321,7 +1324,7 @@ const NMVpnConnectionItem = GObject.registerClass({
         this._icon.hide();
         this.label_actor = this._label;
 
-        this._switch = new PopupMenu.Switch(this.is_active);
+        this._switch = new Shell.Switch({state: this.is_active});
         this.add_child(this._switch);
 
         this.bind_property('is-active',
@@ -1334,7 +1337,7 @@ const NMVpnConnectionItem = GObject.registerClass({
             if (this.is_active === this._switch.state)
                 return;
 
-            this.activate();
+            this.activate(null);
         });
 
         this.bind_property('name',
@@ -1387,10 +1390,10 @@ const NMToggle = GObject.registerClass({
         this._items = new Map();
         this._itemSorter = new ItemSorter({trackMru: true});
 
-        this._itemsSection = new PopupMenu.PopupMenuSection();
-        this.menu.addMenuItem(this._itemsSection);
+        this._itemsSection = new Shell.PopupMenuSection();
+        this.menu.add_menu_item(this._itemsSection);
 
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        this.menu.add_menu_item(new Shell.PopupSeparatorMenuItem());
 
         this._itemBinding = new GObject.BindingGroup();
         this._itemBinding.bind('icon-name',
@@ -1429,9 +1432,9 @@ const NMToggle = GObject.registerClass({
         const activeItems = [...this._getActiveItems()];
 
         if (activeItems.length > 0)
-            activeItems.forEach(i => i.activate());
+            activeItems.forEach(i => i.activate(null));
         else
-            this._itemBinding.source?.activate();
+            this._itemBinding.source?.activate(null);
     }
 
     _loadInitialItems() {
@@ -1469,7 +1472,7 @@ const NMToggle = GObject.registerClass({
 
     _resortItem(item) {
         const pos = this._itemSorter.upsert(item);
-        this._itemsSection.moveMenuItem(item, pos);
+        this._itemsSection.move_menu_item(item, pos);
     }
 
     _addItem(key, item) {
@@ -1484,7 +1487,7 @@ const NMToggle = GObject.registerClass({
 
         this._items.set(key, item);
         const pos = this._itemSorter.upsert(item);
-        this._itemsSection.addMenuItem(item, pos);
+        this._itemsSection.insert_menu_item(item, pos);
         this._sync();
     }
 
@@ -1546,7 +1549,7 @@ class NMVpnToggle extends NMToggle {
 
         this.menu.setHeader('network-vpn-symbolic', _('VPN'));
         this.menuButtonAccessibleName = _('Open VPN menu');
-        this.menu.addSettingsAction(_('VPN Settings'),
+        this.menu.add_settings_action(_('VPN Settings'),
             'gnome-network-panel.desktop');
     }
 
@@ -1810,7 +1813,7 @@ class NMWirelessToggle extends NMDeviceToggle {
         this.menu.setHeader('network-wireless-symbolic', _('Wi–Fi'));
         this.menuButtonAccessibleName = _('Open Wi–Fi menu');
         this.menu.addHeaderSuffix(this._scanningSpinner);
-        this.menu.addSettingsAction(_('All Networks'),
+        this.menu.add_settings_action(_('All Networks'),
             'gnome-wifi-panel.desktop');
     }
 
@@ -1828,7 +1831,7 @@ class NMWirelessToggle extends NMDeviceToggle {
     activate() {
         const primaryItem = this._itemBinding.source;
         if (primaryItem?.is_hotspot)
-            primaryItem.activate();
+            primaryItem.activate(null);
         else
             this._toggleWirelessEnabled().catch(logError);
     }
@@ -1922,7 +1925,7 @@ class NMWiredToggle extends NMDeviceToggle {
 
         this.menu.setHeader('network-wired-symbolic', _('Wired Connections'));
         this.menuButtonAccessibleName = _('Open wired connections menu');
-        this.menu.addSettingsAction(_('Wired Settings'),
+        this.menu.add_settings_action(_('Wired Settings'),
             'gnome-network-panel.desktop');
     }
 
@@ -1938,7 +1941,7 @@ class NMBluetoothToggle extends NMDeviceToggle {
 
         this.menu.setHeader('network-cellular-symbolic', _('Bluetooth Tethers'));
         this.menuButtonAccessibleName = _('Open Bluetooth tethers menu');
-        this.menu.addSettingsAction(_('Bluetooth Settings'),
+        this.menu.add_settings_action(_('Bluetooth Settings'),
             'gnome-network-panel.desktop');
     }
 
@@ -1961,9 +1964,9 @@ class NMModemToggle extends NMDeviceToggle {
         this.menuButtonAccessibleName = _('Open mobile connections menu');
 
         const settingsLabel = _('Mobile Broadband Settings');
-        this._wwanSettings = this.menu.addSettingsAction(settingsLabel,
+        this._wwanSettings = this.menu.add_settings_action(settingsLabel,
             'gnome-wwan-panel.desktop');
-        this._legacySettings = this.menu.addSettingsAction(settingsLabel,
+        this._legacySettings = this.menu.add_settings_action(settingsLabel,
             'gnome-network-panel.desktop');
     }
 

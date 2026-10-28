@@ -8,8 +8,6 @@ import St from 'gi://St';
 
 import {QuickMenuToggle, SystemIndicator} from '../quickSettings.js';
 
-import * as PopupMenu from '../popupMenu.js';
-
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
 const BUS_NAME = 'org.gnome.SettingsDaemon.Power';
@@ -25,11 +23,11 @@ const SliderItem = GObject.registerClass({
             GObject.ParamFlags.READWRITE,
             0, 100, 0),
     },
-}, class SliderItem extends PopupMenu.PopupBaseMenuItem {
+}, class SliderItem extends Shell.PopupBaseMenuItem {
     constructor() {
         super({
-            activate: false,
-            style_class: 'keyboard-brightness-item',
+            activatable: false,
+            extra_style_class: 'keyboard-brightness-item',
         });
 
         this._slider = new Shell.Slider({value: 0});

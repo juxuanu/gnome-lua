@@ -10,6 +10,7 @@
 #include <clutter/clutter.h>
 
 #include "shell-action-modes.h"
+#include "ui/session-mode.h"
 
 G_BEGIN_DECLS
 
@@ -30,5 +31,12 @@ guint            shell_main_get_modal_count      (ShellMain       *self);
 ShellActionMode  shell_main_get_action_mode      (ShellMain       *self);
 void             shell_main_set_action_mode      (ShellMain       *self,
                                                   ShellActionMode  action_mode);
+
+ShellSessionMode *shell_main_get_session_mode    (ShellMain        *self);
+void             shell_main_set_session_mode     (ShellMain        *self,
+                                                  ShellSessionMode *session_mode);
+
+void             shell_main_system_modal_opened  (ShellMain       *self);
+void             shell_main_emit_settings_app_activating (ShellMain *self);
 
 G_END_DECLS

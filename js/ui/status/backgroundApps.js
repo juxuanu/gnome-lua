@@ -6,7 +6,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from '../main.js';
-import * as PopupMenu from '../popupMenu.js';
 import * as Util from '../../misc/util.js';
 
 import {QuickToggle, SystemIndicator} from '../quickSettings.js';
@@ -31,12 +30,14 @@ const BackgroundAppMenuItem = GObject.registerClass({
             GObject.ParamFlags.READWRITE,
             null),
     },
-}, class BackgroundAppMenuItem extends PopupMenu.PopupImageMenuItem {
+}, class BackgroundAppMenuItem extends Shell.PopupImageMenuItem {
     _init(app, params = {}) {
         const message = params.message;
         delete params.message;
 
-        super._init(app.get_name(), app.get_icon(), {
+        super._init({
+            text: app.get_name(),
+            gicon: app.get_icon(),
             ...params,
         });
 
@@ -72,7 +73,7 @@ const BackgroundAppMenuItem = GObject.registerClass({
             (bind, source) => [true, source !== null],
             null);
 
-        this.set_child_above_sibling(this._ornamentIcon, null);
+        this.set_child_above_sibling(this.ornament_icon, null);
 
         this._spinner = new Shell.Spinner({spinner_size: 16, hide_on_stop: true});
         this._spinner.add_style_class_name('spinner');
@@ -165,22 +166,26 @@ class BackgroundAppsToggle extends QuickToggle {
             null,
             Gio.DBusProxyFlags.DO_NOT_AUTO_START);
 
-        this._listTitle = new PopupMenu.PopupMenuItem(
-            _('Apps known to be running without a window'),
-            {reactive: false});
+        this._listTitle = new Shell.PopupMenuItem({
+            text: _('Apps known to be running without a window'),
+            reactive: false,
+            activatable: false,
+            active_on_hover: false,
+        });
         this._listTitle.label.clutter_text.set({
             line_wrap: true,
         });
-        this.menu.addMenuItem(this._listTitle);
+        this.menu.add_menu_item(this._listTitle);
 
-        this._appsSection = new PopupMenu.PopupMenuSection();
-        this.menu.addMenuItem(this._appsSection);
+        this._appsSection = new Shell.PopupMenuSection();
+        this.menu.add_menu_item(this._appsSection);
 
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        this.menu.addSettingsAction(_('App Settings'),
+        this.menu.add_menu_item(new Shell.PopupSeparatorMenuItem());
+        this.menu.add_settings_action(_('App Settings'),
             'gnome-applications-panel.desktop');
 
-        this.connect('popup-menu', () => this.menu.open());
+        this.connect('popup-menu',
+            () => this.menu.open(Shell.PopupAnimation.FULL));
 
         this.menu.connect('open-state-changed', () => this._syncVisibility());
         Main.sessionMode.connect('updated', () => this._syncVisibility());
@@ -192,7 +197,7 @@ class BackgroundAppsToggle extends QuickToggle {
         // We cannot hide the quick toggle while the menu is open, otherwise
         // the menu position goes bogus. We can't show it in locked sessions
         // either
-        this.visible = !isLocked && (this.menu.isOpen || nBackgroundApps > 0);
+        this.visible = !isLocked && (this.menu.is_open || nBackgroundApps > 0);
     }
 
     _sync() {
@@ -203,7 +208,7 @@ class BackgroundAppsToggle extends QuickToggle {
 
         const {BackgroundApps: backgroundApps} = this._proxy;
 
-        this._appsSection.removeAll();
+        this._appsSection.remove_all();
 
         const items = new Map();
         (backgroundApps ?? [])
@@ -225,7 +230,7 @@ class BackgroundAppsToggle extends QuickToggle {
                 if (!item) {
                     item = new BackgroundAppMenuItem(app);
                     items.set(app, item);
-                    this._appsSection.addMenuItem(item);
+                    this._appsSection.add_menu_item(item);
                 }
 
                 if (message)
@@ -243,7 +248,7 @@ class BackgroundAppsToggle extends QuickToggle {
     }
 
     vfunc_clicked() {
-        this.menu.open();
+        this.menu.open(Shell.PopupAnimation.FULL);
     }
 });
 

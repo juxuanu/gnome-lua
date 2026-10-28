@@ -168,6 +168,14 @@ export async function start() {
     sessionMode = new Shell.SessionMode();
     sessionMode.connect('updated', _sessionUpdated);
 
+    // The popup menus live in C: they follow the session mode, and ask for
+    // the JS-only parts of the shell
+    _shellMain.session_mode = sessionMode;
+    _shellMain.connect('settings-app-activating', () => {
+        overview.hide();
+        panel.closeQuickSettings();
+    });
+
     // The system actions live in C and ask for the JS-only parts of the shell
     const systemActions = Shell.SystemActions.get_default();
     systemActions.session_mode = sessionMode;
@@ -230,6 +238,8 @@ async function _initializeUI() {
 
     // Setup the stage hierarchy early
     layoutManager = new Layout.LayoutManager();
+    layoutManager.connect('system-modal-opened',
+        () => _shellMain.system_modal_opened());
 
     // Various parts of the codebase still refer to Main.uiGroup
     // instead of using the layoutManager. This keeps that code

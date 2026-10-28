@@ -15,7 +15,6 @@ import * as DND from './dnd.js';
 import * as IconGrid from './iconGrid.js';
 import * as Layout from './layout.js';
 import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
-import * as PopupMenu from './popupMenu.js';
 import * as Search from './search.js';
 import * as SwipeTracker from './swipeTracker.js';
 
@@ -2957,7 +2956,7 @@ export const AppIcon = GObject.registerClass({
         this.connect('popup-menu', this._onKeyboardPopupMenu.bind(this));
 
         this._menu = null;
-        this._menuManager = new PopupMenu.PopupMenuManager(this);
+        this._menuManager = new Shell.PopupMenuManager();
 
         this.app.connectObject('notify::state',
             () => this._updateRunningStyle(), this);
@@ -3027,7 +3026,7 @@ export const AppIcon = GObject.registerClass({
                     this._onMenuPoppedDown();
             });
             Main.overview.connectObject('hiding',
-                () => this._menu.close({animate: false}), this);
+                () => this._menu.close(Shell.PopupAnimation.NONE), this);
 
             Main.uiGroup.add_child(this._menu.actor);
             this._menuManager.addMenu(this._menu);
@@ -3035,7 +3034,7 @@ export const AppIcon = GObject.registerClass({
 
         this.emit('menu-state-changed', true);
 
-        this._menu.open();
+        this._menu.open(Shell.PopupAnimation.FULL);
         this.emit('sync-tooltip');
 
         return false;
@@ -3085,7 +3084,7 @@ export const AppIcon = GObject.registerClass({
     }
 
     shouldShowTooltip() {
-        return this.hover && (!this._menu || !this._menu.isOpen);
+        return this.hover && (!this._menu || !this._menu.is_open);
     }
 
     _showFolderPreview() {

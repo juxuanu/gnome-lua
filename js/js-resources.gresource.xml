@@ -88,7 +88,6 @@
     <file>ui/padOsd.js</file>
     <file>ui/panel.js</file>
     <file>ui/panelMenu.js</file>
-    <file>ui/popupMenu.js</file>
     <file>ui/quickSettings.js</file>
     <file>ui/qrCode.js</file>
     <file>ui/remoteSearch.js</file>

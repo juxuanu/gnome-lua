@@ -1,10 +1,10 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as PanelMenu from '../panelMenu.js';
-import * as PopupMenu from '../popupMenu.js';
 import {QuickToggle} from '../quickSettings.js';
 
 const A11Y_SCHEMA                   = 'org.gnome.desktop.a11y';
@@ -43,45 +43,45 @@ class ATIndicator extends PanelMenu.Button {
         this._a11ySettings.connect(`changed::${KEY_ALWAYS_SHOW}`, this._queueSyncMenuVisibility.bind(this));
 
         const highContrast = this._buildItem(_('High Contrast'), A11Y_INTERFACE_SCHEMA, KEY_HIGH_CONTRAST);
-        this.menu.addMenuItem(highContrast);
+        this.menu.add_menu_item(highContrast);
 
         const magnifier = this._buildItem(_('Zoom'),
             APPLICATIONS_SCHEMA, 'screen-magnifier-enabled');
-        this.menu.addMenuItem(magnifier);
+        this.menu.add_menu_item(magnifier);
 
         const textZoom = this._buildFontItem();
-        this.menu.addMenuItem(textZoom);
+        this.menu.add_menu_item(textZoom);
 
         const screenReader = this._buildItem(_('Screen Reader'),
             APPLICATIONS_SCHEMA, 'screen-reader-enabled');
-        this.menu.addMenuItem(screenReader);
+        this.menu.add_menu_item(screenReader);
 
         const screenKeyboard = this._buildItem(_('Screen Keyboard'),
             APPLICATIONS_SCHEMA, 'screen-keyboard-enabled');
-        this.menu.addMenuItem(screenKeyboard);
+        this.menu.add_menu_item(screenKeyboard);
 
         const visualBell = this._buildItem(_('Visual Alerts'),
             WM_SCHEMA, KEY_VISUAL_BELL);
-        this.menu.addMenuItem(visualBell);
+        this.menu.add_menu_item(visualBell);
 
         const stickyKeys = this._buildItem(_('Sticky Keys'),
             A11Y_KEYBOARD_SCHEMA, KEY_STICKY_KEYS_ENABLED);
-        this.menu.addMenuItem(stickyKeys);
+        this.menu.add_menu_item(stickyKeys);
 
         const slowKeys = this._buildItem(_('Slow Keys'),
             A11Y_KEYBOARD_SCHEMA, KEY_SLOW_KEYS_ENABLED);
-        this.menu.addMenuItem(slowKeys);
+        this.menu.add_menu_item(slowKeys);
 
         const bounceKeys = this._buildItem(_('Bounce Keys'),
             A11Y_KEYBOARD_SCHEMA, KEY_BOUNCE_KEYS_ENABLED);
-        this.menu.addMenuItem(bounceKeys);
+        this.menu.add_menu_item(bounceKeys);
 
         const mouseKeys = this._buildItem(_('Mouse Keys'),
             A11Y_KEYBOARD_SCHEMA, KEY_MOUSE_KEYS_ENABLED);
-        this.menu.addMenuItem(mouseKeys);
+        this.menu.add_menu_item(mouseKeys);
 
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        this.menu.addSettingsAction(_('Accessibility Settings'),
+        this.menu.add_menu_item(new Shell.PopupSeparatorMenuItem());
+        this.menu.add_settings_action(_('Accessibility Settings'),
             'gnome-universal-access-panel.desktop');
 
         this._syncMenuVisibility();
@@ -91,7 +91,7 @@ class ATIndicator extends PanelMenu.Button {
         this._syncMenuVisibilityIdle = 0;
 
         const alwaysShow = this._a11ySettings.get_boolean(KEY_ALWAYS_SHOW);
-        const items = this.menu._getMenuItems();
+        const items = this.menu.get_menu_items();
 
         this.visible = alwaysShow || items.some(f => !!f.state);
     }
@@ -106,7 +106,7 @@ class ATIndicator extends PanelMenu.Button {
 
     _buildItem(string, schema, key) {
         const settings = new Gio.Settings({schema_id: schema});
-        const widget = new PopupMenu.PopupSwitchMenuItem(string, false);
+        const widget = new Shell.PopupSwitchMenuItem({text: string, state: false});
         settings.bind(key, widget, 'state', Gio.SettingsBindFlags.DEFAULT);
 
         widget.connect('toggled',
@@ -119,7 +119,10 @@ class ATIndicator extends PanelMenu.Button {
         const settings = new Gio.Settings({schema_id: DESKTOP_INTERFACE_SCHEMA});
         let factor = settings.get_double(KEY_TEXT_SCALING_FACTOR);
         const widget =
-            new PopupMenu.PopupSwitchMenuItem(_('Large Text'), factor > 1.0);
+            new Shell.PopupSwitchMenuItem({
+                text: _('Large Text'),
+                state: factor > 1.0,
+            });
 
         const toggledId = widget.connect('toggled', item => {
             if (item.state)
@@ -133,7 +136,7 @@ class ATIndicator extends PanelMenu.Button {
             const active = factor > 1.0;
 
             widget.block_signal_handler(toggledId);
-            widget.setToggleState(active);
+            widget.set_toggle_state(active);
             widget.unblock_signal_handler(toggledId);
 
             this._queueSyncMenuVisibility();

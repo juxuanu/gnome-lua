@@ -12,7 +12,6 @@ import * as Signals from '../misc/signals.js';
 import System from 'system';
 
 import {ExtensionState} from '../misc/extensionUtils.js';
-import * as PopupMenu from './popupMenu.js';
 import * as ShellEntry from './shellEntry.js';
 import * as Main from './main.js';
 import * as JsParse from '../misc/jsParse.js';
@@ -1268,7 +1267,7 @@ const DebugFlag = GObject.registerClass({
         });
         box.add_child(flagLabel);
 
-        this._flagSwitch = new PopupMenu.Switch(false);
+        this._flagSwitch = new Shell.Switch({state: false});
         this._stateHandler = this._flagSwitch.connect('notify::state', () => {
             if (this._flagSwitch.state)
                 this._enable();

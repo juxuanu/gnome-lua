@@ -1,6 +1,7 @@
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
@@ -8,9 +9,12 @@ import St from 'gi://St';
 import * as AppFavorites from './appFavorites.js';
 import * as Main from './main.js';
 import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
-import * as PopupMenu from './popupMenu.js';
 
-export class AppMenu extends PopupMenu.PopupMenu {
+export class AppMenu extends Shell.PopupMenu {
+    static {
+        GObject.registerClass(this);
+    }
+
     /**
      * @param {Clutter.Actor} sourceActor - actor the menu is attached to
      * @param {St.Side} side - arrow side
@@ -18,7 +22,7 @@ export class AppMenu extends PopupMenu.PopupMenu {
      * @param {bool} params.favoritesSection - show items to add/remove favorite
      * @param {bool} params.showSingleWindow - show window section for a single window
      */
-    constructor(sourceActor, side = St.Side.TOP, params = {}) {
+    _init(sourceActor, side = St.Side.TOP, params = {}) {
         if (Clutter.get_default_text_direction() === Clutter.TextDirection.RTL) {
             if (side === St.Side.LEFT)
                 side = St.Side.RIGHT;
@@ -26,7 +30,11 @@ export class AppMenu extends PopupMenu.PopupMenu {
                 side = St.Side.LEFT;
         }
 
-        super(sourceActor, 0.5, side);
+        super._init({
+            source_actor: sourceActor,
+            arrow_alignment: 0.5,
+            arrow_side: side,
+        });
 
         this.actor.add_style_class_name('app-menu');
 
@@ -46,32 +54,32 @@ export class AppMenu extends PopupMenu.PopupMenu {
         this._updateWindowsLaterId = 0;
 
         /* Translators: This is the heading of a list of open windows */
-        this._openWindowsHeader = new PopupMenu.PopupSeparatorMenuItem(_('Open Windows'));
-        this.addMenuItem(this._openWindowsHeader);
+        this._openWindowsHeader = new Shell.PopupSeparatorMenuItem({text: _('Open Windows')});
+        this.add_menu_item(this._openWindowsHeader);
 
-        this._windowSection = new PopupMenu.PopupMenuSection();
-        this.addMenuItem(this._windowSection);
+        this._windowSection = new Shell.PopupMenuSection();
+        this.add_menu_item(this._windowSection);
 
-        this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        this.add_menu_item(new Shell.PopupSeparatorMenuItem());
 
-        this._newWindowItem = this.addAction(_('New Window'), () => {
+        this._newWindowItem = this.add_action(_('New Window'), () => {
             this._animateLaunch();
             this._app.open_new_window(-1);
             Main.overview.hide();
         });
 
-        this._actionSection = new PopupMenu.PopupMenuSection();
-        this.addMenuItem(this._actionSection);
+        this._actionSection = new Shell.PopupMenuSection();
+        this.add_menu_item(this._actionSection);
 
-        this._onGpuMenuItem = this.addAction('', () => {
+        this._onGpuMenuItem = this.add_action('', () => {
             this._animateLaunch();
             this._app.launch(0, -1, this._getNonDefaultLaunchGpu());
             Main.overview.hide();
         });
 
-        this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        this.add_menu_item(new Shell.PopupSeparatorMenuItem());
 
-        this._toggleFavoriteItem = this.addAction('', () => {
+        this._toggleFavoriteItem = this.add_action('', () => {
             const appId = this._app.get_id();
             if (this._appFavorites.isFavorite(appId))
                 this._appFavorites.removeFavorite(appId);
@@ -79,9 +87,9 @@ export class AppMenu extends PopupMenu.PopupMenu {
                 this._appFavorites.addFavorite(appId);
         });
 
-        this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        this.add_menu_item(new Shell.PopupSeparatorMenuItem());
 
-        this._detailsItem = this.addAction(_('App Details'), async () => {
+        this._detailsItem = this.add_action(_('App Details'), async () => {
             const id = this._app.get_id();
             const args = GLib.Variant.new('(ss)', [id, '']);
             const bus = await Gio.DBus.get(Gio.BusType.SESSION, null);
@@ -94,10 +102,10 @@ export class AppMenu extends PopupMenu.PopupMenu {
             Main.overview.hide();
         });
 
-        this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        this.add_menu_item(new Shell.PopupSeparatorMenuItem());
 
         this._quitItem =
-            this.addAction(_('Quit'), () => this._app.request_quit());
+            this.add_action(_('Quit'), () => this._app.request_quit());
 
         this._appSystem.connectObject(
             'installed-changed', () => this._updateDetailsVisibility(),
@@ -185,8 +193,8 @@ export class AppMenu extends PopupMenu.PopupMenu {
     }
 
     _animateLaunch() {
-        if (this.sourceActor.animateLaunch)
-            this.sourceActor.animateLaunch();
+        if (this.source_actor.animateLaunch)
+            this.source_actor.animateLaunch();
     }
 
     _getNonDefaultLaunchGpu() {
@@ -196,18 +204,18 @@ export class AppMenu extends PopupMenu.PopupMenu {
     }
 
     /** */
-    destroy() {
+    vfunc_destroy() {
         this.setApp(null);
-        super.destroy();
+        super.vfunc_destroy();
     }
 
     /**
      * @returns {bool} - true if the menu is empty
      */
-    isEmpty() {
+    vfunc_is_empty() {
         if (!this._app)
             return true;
-        return super.isEmpty();
+        return super.vfunc_is_empty();
     }
 
     /**
@@ -229,10 +237,10 @@ export class AppMenu extends PopupMenu.PopupMenu {
         const appInfo = app?.app_info;
         const actions = appInfo?.list_actions() ?? [];
 
-        this._actionSection.removeAll();
+        this._actionSection.remove_all();
         actions.forEach(action => {
             const label = appInfo.get_action_name(action);
-            this._actionSection.addAction(label, event => {
+            this._actionSection.add_action(label, event => {
                 if (action === 'new-window')
                     this._animateLaunch();
 
@@ -266,7 +274,7 @@ export class AppMenu extends PopupMenu.PopupMenu {
         }
         this._updateWindowsLaterId = 0;
 
-        this._windowSection.removeAll();
+        this._windowSection.remove_all();
         this._openWindowsHeader.hide();
 
         if (!this._app)
@@ -281,7 +289,7 @@ export class AppMenu extends PopupMenu.PopupMenu {
 
         windows.forEach(window => {
             const title = window.title || this._app.get_name();
-            const item = this._windowSection.addAction(title, event => {
+            const item = this._windowSection.add_action(title, event => {
                 Main.activateWindow(window, event.get_time());
             });
             window.connectObject('notify::title', () => {

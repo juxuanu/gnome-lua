@@ -1,10 +1,10 @@
 import Atk from 'gi://Atk';
 import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from './main.js';
-import * as PopupMenu from './popupMenu.js';
 
 export const ButtonBox = GObject.registerClass(
 class ButtonBox extends St.Widget {
@@ -114,10 +114,14 @@ export const Button = GObject.registerClass({
         this._keyController.connect('key-press', () => this._onMenuKeyPress());
 
         if (dontCreateMenu) {
-            this.menu = new PopupMenu.PopupDummyMenu(this);
+            this.menu = new Shell.PopupDummyMenu({source_actor: this});
             this.add_action(this._keyController);
         } else {
-            this.setMenu(new PopupMenu.PopupMenu(this, menuAlignment, St.Side.TOP));
+            this.setMenu(new Shell.PopupMenu({
+                source_actor: this,
+                arrow_alignment: menuAlignment,
+                arrow_side: St.Side.TOP,
+            }));
         }
     }
 
@@ -150,7 +154,7 @@ export const Button = GObject.registerClass({
         super.vfunc_hide();
 
         if (this.menu)
-            this.menu.close({animate: false});
+            this.menu.close(Shell.PopupAnimation.NONE);
     }
 
     _onMenuKeyPress() {

@@ -7,25 +7,32 @@ import St from 'gi://St';
 
 import * as Main from './main.js';
 import * as Params from '../misc/params.js';
-import * as PopupMenu from './popupMenu.js';
 
-export class EntryMenu extends PopupMenu.PopupMenu {
-    constructor(entry) {
-        super(entry, 0, St.Side.TOP);
+export class EntryMenu extends Shell.PopupMenu {
+    static {
+        GObject.registerClass(this);
+    }
+
+    _init(entry) {
+        super._init({
+            source_actor: entry,
+            arrow_alignment: 0,
+            arrow_side: St.Side.TOP,
+        });
 
         this._entry = entry;
         this._clipboard = St.Clipboard.get_default();
 
         // Populate menu
         let item;
-        item = new PopupMenu.PopupMenuItem(_('Copy'));
+        item = new Shell.PopupMenuItem({text: _('Copy')});
         item.connect('activate', this._onCopyActivated.bind(this));
-        this.addMenuItem(item);
+        this.add_menu_item(item);
         this._copyItem = item;
 
-        item = new PopupMenu.PopupMenuItem(_('Paste'));
+        item = new Shell.PopupMenuItem({text: _('Paste')});
         item.connect('activate', this._onPasteActivated.bind(this));
-        this.addMenuItem(item);
+        this.add_menu_item(item);
         this._pasteItem = item;
 
         if (entry instanceof St.PasswordEntry)
@@ -36,9 +43,9 @@ export class EntryMenu extends PopupMenu.PopupMenu {
     }
 
     _makePasswordItem() {
-        const item = new PopupMenu.PopupMenuItem('');
+        const item = new Shell.PopupMenuItem({text: ''});
         item.connect('activate', this._onPasswordActivated.bind(this));
-        this.addMenuItem(item);
+        this.add_menu_item(item);
         this._passwordItem = item;
 
         this._entry.bind_property('show-peek-icon',
@@ -46,8 +53,8 @@ export class EntryMenu extends PopupMenu.PopupMenu {
             GObject.BindingFlags.SYNC_CREATE);
     }
 
-    open(params = {}) {
-        if (!super.open(params))
+    vfunc_open(animate) {
+        if (!super.vfunc_open(animate))
             return false;
 
         this._updatePasteItem();
@@ -65,14 +72,14 @@ export class EntryMenu extends PopupMenu.PopupMenu {
 
     _updateCopyItem() {
         const selection = this._entry.clutter_text.get_selection();
-        this._copyItem.setSensitive(!this._entry.clutter_text.password_char &&
-                                    selection && selection !== '');
+        this._copyItem.set_sensitive(!this._entry.clutter_text.password_char &&
+                                     selection && selection !== '');
     }
 
     _updatePasteItem() {
         this._clipboard.get_text(St.ClipboardType.CLIPBOARD,
             (clipboard, text) => {
-                this._pasteItem.setSensitive(text && text !== '');
+                this._pasteItem.set_sensitive(text && text !== '');
             });
     }
 
@@ -107,16 +114,16 @@ export class EntryMenu extends PopupMenu.PopupMenu {
 function _setMenuAlignment(entry, stageX) {
     const [success, entryX] = entry.transform_stage_point(stageX, 0);
     if (success)
-        entry.menu.setSourceAlignment(entryX / entry.width);
+        entry.menu.set_source_alignment(entryX / entry.width);
 }
 
 function _onMenuClickGesture(gesture, entry) {
-    if (entry.menu.isOpen) {
-        entry.menu.close();
+    if (entry.menu.is_open) {
+        entry.menu.close(Shell.PopupAnimation.FULL);
     } else if (gesture.get_button() === Clutter.BUTTON_SECONDARY) {
         const coords = gesture.get_coords_abs();
         _setMenuAlignment(entry, coords.x);
-        entry.menu.open();
+        entry.menu.open(Shell.PopupAnimation.FULL);
     }
 }
 
@@ -124,8 +131,8 @@ function _onPopup(actor, entry) {
     const cursorPosition = entry.clutter_text.get_cursor_position();
     const [success, textX, textY_, lineHeight_] = entry.clutter_text.position_to_coords(cursorPosition);
     if (success)
-        entry.menu.setSourceAlignment(textX / entry.width);
-    entry.menu.open();
+        entry.menu.set_source_alignment(textX / entry.width);
+    entry.menu.open(Shell.PopupAnimation.FULL);
 }
 
 /**
@@ -139,8 +146,8 @@ export function addContextMenu(entry, params) {
     params = Params.parse(params, {actionMode: Shell.ActionMode.POPUP});
 
     entry.menu = new EntryMenu(entry);
-    entry._menuManager = new PopupMenu.PopupMenuManager(entry, {
-        actionMode: params.actionMode,
+    entry._menuManager = new Shell.PopupMenuManager({
+        action_mode: params.actionMode,
     });
     entry._menuManager.addMenu(entry.menu);
 

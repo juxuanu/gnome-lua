@@ -37,7 +37,6 @@ import * as Settings from './settings.js';
 import * as Layout from '../ui/layout.js';
 import * as Main from '../ui/main.js';
 import * as MessageTray from '../ui/messageTray.js';
-import * as PopupMenu from '../ui/popupMenu.js';
 import * as Realmd from './realmd.js';
 import * as UserWidget from '../ui/userWidget.js';
 import {QuickSettingsMenu} from '../ui/quickSettings.js';
@@ -358,9 +357,10 @@ class A11yMenuButton extends St.Button {
         });
         global.focus_manager.add_group(this._menu.actor);
 
-        this._manager = new PopupMenu.PopupMenuManager(this,
-            {actionMode: Shell.ActionMode.NONE});
-        this._manager.addMenu(this._menu);
+        this._manager = new Shell.PopupMenuManager({
+            action_mode: Shell.ActionMode.NONE,
+        });
+        this._manager.add_menu(this._menu);
 
         this.connect('clicked', () => this._menu.toggle());
         this.connect('destroy', () => this._menu.destroy());

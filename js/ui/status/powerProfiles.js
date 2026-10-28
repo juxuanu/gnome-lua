@@ -1,10 +1,9 @@
 import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 
 
 import {QuickMenuToggle, SystemIndicator} from '../quickSettings.js';
-
-import * as PopupMenu from '../popupMenu.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
@@ -72,18 +71,18 @@ class PowerProfilesToggle extends QuickMenuToggle {
                 this._sync();
             });
 
-        this._profileSection = new PopupMenu.PopupMenuSection();
-        this.menu.addMenuItem(this._profileSection);
+        this._profileSection = new Shell.PopupMenuSection();
+        this.menu.add_menu_item(this._profileSection);
         this.menu.setHeader('power-profile-balanced-symbolic', C_('Quick settings menu header', 'Power Mode'));
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        this.menu.addSettingsAction(_('Power Settings'),
+        this.menu.add_menu_item(new Shell.PopupSeparatorMenuItem());
+        this.menu.add_settings_action(_('Power Settings'),
             'gnome-power-panel.desktop');
 
         this._sync();
     }
 
     _syncProfiles() {
-        this._profileSection.removeAll();
+        this._profileSection.remove_all();
         this._profileItems.clear();
 
         const profiles = this._proxy.Profiles
@@ -97,11 +96,14 @@ class PowerProfilesToggle extends QuickMenuToggle {
             if (!name)
                 continue;
 
-            const item = new PopupMenu.PopupImageMenuItem(name, iconName);
+            const item = new Shell.PopupImageMenuItem({
+                text: name,
+                icon_name: iconName,
+            });
             item.connect('activate',
                 () => (this._proxy.ActiveProfile = profile));
             this._profileItems.set(profile, item);
-            this._profileSection.addMenuItem(item);
+            this._profileSection.add_menu_item(item);
         }
 
         this.menuEnabled = this._profileItems.size > 2;
@@ -116,9 +118,9 @@ class PowerProfilesToggle extends QuickMenuToggle {
         const {ActiveProfile: activeProfile} = this._proxy;
 
         for (const [profile, item] of this._profileItems) {
-            item.setOrnament(profile === activeProfile
-                ? PopupMenu.Ornament.CHECK
-                : PopupMenu.Ornament.NONE);
+            item.set_ornament(profile === activeProfile
+                ? Shell.Ornament.CHECK
+                : Shell.Ornament.NONE);
         }
 
         const {name: subtitle, iconName} = PROFILE_PARAMS[activeProfile] ?? FALLBACK_PARAMS;

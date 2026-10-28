@@ -11,7 +11,6 @@ import * as Signals from '../misc/signals.js';
 
 import * as InputSourceManager from './status/keyboard.js';
 import * as Main from './main.js';
-import * as PopupMenu from './popupMenu.js';
 import * as SwipeTracker from './swipeTracker.js';
 
 Gio._promisify(Shell.InputMethod.prototype,
@@ -79,9 +78,17 @@ class AspectContainer extends St.Widget {
     }
 });
 
-class NoGrabPopup extends PopupMenu.PopupMenu {
-    constructor(actor, arrowSide) {
-        super(actor, 0.5, arrowSide);
+class NoGrabPopup extends Shell.PopupMenu {
+    static {
+        GObject.registerClass(this);
+    }
+
+    _init(actor, arrowSide) {
+        super._init({
+            source_actor: actor,
+            arrow_alignment: 0.5,
+            arrow_side: arrowSide,
+        });
 
         actor.connectObject(
             'destroy', () => this.close(Shell.PopupAnimation.FULL),
@@ -105,8 +112,8 @@ class NoGrabPopup extends PopupMenu.PopupMenu {
         return targetActor !== this.actor && !this.actor.contains(targetActor);
     }
 
-    open(params = {}) {
-        if (!super.open(params))
+    vfunc_open(animate) {
+        if (!super.vfunc_open(animate))
             return false;
 
         global.stage.add_action_full(
@@ -116,17 +123,17 @@ class NoGrabPopup extends PopupMenu.PopupMenu {
         return true;
     }
 
-    close(params = {}) {
-        if (!super.close(params))
+    vfunc_close(animate) {
+        if (!super.vfunc_close(animate))
             return false;
         global.stage.remove_action(this._clickGesture);
         return true;
     }
 
-    destroy() {
+    vfunc_destroy() {
         global.stage.remove_action(this._clickGesture);
-        this.sourceActor.disconnectObject(this);
-        super.destroy();
+        this.source_actor.disconnectObject(this);
+        super.vfunc_destroy();
     }
 };
 
@@ -198,8 +205,12 @@ class Suggestions extends St.BoxLayout {
 });
 
 class LanguageSelectionPopup extends NoGrabPopup {
-    constructor(actor) {
-        super(actor, St.Side.BOTTOM);
+    static {
+        GObject.registerClass(this);
+    }
+
+    _init(actor) {
+        super._init(actor, St.Side.BOTTOM);
 
         const inputSourceManager = InputSourceManager.getInputSourceManager();
         const inputSources = inputSourceManager.inputSources;
@@ -208,17 +219,17 @@ class LanguageSelectionPopup extends NoGrabPopup {
         for (const i in inputSources) {
             const is = inputSources[i];
 
-            item = this.addAction(is.displayName, () => {
+            item = this.add_action(is.displayName, () => {
                 inputSourceManager.activateInputSource(is, true);
             });
             item.can_focus = false;
-            item.setOrnament(is === inputSourceManager.currentSource
-                ? PopupMenu.Ornament.DOT
-                : PopupMenu.Ornament.NO_DOT);
+            item.set_ornament(is === inputSourceManager.currentSource
+                ? Shell.Ornament.DOT
+                : Shell.Ornament.NO_DOT);
         }
 
-        this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        item = this.addSettingsAction(_('Keyboard Settings'), 'gnome-keyboard-panel.desktop');
+        this.add_menu_item(new Shell.PopupSeparatorMenuItem());
+        item = this.add_settings_action(_('Keyboard Settings'), 'gnome-keyboard-panel.desktop');
         item.can_focus = false;
     }
 }

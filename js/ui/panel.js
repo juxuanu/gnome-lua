@@ -4,12 +4,12 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Graphene from 'gi://Graphene';
 import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Config from '../misc/config.js';
 import * as CtrlAltTab from './ctrlAltTab.js';
 import * as DND from './dnd.js';
-import * as PopupMenu from './popupMenu.js';
 import * as PanelMenu from './panelMenu.js';
 import {QuickSettingsMenu, SystemIndicator} from './quickSettings.js';
 import * as Main from './main.js';
@@ -469,7 +469,7 @@ export class Panel extends St.Widget {
 
         this.statusArea = {};
 
-        this.menuManager = new PopupMenu.PopupMenuManager(this);
+        this.menuManager = new Shell.PopupMenuManager();
 
         this._leftBox = new St.BoxLayout({name: 'panelLeft'});
         this.add_child(this._leftBox);
@@ -604,7 +604,7 @@ export class Panel extends St.Widget {
             return;
 
         menu.toggle();
-        if (menu.isOpen)
+        if (menu.is_open)
             menu.actor.navigate_focus(null, St.DirectionType.TAB_FORWARD, false);
     }
 
@@ -615,7 +615,7 @@ export class Panel extends St.Widget {
         if (!indicator.reactive)
             return;
 
-        indicator.menu.close();
+        indicator.menu.close(Shell.PopupAnimation.FULL);
     }
 
     toggleCalendar() {

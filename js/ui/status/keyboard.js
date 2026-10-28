@@ -11,7 +11,6 @@ import * as Signals from '../../misc/signals.js';
 
 import * as IBusCandidatePopup from '../ibusCandidatePopup.js';
 import * as Main from '../main.js';
-import * as PopupMenu from '../popupMenu.js';
 import * as PanelMenu from '../panelMenu.js';
 import * as SwitcherPopup from '../switcherPopup.js';
 
@@ -19,7 +18,7 @@ export const INPUT_SOURCE_TYPE_XKB = 'xkb';
 export const INPUT_SOURCE_TYPE_IBUS = 'ibus';
 
 export const LayoutMenuItem = GObject.registerClass(
-class LayoutMenuItem extends PopupMenu.PopupBaseMenuItem {
+class LayoutMenuItem extends Shell.PopupBaseMenuItem {
     _init(displayName, shortName) {
         super._init();
 
@@ -893,15 +892,15 @@ class InputSourceIndicator extends PanelMenu.Button {
         this._container = new InputSourceIndicatorContainer({style_class: 'system-status-icon'});
         this.add_child(this._container);
 
-        this._propSeparator = new PopupMenu.PopupSeparatorMenuItem();
-        this.menu.addMenuItem(this._propSeparator);
-        this._propSection = new PopupMenu.PopupMenuSection();
-        this.menu.addMenuItem(this._propSection);
+        this._propSeparator = new Shell.PopupSeparatorMenuItem();
+        this.menu.add_menu_item(this._propSeparator);
+        this._propSection = new Shell.PopupMenuSection();
+        this.menu.add_menu_item(this._propSection);
         this._propSection.actor.hide();
 
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        this._showLayoutItem = this.menu.addAction(_('Show Keyboard Layout'), this._showLayout.bind(this));
-        this.menu.addSettingsAction(_('Keyboard Settings'),
+        this.menu.add_menu_item(new Shell.PopupSeparatorMenuItem());
+        this._showLayoutItem = this.menu.add_action(_('Show Keyboard Layout'), this._showLayout.bind(this));
+        this.menu.add_settings_action(_('Keyboard Settings'),
             'gnome-keyboard-panel.desktop');
 
         Main.sessionMode.connect('updated', this._sessionUpdated.bind(this));
@@ -973,9 +972,9 @@ class InputSourceIndicator extends PanelMenu.Button {
                 menuItem.sensitive = false;
 
             if (is.locked)
-                menuItem.setOrnament(PopupMenu.Ornament.HIDDEN);
+                menuItem.set_ornament(Shell.Ornament.HIDDEN);
             else
-                menuItem.setOrnament(PopupMenu.Ornament.NO_DOT);
+                menuItem.set_ornament(Shell.Ornament.NO_DOT);
 
             const indicatorLabel = new St.Label({
                 text: is.shortName,
@@ -991,7 +990,7 @@ class InputSourceIndicator extends PanelMenu.Button {
                 indicatorLabel.set_text(is.shortName);
             });
 
-            this.menu.addMenuItem(menuItem, indicatorIndex);
+            this.menu.insert_menu_item(menuItem, indicatorIndex);
             this._container.add_child(indicatorLabel);
         }
     }
@@ -1018,14 +1017,14 @@ class InputSourceIndicator extends PanelMenu.Button {
     _setSourceAsActive(source) {
         const index = this._calculateSourceIndicatorIndex(source);
         if (!source.locked)
-            this._menuItems[index]?.setOrnament(PopupMenu.Ornament.DOT);
+            this._menuItems[index]?.set_ornament(Shell.Ornament.DOT);
         this._indicatorLabels[index]?.show();
     }
 
     _setSourceAsInactive(source) {
         const index = this._calculateSourceIndicatorIndex(source);
         if (!source.locked)
-            this._menuItems[index]?.setOrnament(PopupMenu.Ornament.NO_DOT);
+            this._menuItems[index]?.set_ornament(Shell.Ornament.NO_DOT);
         this._indicatorLabels[index].hide();
     }
 
@@ -1043,7 +1042,7 @@ class InputSourceIndicator extends PanelMenu.Button {
 
             // We also hide if we have only one visible source unless
             // it's an IBus source with properties.
-            this.menu.close({animate: false});
+            this.menu.close(Shell.PopupAnimation.NONE);
             this.hide();
             return;
         }
@@ -1063,11 +1062,11 @@ class InputSourceIndicator extends PanelMenu.Button {
     _buildPropSection(properties) {
         this._propSeparator.hide();
         this._propSection.actor.hide();
-        this._propSection.removeAll();
+        this._propSection.remove_all();
 
         this._buildPropSubMenu(this._propSection, properties);
 
-        if (!this._propSection.isEmpty()) {
+        if (!this._propSection.is_empty()) {
             this._propSection.actor.show();
             this._propSeparator.show();
         }
@@ -1113,17 +1112,17 @@ class InputSourceIndicator extends PanelMenu.Button {
             const type = prop.get_prop_type();
             switch (type) {
             case IBus.PropType.MENU:
-                item = new PopupMenu.PopupSubMenuMenuItem(prop.get_label().get_text());
+                item = new Shell.PopupSubMenuMenuItem({text: prop.get_label().get_text()});
                 this._buildPropSubMenu(item.menu, prop.get_sub_props());
                 break;
 
             case IBus.PropType.RADIO:
-                item = new PopupMenu.PopupMenuItem(prop.get_label().get_text());
+                item = new Shell.PopupMenuItem({text: prop.get_label().get_text()});
                 item.prop = prop;
                 radioGroup.push(item);
                 item.radioGroup = radioGroup;
-                item.setOrnament(prop.get_state() === IBus.PropState.CHECKED
-                    ? PopupMenu.Ornament.DOT : PopupMenu.Ornament.NO_DOT);
+                item.set_ornament(prop.get_state() === IBus.PropState.CHECKED
+                    ? Shell.Ornament.DOT : Shell.Ornament.NO_DOT);
                 item.connect('activate', () => {
                     if (item.prop.get_state() === IBus.PropState.CHECKED)
                         return;
@@ -1131,12 +1130,12 @@ class InputSourceIndicator extends PanelMenu.Button {
                     const group = item.radioGroup;
                     for (let j = 0; j < group.length; ++j) {
                         if (group[j] === item) {
-                            item.setOrnament(PopupMenu.Ornament.DOT);
+                            item.set_ornament(Shell.Ornament.DOT);
                             item.prop.set_state(IBus.PropState.CHECKED);
                             ibusManager.activate_property(
                                 item.prop.get_key(), IBus.PropState.CHECKED);
                         } else {
-                            group[j].setOrnament(PopupMenu.Ornament.NO_DOT);
+                            group[j].set_ornament(Shell.Ornament.NO_DOT);
                             group[j].prop.set_state(IBus.PropState.UNCHECKED);
                             ibusManager.activate_property(
                                 group[j].prop.get_key(), IBus.PropState.UNCHECKED);
@@ -1146,7 +1145,10 @@ class InputSourceIndicator extends PanelMenu.Button {
                 break;
 
             case IBus.PropType.TOGGLE:
-                item = new PopupMenu.PopupSwitchMenuItem(prop.get_label().get_text(), prop.get_state() === IBus.PropState.CHECKED);
+                item = new Shell.PopupSwitchMenuItem({
+                    text: prop.get_label().get_text(),
+                    state: prop.get_state() === IBus.PropState.CHECKED,
+                });
                 item.prop = prop;
                 item.connect('toggled', () => {
                     if (item.state) {
@@ -1162,7 +1164,7 @@ class InputSourceIndicator extends PanelMenu.Button {
                 break;
 
             case IBus.PropType.NORMAL:
-                item = new PopupMenu.PopupMenuItem(prop.get_label().get_text());
+                item = new Shell.PopupMenuItem({text: prop.get_label().get_text()});
                 item.prop = prop;
                 item.connect('activate', () => {
                     ibusManager.activate_property(
@@ -1171,7 +1173,7 @@ class InputSourceIndicator extends PanelMenu.Button {
                 break;
 
             case IBus.PropType.SEPARATOR:
-                item = new PopupMenu.PopupSeparatorMenuItem();
+                item = new Shell.PopupSeparatorMenuItem();
                 break;
 
             default:
@@ -1179,8 +1181,8 @@ class InputSourceIndicator extends PanelMenu.Button {
                 continue;
             }
 
-            item.setSensitive(prop.get_sensitive());
-            menu.addMenuItem(item);
+            item.set_sensitive(prop.get_sensitive());
+            menu.add_menu_item(item);
         }
     }
 

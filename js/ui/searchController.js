@@ -1,5 +1,6 @@
 import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from './main.js';
@@ -68,7 +69,7 @@ export const SearchController = GObject.registerClass({
             if (!this._searchActive)
                 return;
 
-            this._entry.menu.close();
+            this._entry.menu.close(Shell.PopupAnimation.FULL);
             this._searchResults.popupMenuDefault();
         });
         this._entry.connect('notify::mapped', this._onMapped.bind(this));

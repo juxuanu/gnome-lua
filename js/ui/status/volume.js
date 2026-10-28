@@ -3,9 +3,9 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Gvc from 'gi://Gvc';
+import Shell from 'gi://Shell';
 
 import * as Main from '../main.js';
-import * as PopupMenu from '../popupMenu.js';
 
 import {QuickSlider, SystemIndicator} from '../quickSettings.js';
 
@@ -74,11 +74,11 @@ const StreamSlider = GObject.registerClass({
 
         this._deviceItems = new Map();
 
-        this._deviceSection = new PopupMenu.PopupMenuSection();
-        this.menu.addMenuItem(this._deviceSection);
+        this._deviceSection = new Shell.PopupMenuSection();
+        this.menu.add_menu_item(this._deviceSection);
 
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        this.menu.addSettingsAction(_('Sound Settings'),
+        this.menu.add_menu_item(new Shell.PopupSeparatorMenuItem());
+        this.menu.add_settings_action(_('Sound Settings'),
             'gnome-sound-panel.desktop');
 
         this._stream = null;
@@ -135,7 +135,10 @@ const StreamSlider = GObject.registerClass({
         const name = origin
             ? `${description} – ${origin}`
             : description;
-        const item = new PopupMenu.PopupImageMenuItem(name, device.get_gicon());
+        const item = new Shell.PopupImageMenuItem({
+            text: name,
+            gicon: device.get_gicon(),
+        });
         item.connect('activate', () => {
             const dev = this._lookupDevice(id);
             if (dev)
@@ -144,7 +147,7 @@ const StreamSlider = GObject.registerClass({
                 console.warn(`Trying to activate invalid device ${id}`);
         });
 
-        this._deviceSection.addMenuItem(item);
+        this._deviceSection.add_menu_item(item);
         this._deviceItems.set(id, item);
 
         this._sync();
@@ -158,9 +161,9 @@ const StreamSlider = GObject.registerClass({
 
     _setActiveDevice(activeId) {
         for (const [id, item] of this._deviceItems) {
-            item.setOrnament(id === activeId
-                ? PopupMenu.Ornament.CHECK
-                : PopupMenu.Ornament.NONE);
+            item.set_ornament(id === activeId
+                ? Shell.Ornament.CHECK
+                : Shell.Ornament.NONE);
         }
     }
 

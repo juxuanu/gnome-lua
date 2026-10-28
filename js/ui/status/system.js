@@ -9,7 +9,6 @@ import St from 'gi://St';
 import UPower from 'gi://UPowerGlib';
 
 import * as Main from '../main.js';
-import * as PopupMenu from '../popupMenu.js';
 
 import {QuickSettingsItem, QuickToggle, SystemIndicator} from '../quickSettings.js';
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
@@ -123,7 +122,7 @@ class ScreenshotItem extends QuickSettingsItem {
                 Main.screenshotUI.open().catch(logError);
                 return GLib.SOURCE_REMOVE;
             });
-            topMenu.close({animate: false});
+            topMenu.close(Shell.PopupAnimation.NONE);
         });
     }
 });
@@ -193,7 +192,7 @@ class ShutdownItem extends QuickSettingsItem {
             Main.panel.closeQuickSettings();
         });
 
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        this.menu.add_menu_item(new Shell.PopupSeparatorMenuItem());
 
         this._addSystemAction(_('Log Out…'), 'can-logout', () => {
             this._systemActions.activate_logout();
@@ -216,12 +215,14 @@ class ShutdownItem extends QuickSettingsItem {
             this._systemActions.force_update();
         });
 
-        this.connect('clicked', () => this.menu.open());
-        this.connect('popup-menu', () => this.menu.open());
+        this.connect('clicked',
+            () => this.menu.open(Shell.PopupAnimation.FULL));
+        this.connect('popup-menu',
+            () => this.menu.open(Shell.PopupAnimation.FULL));
     }
 
     _addSystemAction(label, propName, callback) {
-        const item = this.menu.addAction(label, callback);
+        const item = this.menu.add_action(label, callback);
         this._items.push(item);
 
         this._systemActions.bind_property(propName,

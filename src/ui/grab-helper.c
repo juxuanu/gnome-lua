@@ -20,6 +20,7 @@
 #include "shell-global.h"
 #include "st.h"
 #include "ui/grab-helper.h"
+#include "shell-enum-types.h"
 #include "ui/main.h"
 
 enum
@@ -309,7 +310,7 @@ shell_grab_helper_get_property (GObject    *object,
       break;
 
     case PROP_ACTION_MODE:
-      g_value_set_uint (value, self->action_mode);
+      g_value_set_flags (value, self->action_mode);
       break;
 
     case PROP_GRABBED:
@@ -337,7 +338,7 @@ shell_grab_helper_set_property (GObject      *object,
       break;
 
     case PROP_ACTION_MODE:
-      self->action_mode = g_value_get_uint (value);
+      self->action_mode = g_value_get_flags (value);
       break;
 
     default:
@@ -419,8 +420,8 @@ shell_grab_helper_class_init (ShellGrabHelperClass *klass)
    * of the modal params of the former GrabHelper constructor).
    */
   props[PROP_ACTION_MODE] =
-    g_param_spec_uint ("action-mode", NULL, NULL,
-                       0, G_MAXUINT, SHELL_ACTION_MODE_NONE,
+    g_param_spec_flags ("action-mode", NULL, NULL,
+                        SHELL_TYPE_ACTION_MODE, SHELL_ACTION_MODE_NONE,
                        G_PARAM_READWRITE |
                        G_PARAM_CONSTRUCT_ONLY |
                        G_PARAM_STATIC_STRINGS);

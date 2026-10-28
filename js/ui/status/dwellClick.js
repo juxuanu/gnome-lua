@@ -67,7 +67,8 @@ class DwellClickIndicator extends PanelMenu.Button {
     }
 
     _addDwellAction(mode) {
-        this.menu.addAction(mode.name, this._setClickType.bind(this, mode), mode.icon);
+        this.menu.add_action_with_icon(mode.name, null, mode.icon,
+            this._setClickType.bind(this, mode));
     }
 
     _updateClickType(manager, clickType) {

@@ -7,12 +7,12 @@ import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Pango from 'gi://Pango';
 import Rsvg from 'gi://Rsvg';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Signals from '../misc/signals.js';
 
 import * as Main from './main.js';
-import * as PopupMenu from './popupMenu.js';
 import * as Layout from './layout.js';
 
 import {loadInterfaceXML} from '../misc/fileUtils.js';
@@ -49,23 +49,27 @@ const PadChooser = GObject.registerClass({
     vfunc_clicked() {
         if (this.get_checked()) {
             if (this._padChooserMenu != null)
-                this._padChooserMenu.open();
+                this._padChooserMenu.open(Shell.PopupAnimation.FULL);
             else
                 this.set_checked(false);
         } else {
-            this._padChooserMenu.close();
+            this._padChooserMenu.close(Shell.PopupAnimation.FULL);
         }
     }
 
     _ensureMenu(devices) {
-        this._padChooserMenu =  new PopupMenu.PopupMenu(this, 0.5, St.Side.TOP);
+        this._padChooserMenu = new Shell.PopupMenu({
+            source_actor: this,
+            arrow_alignment: 0.5,
+            arrow_side: St.Side.TOP,
+        });
         this._padChooserMenu.connect('menu-closed', () => {
             this.set_checked(false);
         });
         this._padChooserMenu.actor.hide();
         Main.uiGroup.add_child(this._padChooserMenu.actor);
 
-        this._menuManager = new PopupMenu.PopupMenuManager(this);
+        this._menuManager = new Shell.PopupMenuManager();
         this._menuManager.addMenu(this._padChooserMenu);
 
         for (let i = 0; i < devices.length; i++) {
@@ -73,7 +77,7 @@ const PadChooser = GObject.registerClass({
             if (device === this.currentDevice)
                 continue;
 
-            this._padChooserMenu.addAction(device.get_device_name(), () => {
+            this._padChooserMenu.add_action(device.get_device_name(), () => {
                 this.emit('pad-selected', device);
             });
         }
@@ -137,14 +141,18 @@ const ActionComboBox = GObject.registerClass({
         });
         box.add_child(arrow);
 
-        this._editMenu = new PopupMenu.PopupMenu(this, 0, St.Side.TOP);
+        this._editMenu = new Shell.PopupMenu({
+            source_actor: this,
+            arrow_alignment: 0,
+            arrow_side: St.Side.TOP,
+        });
         this._editMenu.connect('menu-closed', () => {
             this.set_checked(false);
         });
         this._editMenu.actor.hide();
         Main.uiGroup.add_child(this._editMenu.actor);
 
-        this._editMenuManager = new PopupMenu.PopupMenuManager(this);
+        this._editMenuManager = new Shell.PopupMenuManager();
         this._editMenuManager.addMenu(this._editMenu);
 
         this._actionLabels = new Map();
@@ -157,7 +165,7 @@ const ActionComboBox = GObject.registerClass({
 
         for (const [action, label] of this._actionLabels.entries()) {
             const selectedAction = action;
-            const item = this._editMenu.addAction(label, () => {
+            const item = this._editMenu.add_action(label, () => {
                 this._onActionSelected(selectedAction);
             });
 
@@ -181,11 +189,11 @@ const ActionComboBox = GObject.registerClass({
     }
 
     popup() {
-        this._editMenu.open();
+        this._editMenu.open(Shell.PopupAnimation.FULL);
     }
 
     popdown() {
-        this._editMenu.close(true);
+        this._editMenu.close(Shell.PopupAnimation.FULL);
     }
 
     vfunc_clicked() {
@@ -196,7 +204,7 @@ const ActionComboBox = GObject.registerClass({
     }
 
     setButtonActionsActive(active) {
-        this._buttonItems.forEach(item => item.setSensitive(active));
+        this._buttonItems.forEach(item => item.set_sensitive(active));
     }
 });
 

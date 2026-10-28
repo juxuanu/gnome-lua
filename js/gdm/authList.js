@@ -25,13 +25,20 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from '../ui/main.js';
-import * as PopupMenu from '../ui/popupMenu.js';
 
 export const SCROLL_ANIMATION_TIME = 500;
 
-class ItemIconPopup extends PopupMenu.PopupMenu {
-    constructor(sourceActor, title, subtitle) {
-        super(sourceActor, 0.5, St.Side.TOP);
+class ItemIconPopup extends Shell.PopupMenu {
+    static {
+        GObject.registerClass(this);
+    }
+
+    _init(sourceActor, title, subtitle) {
+        super._init({
+            source_actor: sourceActor,
+            arrow_alignment: 0.5,
+            arrow_side: St.Side.TOP,
+        });
 
         this.box.add_style_class_name('login-dialog-item-icon-popup-box');
         this.actor.add_style_class_name('login-dialog-item-icon-popup');
@@ -43,22 +50,24 @@ class ItemIconPopup extends PopupMenu.PopupMenu {
         labels.add_child(new St.Label({text: title}));
         labels.add_child(new St.Label({text: subtitle}));
 
-        const item = new PopupMenu.PopupBaseMenuItem({
+        const item = new Shell.PopupBaseMenuItem({
             reactive: false,
             can_focus: false,
+            activatable: false,
+            active_on_hover: false,
         });
         item.add_child(labels);
-        this.addMenuItem(item);
+        this.add_menu_item(item);
 
         sourceActor.connectObject('clicked', () => this.toggle(), this);
         sourceActor.connectObject('destroy', () => this.destroy(), this);
 
         this.actor.hide();
 
-        this._menuManager = new PopupMenu.PopupMenuManager(sourceActor, {
-            actionMode: Shell.ActionMode.NONE,
+        this._menuManager = new Shell.PopupMenuManager({
+            action_mode: Shell.ActionMode.NONE,
         });
-        this._menuManager.addMenu(this);
+        this._menuManager.add_menu(this);
     }
 };
 

@@ -49,36 +49,48 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from '../ui/main.js';
-import * as PopupMenu from '../ui/popupMenu.js';
 
 const VISIBILITY_ANIMATION_TIME = 200;
 
-class AuthMenuItemSection extends PopupMenu.PopupMenuSection {
-    constructor(sectionName) {
-        super();
+class AuthMenuItemSection extends Shell.PopupMenuSection {
+    static {
+        GObject.registerClass(this);
+    }
+
+    _init(sectionName) {
+        super._init();
 
         this.actor.add_style_class_name('login-dialog-auth-menu-item-section');
 
         if (sectionName) {
-            const itemSection = new PopupMenu.PopupMenuItem(sectionName, {
+            const itemSection = new Shell.PopupMenuItem({
+                text: sectionName,
                 reactive: false,
                 can_focus: false,
+                activatable: false,
+                active_on_hover: false,
             });
             itemSection.label.style_class = 'login-dialog-auth-menu-item-section-label';
             itemSection.label.x_expand = true;
             itemSection.label.x_align = Clutter.ActorAlign.CENTER;
-            this.addMenuItem(itemSection);
+            this.add_menu_item(itemSection);
         }
     }
 }
 
-class AuthMenuItem extends PopupMenu.PopupBaseMenuItem {
+class AuthMenuItem extends Shell.PopupBaseMenuItem {
     static {
         GObject.registerClass(this);
     }
 
     constructor(item, params = {}) {
-        super(params);
+        const {reactive = true} = params;
+
+        super({
+            reactive,
+            activatable: reactive,
+            active_on_hover: reactive,
+        });
 
         if (item.description && item.iconName) {
             const icon = new St.Icon({
@@ -155,14 +167,19 @@ export class AuthMenuButton extends St.Button {
             this, 'can-focus',
             GObject.BindingFlags.SYNC_CREATE);
 
-        this._menu = new PopupMenu.PopupMenu(this, 0, St.Side.BOTTOM);
+        this._menu = new Shell.PopupMenu({
+            source_actor: this,
+            arrow_alignment: 0,
+            arrow_side: St.Side.BOTTOM,
+        });
         this._menu.box.add_style_class_name('login-dialog-auth-menu-button-popup');
         Main.uiGroup.add_child(this._menu.actor);
         this._menu.actor.hide();
 
-        this._manager = new PopupMenu.PopupMenuManager(this,
-            {actionMode: Shell.ActionMode.NONE});
-        this._manager.addMenu(this._menu);
+        this._manager = new Shell.PopupMenuManager({
+            action_mode: Shell.ActionMode.NONE,
+        });
+        this._manager.add_menu(this._menu);
 
         this.connect('clicked', () => this._onClicked());
         this.connect('destroy', () => this._onDestroy());
@@ -186,12 +203,12 @@ export class AuthMenuButton extends St.Button {
 
     _updateOrnament() {
         for (const menuItem of this._items.values())
-            menuItem.setOrnament(PopupMenu.Ornament.NO_DOT);
+            menuItem.set_ornament(Shell.Ornament.NO_DOT);
 
         for (const itemKey of this._activeItems) {
             const menuItem = this._items.get(itemKey);
             if (menuItem)
-                menuItem.setOrnament(PopupMenu.Ornament.DOT);
+                menuItem.set_ornament(Shell.Ornament.DOT);
         }
     }
 
@@ -286,7 +303,7 @@ export class AuthMenuButton extends St.Button {
         });
 
         const section = this._getSection(item.sectionName);
-        section.addMenuItem(menuItem);
+        section.add_menu_item(menuItem);
 
         this._items.set(itemKey, menuItem);
         this.updateVisibility();
@@ -302,20 +319,20 @@ export class AuthMenuButton extends St.Button {
 
         if (key === null) {
             // Empty section is always last
-            this._menu.addMenuItem(section);
+            this._menu.add_menu_item(section);
         } else {
             const orderIndex = this.sectionOrder.indexOf(sectionName);
             if (orderIndex !== -1) {
                 // Section is in sectionOrder, add at its position
-                this._menu.addMenuItem(section, orderIndex);
+                this._menu.insert_menu_item(section, orderIndex);
             } else {
                 // Section not in sectionOrder, add before empty section if it exists
                 const emptySection = this._sections.get(null);
                 if (emptySection) {
-                    const emptyIndex = this._menu._getMenuItems().indexOf(emptySection);
-                    this._menu.addMenuItem(section, emptyIndex);
+                    const emptyIndex = this._menu.get_menu_items().indexOf(emptySection);
+                    this._menu.insert_menu_item(section, emptyIndex);
                 } else {
-                    this._menu.addMenuItem(section);
+                    this._menu.add_menu_item(section);
                 }
             }
         }
@@ -428,7 +445,7 @@ export class AuthMenuButton extends St.Button {
     }
 
     closeMenu() {
-        this._menu.close();
+        this._menu.close(Shell.PopupAnimation.FULL);
     }
 }
 

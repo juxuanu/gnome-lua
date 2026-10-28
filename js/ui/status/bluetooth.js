@@ -9,7 +9,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as PopupMenu from '../popupMenu.js';
 import {QuickMenuToggle, SystemIndicator} from '../quickSettings.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
@@ -198,10 +197,10 @@ const BtClient = GObject.registerClass({
 });
 
 const BluetoothDeviceItem = GObject.registerClass(
-class BluetoothDeviceItem extends PopupMenu.PopupBaseMenuItem {
+class BluetoothDeviceItem extends Shell.PopupBaseMenuItem {
     constructor(device, client) {
         super({
-            style_class: 'bt-device-item',
+            extra_style_class: 'bt-device-item',
         });
 
         this._device = device;
@@ -280,27 +279,30 @@ class BluetoothToggle extends QuickMenuToggle {
         this.menu.setHeader('bluetooth-active-symbolic', _('Bluetooth'));
 
         this._deviceItems = new Map();
-        this._deviceSection = new PopupMenu.PopupMenuSection();
-        this.menu.addMenuItem(this._deviceSection);
+        this._deviceSection = new Shell.PopupMenuSection();
+        this.menu.add_menu_item(this._deviceSection);
 
-        this._placeholderItem = new PopupMenu.PopupMenuItem('', {
-            style_class: 'bt-menu-placeholder',
+        this._placeholderItem = new Shell.PopupMenuItem({
+            text: '',
+            extra_style_class: 'bt-menu-placeholder',
             reactive: false,
             can_focus: false,
+            activatable: false,
+            active_on_hover: false,
         });
         this._placeholderItem.label.clutter_text.set({
             ellipsize: Pango.EllipsizeMode.NONE,
             line_wrap: true,
         });
-        this.menu.addMenuItem(this._placeholderItem);
+        this.menu.add_menu_item(this._placeholderItem);
 
         this._deviceSection.actor.bind_property('visible',
             this._placeholderItem, 'visible',
             GObject.BindingFlags.SYNC_CREATE |
             GObject.BindingFlags.INVERT_BOOLEAN);
 
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-        this.menu.addSettingsAction(_('Bluetooth Settings'),
+        this.menu.add_menu_item(new Shell.PopupSeparatorMenuItem());
+        this.menu.add_settings_action(_('Bluetooth Settings'),
             'gnome-bluetooth-panel.desktop');
 
         this._client = client;
@@ -388,7 +390,7 @@ class BluetoothToggle extends QuickMenuToggle {
             if (!item)
                 continue;
 
-            this._deviceSection.moveMenuItem(item, i);
+            this._deviceSection.move_menu_item(item, i);
         }
     }
 
@@ -403,7 +405,7 @@ class BluetoothToggle extends QuickMenuToggle {
             const item = new BluetoothDeviceItem(dev, this._client);
             item.connect('notify::visible', () => this._updateDeviceVisibility());
 
-            this._deviceSection.addMenuItem(item);
+            this._deviceSection.add_menu_item(item);
             this._deviceItems.set(path, item);
         }
 
