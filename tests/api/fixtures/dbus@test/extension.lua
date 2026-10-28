@@ -1,7 +1,8 @@
 -- Fixture of tests/api/dbus.lua: every function, field, property and error
 -- kind of docs/api/dbus.md that can be tried against the session bus of the
--- test (the bus daemon, the notification service of the shell, and this
--- extension's own name and object). enable () runs the checks that are
+-- test (the bus daemon, and this extension's own names and objects: the test
+-- bus has no session services, so every peer other than the daemon is one the
+-- extension exports itself). enable () runs the checks that are
 -- synchronous and starts the asynchronous ones, and reports T.done () when the
 -- last of them has finished; the script of the test asks for the part that
 -- makes errors on purpose with a step (tests/api/README.md).
@@ -205,6 +206,30 @@ local XML = [[
     <property name="Info" type="a{sv}" access="read"/>
   </interface>
 </node>]]
+
+-- A second, small object for the replies with several values and with a
+-- sequence (a peer that exists on any bus: this extension itself)
+local MULTI_NAME = "org.example.ApiTest.Multi"
+local MULTI_PATH = "/org/example/ApiTest/Multi"
+local MULTI_IFACE = "org.example.ApiTest.Multi"
+
+local MULTI_XML = [[
+<node>
+  <interface name="org.example.ApiTest.Multi">
+    <method name="Quad">
+      <arg type="s" direction="out"/><arg type="s" direction="out"/>
+      <arg type="s" direction="out"/><arg type="s" direction="out"/>
+    </method>
+    <method name="Words"><arg type="as" direction="out"/></method>
+  </interface>
+</node>]]
+
+-- on_error of a call that must succeed: the case fails with the error
+local function fails(finish)
+  return function(err)
+    finish(false, string.format("the call failed: %s: %s", tostring(err.name), tostring(err.message)))
+  end
+end
 
 function ext.enable()
   local bus = shell.dbus.session()
@@ -421,6 +446,7 @@ function ext.enable()
 
     call = daemon:call{
       method = "NameHasOwner", signature = "s", args = { "org.freedesktop.DBus" },
+      on_error = fails(finish),
       on_reply = guard(finish, function(...)
         truthy(returned, "on_reply ran before call () returned")
         eq(select("#", ...), 1, "number of values in the reply")
@@ -439,19 +465,30 @@ function ext.enable()
   async_case("a reply with no values, with several, with a sequence", function(finish)
     local peer = bus:proxy{ name = "org.freedesktop.DBus", path = "/org/freedesktop/DBus",
                             interface = "org.freedesktop.DBus.Peer" }
-    local notifications = bus:proxy{ name = "org.freedesktop.Notifications",
-                                     path = "/org/freedesktop/Notifications",
-                                     interface = "org.freedesktop.Notifications" }
+    local multi = bus:proxy{ name = MULTI_NAME, path = MULTI_PATH, interface = MULTI_IFACE }
+
+    -- the peer with several out arguments is an object of this extension:
+    -- the test bus has no session services to ask
+    kept.multi_obj = bus:export{
+      path = MULTI_PATH, interface_xml = MULTI_XML,
+      methods = {
+        Quad = function() return "one", "two", "three", "four" end,
+        Words = function() return { "alpha", "beta", "gamma" } end,
+      },
+    }
+    kept.multi_name = bus:own_name{ name = MULTI_NAME, on_acquired = function()
+      kept.multi_acquired = true
+    end }
 
     chain(finish, {
       function(go)
-        peer:call{ method = "Ping", on_reply = guard(finish, function(...)
+        peer:call{ method = "Ping", on_error = fails(finish), on_reply = guard(finish, function(...)
           eq(select("#", ...), 0, "Ping () has no values")
           go()
         end) }
       end,
       function(go)
-        daemon:call{ method = "ListNames", on_reply = guard(finish, function(...)
+        daemon:call{ method = "ListNames", on_error = fails(finish), on_reply = guard(finish, function(...)
           eq(select("#", ...), 1, "ListNames () has one value")
           local names = ...
           eq(type(names), "table", "an 'as' is a sequence")
@@ -464,20 +501,30 @@ function ext.enable()
           go()
         end) }
       end,
+      -- the name has to be there before we call it
       function(go)
-        notifications:call{ method = "GetServerInformation", on_reply = guard(finish, function(...)
-          eq(select("#", ...), 4, "GetServerInformation () returns its four strings as four values")
-          for i = 1, 4 do
-            eq(type((select(i, ...))), "string", "value " .. i)
-          end
-          truthy((...) ~= "", "the name of the server")
+        poll(finish, function() return kept.multi_acquired end, 5000, "the name of the Multi object", go)
+      end,
+      function(go)
+        multi:call{ method = "Quad", on_error = fails(finish), on_reply = guard(finish, function(...)
+          eq(select("#", ...), 4, "Quad () returns its four strings as four values")
+          local one, two, three, four = ...
+          eq(one, "one", "value 1")
+          eq(two, "two", "value 2")
+          eq(three, "three", "value 3")
+          eq(four, "four", "value 4")
           go()
         end) }
       end,
       function(go)
-        notifications:call{ method = "GetCapabilities", on_reply = guard(finish, function(caps)
-          eq(type(caps), "table", "capabilities")
-          truthy(#caps > 0, "the shell has capabilities")
+        multi:call{ method = "Words", on_error = fails(finish), on_reply = guard(finish, function(...)
+          eq(select("#", ...), 1, "Words () has one value")
+          local words = ...
+          eq(type(words), "table", "an 'as' is a sequence")
+          eq(#words, 3, "the number of words")
+          eq(words[1], "alpha", "words[1]")
+          eq(words[2], "beta", "words[2]")
+          eq(words[3], "gamma", "words[3]")
           go()
         end) }
       end,
@@ -571,7 +618,7 @@ function ext.enable()
     chain(finish, {
       -- the subscriptions are in place when this reply is (same bus, in order)
       function(go)
-        daemon:call{ method = "GetId", on_reply = guard(finish, function(id)
+        daemon:call{ method = "GetId", on_error = fails(finish), on_reply = guard(finish, function(id)
           eq(type(id), "string", "GetId ()")
           go()
         end) }
@@ -775,7 +822,7 @@ function ext.enable()
         end))
 
         -- let the subscriptions reach the daemon (a call after them is answered after them)
-        daemon:call{ method = "GetId", on_reply = guard(finish, function()
+        daemon:call{ method = "GetId", on_error = fails(finish), on_reply = guard(finish, function()
           kept.obj:set_property("Count", 7)
           kept.obj:set_property("Name", "renamed")
           kept.obj:emit_signal{ name = "Changed", args = { "count", 7 } }
