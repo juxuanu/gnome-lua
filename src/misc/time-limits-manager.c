@@ -1134,7 +1134,7 @@ update_state (ShellTimeLimitsManager *self)
         {
           /* Just entered daily schedule or a new day, so update cached
            * estimated times, which will perform state update afterwards. */
-          update_estimated_times_async (self, log_error, "Failed to update the estimated times");
+          update_estimated_times_async (self, log_error, (gpointer) "Failed to update the estimated times");
           return;
         }
 
@@ -1203,7 +1203,7 @@ update_state_machine (ShellTimeLimitsManager *self)
   if (!storing_transitions_enabled (self))
     {
       if (self->state != SHELL_TIME_LIMITS_STATE_DISABLED)
-        stop_state_machine_async (self, log_error, "Failed to stop state machine");
+        stop_state_machine_async (self, log_error, (gpointer) "Failed to stop state machine");
       return FALSE;
     }
 
@@ -1948,7 +1948,7 @@ on_user_state_stored (ShellTimeLimitsManager *self,
 {
   UserStateData *data = user_data;
 
-  log_error (self, error, "Failed to store screen time limits data");
+  log_error (self, error, (gpointer) "Failed to store screen time limits data");
 
   if (data->done != NULL)
     data->done (self, NULL, data->done_data);
