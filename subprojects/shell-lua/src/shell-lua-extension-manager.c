@@ -445,6 +445,34 @@ forget_extension (ShellLuaExtensionManager *self,
   g_object_unref (extension);
 }
 
+/* Creates the extension that lives in @dir and registers it; the manager
+ * owns it. Returns %NULL with @error set if the directory cannot be used. */
+static ShellLuaExtension *
+add_extension (ShellLuaExtensionManager  *self,
+               GFile                     *dir,
+               ShellLuaExtensionType      type,
+               GError                   **error)
+{
+  ShellLuaExtension *extension;
+
+  extension = shell_lua_extension_new_from_dir (dir, type, error);
+  if (extension == NULL)
+    return NULL;
+
+  if (self->has_limits)
+    shell_lua_extension_set_limits (extension, &self->limits);
+
+  g_hash_table_insert (self->extensions,
+                       g_strdup (shell_lua_extension_get_uuid (extension)),
+                       extension);
+  g_signal_connect (extension, "state-changed",
+                    G_CALLBACK (on_extension_state_changed), self);
+  g_signal_connect (extension, "lua-error",
+                    G_CALLBACK (on_extension_lua_error), self);
+
+  return extension;
+}
+
 void
 shell_lua_extension_manager_scan (ShellLuaExtensionManager *self)
 {
@@ -491,8 +519,7 @@ shell_lua_extension_manager_scan (ShellLuaExtensionManager *self)
       if (g_hash_table_contains (self->extensions, key))
         continue;
 
-      extension = shell_lua_extension_new_from_dir (entry->dir, entry->type,
-                                                    &error);
+      extension = add_extension (self, entry->dir, entry->type, &error);
       if (extension == NULL)
         {
           g_warning ("Could not load Lua extension %s: %s",
@@ -500,16 +527,6 @@ shell_lua_extension_manager_scan (ShellLuaExtensionManager *self)
           continue;
         }
 
-      if (self->has_limits)
-        shell_lua_extension_set_limits (extension, &self->limits);
-
-      g_hash_table_insert (self->extensions,
-                           g_strdup (shell_lua_extension_get_uuid (extension)),
-                           extension);
-      g_signal_connect (extension, "state-changed",
-                        G_CALLBACK (on_extension_state_changed), self);
-      g_signal_connect (extension, "lua-error",
-                        G_CALLBACK (on_extension_lua_error), self);
       g_ptr_array_add (added, g_object_ref (extension));
     }
 
@@ -519,6 +536,57 @@ shell_lua_extension_manager_scan (ShellLuaExtensionManager *self)
                    g_ptr_array_index (added, i));
 
   g_signal_emit (self, signals[SIGNAL_EXTENSIONS_LOADED], 0);
+}
+
+/**
+ * shell_lua_extension_manager_reload:
+ * @self: a #ShellLuaExtensionManager
+ * @uuid: the uuid of an installed extension
+ * @error: return location for a #GError
+ *
+ * Forgets the extension (a running one is disabled and reports UNINSTALLED)
+ * and reads its directory again, so that new code, metadata and files are
+ * seen. The new extension is not enabled; it is reported through
+ * "extension-state-changed" like a newly scanned one.
+ *
+ * Returns: %TRUE if the extension was loaded again. If its directory cannot
+ *   be used any more, or is gone, the extension stays forgotten and @error is
+ *   set
+ */
+gboolean
+shell_lua_extension_manager_reload (ShellLuaExtensionManager  *self,
+                                    const char                *uuid,
+                                    GError                   **error)
+{
+  g_autofree char *uuid_copy = g_strdup (uuid);
+  g_autoptr (GFile) dir = NULL;
+  ShellLuaExtension *extension;
+  ShellLuaExtension *reloaded;
+  ShellLuaExtensionType type;
+
+  g_return_val_if_fail (SHELL_IS_LUA_EXTENSION_MANAGER (self), FALSE);
+  g_return_val_if_fail (uuid != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
+  extension = g_hash_table_lookup (self->extensions, uuid_copy);
+  if (extension == NULL)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+                   "No Lua extension with uuid %s", uuid_copy);
+      return FALSE;
+    }
+
+  dir = g_object_ref (shell_lua_extension_get_dir (extension));
+  type = shell_lua_extension_get_extension_type (extension);
+
+  forget_extension (self, uuid_copy);
+
+  reloaded = add_extension (self, dir, type, error);
+  if (reloaded == NULL)
+    return FALSE;
+
+  g_signal_emit (self, signals[SIGNAL_EXTENSION_STATE_CHANGED], 0, reloaded);
+  return TRUE;
 }
 
 /* ------------------------------------------------------------------ */

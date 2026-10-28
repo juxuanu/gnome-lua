@@ -3,5 +3,6 @@
   "name": "Hello from Lua",
   "description": "Canonical minimal gnome-lua extension: logs, runs a timer and shows how hooks are connected.",
   "shell-api": "1",
+  "settings-schema": "org.gnome-lua.example.hello",
   "version": 1
 }

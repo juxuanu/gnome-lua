@@ -16,13 +16,14 @@
  *  - #ShellScreenTimeService: org.gnome.Shell.ScreenTime (ScreenTimeDBus).
  *  - #ShellBrightnessService: org.gnome.Shell.Brightness (BrightnessDBus).
  *
- * The overview, the window manager, the extension manager, the extension
- * downloader and the screen shield are JS: the JS code that reached them is
- * a signal of the service, connected by js/ui/main.js (the first four) and
- * js/ui/screenShield.js. The methods of those interfaces that return a value
- * use signals with a return value or, when the answer comes later
- * (InstallRemoteExtension, Eval), hand the #GDBusMethodInvocation to the
- * handler. The JS also created the Screenshot service in the constructor of
+ * The overview and the window manager are JS: the JS code that reached them
+ * is a signal of the service, connected by js/ui/main.js. The screen shield
+ * (src/ui/screen-shield.c) connects to the signals of the ScreenSaver
+ * service. The methods of those interfaces
+ * that return a value use signals with a return value or, when the answer
+ * comes later (Eval), hand the #GDBusMethodInvocation to the handler. The
+ * extension service calls the extension manager of extension-system.c
+ * directly. The JS also created the Screenshot service in the constructor of
  * GnomeShell, js/ui/main.js does it now.
  *
  * Differences with the JS version:
@@ -37,6 +38,9 @@
  *    to its previous value before the request (nothing is emitted for that);
  *  - an accelerator signal whose activation token cannot be created is sent
  *    with an empty token (the JS threw and no signal was sent);
+ *  - ReloadExtension () reloads the extension (it used to fail as not
+ *    supported), and InstallRemoteExtension () fails with the errors of
+ *    #ShellExtensionError;
  *  - Eval without a handler (or with the unsafe mode off) returns (false, "");
  *  - the sender checks fail after ShellGlobal::shutdown, and the services stop
  *    following the shell then.
@@ -57,6 +61,7 @@
 #include "misc/dbus-utils.h"
 #include "shell-app-system.h"
 #include "shell-global.h"
+#include "ui/extension-system.h"
 #include "ui/layout.h"
 #include "ui/main.h"
 #include "ui/shell-dbus.h"
@@ -1253,62 +1258,32 @@ shell_dbus_service_new (void)
 
 enum
 {
-  EXT_LIST_EXTENSIONS,
-  EXT_GET_EXTENSION_INFO,
-  EXT_GET_EXTENSION_ERRORS,
-  EXT_INSTALL_REMOTE_EXTENSION,
-  EXT_UNINSTALL_EXTENSION,
-  EXT_ENABLE_EXTENSION,
-  EXT_DISABLE_EXTENSION,
-  EXT_OPEN_EXTENSION_PREFS,
-  EXT_CHECK_FOR_UPDATES,
-
-  EXT_LAST_SIGNAL
+  EXT_PROP_0,
+  EXT_PROP_MANAGER,
+  EXT_N_PROPS
 };
 
-static guint ext_signals[EXT_LAST_SIGNAL] = { 0, };
+static GParamSpec *ext_props[EXT_N_PROPS] = { NULL, };
 
 struct _ShellDBusExtensionsService
 {
   GObject parent;
 
   ShellDBusShellExtensions *skeleton;
+  ShellExtensionManager *manager;
   gboolean syncing_enabled;
 };
 
 G_DEFINE_FINAL_TYPE (ShellDBusExtensionsService, shell_dbus_extensions_service, G_TYPE_OBJECT)
-
-static void
-return_no_handler (GDBusMethodInvocation *invocation)
-{
-  g_dbus_method_invocation_return_error_literal (invocation,
-                                                 G_DBUS_ERROR,
-                                                 G_DBUS_ERROR_NOT_SUPPORTED,
-                                                 "The extension manager is not available");
-}
-
-static void
-return_handler_failed (GDBusMethodInvocation *invocation)
-{
-  g_dbus_method_invocation_return_error_literal (invocation,
-                                                 G_DBUS_ERROR,
-                                                 G_DBUS_ERROR_FAILED,
-                                                 "The extension manager failed to handle the call");
-}
 
 static gboolean
 on_handle_list_extensions (ShellDBusShellExtensions    *skeleton,
                            GDBusMethodInvocation       *invocation,
                            ShellDBusExtensionsService  *self)
 {
-  g_autoptr (GVariant) extensions = NULL;
+  g_autoptr (GVariant) extensions = shell_extension_manager_list_extensions (self->manager);
 
-  g_signal_emit (self, ext_signals[EXT_LIST_EXTENSIONS], 0, &extensions);
-  if (extensions == NULL || !g_variant_is_of_type (extensions, G_VARIANT_TYPE ("a{sa{sv}}")))
-    return_handler_failed (invocation);
-  else
-    shell_dbus_shell_extensions_complete_list_extensions (skeleton, invocation, extensions);
-
+  shell_dbus_shell_extensions_complete_list_extensions (skeleton, invocation, extensions);
   return TRUE;
 }
 
@@ -1318,14 +1293,9 @@ on_handle_get_extension_info (ShellDBusShellExtensions   *skeleton,
                               const char                 *uuid,
                               ShellDBusExtensionsService *self)
 {
-  g_autoptr (GVariant) info = NULL;
+  g_autoptr (GVariant) info = shell_extension_manager_get_extension_info (self->manager, uuid);
 
-  g_signal_emit (self, ext_signals[EXT_GET_EXTENSION_INFO], 0, uuid, &info);
-  if (info == NULL || !g_variant_is_of_type (info, G_VARIANT_TYPE_VARDICT))
-    return_handler_failed (invocation);
-  else
-    shell_dbus_shell_extensions_complete_get_extension_info (skeleton, invocation, info);
-
+  shell_dbus_shell_extensions_complete_get_extension_info (skeleton, invocation, info);
   return TRUE;
 }
 
@@ -1335,18 +1305,44 @@ on_handle_get_extension_errors (ShellDBusShellExtensions   *skeleton,
                                 const char                 *uuid,
                                 ShellDBusExtensionsService *self)
 {
-  g_autoptr (GVariant) errors = NULL;
-  g_autofree const char **strv = NULL;
-  const char * const no_errors[] = { NULL };
+  g_autoptr (GVariant) errors = shell_extension_manager_get_extension_errors (self->manager, uuid);
+  g_autofree const char **strv = g_variant_get_strv (errors, NULL);
 
-  g_signal_emit (self, ext_signals[EXT_GET_EXTENSION_ERRORS], 0, uuid, &errors);
-  if (errors != NULL && g_variant_is_of_type (errors, G_VARIANT_TYPE_STRING_ARRAY))
-    strv = g_variant_get_strv (errors, NULL);
-  shell_dbus_shell_extensions_complete_get_extension_errors (skeleton, invocation,
-                                                             strv != NULL ?
-                                                             (const char * const *) strv :
-                                                             no_errors);
+  shell_dbus_shell_extensions_complete_get_extension_errors (skeleton, invocation, strv);
   return TRUE;
+}
+
+typedef struct
+{
+  ShellDBusExtensionsService *service;
+  GDBusMethodInvocation *invocation;
+} InstallCall;
+
+static void
+install_call_free (InstallCall *call)
+{
+  g_object_unref (call->service);
+  g_free (call);
+}
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC (InstallCall, install_call_free)
+
+static void
+install_remote_extension_cb (GObject      *source,
+                             GAsyncResult *result,
+                             gpointer      user_data)
+{
+  g_autoptr (InstallCall) call = user_data;
+  g_autoptr (GError) error = NULL;
+  g_autofree char *outcome = NULL;
+
+  outcome = shell_extension_manager_install_extension_finish (SHELL_EXTENSION_MANAGER (source),
+                                                              result, &error);
+  if (outcome == NULL)
+    g_dbus_method_invocation_return_gerror (call->invocation, error);
+  else
+    shell_dbus_shell_extensions_complete_install_remote_extension (call->service->skeleton,
+                                                                   call->invocation, outcome);
 }
 
 static gboolean
@@ -1355,13 +1351,12 @@ on_handle_install_remote_extension (ShellDBusShellExtensions   *skeleton,
                                     const char                 *uuid,
                                     ShellDBusExtensionsService *self)
 {
-  if (!g_signal_has_handler_pending (self, ext_signals[EXT_INSTALL_REMOTE_EXTENSION], 0, TRUE))
-    {
-      return_no_handler (invocation);
-      return TRUE;
-    }
+  InstallCall *call = g_new0 (InstallCall, 1);
 
-  g_signal_emit (self, ext_signals[EXT_INSTALL_REMOTE_EXTENSION], 0, uuid, invocation);
+  call->service = g_object_ref (self);
+  call->invocation = invocation;
+  shell_extension_manager_install_extension_async (self->manager, uuid, NULL,
+                                                   install_remote_extension_cb, call);
   return TRUE;
 }
 
@@ -1371,10 +1366,8 @@ on_handle_uninstall_extension (ShellDBusShellExtensions   *skeleton,
                                const char                 *uuid,
                                ShellDBusExtensionsService *self)
 {
-  gboolean success = FALSE;
-
-  g_signal_emit (self, ext_signals[EXT_UNINSTALL_EXTENSION], 0, uuid, &success);
-  shell_dbus_shell_extensions_complete_uninstall_extension (skeleton, invocation, success);
+  shell_dbus_shell_extensions_complete_uninstall_extension (skeleton, invocation,
+                                                            shell_extension_manager_uninstall_extension (self->manager, uuid));
   return TRUE;
 }
 
@@ -1384,10 +1377,14 @@ on_handle_reload_extension (ShellDBusShellExtensions   *skeleton,
                             const char                 *uuid,
                             ShellDBusExtensionsService *self)
 {
-  g_dbus_method_invocation_return_error_literal (invocation,
-                                                 G_DBUS_ERROR,
-                                                 G_DBUS_ERROR_NOT_SUPPORTED,
-                                                 "ReloadExtension is deprecated and does not work");
+  g_autoptr (GError) error = NULL;
+
+  if (!shell_extension_manager_reload_extension (self->manager, uuid, &error))
+    g_dbus_method_invocation_return_error_literal (invocation, G_DBUS_ERROR,
+                                                   G_DBUS_ERROR_FAILED, error->message);
+  else
+    shell_dbus_shell_extensions_complete_reload_extension (skeleton, invocation);
+
   return TRUE;
 }
 
@@ -1397,10 +1394,8 @@ on_handle_enable_extension (ShellDBusShellExtensions   *skeleton,
                             const char                 *uuid,
                             ShellDBusExtensionsService *self)
 {
-  gboolean success = FALSE;
-
-  g_signal_emit (self, ext_signals[EXT_ENABLE_EXTENSION], 0, uuid, &success);
-  shell_dbus_shell_extensions_complete_enable_extension (skeleton, invocation, success);
+  shell_dbus_shell_extensions_complete_enable_extension (skeleton, invocation,
+                                                         shell_extension_manager_enable_extension (self->manager, uuid));
   return TRUE;
 }
 
@@ -1410,21 +1405,9 @@ on_handle_disable_extension (ShellDBusShellExtensions   *skeleton,
                              const char                 *uuid,
                              ShellDBusExtensionsService *self)
 {
-  gboolean success = FALSE;
-
-  g_signal_emit (self, ext_signals[EXT_DISABLE_EXTENSION], 0, uuid, &success);
-  shell_dbus_shell_extensions_complete_disable_extension (skeleton, invocation, success);
+  shell_dbus_shell_extensions_complete_disable_extension (skeleton, invocation,
+                                                          shell_extension_manager_disable_extension (self->manager, uuid));
   return TRUE;
-}
-
-static void
-open_extension_prefs (ShellDBusExtensionsService *self,
-                      const char                 *uuid,
-                      const char                 *parent_window,
-                      GVariant                   *options)
-{
-  g_signal_emit (self, ext_signals[EXT_OPEN_EXTENSION_PREFS], 0,
-                 uuid, parent_window, options);
 }
 
 static gboolean
@@ -1433,8 +1416,7 @@ on_handle_launch_extension_prefs (ShellDBusShellExtensions   *skeleton,
                                   const char                 *uuid,
                                   ShellDBusExtensionsService *self)
 {
-  open_extension_prefs (self, uuid, "",
-                        g_variant_new_array (G_VARIANT_TYPE ("{sv}"), NULL, 0));
+  shell_extension_manager_open_extension_prefs (self->manager, uuid, "", NULL);
   shell_dbus_shell_extensions_complete_launch_extension_prefs (skeleton, invocation);
   return TRUE;
 }
@@ -1447,9 +1429,22 @@ on_handle_open_extension_prefs (ShellDBusShellExtensions   *skeleton,
                                 GVariant                   *options,
                                 ShellDBusExtensionsService *self)
 {
-  open_extension_prefs (self, uuid, parent_window, options);
+  shell_extension_manager_open_extension_prefs (self->manager, uuid, parent_window, options);
   shell_dbus_shell_extensions_complete_open_extension_prefs (skeleton, invocation);
   return TRUE;
+}
+
+static void
+check_for_updates_cb (GObject      *source,
+                      GAsyncResult *result,
+                      gpointer      user_data)
+{
+  g_autoptr (GError) error = NULL;
+
+  if (!shell_extension_manager_check_for_updates_finish (SHELL_EXTENSION_MANAGER (source),
+                                                         result, &error) &&
+      !g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+    g_message ("Update check failed: %s", error->message);
 }
 
 static gboolean
@@ -1457,7 +1452,9 @@ on_handle_check_for_updates (ShellDBusShellExtensions   *skeleton,
                              GDBusMethodInvocation      *invocation,
                              ShellDBusExtensionsService *self)
 {
-  g_signal_emit (self, ext_signals[EXT_CHECK_FOR_UPDATES], 0);
+  /* The call returns at once, the check goes on in the background */
+  shell_extension_manager_check_for_updates_async (self->manager, NULL,
+                                                   check_for_updates_cb, NULL);
   shell_dbus_shell_extensions_complete_check_for_updates (skeleton, invocation);
   return TRUE;
 }
@@ -1500,32 +1497,22 @@ on_disable_user_extensions_changed (GSettings                  *settings,
   sync_user_extensions_enabled (self);
 }
 
-/**
- * shell_dbus_extensions_service_emit_state_changed:
- * @self: a #ShellDBusExtensionsService
- * @uuid: the UUID of the extension
- * @state: the serialized extension, of type `a{sv}`
- * @state_value: the state of the extension (`ExtensionState`)
- * @error: the most recent error of the extension, or an empty string
- *
- * Emits the ExtensionStateChanged and ExtensionStatusChanged signals;
- * js/ui/main.js calls it when the extension manager emits
- * `extension-state-changed`.
- */
-void
-shell_dbus_extensions_service_emit_state_changed (ShellDBusExtensionsService *self,
-                                                  const char                 *uuid,
-                                                  GVariant                   *state,
-                                                  int                         state_value,
-                                                  const char                 *error)
+/* ExtensionStateChanged and ExtensionStatusChanged follow the manager */
+static void
+on_manager_extension_state_changed (ShellExtensionManager     *manager,
+                                    ShellLuaExtension         *extension,
+                                    ShellDBusExtensionsService *self)
 {
-  g_return_if_fail (SHELL_IS_DBUS_EXTENSIONS_SERVICE (self));
-  g_return_if_fail (uuid != NULL);
-  g_return_if_fail (state != NULL && g_variant_is_of_type (state, G_VARIANT_TYPE_VARDICT));
+  const char *uuid = shell_lua_extension_get_uuid (extension);
+  const char *error = shell_lua_extension_get_error (extension);
+  g_autoptr (GVariant) info = shell_extension_manager_serialize_extension (manager, extension);
 
-  shell_dbus_shell_extensions_emit_extension_state_changed (self->skeleton, uuid, state);
+  if (self->skeleton == NULL)
+    return;
+
+  shell_dbus_shell_extensions_emit_extension_state_changed (self->skeleton, uuid, info);
   shell_dbus_shell_extensions_emit_extension_status_changed (self->skeleton, uuid,
-                                                             state_value,
+                                                             (int) shell_lua_extension_get_state (extension),
                                                              error != NULL ? error : "");
 }
 
@@ -1537,6 +1524,8 @@ shell_dbus_extensions_service_constructed (GObject *object)
   g_autoptr (GDBusConnection) connection = NULL;
 
   G_OBJECT_CLASS (shell_dbus_extensions_service_parent_class)->constructed (object);
+
+  g_assert (self->manager != NULL);
 
   self->skeleton = shell_dbus_shell_extensions_skeleton_new ();
   shell_dbus_shell_extensions_set_shell_version (self->skeleton, PACKAGE_VERSION);
@@ -1569,9 +1558,49 @@ shell_dbus_extensions_service_constructed (GObject *object)
 
   g_signal_connect_object (settings, "changed::" DISABLE_USER_EXTENSIONS_KEY,
                            G_CALLBACK (on_disable_user_extensions_changed), self, 0);
+  g_signal_connect_object (self->manager, "extension-state-changed",
+                           G_CALLBACK (on_manager_extension_state_changed), self, 0);
 
   connection = export_skeleton (G_DBUS_INTERFACE_SKELETON (self->skeleton),
                                 SHELL_OBJECT_PATH);
+}
+
+static void
+shell_dbus_extensions_service_set_property (GObject      *object,
+                                            guint         prop_id,
+                                            const GValue *value,
+                                            GParamSpec   *pspec)
+{
+  ShellDBusExtensionsService *self = SHELL_DBUS_EXTENSIONS_SERVICE (object);
+
+  switch (prop_id)
+    {
+    case EXT_PROP_MANAGER:
+      g_set_object (&self->manager, g_value_get_object (value));
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
+}
+
+static void
+shell_dbus_extensions_service_get_property (GObject    *object,
+                                            guint       prop_id,
+                                            GValue     *value,
+                                            GParamSpec *pspec)
+{
+  ShellDBusExtensionsService *self = SHELL_DBUS_EXTENSIONS_SERVICE (object);
+
+  switch (prop_id)
+    {
+    case EXT_PROP_MANAGER:
+      g_value_set_object (value, self->manager);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+    }
 }
 
 static void
@@ -1585,6 +1614,8 @@ shell_dbus_extensions_service_dispose (GObject *object)
       g_clear_object (&self->skeleton);
     }
 
+  g_clear_object (&self->manager);
+
   G_OBJECT_CLASS (shell_dbus_extensions_service_parent_class)->dispose (object);
 }
 
@@ -1594,158 +1625,24 @@ shell_dbus_extensions_service_class_init (ShellDBusExtensionsServiceClass *klass
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
   object_class->constructed = shell_dbus_extensions_service_constructed;
+  object_class->set_property = shell_dbus_extensions_service_set_property;
+  object_class->get_property = shell_dbus_extensions_service_get_property;
   object_class->dispose = shell_dbus_extensions_service_dispose;
 
   /**
-   * ShellDBusExtensionsService::list-extensions:
-   * @self: the #ShellDBusExtensionsService
+   * ShellDBusExtensionsService:manager:
    *
-   * Emitted by ListExtensions ().
-   *
-   * Returns: (transfer full): a variant of type `a{sa{sv}}` mapping the UUID
-   *   of every extension to its serialized info
+   * The extension manager that answers the calls and whose changes are
+   * reported with ExtensionStateChanged.
    */
-  ext_signals[EXT_LIST_EXTENSIONS] =
-    g_signal_new ("list-extensions",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0, g_signal_accumulator_first_wins, NULL, NULL,
-                  G_TYPE_VARIANT, 0);
+  ext_props[EXT_PROP_MANAGER] =
+    g_param_spec_object ("manager", NULL, NULL,
+                         SHELL_TYPE_EXTENSION_MANAGER,
+                         G_PARAM_READWRITE |
+                         G_PARAM_CONSTRUCT_ONLY |
+                         G_PARAM_STATIC_STRINGS);
 
-  /**
-   * ShellDBusExtensionsService::get-extension-info:
-   * @self: the #ShellDBusExtensionsService
-   * @uuid: the UUID of the extension
-   *
-   * Emitted by GetExtensionInfo ().
-   *
-   * Returns: (transfer full): the serialized extension, of type `a{sv}`
-   */
-  ext_signals[EXT_GET_EXTENSION_INFO] =
-    g_signal_new ("get-extension-info",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0, g_signal_accumulator_first_wins, NULL, NULL,
-                  G_TYPE_VARIANT, 1,
-                  G_TYPE_STRING);
-
-  /**
-   * ShellDBusExtensionsService::get-extension-errors:
-   * @self: the #ShellDBusExtensionsService
-   * @uuid: the UUID of the extension
-   *
-   * Emitted by GetExtensionErrors ().
-   *
-   * Returns: (transfer full) (nullable): the errors of the extension as an
-   *   `as` variant, or %NULL for none (a string array cannot be a signal
-   *   return type for the documentation tools)
-   */
-  ext_signals[EXT_GET_EXTENSION_ERRORS] =
-    g_signal_new ("get-extension-errors",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0, g_signal_accumulator_first_wins, NULL, NULL,
-                  G_TYPE_VARIANT, 1,
-                  G_TYPE_STRING);
-
-  /**
-   * ShellDBusExtensionsService::install-remote-extension:
-   * @self: the #ShellDBusExtensionsService
-   * @uuid: the UUID of the extension
-   * @invocation: the method invocation
-   *
-   * Emitted by InstallRemoteExtension (). The handler replies to @invocation
-   * with a `(s)` result or an error, possibly later.
-   */
-  ext_signals[EXT_INSTALL_REMOTE_EXTENSION] =
-    g_signal_new ("install-remote-extension",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0, NULL, NULL, NULL,
-                  G_TYPE_NONE, 2,
-                  G_TYPE_STRING, G_TYPE_DBUS_METHOD_INVOCATION);
-
-  /**
-   * ShellDBusExtensionsService::uninstall-extension:
-   * @self: the #ShellDBusExtensionsService
-   * @uuid: the UUID of the extension
-   *
-   * Emitted by UninstallExtension ().
-   *
-   * Returns: whether the extension was uninstalled
-   */
-  ext_signals[EXT_UNINSTALL_EXTENSION] =
-    g_signal_new ("uninstall-extension",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0, g_signal_accumulator_first_wins, NULL, NULL,
-                  G_TYPE_BOOLEAN, 1,
-                  G_TYPE_STRING);
-
-  /**
-   * ShellDBusExtensionsService::enable-extension:
-   * @self: the #ShellDBusExtensionsService
-   * @uuid: the UUID of the extension
-   *
-   * Emitted by EnableExtension ().
-   *
-   * Returns: whether the extension was enabled
-   */
-  ext_signals[EXT_ENABLE_EXTENSION] =
-    g_signal_new ("enable-extension",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0, g_signal_accumulator_first_wins, NULL, NULL,
-                  G_TYPE_BOOLEAN, 1,
-                  G_TYPE_STRING);
-
-  /**
-   * ShellDBusExtensionsService::disable-extension:
-   * @self: the #ShellDBusExtensionsService
-   * @uuid: the UUID of the extension
-   *
-   * Emitted by DisableExtension ().
-   *
-   * Returns: whether the extension was disabled
-   */
-  ext_signals[EXT_DISABLE_EXTENSION] =
-    g_signal_new ("disable-extension",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0, g_signal_accumulator_first_wins, NULL, NULL,
-                  G_TYPE_BOOLEAN, 1,
-                  G_TYPE_STRING);
-
-  /**
-   * ShellDBusExtensionsService::open-extension-prefs:
-   * @self: the #ShellDBusExtensionsService
-   * @uuid: the UUID of the extension
-   * @parent_window: the identifier of the window of the client
-   * @options: a variant of type `a{sv}` with further options
-   *
-   * Emitted by OpenExtensionPrefs () and LaunchExtensionPrefs (), which has
-   * no parent window and no options.
-   */
-  ext_signals[EXT_OPEN_EXTENSION_PREFS] =
-    g_signal_new ("open-extension-prefs",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0, NULL, NULL, NULL,
-                  G_TYPE_NONE, 3,
-                  G_TYPE_STRING, G_TYPE_STRING, G_TYPE_VARIANT);
-
-  /**
-   * ShellDBusExtensionsService::check-for-updates:
-   * @self: the #ShellDBusExtensionsService
-   *
-   * Emitted by CheckForUpdates ().
-   */
-  ext_signals[EXT_CHECK_FOR_UPDATES] =
-    g_signal_new ("check-for-updates",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0, NULL, NULL, NULL,
-                  G_TYPE_NONE, 0);
+  g_object_class_install_properties (object_class, EXT_N_PROPS, ext_props);
 }
 
 static void
@@ -1755,6 +1652,7 @@ shell_dbus_extensions_service_init (ShellDBusExtensionsService *self)
 
 /**
  * shell_dbus_extensions_service_new:
+ * @manager: the extension manager
  *
  * Creates the service and exports org.gnome.Shell.Extensions at
  * /org/gnome/Shell on the session bus. js/ui/main.js creates the only
@@ -1763,9 +1661,11 @@ shell_dbus_extensions_service_init (ShellDBusExtensionsService *self)
  * Returns: (transfer full): a new #ShellDBusExtensionsService
  */
 ShellDBusExtensionsService *
-shell_dbus_extensions_service_new (void)
+shell_dbus_extensions_service_new (ShellExtensionManager *manager)
 {
-  return g_object_new (SHELL_TYPE_DBUS_EXTENSIONS_SERVICE, NULL);
+  g_return_val_if_fail (SHELL_IS_EXTENSION_MANAGER (manager), NULL);
+
+  return g_object_new (SHELL_TYPE_DBUS_EXTENSIONS_SERVICE, "manager", manager, NULL);
 }
 
 /* ------------------------------------------------------------------------
@@ -1879,7 +1779,7 @@ on_screen_saver_shutdown (ShellGlobal             *global,
  * @self: a #ShellScreenSaverService
  * @active: whether the screen shield is active
  *
- * Emits the ActiveChanged signal; js/ui/screenShield.js calls it for its
+ * Emits the ActiveChanged signal; src/ui/screen-shield.c calls it for its
  * `active-changed`.
  */
 void
@@ -1895,7 +1795,7 @@ shell_screen_saver_service_emit_active_changed (ShellScreenSaverService *self,
  * shell_screen_saver_service_emit_wake_up_screen:
  * @self: a #ShellScreenSaverService
  *
- * Emits the WakeUpScreen signal; js/ui/screenShield.js calls it for its
+ * Emits the WakeUpScreen signal; src/ui/screen-shield.c calls it for its
  * `wake-up-screen`.
  */
 void
@@ -1911,7 +1811,7 @@ shell_screen_saver_service_emit_wake_up_screen (ShellScreenSaverService *self)
  * @self: a #ShellScreenSaverService
  *
  * Replies to the calls of Lock () that wait for the lock screen;
- * js/ui/screenShield.js calls it for its `lock-screen-shown`.
+ * src/ui/screen-shield.c calls it for its `lock-screen-shown`.
  */
 void
 shell_screen_saver_service_lock_screen_shown (ShellScreenSaverService *self)
@@ -2058,7 +1958,7 @@ shell_screen_saver_service_init (ShellScreenSaverService *self)
  *
  * Creates the service, exports org.gnome.ScreenSaver at /org/gnome/ScreenSaver
  * and owns org.gnome.Shell.ScreenShield on the session bus.
- * js/ui/screenShield.js creates the only instance.
+ * src/ui/screen-shield.c creates the only instance.
  *
  * Returns: (transfer full): a new #ShellScreenSaverService
  */

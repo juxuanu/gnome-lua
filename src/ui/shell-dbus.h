@@ -6,9 +6,10 @@
  * org.gnome.Shell.Brightness. Port of js/ui/shellDBus.js.
  *
  * What the JS reached through singletons that are still JS (the overview,
- * the window manager, the extension manager, the screen shield, ...) is a
- * signal of the service, which js/ui/main.js (and js/ui/screenShield.js)
- * connect to those singletons.
+ * the window manager, the screen shield, ...) is a signal of the service,
+ * which js/ui/main.js (and src/ui/screen-shield.c) connect to those
+ * singletons. The extension service answers through the extension manager
+ * (extension-system.h), which it is given.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -18,6 +19,7 @@
 #include <gio/gio.h>
 
 #include "misc/brightness-manager.h"
+#include "ui/extension-system.h"
 #include "ui/osd-monitor-labeler.h"
 #include "ui/osd-window.h"
 
@@ -53,13 +55,7 @@ void              shell_dbus_service_set_overview_active (ShellDBusService *self
 G_DECLARE_FINAL_TYPE (ShellDBusExtensionsService, shell_dbus_extensions_service,
                       SHELL, DBUS_EXTENSIONS_SERVICE, GObject)
 
-ShellDBusExtensionsService *shell_dbus_extensions_service_new (void);
-
-void              shell_dbus_extensions_service_emit_state_changed (ShellDBusExtensionsService *self,
-                                                                    const char                 *uuid,
-                                                                    GVariant                   *state,
-                                                                    int                         state_value,
-                                                                    const char                 *error);
+ShellDBusExtensionsService *shell_dbus_extensions_service_new (ShellExtensionManager *manager);
 
 /* org.gnome.ScreenSaver */
 

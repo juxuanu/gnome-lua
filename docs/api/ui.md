@@ -121,7 +121,7 @@ only). Role CHECK_BOX; clicking, dragging the handle and Space all toggle.
 `stylesheet.css` (and the variants `stylesheet-dark.css`, `stylesheet-light.css`,
 `<session-mode>.css`, `<session-mode>-<variant>.css`; first match wins, loaded
 with the extension and unloaded on disable) is added to the shell theme exactly
-as today (`js/ui/extensionSystem.js` `_loadExtensionStylesheet`). It is global:
+as before (`src/ui/extension-system.c`, `load_stylesheet ()`). It is global:
 selectors reach built-in widgets and other extensions, as theme authors rely on
 today. Only the following are stable API: the classes you set, `lua-ext-<id>`,
 the class names of the theme's pseudo-classes (`:hover`, `:active`, `:checked`,

@@ -149,6 +149,11 @@ void       shell_lua_extension_manager_set_search_dirs (ShellLuaExtensionManager
                                                         GFile * const            *dirs,
                                                         gsize                     n_dirs);
 void       shell_lua_extension_manager_scan            (ShellLuaExtensionManager *self);
+/* Forget an extension and read its directory again (new code, new metadata);
+ * the result is not enabled. */
+gboolean   shell_lua_extension_manager_reload          (ShellLuaExtensionManager  *self,
+                                                        const char                *uuid,
+                                                        GError                   **error);
 /* (transfer none) (nullable) */
 /**
  * shell_lua_extension_manager_lookup:

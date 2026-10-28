@@ -110,6 +110,10 @@ geoclue_dep = dependency('libgeoclue-2.0', version: geoclue_req)
 upower_dep = dependency('upower-glib')
 # gdm/fido2-token-manager.c: the hidraw devices of the security keys
 gudev_dep = dependency('gudev-1.0')
+# ui/extension-downloader.c: the requests to extensions.gnome.org and the
+# extraction of the archives of the extensions
+soup_dep = dependency('libsoup-3.0')
+autoar_dep = dependency('gnome-autoar-0')
 # ui/status/bluetooth.c: BluetoothClient. libgnome-bluetooth does not install
 # its headers (the JS used the typelib), the few declarations it needs are in
 # the C file
@@ -157,10 +161,12 @@ have_portal_helper = get_option('portal_helper')
 if have_portal_helper and not have_networkmanager
   error('Portal helper requires networkmanager support')
 endif
+# src/portal-helper/main.c and src/dbus-services/extensions (AdwDialog,
+# AdwAlertDialog and AdwSwitchRow need 1.5)
+libadwaita_dep = dependency('libadwaita-1', version: '>= 1.5')
 if have_portal_helper
   # src/portal-helper/main.c
   webkitgtk_dep = dependency('webkitgtk-6.0')
-  libadwaita_dep = dependency('libadwaita-1')
 endif
 
 if get_option('camera_monitor')

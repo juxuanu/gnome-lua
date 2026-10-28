@@ -25,20 +25,45 @@ local function hook_exists(name)
   return false
 end
 
+-- Settings come from the schema named by "settings-schema" in metadata.json
+-- (schemas/, compiled). The same keys are what prefs.lua shows in the
+-- preferences window.
+local function log_level_function(level)
+  if level == "debug" then
+    return shell.log.debug
+  end
+  return shell.log.info
+end
+
 function ext.enable()
-  shell.log.info("hello from Lua")
+  local settings = shell.settings.extension()
+
+  shell.log.info("%s", settings:get_string("greeting"))
 
   -- A repeating timer. Timers belong to the extension: they are cancelled
   -- automatically when it is disabled, so there is nothing to clean up.
   local counter = 0
-  shell.timer.every{
-    ms = 5000,
-    callback = function()
-      counter = counter + 1
-      shell.log.info("hello counter: %d", counter)
-      return true -- returning false would stop the timer
-    end,
-  }
+  local timer
+
+  local function start_timer()
+    if timer then
+      timer:cancel()
+    end
+    timer = shell.timer.every{
+      ms = settings:get_int("interval") * 1000,
+      callback = function()
+        counter = counter + 1
+        if settings:get_boolean("log-ticks") then
+          log_level_function(settings:get_string("level"))("hello counter: %d", counter)
+        end
+        return true -- returning false would stop the timer
+      end,
+    }
+  end
+  start_timer()
+
+  -- The interval is read when the timer starts, so a change restarts it
+  settings:on_changed("interval", start_timer)
 
   if hook_exists(WANTED_HOOK) then
     shell.hooks.on(WANTED_HOOK, function(payload)
@@ -47,19 +72,11 @@ function ext.enable()
   else
     shell.log.debug("hook %s is not available, skipping", WANTED_HOOK)
   end
-
-  -- Settings are only available when metadata.json names a "settings-schema"
-  -- (shipped in schemas/). This extension has none, so this is skipped.
-  if shell.extension.metadata["settings-schema"] then
-    local settings = shell.settings.extension()
-    settings:on_changed(nil, function(key)
-      shell.log.info("setting %s changed", key)
-    end)
-  end
 end
 
--- There is deliberately no disable(): the timer and the hook connection above
--- are owned by the extension context and are torn down by the shell when the
--- extension is disabled. Define disable() only for state outside the shell.
+-- There is deliberately no disable(): the timer, the settings connection and the
+-- hook connection above are owned by the extension context and are torn down
+-- by the shell when the extension is disabled. Define disable() only for state
+-- outside the shell.
 
 return ext

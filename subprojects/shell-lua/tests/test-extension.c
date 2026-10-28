@@ -1473,6 +1473,81 @@ test_sync_with_shell_settings (void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* Reload                                                                    */
+/* ------------------------------------------------------------------------ */
+
+static void
+test_reload (void)
+{
+  Env e;
+  ShellLuaExtension *ext, *reloaded;
+  g_autoptr (GError) error = NULL;
+  g_autoptr (GVariant) v = NULL;
+  g_autofree char *dir = NULL;
+  g_autofree char *metadata = NULL;
+  g_autofree char *version = NULL;
+  GString *log = g_string_new (NULL);
+  gulong handler;
+
+  env_init (&e);
+
+  metadata = metadata_with ("r@test", "\"version\": \"1\"");
+  write_ext (e.user, "r@test", metadata, "return { enable = function () shell.test.ping() end }\n");
+  ext = scan_one (&e, "r@test");
+  v = shell_lua_extension_serialize (ext);
+  g_assert_false (lookup_bool (v, "hasPrefs"));
+  g_clear_pointer (&v, g_variant_unref);
+
+  /* A running extension is disabled, reported as uninstalled, and read again */
+  enable_ok (&e, "r@test");
+  assert_state (ext, SHELL_LUA_EXTENSION_STATE_ACTIVE);
+
+  dir = g_build_filename (e.user, "r@test", NULL);
+  g_free (metadata);
+  metadata = metadata_with ("r@test", "\"version\": \"2\"");
+  tu_write_file (dir, "metadata.json", metadata);
+  tu_write_file (dir, "prefs.lua", "return {}\n");
+
+  g_object_ref (ext);
+  handler = g_signal_connect (e.manager, "extension-state-changed", G_CALLBACK (on_state_changed), log);
+  g_assert_true (shell_lua_extension_manager_reload (e.manager, "r@test", &error));
+  g_assert_no_error (error);
+  g_signal_handler_disconnect (e.manager, handler);
+
+  assert_state (ext, SHELL_LUA_EXTENSION_STATE_UNINSTALLED);
+  g_object_unref (ext);
+
+  reloaded = must_lookup (&e, "r@test");
+  g_assert_true (reloaded != ext);
+  assert_state (reloaded, SHELL_LUA_EXTENSION_STATE_INITIALIZED);
+  v = shell_lua_extension_serialize (reloaded);
+  g_assert_true (lookup_bool (v, "hasPrefs"));
+  version = lookup_string (v, "version");
+  g_assert_cmpstr (version, ==, "2");
+  g_assert_true (g_str_has_suffix (log->str, "r@test:INITIALIZED;"));
+  g_assert_true (strstr (log->str, "r@test:UNINSTALLED;") != NULL);
+
+  /* It can be enabled again */
+  enable_ok (&e, "r@test");
+  assert_state (reloaded, SHELL_LUA_EXTENSION_STATE_ACTIVE);
+
+  /* Unknown extensions are an error; a directory that cannot be read any
+   * more leaves the extension forgotten */
+  g_assert_false (shell_lua_extension_manager_reload (e.manager, "nope@test", &error));
+  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
+  g_clear_error (&error);
+
+  tu_rm_rf (dir);
+  g_assert_false (shell_lua_extension_manager_reload (e.manager, "r@test", &error));
+  g_assert_nonnull (error);
+  g_clear_error (&error);
+  g_assert_null (lookup (&e, "r@test"));
+
+  g_string_free (log, TRUE);
+  env_clear (&e);
+}
+
+/* ------------------------------------------------------------------------ */
 /* The example extension                                                     */
 /* ------------------------------------------------------------------------ */
 
@@ -1546,6 +1621,7 @@ main (int argc, char **argv)
   g_test_add_func ("/shell-lua/extension/state-changed-on-flags", test_state_changed_signal_on_flags);
   g_test_add_func ("/shell-lua/extension/settings-capability", test_settings_capability_and_schema);
   g_test_add_func ("/shell-lua/extension/sync", test_sync_with_shell_settings);
+  g_test_add_func ("/shell-lua/extension/reload", test_reload);
   g_test_add_func ("/shell-lua/extension/example-hello", test_hello_example);
 
   return g_test_run ();

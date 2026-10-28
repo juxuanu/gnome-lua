@@ -53,7 +53,7 @@ G_BEGIN_DECLS
  * @SHELL_NOTIFICATION_STATE_HIDING: animating out
  *
  * The state of a banner, or of anything else that slides in and out
- * (`MessageTray.State`; screenShield.js uses it for the lock screen).
+ * (`MessageTray.State`; screen-shield.c uses it for the lock screen).
  */
 typedef enum
 {

@@ -1,13 +1,19 @@
-# `prefs.lua`: declarative preferences (version 1, draft)
+# `prefs.lua`: declarative preferences (version 1)
+
+Status: **impl** (M5). `src/dbus-services/extensions/extension-prefs-schema.c`
+loads and validates the file, `extension-prefs-window.c` renders it; both are
+part of the `org.gnome.Shell.Extensions` service process. The reference file
+is `subprojects/shell-lua/examples/hello@gnome-lua.example/prefs.lua`.
 
 Scope: how an extension describes its settings window. `prefs.lua` returns a
 plain data table (pages, groups, rows); every row is bound to one key of the
 extension's GSettings schema (`metadata["settings-schema"]`, compiled from
 `schemas/`). The extensions D-Bus service renders it with libadwaita; the
 extension runs no code in the prefs process (PLAN D12). This replaces
-`prefs.js` with `ExtensionPreferences.fillPreferencesWindow(window)` (today
+`prefs.js` with `ExtensionPreferences.fillPreferencesWindow(window)` (formerly
 `js/extensions/prefs.js`, hosted by `ExtensionPrefsDialog`, an
-`Adw.PreferencesWindow`, in `js/dbusServices/extensions/extensionPrefsDialog.js`).
+`Adw.PreferencesWindow`, in `js/dbusServices/extensions/extensionPrefsDialog.js`;
+all three are gone).
 
 Not in v1:
 - Custom GTK/Adw widgets, signals, handlers or any callback: the file is data.
@@ -53,9 +59,9 @@ inactive row is insensitive, not hidden. The referenced key need not have a row.
 | `type` | Widget | Key type | Fields |
 |---|---|---|---|
 | `switch` | `Adw.SwitchRow` | `b` | |
-| `spin` | `Adw.SpinRow` | `n q i u x t y d` | `min`, `max` (default: the schema `<range>`), `step` (default 1; 0.1 for `d`), `digits` (0; 2 for `d`) |
+| `spin` | `Adw.SpinRow` | `n q i u x t y d` | `min`, `max` (default: the schema `<range>`), `step` (default 1; 0.1 for `d`), `digits` (0 to 10; default 0, 2 for `d`) |
 | `combo` | `Adw.ComboRow` | `s`, or an integer type | `choices` = `{ {value = <key type>, label = string}, ... }` |
-| `entry` | `Adw.EntryRow` | `s` | `max_length` (integer, optional) |
+| `entry` | `Adw.EntryRow` (its `subtitle` is the tooltip) | `s` | `max_length` (integer 1..65535, optional) |
 | `color` | `Adw.ActionRow` + `Gtk.ColorDialogButton` | `s` | `alpha` (boolean, default false) |
 | `keybinding` | `Adw.ActionRow` + shortcut label | `as` | `max` (1..4, default 1), `allow_empty` (default true) |
 
@@ -72,29 +78,40 @@ Behaviour of the renderer:
   not write until the user picks.
 - `keybinding` shows the accelerators (GTK syntax, `<Super>k`) and a capture
   dialog: a key press sets it, Escape cancels, Backspace clears (if
-  `allow_empty`). It warns, but does not block, when the accelerator is already
-  used by `org.gnome.desktop.wm.keybindings`, `org.gnome.shell.keybindings`,
-  `org.gnome.mutter.keybindings` or `org.gnome.settings-daemon.plugins.media-keys`.
-- The window's menu offers "Reset to defaults", resetting every bound key.
+  `allow_empty`). With `max` 1 the key press replaces the accelerator; with a
+  larger `max` it is added to the list, and when the list is full it replaces
+  the last one. It warns (a toast), but does not block, when the accelerator is
+  already used by `org.gnome.desktop.wm.keybindings`,
+  `org.gnome.shell.keybindings`, `org.gnome.mutter.keybindings` or
+  `org.gnome.settings-daemon.plugins.media-keys`.
+- The window's menu offers "Reset to Defaults" (after a confirmation),
+  resetting every bound key.
+- All strings are shown as plain text, never as markup.
+- The window is an `Adw.Window` with one `Adw.PreferencesPage` per page; the
+  pages are switched with a view switcher in the header bar (at the bottom of
+  a narrow window).
 
 ## Validation
 
 Performed identically by the prefs service, `gnome-extensions pack` (as errors)
 and `gnome-extensions prefs`; all problems are collected and reported with a
 path such as `pages[2].groups[1].rows[3].key`. A failing file shows the
-existing error page (`ExtensionPrefsErrorPage`); it never disables the
+error page of the old dialog (`ExtensionPrefsErrorPage`: the problems, a Copy
+Error button and a link to the extension's `url`); it never disables the
 extension.
 
 1. The file returns a table; only the fields above exist (unknown field =
    error); required fields present; strings are non-empty and at most 200 bytes
    (`subtitle`, `description` 500).
 2. `metadata.json` has `settings-schema` and `schemas/` contains the compiled
-   schema with that id.
+   schema with that id (an extension without `schemas/` must have its schema
+   installed system-wide).
 3. `key` exists in the schema; its type is listed for the row type; **a key is
    bound by at most one row**.
 4. `spin`: `min <= max`; `step > 0`; bounds lie inside the schema `<range>`
-   when there is one; `min` and `max` are required when there is none; integer
-   key types require integer bounds.
+   when there is one; `min` and `max` are required when there is none and lie
+   inside the range of the key type; integer key types require integer bounds
+   and an integer `step`; `digits` is an integer between 0 and 10.
 5. `combo`: at least one choice; `value`s are unique and match the key type; for
    a key with `<choices>`/`<enum>` every `value` MUST be one of them.
 6. `keybinding`: `max` in 1..4.

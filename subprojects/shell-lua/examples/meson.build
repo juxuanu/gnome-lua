@@ -3,7 +3,12 @@
 fs = import('fs')
 
 shell_lua_examples = []
-foreach f : ['hello@gnome-lua.example/metadata.json', 'hello@gnome-lua.example/extension.lua']
+foreach f : [
+  'hello@gnome-lua.example/metadata.json',
+  'hello@gnome-lua.example/extension.lua',
+  'hello@gnome-lua.example/prefs.lua',
+  'hello@gnome-lua.example/schemas/org.gnome-lua.example.hello.gschema.xml',
+]
   if fs.exists(f)
     shell_lua_examples += files(f)
   endif

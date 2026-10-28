@@ -6,7 +6,7 @@
  *
  * #ShellATIndicator (`ATIndicator`) is the menu button of the top bar. The
  * toggles (`HighContrastToggle`, ..., `MouseKeysToggle`) are public because
- * the menu of the login screen (js/gdm/loginDialog.js) puts them in its own
+ * the menu of the login screen (src/gdm/login-dialog.c) puts them in its own
  * menu; they all are final #ShellQuickToggle subclasses which bind their
  * `checked` property to a GSettings key.
  */

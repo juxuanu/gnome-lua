@@ -7,13 +7,7 @@ import St from 'gi://St';
 
 import * as Config from '../misc/config.js';
 import * as Components from './components.js';
-import * as ExtensionSystem from './extensionSystem.js';
-import * as ExtensionDownloader from './extensionDownloader.js';
-import * as ExtensionUtils from '../misc/extensionUtils.js';
 import * as PanelItems from './panelItems.js';
-import * as ScreenShield from './screenShield.js';
-import {LoginDialog} from '../gdm/loginDialog.js';
-import {UnlockDialog} from './unlockDialog.js';
 import {formatError} from '../misc/errorUtils.js';
 import * as Util from '../misc/util.js';
 
@@ -315,40 +309,8 @@ function _createShellDBusServices() {
     overview.connect('showing', syncOverviewActive);
     overview.connect('hidden', syncOverviewActive);
 
-    const extensionsService = new Shell.DBusExtensionsService();
-    _shellExtensionsDBusService = extensionsService;
-
-    const serializeExtension = uuid =>
-        ExtensionUtils.serializeExtension(extensionManager.lookup(uuid) || {});
-    extensionsService.connect('list-extensions', () => {
-        const out = {};
-        extensionManager.getUuids().forEach(uuid => {
-            out[uuid] = serializeExtension(uuid);
-        });
-        return new GLib.Variant('a{sa{sv}}', out);
-    });
-    extensionsService.connect('get-extension-info',
-        (_service, uuid) => new GLib.Variant('a{sv}', serializeExtension(uuid)));
-    extensionsService.connect('get-extension-errors',
-        (_service, uuid) => new GLib.Variant('as', extensionManager.lookup(uuid)?.errors ?? []));
-    extensionsService.connect('install-remote-extension',
-        (_service, uuid, invocation) => ExtensionDownloader.installExtension(uuid, invocation));
-    extensionsService.connect('uninstall-extension',
-        (_service, uuid) => !!ExtensionDownloader.uninstallExtension(uuid));
-    extensionsService.connect('enable-extension',
-        (_service, uuid) => !!extensionManager.enableExtension(uuid));
-    extensionsService.connect('disable-extension',
-        (_service, uuid) => !!extensionManager.disableExtension(uuid));
-    extensionsService.connect('open-extension-prefs',
-        (_service, uuid, parentWindow, options) =>
-            extensionManager.openExtensionPrefs(uuid, parentWindow, options.deepUnpack()));
-    extensionsService.connect('check-for-updates',
-        () => ExtensionDownloader.checkForUpdates());
-    extensionManager.connect('extension-state-changed', (_manager, extension) => {
-        extensionsService.emit_state_changed(extension.uuid,
-            new GLib.Variant('a{sv}', ExtensionUtils.serializeExtension(extension)),
-            extension.state, extension.error ?? '');
-    });
+    // The extension manager is in C: the service answers through it
+    _shellExtensionsDBusService = new Shell.DBusExtensionsService({manager: extensionManager});
 
     _screenshotService = new Shell.ScreenshotService({screenshot_ui: screenshotUI});
 }
@@ -445,7 +407,7 @@ async function _initializeUI() {
     locatePointer = new Shell.LocatePointer({ui_group: uiGroup});
 
     if (Shell.LoginManager.can_lock())
-        screenShield = new ScreenShield.ScreenShield();
+        screenShield = new Shell.ScreenShield();
 
     inputMethod = new Shell.InputMethod();
     _shellMain.input_method = inputMethod;
@@ -489,6 +451,9 @@ async function _initializeUI() {
     // Set up the global default break reminder manager and its D-Bus interface
     breakManager = new Shell.BreakManager();
     timeLimitsManager = new Shell.TimeLimitsManager();
+    // The lock screen blocks the unlocking when the time limits lock the session
+    if (screenShield)
+        screenShield.time_limits_manager = timeLimitsManager;
     screenTimeDBus = new Shell.ScreenTimeService({manager: breakManager});
     breakManagerDispatcher = new Shell.BreakDispatcher({
         manager: breakManager,
@@ -554,15 +519,24 @@ async function _initializeUI() {
 
     _startDate = new Date();
 
-    ExtensionDownloader.init();
-    extensionManager = new ExtensionSystem.ExtensionManager();
-    extensionManager.init();
+    // The extension manager is in C; the notification that updates are ready
+    // asks to close the overview and the calendar when it opens the
+    // application that installs them
+    extensionManager = new Shell.ExtensionManager({
+        session_mode: sessionMode,
+        message_tray: messageTray,
+    });
+    extensionManager.connect('overview-hide-requested', () => {
+        overview.hide();
+        panel.close_calendar();
+    });
+    extensionManager.start();
 
     Shell.LoginManager.register_session_with_gdm();
 
     if (sessionMode.is_greeter && screenShield) {
         layoutManager.connect('startup-prepared', () => {
-            screenShield.showDialog();
+            screenShield.show_dialog();
         });
     }
 
@@ -584,7 +558,7 @@ async function _initializeUI() {
         global.notify_startup_complete();
 
         if (screenShield)
-            screenShield.lockIfWasLocked();
+            screenShield.lock_if_was_locked();
 
         if (sessionMode.current_mode !== 'gdm' &&
             sessionMode.current_mode !== 'initial-setup') {
@@ -726,22 +700,6 @@ function _getStylesheet(name) {
         return stylesheet;
 
     return null;
-}
-
-/**
- * Maps Shell.SessionMode:unlock-dialog to the class that implements it.
- *
- * @returns {?Function} the dialog constructor, null if the mode has none
- */
-export function getUnlockDialogClass() {
-    switch (sessionMode.unlock_dialog) {
-    case 'login-dialog':
-        return LoginDialog;
-    case 'unlock-dialog':
-        return UnlockDialog;
-    default:
-        return null;
-    }
 }
 
 /** @returns {string} */

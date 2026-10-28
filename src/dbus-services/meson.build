@@ -96,3 +96,5 @@ foreach service_file : [
     install_dir: servicedir
   )
 endforeach
+
+subdir('extensions')

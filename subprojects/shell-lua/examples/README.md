@@ -8,12 +8,19 @@ extension: it logs, runs a timer and shows how to connect to a hook only when
 the running shell declares it. It has no `disable()` on purpose, to show that
 everything created through `shell.*` is torn down automatically.
 
+It also has settings and a preferences window: `metadata.json` names the
+schema (`"settings-schema"`), `schemas/` holds it (the source and the
+`gschemas.compiled` that `glib-compile-schemas schemas/` makes of it; compile
+again after editing the XML), and `prefs.lua` describes the window as data
+(`docs/api/prefs.md`). Open it with `gnome-extensions prefs
+hello@gnome-lua.example`.
+
 To install one for your user, copy the directory (the directory name must equal
 the uuid in `metadata.json`) into the per-user extension directory and enable
 it in the `org.gnome.shell` settings:
 
     mkdir -p ~/.local/share/gnome-shell/extensions
-    cp -r hello ~/.local/share/gnome-shell/extensions/hello@gnome-lua.example
+    cp -r hello@gnome-lua.example ~/.local/share/gnome-shell/extensions/
     gsettings set org.gnome.shell enabled-extensions "['hello@gnome-lua.example']"
 
 (Adjust the `gsettings` call if you already have other enabled extensions.)

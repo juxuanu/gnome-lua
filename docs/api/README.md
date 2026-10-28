@@ -129,7 +129,7 @@ extension created is visible after disable completes. A runtime SHOULD cap live
 owned objects per extension (reference value 4096) and raise beyond it.
 Extensions are enabled and torn down on session-mode changes according to
 `metadata["session-modes"]` (default `["user"]`, `shell-lua-extension.c`;
-today `extensionSystem.js` `_extensionSupportsSessionMode`).
+`src/ui/extension-system.c`, `extension_supports_session_mode ()`).
 
 ## Placement and ordering
 

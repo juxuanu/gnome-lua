@@ -306,7 +306,7 @@ init_builtin_modes (void)
   mode_set_bool (mode, "hasNotifications", TRUE);
   mode_set_bool (mode, "isGreeter", TRUE);
   mode_set_bool (mode, "isPrimary", TRUE);
-  /* Names the class js/gdm/loginDialog.js implements (see Main.getUnlockDialogClass) */
+  /* Names the dialog src/gdm/login-dialog.c implements (see src/ui/screen-shield.c) */
   mode_set_string (mode, "unlockDialog", "login-dialog");
   mode_set_strv (mode, "components", gdm_components);
   mode_set_panel (mode, none, date_menu, gdm_right);
@@ -332,7 +332,7 @@ init_builtin_modes (void)
   mode_set_bool (mode, "hasNotifications", TRUE);
   mode_set_bool (mode, "isLocked", FALSE);
   mode_set_bool (mode, "isPrimary", TRUE);
-  /* Names the class js/ui/unlockDialog.js implements */
+  /* Names the dialog src/ui/unlock-dialog.c implements */
   mode_set_string (mode, "unlockDialog", "unlock-dialog");
   mode_set_strv (mode, "components", user_components);
   mode_set_panel (mode, activities, date_menu, user_right);
@@ -1258,7 +1258,7 @@ shell_session_mode_class_init (ShellSessionModeClass *klass)
    * ShellSessionMode:unlock-dialog:
    *
    * Which dialog authenticates the user in this mode: `login-dialog`
-   * (js/gdm/loginDialog.js) or `unlock-dialog` (js/ui/unlockDialog.js);
+   * (src/gdm/login-dialog.c) or `unlock-dialog` (src/ui/unlock-dialog.c);
    * %NULL if the mode cannot be locked. A mode that leaves it undefined
    * (`unlock-dialog`) keeps the value of the mode below it.
    */

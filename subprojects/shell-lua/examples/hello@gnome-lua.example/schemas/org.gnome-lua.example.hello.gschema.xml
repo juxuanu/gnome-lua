@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome-lua.example.hello" path="/org/gnome-lua/example/hello/">
+    <key name="greeting" type="s">
+      <default>"hello from Lua"</default>
+      <summary>Greeting</summary>
+      <description>The message logged when the extension is enabled.</description>
+    </key>
+    <key name="log-ticks" type="b">
+      <default>true</default>
+      <summary>Log the counter</summary>
+      <description>Whether the counter is logged every time the timer fires.</description>
+    </key>
+    <key name="interval" type="i">
+      <range min="1" max="3600"/>
+      <default>5</default>
+      <summary>Interval</summary>
+      <description>Seconds between two ticks of the counter.</description>
+    </key>
+    <key name="level" type="s">
+      <choices>
+        <choice value="info"/>
+        <choice value="debug"/>
+      </choices>
+      <default>"info"</default>
+      <summary>Log level</summary>
+      <description>The level the counter is logged at.</description>
+    </key>
+  </schema>
+</schemalist>

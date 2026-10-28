@@ -34,7 +34,6 @@ unit_testenv.append('GI_TYPELIB_PATH', st_typelib_path, separator: ':')
 unit_tests = {
   'asyncMutex': {},
   'errorUtils': {},
-  'extensionUtils': {},
   'fileUtils': {
     'env': {
       'XDG_DATA_DIRS': join_paths(meson.current_source_dir(), 'unit/fixtures/datadirs/system'),
@@ -42,7 +41,6 @@ unit_tests = {
     },
   },
   'highlighter': {},
-  'injectionManager': {},
   'insertSorted': {},
   'markup': {},
   'params': {},
@@ -77,6 +75,7 @@ endforeach
 # neither a session bus nor a display
 c_unit_tests = {
   'break-manager': {},
+  'extension-system': {},
   'time-limits-manager': {
     # The time limits tests hard-code UTC to keep the code brief, so must be
     # run in UTC

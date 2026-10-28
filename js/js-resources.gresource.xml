@@ -1,22 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <gresources>
   <gresource prefix="/org/gnome/shell">
-    <file>gdm/authList.js</file>
-    <file>gdm/authMenuButton.js</file>
-    <file>gdm/authPrompt.js</file>
-    <file>gdm/conflictingSessionDialog.js</file>
-    <file>gdm/loginDialog.js</file>
-    <file>gdm/webLogin.js</file>
-
-    <file>extensions/extension.js</file>
-    <file>extensions/sharedInternals.js</file>
-
     <file>misc/asyncMutex.js</file>
     <file>misc/config.js</file>
     <file>misc/dbusErrors.js</file>
     <file>misc/dependencies.js</file>
     <file>misc/errorUtils.js</file>
-    <file>misc/extensionUtils.js</file>
     <file>misc/fileUtils.js</file>
     <file>misc/params.js</file>
     <file>misc/signals.js</file>
@@ -24,15 +13,11 @@
     <file>misc/util.js</file>
 
     <file>ui/environment.js</file>
-    <file>ui/extensionDownloader.js</file>
-    <file>ui/extensionSystem.js</file>
     <file>ui/init.js</file>
     <file>ui/listModes.js</file>
     <file>ui/main.js</file>
     <file>ui/panelItems.js</file>
-    <file>ui/screenShield.js</file>
     <file>ui/scripting.js</file>
-    <file>ui/unlockDialog.js</file>
 
     <file>ui/components.js</file>
 
