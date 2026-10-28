@@ -722,7 +722,7 @@ shell_activities_button_constructed (GObject *object)
 {
   ShellActivitiesButton *self = SHELL_ACTIVITIES_BUTTON (object);
   ShellOverview *overview = shell_main_get_overview (shell_main_get_default ());
-  ClutterActor *click_gesture;
+  ClutterAction *click_gesture;
 
   G_OBJECT_CLASS (shell_activities_button_parent_class)->constructed (object);
 
@@ -745,10 +745,10 @@ shell_activities_button_constructed (GObject *object)
                                G_CALLBACK (activities_button_overview_hiding_cb), self, 0);
     }
 
-  click_gesture = CLUTTER_ACTOR (clutter_click_gesture_new ());
+  click_gesture = CLUTTER_ACTION (clutter_click_gesture_new ());
   g_signal_connect (click_gesture, "recognize",
                     G_CALLBACK (activities_button_click_recognize_cb), self);
-  clutter_actor_add_action (CLUTTER_ACTOR (self), CLUTTER_ACTION (click_gesture));
+  clutter_actor_add_action (CLUTTER_ACTOR (self), click_gesture);
 }
 
 static void
