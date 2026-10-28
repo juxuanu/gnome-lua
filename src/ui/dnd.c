@@ -2235,7 +2235,10 @@ shell_draggable_dispose (GObject *object)
   if (self->actor != NULL)
     {
       g_object_weak_unref (G_OBJECT (self->actor), actor_weak_notify_cb, self);
-      if (self->dnd_gesture != NULL)
+      /* A destroyed actor dropped its actions already; removing the
+       * gesture again would warn */
+      if (self->dnd_gesture != NULL &&
+          clutter_actor_meta_get_actor (CLUTTER_ACTOR_META (self->dnd_gesture)) == self->actor)
         clutter_actor_remove_action (self->actor,
                                      CLUTTER_ACTION (self->dnd_gesture));
       self->actor = NULL;

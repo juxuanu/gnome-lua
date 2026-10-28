@@ -214,3 +214,8 @@ never call extension code directly.
 * Shutdown runs a nested main loop in `main.js` (waiting for the time limits
   manager), so pending JS promises and timeouts still fire after the actors were
   destroyed; C ports must not reach destroyed actors from async completions.
+* A destroyed actor keeps its address until it is finalized, so a weak pointer
+  to it is still set while its actions and children are already gone: before
+  `clutter_actor_remove_action()` on such a field, check that the action is
+  still attached (`clutter_actor_meta_get_actor (meta) == field`); removing a
+  detached action is a fatal Clutter warning.
