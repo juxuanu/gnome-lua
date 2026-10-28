@@ -316,7 +316,7 @@ function _createShellDBusServices() {
     extensionsService.connect('get-extension-info',
         (_service, uuid) => new GLib.Variant('a{sv}', serializeExtension(uuid)));
     extensionsService.connect('get-extension-errors',
-        (_service, uuid) => extensionManager.lookup(uuid)?.errors ?? []);
+        (_service, uuid) => new GLib.Variant('as', extensionManager.lookup(uuid)?.errors ?? []));
     extensionsService.connect('install-remote-extension',
         (_service, uuid, invocation) => ExtensionDownloader.installExtension(uuid, invocation));
     extensionsService.connect('uninstall-extension',
@@ -607,16 +607,24 @@ function _createPanel() {
         Shell.CtrlAltTabSortGroup.TOP, null, null);
 
     overview.connectObject(
-        'showing', () => (newPanel.overview_visible = true),
-        'hiding', () => (newPanel.overview_visible = false),
+        // A handler returning true stops the JS signal emission, so
+        // never return the assigned value here
+        'showing', () => {
+            newPanel.overview_visible = true;
+        },
+        'hiding', () => {
+            newPanel.overview_visible = false;
+        },
         newPanel);
 
     // Banners are aligned with the date menu, and hidden while a menu is
     // open in the same box of the top bar
-    newPanel.connect('notify::banner-alignment',
-        () => (messageTray.bannerAlignment = newPanel.banner_alignment));
-    newPanel.connect('notify::banner-blocked',
-        () => (messageTray.bannerBlocked = newPanel.banner_blocked));
+    newPanel.connect('notify::banner-alignment', () => {
+        messageTray.bannerAlignment = newPanel.banner_alignment;
+    });
+    newPanel.connect('notify::banner-blocked', () => {
+        messageTray.bannerBlocked = newPanel.banner_blocked;
+    });
 
     newPanel.begin_startup();
     messageTray.bannerAlignment = newPanel.banner_alignment;

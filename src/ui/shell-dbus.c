@@ -1335,13 +1335,16 @@ on_handle_get_extension_errors (ShellDBusShellExtensions   *skeleton,
                                 const char                 *uuid,
                                 ShellDBusExtensionsService *self)
 {
-  g_auto (GStrv) errors = NULL;
+  g_autoptr (GVariant) errors = NULL;
+  g_autofree const char **strv = NULL;
   const char * const no_errors[] = { NULL };
 
   g_signal_emit (self, ext_signals[EXT_GET_EXTENSION_ERRORS], 0, uuid, &errors);
+  if (errors != NULL && g_variant_is_of_type (errors, G_VARIANT_TYPE_STRING_ARRAY))
+    strv = g_variant_get_strv (errors, NULL);
   shell_dbus_shell_extensions_complete_get_extension_errors (skeleton, invocation,
-                                                             errors != NULL ?
-                                                             (const char * const *) errors :
+                                                             strv != NULL ?
+                                                             (const char * const *) strv :
                                                              no_errors);
   return TRUE;
 }
@@ -1633,14 +1636,16 @@ shell_dbus_extensions_service_class_init (ShellDBusExtensionsServiceClass *klass
    *
    * Emitted by GetExtensionErrors ().
    *
-   * Returns: (transfer full): the errors of the extension, if any
+   * Returns: (transfer full) (nullable): the errors of the extension as an
+   *   `as` variant, or %NULL for none (a string array cannot be a signal
+   *   return type for the documentation tools)
    */
   ext_signals[EXT_GET_EXTENSION_ERRORS] =
     g_signal_new ("get-extension-errors",
                   G_TYPE_FROM_CLASS (klass),
                   G_SIGNAL_RUN_LAST,
                   0, g_signal_accumulator_first_wins, NULL, NULL,
-                  G_TYPE_STRV, 1,
+                  G_TYPE_VARIANT, 1,
                   G_TYPE_STRING);
 
   /**

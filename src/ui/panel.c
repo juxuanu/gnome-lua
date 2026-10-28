@@ -187,6 +187,9 @@ find_role_of_indicator (ShellPanel          *self,
   GHashTableIter iter;
   gpointer key, value;
 
+  if (self->status_area == NULL)
+    return NULL;
+
   g_hash_table_iter_init (&iter, self->status_area);
   while (g_hash_table_iter_next (&iter, &key, &value))
     {
@@ -336,7 +339,11 @@ indicator_destroyed_cb (ClutterActor *actor,
   GHashTableIter iter;
   gpointer value;
 
-  /* delete this.statusArea[role] */
+  /* delete this.statusArea[role]; the indicators are destroyed with the
+   * panel after dispose already dropped the table */
+  if (self->status_area == NULL)
+    return;
+
   g_hash_table_iter_init (&iter, self->status_area);
   while (g_hash_table_iter_next (&iter, NULL, &value))
     {
