@@ -770,8 +770,9 @@ core_sync_workarea_tracking (LayoutCore *core)
 
       core_update_workarea (core);
 
-      core->display = get_display ();
-      g_set_weak_pointer (&core->display, core->display);
+      /* Set through the weak-pointer helper only: assigning the field first
+       * makes g_set_weak_pointer () a no-op and the clear in dispose fails */
+      g_set_weak_pointer (&core->display, get_display ());
       core->workareas_changed_id =
         g_signal_connect (core->display, "workareas-changed",
                           G_CALLBACK (core_workareas_changed_cb), core);
