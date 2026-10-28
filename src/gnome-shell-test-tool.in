@@ -125,7 +125,9 @@ def start_shell(xdg_home, wrap=None, perf_output=None):
     return subprocess.Popen(args, env=env)
 
 def run_shell(wrap=None, perf_output=None):
-    with tempfile.TemporaryDirectory() as xdg_home:
+    # The perf helper may still be writing its shader cache while the shell
+    # is being torn down: a leftover there is not a test failure.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as xdg_home:
         # we do no additional supervision of gnome-shell,
         # beyond that of wait
         # in particular, we don't kill the shell upon

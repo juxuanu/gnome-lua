@@ -477,7 +477,11 @@ strategy_compute_layout (Strategy   *strategy,
 
   /* Sort windows vertically to minimize travel distance.
    * This affects what rows the windows get placed in. */
-  sorted_windows = g_ptr_array_copy (windows, NULL, NULL);
+  /* Pointers only: a copy made with g_ptr_array_copy () inherits the
+   * element free function of @windows and would drop one reference of every
+   * window each time the layout is computed. */
+  sorted_windows = g_ptr_array_new ();
+  g_ptr_array_extend (sorted_windows, windows, NULL, NULL);
   g_ptr_array_sort_values_with_data (sorted_windows,
                                      compare_windows_by_center_y, NULL);
 
