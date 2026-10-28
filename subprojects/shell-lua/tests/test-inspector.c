@@ -6,6 +6,7 @@
 #include "test-utils.h"
 
 #include "shell-lua-extension.h"
+#include "shell-lua-handle.h"
 #include "shell-lua-inspector.h"
 
 static ShellLuaInspector *
@@ -377,6 +378,546 @@ test_get_states_lists_extensions (void)
   tu_rm_rf (tmp);
 }
 
+/* ------------------------------------------------------------------------ */
+/* The Evaluator API of Looking Glass                                        */
+/* ------------------------------------------------------------------------ */
+
+typedef struct {
+  guint64 id;
+  char *type;
+  char *summary;
+} Entry;
+
+static GArray *
+entries_new (void)
+{
+  return g_array_new (FALSE, TRUE, sizeof (Entry));
+}
+
+static void
+entries_free (GArray *entries)
+{
+  guint i;
+
+  for (i = 0; i < entries->len; i++)
+    {
+      g_free (g_array_index (entries, Entry, i).type);
+      g_free (g_array_index (entries, Entry, i).summary);
+    }
+  g_array_free (entries, TRUE);
+}
+
+/* Evaluates, which must work; returns the entries and the printed output */
+static GArray *
+evaluate_ok (ShellLuaInspector *inspector, const char *code, char **output)
+{
+  g_autoptr (GError) error = NULL;
+  g_autoptr (GVariant) result = NULL;
+  g_autofree char *local_output = NULL;
+  GArray *entries = entries_new ();
+  GVariantIter iter;
+  Entry entry;
+  const char *type, *summary;
+
+  result = shell_lua_inspector_evaluate (inspector, code, &local_output, &error);
+  if (result == NULL)
+    g_error ("evaluate of '%s' failed: %s", code, error->message);
+  g_assert_true (g_variant_is_of_type (result, G_VARIANT_TYPE ("a(tss)")));
+
+  g_variant_iter_init (&iter, result);
+  while (g_variant_iter_next (&iter, "(t&s&s)", &entry.id, &type, &summary))
+    {
+      entry.type = g_strdup (type);
+      entry.summary = g_strdup (summary);
+      g_array_append_val (entries, entry);
+    }
+
+  if (output != NULL)
+    *output = g_steal_pointer (&local_output);
+  return entries;
+}
+
+static void
+test_evaluate_results (void)
+{
+  ShellLuaInspector *inspector = new_inspector ();
+  g_autofree char *output = NULL;
+  GArray *entries;
+
+  entries = evaluate_ok (inspector, "1 + 1", &output);
+  g_assert_cmpuint (entries->len, ==, 1);
+  g_assert_cmpuint (g_array_index (entries, Entry, 0).id, ==, 1);
+  g_assert_cmpstr (g_array_index (entries, Entry, 0).type, ==, "number");
+  g_assert_cmpstr (g_array_index (entries, Entry, 0).summary, ==, "2");
+  g_assert_cmpstr (output, ==, "");
+  entries_free (entries);
+
+  /* each value is a result; r () and `it` get them back */
+  entries = evaluate_ok (inspector, "'two', {3, x = 4}", NULL);
+  g_assert_cmpuint (entries->len, ==, 2);
+  g_assert_cmpuint (g_array_index (entries, Entry, 0).id, ==, 2);
+  g_assert_cmpstr (g_array_index (entries, Entry, 0).summary, ==, "two");
+  g_assert_cmpuint (g_array_index (entries, Entry, 1).id, ==, 3);
+  g_assert_cmpstr (g_array_index (entries, Entry, 1).type, ==, "table");
+  g_assert_cmpstr (g_array_index (entries, Entry, 1).summary, ==, "{3, x = 4}");
+  entries_free (entries);
+
+  ASSERT_EVAL (inspector, "r(1)", "2");
+  ASSERT_EVAL (inspector, "r(2)", "two");
+  /* `it` is the last result of evaluate (); eval () does not record */
+  ASSERT_EVAL (inspector, "it", "{3, x = 4}");
+  ASSERT_EVAL (inspector, "r(3).x", "4");
+  {
+    g_autoptr (GError) error = eval_fails (inspector, "r(99)", SHELL_LUA_ERROR_RUNTIME,
+                                           "Unknown result at index 99");
+
+    g_assert_nonnull (error);
+  }
+
+  g_object_unref (inspector);
+}
+
+static void
+test_evaluate_print_and_errors (void)
+{
+  ShellLuaInspector *inspector = new_inspector ();
+  g_autoptr (GError) error = NULL;
+  g_autofree char *output = NULL;
+  g_autoptr (GVariant) result = NULL;
+  GArray *entries;
+
+  /* a statement has no value; print is captured, not written to stdout */
+  entries = evaluate_ok (inspector, "print('a', 1, nil, true) print('b')", &output);
+  g_assert_cmpuint (entries->len, ==, 0);
+  g_assert_cmpstr (output, ==, "a\t1\tnil\ttrue\nb\n");
+  entries_free (entries);
+
+  g_clear_pointer (&output, g_free);
+  entries = evaluate_ok (inspector, "print('x'); return 5", &output);
+  g_assert_cmpuint (entries->len, ==, 1);
+  g_assert_cmpstr (g_array_index (entries, Entry, 0).summary, ==, "5");
+  g_assert_cmpstr (output, ==, "x\n");
+  entries_free (entries);
+
+  /* the output of a failing chunk is not lost */
+  g_clear_pointer (&output, g_free);
+  result = shell_lua_inspector_evaluate (inspector, "print('before') error('after')", &output, &error);
+  g_assert_null (result);
+  g_assert_error (error, SHELL_LUA_ERROR, SHELL_LUA_ERROR_RUNTIME);
+  g_assert_nonnull (strstr (error->message, "after"));
+  g_assert_cmpstr (output, ==, "before\n");
+
+  /* an unknown result is an error naming the index */
+  g_clear_error (&error);
+  g_clear_pointer (&output, g_free);
+  result = shell_lua_inspector_evaluate (inspector, "r(7)", NULL, &error);
+  g_assert_null (result);
+  g_assert_nonnull (strstr (error->message, "Unknown result at index 7"));
+
+  /* invalid UTF-8 does not reach the variants */
+  g_clear_error (&error);
+  entries = evaluate_ok (inspector, "'a\\xffb'", NULL);
+  g_assert_cmpuint (entries->len, ==, 1);
+  g_assert_true (g_utf8_validate (g_array_index (entries, Entry, 0).summary, -1, NULL));
+  entries_free (entries);
+
+  /* summaries are one line */
+  entries = evaluate_ok (inspector, "'one\\ntwo'", NULL);
+  g_assert_cmpstr (g_array_index (entries, Entry, 0).summary, ==, "one\\ntwo");
+  entries_free (entries);
+
+  g_object_unref (inspector);
+}
+
+static void
+test_inspect_table (void)
+{
+  ShellLuaInspector *inspector = new_inspector ();
+  g_autoptr (GVariant) info = NULL;
+  g_autoptr (GVariant) members = NULL;
+  g_autoptr (GError) error = NULL;
+  const char *type, *summary, *key, *value;
+  guint64 pin, inner_pin = 0;
+  GVariantIter iter;
+  GString *keys = g_string_new (NULL);
+  GArray *entries;
+
+  entries = evaluate_ok (inspector, "{10, 20, name = 'n', inner = {1, 2}, f = print, [3] = true}", NULL);
+  info = shell_lua_inspector_inspect (inspector, g_array_index (entries, Entry, 0).id, &error);
+  g_assert_no_error (error);
+  entries_free (entries);
+
+  g_variant_get (info, "(&s&s@a(sst))", &type, &summary, &members);
+  g_assert_cmpstr (type, ==, "table");
+  g_variant_iter_init (&iter, members);
+  while (g_variant_iter_next (&iter, "(&s&st)", &key, &value, &pin))
+    {
+      g_string_append_printf (keys, "%s;", key);
+      if (strcmp (key, "inner") == 0)
+        {
+          g_assert_cmpstr (value, ==, "{1, 2}");
+          g_assert_cmpuint (pin, >, 0);
+          inner_pin = pin;
+        }
+      else if (strcmp (key, "f") == 0)
+        {
+          g_assert_cmpuint (pin, >, 0);
+        }
+      else
+        {
+          g_assert_cmpuint (pin, ==, 0);
+        }
+    }
+  /* integer keys first, then the names in order */
+  g_assert_cmpstr (keys->str, ==, "[1];[2];[3];f;inner;name;");
+  g_string_free (keys, TRUE);
+
+  /* the member can be inspected in turn, and inserted as a result */
+  g_clear_pointer (&info, g_variant_unref);
+  g_clear_pointer (&members, g_variant_unref);
+  info = shell_lua_inspector_inspect (inspector, inner_pin, &error);
+  g_assert_no_error (error);
+  g_variant_get (info, "(&s&s@a(sst))", &type, &summary, &members);
+  g_assert_cmpstr (summary, ==, "{1, 2}");
+  g_assert_cmpuint (g_variant_n_children (members), ==, 2);
+
+  {
+    g_autoptr (GVariant) inserted = shell_lua_inspector_insert (inspector, inner_pin, &error);
+    guint64 id;
+    const char *itype, *isummary;
+
+    g_assert_no_error (error);
+    g_variant_get (inserted, "(t&s&s)", &id, &itype, &isummary);
+    g_assert_cmpuint (id, <, 100);
+    g_assert_cmpstr (isummary, ==, "{1, 2}");
+    ASSERT_EVAL (inspector, "it[2]", "2");
+  }
+
+  /* released ids are gone */
+  shell_lua_inspector_release (inspector, inner_pin);
+  {
+    g_autoptr (GVariant) gone = shell_lua_inspector_inspect (inspector, inner_pin, &error);
+
+    g_assert_null (gone);
+    g_assert_nonnull (error);
+    g_clear_error (&error);
+  }
+
+  g_object_unref (inspector);
+}
+
+static void
+test_objects (void)
+{
+  ShellLuaInspector *inspector = new_inspector ();
+  g_autoptr (GSimpleAction) action = g_simple_action_new ("do-it", NULL);
+  g_autoptr (GError) error = NULL;
+  g_autoptr (GVariant) entry = NULL;
+  g_autoptr (GVariant) info = NULL;
+  g_autoptr (GVariant) members = NULL;
+  g_autoptr (GObject) object = NULL;
+  g_autofree char *expected = NULL;
+  GError *expected_error = NULL;
+  const char *type, *summary, *key, *value;
+  GVariantIter iter;
+  guint64 id, pin;
+  gboolean saw_enabled = FALSE, saw_method = FALSE;
+  GArray *entries;
+
+  shell_lua_inspector_set_global_object (inspector, "act", G_OBJECT (action));
+  entries = evaluate_ok (inspector, "act", NULL);
+  g_assert_cmpstr (g_array_index (entries, Entry, 0).type, ==, "GSimpleAction");
+  expected = g_strdup_printf ("<GSimpleAction \"do-it\" %p>", (gpointer) action);
+  g_assert_cmpstr (g_array_index (entries, Entry, 0).summary, ==, expected);
+  id = g_array_index (entries, Entry, 0).id;
+  entries_free (entries);
+
+  object = shell_lua_inspector_get_object (inspector, id);
+  g_assert_true (object == G_OBJECT (action));
+  g_clear_object (&object);
+
+  /* properties: dashes become underscores; read and write */
+  ASSERT_EVAL (inspector, "act.name", "do-it");
+  ASSERT_EVAL (inspector, "act.enabled", "true");
+  ASSERT_EVAL (inspector, "act.enabled = false", "");
+  g_assert_false (g_action_get_enabled (G_ACTION (action)));
+  ASSERT_EVAL (inspector, "act.enabled", "false");
+  expected_error = eval_fails (inspector, "act.name = 'x'", SHELL_LUA_ERROR_RUNTIME, "read-only");
+  g_clear_error (&expected_error);
+  ASSERT_EVAL (inspector, "act:gtype()", "GSimpleAction");
+  ASSERT_EVAL (inspector, "#act:properties() > 3", "true");
+  ASSERT_EVAL (inspector, "act.no_such_thing", "nil");
+  /* unreadable by Lua: no conversion */
+  expected_error = eval_fails (inspector, "act.parameter_type", SHELL_LUA_ERROR_RUNTIME, "cannot convert");
+  g_clear_error (&expected_error);
+
+  /* the members of an object */
+  info = shell_lua_inspector_inspect (inspector, id, &error);
+  g_assert_no_error (error);
+  g_variant_get (info, "(&s&s@a(sst))", &type, &summary, &members);
+  g_assert_cmpstr (type, ==, "GSimpleAction");
+  g_variant_iter_init (&iter, members);
+  while (g_variant_iter_next (&iter, "(&s&st)", &key, &value, &pin))
+    {
+      if (strcmp (key, "enabled") == 0)
+        {
+          saw_enabled = TRUE;
+          g_assert_cmpstr (value, ==, "false");
+        }
+      else if (strcmp (key, "gtype ()") == 0)
+        {
+          saw_method = TRUE;
+        }
+    }
+  g_assert_true (saw_enabled);
+  g_assert_true (saw_method);
+
+  /* an object that is made a result by the host */
+  entry = shell_lua_inspector_add_object_result (inspector, G_OBJECT (action), &error);
+  g_assert_no_error (error);
+  g_variant_get (entry, "(t&s&s)", &id, &type, &summary);
+  g_assert_cmpstr (type, ==, "GSimpleAction");
+  {
+    g_autofree char *code = g_strdup_printf ("r(%" G_GUINT64_FORMAT ") == act and it == act", id);
+
+    ASSERT_EVAL (inspector, code, "true");
+  }
+
+  /* pinning gives an id without making a result */
+  {
+    g_autoptr (GVariant) pinned_info = NULL;
+    guint64 pin = shell_lua_inspector_pin_object (inspector, G_OBJECT (action), &error);
+
+    g_assert_no_error (error);
+    g_assert_cmpuint (pin, >=, ((guint64) 1) << 32);
+    pinned_info = shell_lua_inspector_inspect (inspector, pin, &error);
+    g_assert_no_error (error);
+    g_variant_get_child (pinned_info, 0, "&s", &type);
+    g_assert_cmpstr (type, ==, "GSimpleAction");
+    shell_lua_inspector_release (inspector, pin);
+  }
+
+  /* objects are weak: a dead one is a dead handle, not a crash */
+  g_clear_object (&action);
+  ASSERT_EVAL (inspector, "tostring(it):match('dead') ~= nil", "true");
+  object = shell_lua_inspector_get_object (inspector, id);
+  g_assert_null (object);
+
+  g_object_unref (inspector);
+}
+
+static void
+test_object_properties (void)
+{
+  ShellLuaInspector *inspector = new_inspector ();
+  g_autoptr (GSocketAddress) address = g_inet_socket_address_new_from_string ("127.0.0.1", 8080);
+
+  shell_lua_inspector_set_global_object (inspector, "sa", G_OBJECT (address));
+
+  /* the properties which are objects give handles of their own type */
+  ASSERT_EVAL (inspector, "sa:gtype()", "GInetSocketAddress");
+  ASSERT_EVAL (inspector, "sa.port", "8080");
+  ASSERT_EVAL (inspector, "sa.address:gtype()", "GInetAddress");
+  ASSERT_EVAL (inspector, "sa.address.is_loopback", "true");
+  ASSERT_EVAL (inspector, "sa.address == sa.address", "true");
+  /* the enum is a nick */
+  ASSERT_EVAL (inspector, "sa.family", "ipv4");
+  /* the properties of the parent class are there too */
+  ASSERT_EVAL (inspector, "#sa:properties() >= 4", "true");
+  /* tab completion knows them */
+  {
+    g_auto (GStrv) words = shell_lua_inspector_complete (inspector, "sa.address.is_l", NULL);
+
+    g_assert_cmpuint (g_strv_length (words), ==, 2);
+    g_assert_cmpstr (words[0], ==, "is_link_local");
+    g_assert_cmpstr (words[1], ==, "is_loopback");
+  }
+
+  g_object_unref (inspector);
+}
+
+static int
+l_answer (lua_State *L)
+{
+  lua_pushinteger (L, 42);
+  return 1;
+}
+
+static int
+l_marker (lua_State *L)
+{
+  GObject *object = shell_lua_handle_check (L, 1, NULL);
+
+  lua_pushstring (L, G_OBJECT_TYPE_NAME (object));
+  return 1;
+}
+
+static void
+test_host_integration (void)
+{
+  static const luaL_Reg methods[] = {
+    { "marker", l_marker },
+    { NULL, NULL }
+  };
+  ShellLuaInspector *inspector = new_inspector ();
+  g_autoptr (GSimpleAction) action = g_simple_action_new ("x", NULL);
+
+  shell_lua_inspector_add_object_methods (G_TYPE_SIMPLE_ACTION, methods);
+  shell_lua_inspector_add_function (inspector, "answer", l_answer);
+  shell_lua_inspector_set_global_object (inspector, "act", G_OBJECT (action));
+
+  ASSERT_EVAL (inspector, "answer()", "42");
+  ASSERT_EVAL (inspector, "act:marker()", "GSimpleAction");
+
+  /* all of it comes back after a reset, and after the object went away */
+  shell_lua_inspector_reset (inspector);
+  ASSERT_EVAL (inspector, "answer()", "42");
+  ASSERT_EVAL (inspector, "act.name", "x");
+  g_clear_object (&action);
+  shell_lua_inspector_reset (inspector);
+  ASSERT_EVAL (inspector, "act", "nil");
+
+  /* results start over */
+  {
+    GArray *entries = evaluate_ok (inspector, "1", NULL);
+
+    g_assert_cmpuint (g_array_index (entries, Entry, 0).id, ==, 1);
+    entries_free (entries);
+  }
+
+  /* a global can be defined while the state is alive, and removed */
+  {
+    g_autoptr (GSimpleAction) other = g_simple_action_new ("other", NULL);
+
+    shell_lua_inspector_set_global_object (inspector, "other", G_OBJECT (other));
+    ASSERT_EVAL (inspector, "other.name", "other");
+    shell_lua_inspector_set_global_object (inspector, "other", NULL);
+    shell_lua_inspector_reset (inspector);
+    ASSERT_EVAL (inspector, "other", "nil");
+  }
+
+  g_object_unref (inspector);
+}
+
+static char *
+complete_join (ShellLuaInspector *inspector, const char *text, char **head)
+{
+  g_auto (GStrv) words = shell_lua_inspector_complete (inspector, text, head);
+
+  return g_strjoinv (",", words);
+}
+
+static void
+test_complete (void)
+{
+  ShellLuaInspector *inspector = new_inspector ();
+  g_autoptr (GSimpleAction) action = g_simple_action_new ("x", NULL);
+  char *words = NULL;
+  char *head = NULL;
+
+  ASSERT_EVAL (inspector, "tbl = {alpha = 1, alpine = function() end, beta = 2, ['not valid'] = 3, 5}", "");
+  shell_lua_inspector_set_global_object (inspector, "act", G_OBJECT (action));
+
+  /* globals and keywords */
+  words = complete_join (inspector, "tb", &head);
+  g_assert_cmpstr (words, ==, "tbl");
+  g_assert_cmpstr (head, ==, "tb");
+  g_free (words);
+  g_clear_pointer (&head, g_free);
+
+  words = complete_join (inspector, "x = fun", &head);
+  g_assert_cmpstr (words, ==, "function");
+  g_assert_cmpstr (head, ==, "fun");
+  g_free (words);
+  g_clear_pointer (&head, g_free);
+
+  words = complete_join (inspector, "str", NULL);
+  g_assert_cmpstr (words, ==, "string");
+  g_free (words);
+
+  /* fields */
+  words = complete_join (inspector, "tbl.al", &head);
+  g_assert_cmpstr (words, ==, "alpha,alpine");
+  g_assert_cmpstr (head, ==, "al");
+  g_free (words);
+  g_clear_pointer (&head, g_free);
+
+  words = complete_join (inspector, "tbl.", &head);
+  g_assert_cmpstr (words, ==, "alpha,alpine,beta");
+  g_assert_cmpstr (head, ==, "");
+  g_free (words);
+  g_clear_pointer (&head, g_free);
+
+  /* only the methods after a colon */
+  words = complete_join (inspector, "tbl:", NULL);
+  g_assert_cmpstr (words, ==, "alpine");
+  g_free (words);
+
+  /* nested paths and the standard library */
+  words = complete_join (inspector, "string.fo", NULL);
+  g_assert_cmpstr (words, ==, "format");
+  g_free (words);
+  words = complete_join (inspector, "shell.api_v", NULL);
+  g_assert_cmpstr (words, ==, "api_version");
+  g_free (words);
+
+  /* the methods of a string, through its metatable */
+  ASSERT_EVAL (inspector, "s = 'text'", "");
+  words = complete_join (inspector, "s:upp", NULL);
+  g_assert_cmpstr (words, ==, "upper");
+  g_free (words);
+
+  /* objects: properties and methods */
+  words = complete_join (inspector, "act.ena", NULL);
+  g_assert_cmpstr (words, ==, "enabled");
+  g_free (words);
+  words = complete_join (inspector, "act:gt", NULL);
+  g_assert_cmpstr (words, ==, "gtype");
+  g_free (words);
+  words = complete_join (inspector, "act:ena", NULL);
+  g_assert_cmpstr (words, ==, "");
+  g_free (words);
+
+  /* what is not a plain path, or fails, gives nothing and changes nothing */
+  words = complete_join (inspector, "f(x).al", NULL);
+  g_assert_cmpstr (words, ==, "");
+  g_free (words);
+  words = complete_join (inspector, "nothing.al", NULL);
+  g_assert_cmpstr (words, ==, "");
+  g_free (words);
+  words = complete_join (inspector, "3.", NULL);
+  g_assert_cmpstr (words, ==, "");
+  g_free (words);
+  words = complete_join (inspector, "a..", NULL);
+  g_assert_cmpstr (words, ==, "");
+  g_free (words);
+  ASSERT_EVAL (inspector, "1 + 1", "2");
+
+  g_object_unref (inspector);
+}
+
+static void
+test_gc (void)
+{
+  ShellLuaInspector *inspector = new_inspector ();
+  g_autoptr (GVariant) before = NULL;
+  g_autoptr (GVariant) after = NULL;
+  StatesInfo info_before, info_after;
+
+  ASSERT_EVAL (inspector, "junk = {} for i = 1, 20000 do junk[i] = {i} end junk = nil", "");
+  before = shell_lua_inspector_get_states (inspector);
+  shell_lua_inspector_gc (inspector);
+  after = shell_lua_inspector_get_states (inspector);
+
+  read_states (before, &info_before);
+  read_states (after, &info_after);
+  g_assert_cmpuint (info_after.bytes, <, info_before.bytes);
+  states_info_clear (&info_before);
+  states_info_clear (&info_after);
+
+  g_object_unref (inspector);
+}
+
 int
 main (int argc, char **argv)
 {
@@ -392,6 +933,14 @@ main (int argc, char **argv)
   g_test_add_func ("/shell-lua/inspector/reset", test_reset);
   g_test_add_func ("/shell-lua/inspector/get-states", test_get_states);
   g_test_add_func ("/shell-lua/inspector/get-states-extensions", test_get_states_lists_extensions);
+  g_test_add_func ("/shell-lua/inspector/evaluate/results", test_evaluate_results);
+  g_test_add_func ("/shell-lua/inspector/evaluate/print-and-errors", test_evaluate_print_and_errors);
+  g_test_add_func ("/shell-lua/inspector/inspect/table", test_inspect_table);
+  g_test_add_func ("/shell-lua/inspector/objects", test_objects);
+  g_test_add_func ("/shell-lua/inspector/object-properties", test_object_properties);
+  g_test_add_func ("/shell-lua/inspector/host-integration", test_host_integration);
+  g_test_add_func ("/shell-lua/inspector/complete", test_complete);
+  g_test_add_func ("/shell-lua/inspector/gc", test_gc);
 
   return g_test_run ();
 }

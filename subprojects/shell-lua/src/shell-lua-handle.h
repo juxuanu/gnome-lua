@@ -66,6 +66,32 @@ GObject  *shell_lua_handle_peek          (lua_State  *L,
 gboolean  shell_lua_handle_is_alive      (lua_State  *L,
                                           int         idx);
 
+/* Called for each member visible on a handle: @name is the Lua-visible name,
+ * @is_method is TRUE for methods and FALSE for properties. Only the readable
+ * properties are reported. */
+typedef void (* ShellLuaHandleMemberFunc) (const char *name,
+                                           gboolean    is_method,
+                                           gpointer    user_data);
+
+/* Report the properties and methods of the handle at @idx, most specific type
+ * first (inherited ones included). Does nothing if @idx is not a handle. Does
+ * not raise, also for dead handles (their type is still known). */
+void      shell_lua_handle_foreach_member (lua_State                *L,
+                                           int                       idx,
+                                           ShellLuaHandleMemberFunc  func,
+                                           gpointer                  user_data);
+
+/* A resolver is consulted by shell_lua_handle_push() (and so by every property
+ * that returns an object) when no type name was given, before the registered
+ * types are searched for @gtype or one of its parents. It may register handle
+ * types for @gtype in @L. Per state: only the privileged inspector installs
+ * one, to give generic access to the objects it meets. */
+typedef void (* ShellLuaHandleResolver) (lua_State *L,
+                                         GType      gtype);
+
+void      shell_lua_handle_set_resolver  (lua_State              *L,
+                                          ShellLuaHandleResolver  resolver);
+
 /* Kill every handle to @object in @L (and in every state, if @L is NULL). */
 void      shell_lua_handle_invalidate    (lua_State  *L,
                                           GObject    *object);

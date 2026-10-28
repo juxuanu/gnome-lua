@@ -18,7 +18,6 @@
     <file>misc/errorUtils.js</file>
     <file>misc/extensionUtils.js</file>
     <file>misc/fileUtils.js</file>
-    <file>misc/jsParse.js</file>
     <file>misc/params.js</file>
     <file>misc/signals.js</file>
     <file>misc/signalTracker.js</file>
@@ -29,7 +28,6 @@
     <file>ui/extensionSystem.js</file>
     <file>ui/init.js</file>
     <file>ui/listModes.js</file>
-    <file>ui/lookingGlass.js</file>
     <file>ui/main.js</file>
     <file>ui/panelItems.js</file>
     <file>ui/screenShield.js</file>

@@ -11,7 +11,6 @@ import * as ExtensionSystem from './extensionSystem.js';
 import * as ExtensionDownloader from './extensionDownloader.js';
 import * as ExtensionUtils from '../misc/extensionUtils.js';
 import * as PanelItems from './panelItems.js';
-import * as LookingGlass from './lookingGlass.js';
 import * as ScreenShield from './screenShield.js';
 import {LoginDialog} from '../gdm/loginDialog.js';
 import {UnlockDialog} from './unlockDialog.js';
@@ -528,7 +527,7 @@ async function _initializeUI() {
     global.context.connect('notify::unsafe-mode', () => {
         if (!global.context.unsafe_mode)
             return; // we're safe
-        if (lookingGlass?.isOpen)
+        if (lookingGlass?.is_open)
             return; // assume user action
 
         const source = messageTray.get_system_source();
@@ -959,11 +958,11 @@ export function popModal(grab) {
 /**
  * Creates the looking glass panel
  *
- * @returns {LookingGlass.LookingGlass}
+ * @returns {Shell.LookingGlass}
  */
 export function createLookingGlass() {
     if (lookingGlass == null)
-        lookingGlass = new LookingGlass.LookingGlass();
+        lookingGlass = new Shell.LookingGlass();
 
     return lookingGlass;
 }

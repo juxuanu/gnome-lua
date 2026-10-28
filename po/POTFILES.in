@@ -18,7 +18,6 @@ js/gdm/webLogin.js
 js/misc/util.js
 js/ui/extensionDownloader.js
 js/ui/extensionSystem.js
-js/ui/lookingGlass.js
 js/ui/main.js
 src/ui/mpris.c
 js/ui/panelItems.js
@@ -61,6 +60,7 @@ src/ui/end-session-dialog.c
 src/ui/inhibit-shortcuts-dialog.c
 src/ui/kbd-a11y-dialog.c
 src/ui/keyboard.c
+src/ui/looking-glass.c
 src/ui/message-list.c
 src/ui/message-tray.c
 src/ui/overview-controls.c

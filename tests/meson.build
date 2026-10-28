@@ -44,7 +44,6 @@ unit_tests = {
   'highlighter': {},
   'injectionManager': {},
   'insertSorted': {},
-  'jsParse': {},
   'markup': {},
   'params': {},
   'signalTracker': {},

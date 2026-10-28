@@ -39,7 +39,7 @@ typedef struct {
   gboolean                  dead;
 } Handle;
 
-static char scratch_key, cache_key, types_key, gtypes_key, closer_key, marker_key;
+static char scratch_key, cache_key, types_key, gtypes_key, closer_key, marker_key, resolver_key;
 
 #define MAX_TYPE_DEPTH 16
 
@@ -1145,6 +1145,20 @@ handle_push_impl (lua_State  *L,
     }
   else
     {
+      if (lua_rawgetp (L, LUA_REGISTRYINDEX, &resolver_key) == LUA_TLIGHTUSERDATA)
+        {
+          ShellLuaHandleResolver resolver;
+
+          /* function pointers are stored as a lightuserdata of their address */
+          resolver = (ShellLuaHandleResolver) (gpointer) lua_touserdata (L, -1);
+          lua_pop (L, 1);
+          resolver (L, G_OBJECT_TYPE (object));
+        }
+      else
+        {
+          lua_pop (L, 1);
+        }
+
       t = find_type_for_gtype (L, G_OBJECT_TYPE (object));
       if (t == NULL)
         {
@@ -1285,6 +1299,47 @@ shell_lua_handle_peek (lua_State  *L,
       return NULL;
     }
   return h->object;
+}
+
+void
+shell_lua_handle_set_resolver (lua_State              *L,
+                               ShellLuaHandleResolver  resolver)
+{
+  g_return_if_fail (L != NULL);
+
+  if (resolver != NULL)
+    lua_pushlightuserdata (L, (gpointer) resolver);
+  else
+    lua_pushnil (L);
+  lua_rawsetp (L, LUA_REGISTRYINDEX, &resolver_key);
+}
+
+void
+shell_lua_handle_foreach_member (lua_State                *L,
+                                 int                       idx,
+                                 ShellLuaHandleMemberFunc  func,
+                                 gpointer                  user_data)
+{
+  Handle *h = to_handle (L, idx);
+  const ShellLuaHandleType *t;
+  int depth;
+
+  if (h == NULL)
+    return;
+
+  for (t = h->type, depth = 0; t != NULL && depth < MAX_TYPE_DEPTH; depth++)
+    {
+      const ShellLuaHandleProperty *p;
+      const luaL_Reg *r;
+
+      for (p = t->properties; p != NULL && p->name != NULL; p++)
+        if (p->readable)
+          func (p->name, FALSE, user_data);
+      for (r = t->methods; r != NULL && r->name != NULL; r++)
+        if (r->func != NULL)
+          func (r->name, TRUE, user_data);
+      t = parent_of (L, t);
+    }
 }
 
 gboolean

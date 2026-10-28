@@ -134,6 +134,7 @@ libshell_public_headers = [
   'ui/lightbox.h',
   'ui/modal-dialog.h',
   'ui/locate-pointer.h',
+  'ui/looking-glass.h',
   'ui/animation.h',
   'ui/pointer-a11y-timeout.h',
   'ui/focus-caret-tracker.h',
@@ -221,6 +222,7 @@ libshell_public_headers = [
   'misc/introspect.h',
   'misc/dbus-utils.h',
   'misc/date-utils.h',
+  'ui/extension-system.h',
   'ui/shell-dbus.h',
   'ui/screenshot-ui.h',
   'ui/status/accessibility.h',
@@ -286,7 +288,9 @@ libshell_private_headers = [
   'gdm/auth-services-sssd-switchable.h',
   'gdm/fido2-token-manager.h',
   'gdm/fingerprint-manager.h',
-  'ui/deferred-work.h'
+  'ui/deferred-work.h',
+  'ui/extension-downloader.h',
+  'ui/extension-system-private.h'
 ]
 
 if have_xwayland
@@ -321,6 +325,7 @@ libshell_sources = [
   'ui/lightbox.c',
   'ui/modal-dialog.c',
   'ui/locate-pointer.c',
+  'ui/looking-glass.c',
   'ui/animation.c',
   'ui/pointer-a11y-timeout.c',
   'ui/focus-caret-tracker.c',
@@ -403,6 +408,7 @@ libshell_sources = [
   'misc/introspect.c',
   'misc/dbus-utils.c',
   'misc/date-utils.c',
+  'ui/extension-system.c',
   'ui/shell-dbus.c',
   'ui/screenshot-ui.c',
   'ui/status/accessibility.c',
@@ -474,6 +480,7 @@ libshell_private_sources = [
   'gdm/fido2-token-manager.c',
   'gdm/fingerprint-manager.c',
   'ui/deferred-work.c',
+  'ui/extension-downloader.c',
 ]
 
 libshell_enums = gnome.mkenums_simple('shell-enum-types',
@@ -822,7 +829,7 @@ endif
 
 libshell = library('shell-' + mutter_api_version,
   sources: libshell_gir_sources + libshell_no_gir_sources,
-  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, gnome_qr_dep, glycin_dep, ibus_dep, json_glib_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep, gweather_dep, geoclue_dep, malcontent_dep, rsvg_dep, libgvc_dep, upower_dep, gudev_dep] + (have_bluetooth ? [bluetooth_dep] : []),
+  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, gnome_qr_dep, glycin_dep, ibus_dep, json_glib_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep, gweather_dep, geoclue_dep, malcontent_dep, rsvg_dep, libgvc_dep, upower_dep, gudev_dep, soup_dep, autoar_dep] + (have_bluetooth ? [bluetooth_dep] : []),
   include_directories: [conf_inc, include_directories('tray')],
   c_args: gnome_shell_cflags,
   link_with: libshell_link_with,
