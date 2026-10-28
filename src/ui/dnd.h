@@ -25,6 +25,7 @@
 
 #include <clutter/clutter.h>
 
+#include "shell-app.h"
 #include "st.h"
 #include "ui/xdnd-handler.h"
 
@@ -182,6 +183,11 @@ G_DECLARE_INTERFACE (ShellDragSource, shell_drag_source,
  * @get_drag_actor_source: virtual function for
  *   shell_drag_source_get_drag_actor_source (). The default implementation
  *   returns %NULL
+ * @get_app: virtual function for shell_drag_source_get_app (). The default
+ *   implementation returns %NULL
+ * @animate_launch_at_pos: virtual function for
+ *   shell_drag_source_animate_launch_at_pos (). The default implementation
+ *   does nothing
  *
  * The interface of the draggable actors which are not dragged themselves but
  * are represented by another actor while the drag lasts. A draggable actor
@@ -194,10 +200,18 @@ struct _ShellDragSourceInterface
 
   ClutterActor * (* get_drag_actor)        (ShellDragSource *source);
   ClutterActor * (* get_drag_actor_source) (ShellDragSource *source);
+  ShellApp *     (* get_app)               (ShellDragSource *source);
+  void           (* animate_launch_at_pos) (ShellDragSource *source,
+                                            float            x,
+                                            float            y);
 };
 
 ClutterActor *shell_drag_source_get_drag_actor        (ShellDragSource *source);
 ClutterActor *shell_drag_source_get_drag_actor_source (ShellDragSource *source);
+ShellApp     *shell_drag_source_get_app               (ShellDragSource *source);
+void          shell_drag_source_animate_launch_at_pos (ShellDragSource *source,
+                                                      float            x,
+                                                      float            y);
 
 /* ------------------------------------------------------------------------ */
 /* ShellDraggable                                                            */

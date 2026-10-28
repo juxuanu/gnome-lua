@@ -1412,6 +1412,7 @@ enum
 
   PROP_OVERVIEW_VISIBLE,
   PROP_OVERVIEW_CLOSING,
+  PROP_OVERVIEW_ANIMATING,
   PROP_CTRL_ALT_TAB_MANAGER,
 
   N_PROPS
@@ -1461,6 +1462,7 @@ struct _ShellWindowManager
 
   gboolean overview_visible;
   gboolean overview_closing;
+  gboolean overview_animating;
   GPtrArray *pending_maps;      /* of PendingMap */
 
   ShellCtrlAltTabManager *ctrl_alt_tab_manager;
@@ -3776,6 +3778,43 @@ shell_window_manager_set_overview_closing (ShellWindowManager *self,
 }
 
 /**
+ * shell_window_manager_get_overview_animating:
+ * @self: a #ShellWindowManager
+ *
+ * Returns: whether the overview is animating in or out
+ *   (`Main.overview.animationInProgress`)
+ */
+gboolean
+shell_window_manager_get_overview_animating (ShellWindowManager *self)
+{
+  g_return_val_if_fail (SHELL_IS_WINDOW_MANAGER (self), FALSE);
+
+  return self->overview_animating;
+}
+
+/**
+ * shell_window_manager_set_overview_animating:
+ * @self: a #ShellWindowManager
+ * @animating: whether the overview is animating
+ *
+ * Sets #ShellWindowManager:overview-animating. overview.js sets it whenever
+ * it changes `_animationInProgress`.
+ */
+void
+shell_window_manager_set_overview_animating (ShellWindowManager *self,
+                                             gboolean            animating)
+{
+  g_return_if_fail (SHELL_IS_WINDOW_MANAGER (self));
+
+  animating = !!animating;
+  if (self->overview_animating == animating)
+    return;
+
+  self->overview_animating = animating;
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_OVERVIEW_ANIMATING]);
+}
+
+/**
  * shell_window_manager_get_ctrl_alt_tab_manager:
  * @self: a #ShellWindowManager
  *
@@ -3827,6 +3866,10 @@ shell_window_manager_get_property (GObject    *object,
       g_value_set_boolean (value, self->overview_closing);
       break;
 
+    case PROP_OVERVIEW_ANIMATING:
+      g_value_set_boolean (value, self->overview_animating);
+      break;
+
     case PROP_CTRL_ALT_TAB_MANAGER:
       g_value_set_object (value, self->ctrl_alt_tab_manager);
       break;
@@ -3853,6 +3896,10 @@ shell_window_manager_set_property (GObject      *object,
 
     case PROP_OVERVIEW_CLOSING:
       shell_window_manager_set_overview_closing (self, g_value_get_boolean (value));
+      break;
+
+    case PROP_OVERVIEW_ANIMATING:
+      shell_window_manager_set_overview_animating (self, g_value_get_boolean (value));
       break;
 
     case PROP_CTRL_ALT_TAB_MANAGER:
@@ -4198,6 +4245,21 @@ shell_window_manager_class_init (ShellWindowManagerClass *klass)
    */
   props[PROP_OVERVIEW_CLOSING] =
     g_param_spec_boolean ("overview-closing", NULL, NULL,
+                          FALSE,
+                          G_PARAM_READWRITE |
+                          G_PARAM_EXPLICIT_NOTIFY |
+                          G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellWindowManager:overview-animating:
+   *
+   * Whether the overview is animating in or out
+   * (`Main.overview.animationInProgress`). overview.js keeps it in sync.
+   * The workspaces of the overview read it to know whether to animate a
+   * change of their layout.
+   */
+  props[PROP_OVERVIEW_ANIMATING] =
+    g_param_spec_boolean ("overview-animating", NULL, NULL,
                           FALSE,
                           G_PARAM_READWRITE |
                           G_PARAM_EXPLICIT_NOTIFY |
