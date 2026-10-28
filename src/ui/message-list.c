@@ -3717,6 +3717,7 @@ struct _ShellMessageViewFade
   float opacity;
   ClutterActor *highlight_actor; /* weak */
   StAdjustment *vadjustment;     /* connected, not owned */
+  gulong vadjustment_notify_id;  /* on the actor of the meta */
 };
 
 G_DEFINE_FINAL_TYPE (ShellMessageViewFade, shell_message_view_fade, CLUTTER_TYPE_SHADER_EFFECT)
@@ -3835,13 +3836,16 @@ shell_message_view_fade_set_actor (ClutterActorMeta *meta,
   if (old_actor == actor)
     return;
 
+  /* Only our own handler: ClutterActorMeta connects to the actor's destroy
+   * signal with the meta as data too, and disconnects it by id afterwards */
   if (old_actor != NULL)
-    g_signal_handlers_disconnect_by_data (old_actor, self);
+    g_clear_signal_handler (&self->vadjustment_notify_id, old_actor);
 
   if (actor != NULL)
     {
-      g_signal_connect (actor, "notify::vadjustment",
-                        G_CALLBACK (fade_actor_vadjustment_notify_cb), self);
+      self->vadjustment_notify_id =
+        g_signal_connect (actor, "notify::vadjustment",
+                          G_CALLBACK (fade_actor_vadjustment_notify_cb), self);
     }
 
   CLUTTER_ACTOR_META_CLASS (shell_message_view_fade_parent_class)->set_actor (meta, actor);

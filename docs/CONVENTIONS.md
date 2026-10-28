@@ -219,3 +219,8 @@ never call extension code directly.
   `clutter_actor_remove_action()` on such a field, check that the action is
   still attached (`clutter_actor_meta_get_actor (meta) == field`); removing a
   detached action is a fatal Clutter warning.
+* In a `ClutterActorMeta` subclass (action, effect, constraint) never
+  `g_signal_handlers_disconnect_by_data (actor, self)`: the meta base class
+  connects to the actor's `destroy` signal with the meta as data and later
+  disconnects it by id, which is then a fatal "no handler with id" critical.
+  Keep the handler id and `g_clear_signal_handler()` it.
