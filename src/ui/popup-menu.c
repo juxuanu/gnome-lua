@@ -6019,9 +6019,12 @@ shell_popup_sub_menu_menu_item_dispose (GObject *object)
   g_clear_weak_pointer (&priv->label);
   g_clear_weak_pointer (&priv->icon);
   g_clear_weak_pointer (&priv->triangle);
-  g_clear_object (&priv->menu);
 
+  /* The parent's dispose emits ::destroy, whose handler (sub_item_destroyed_cb)
+   * destroys the submenu and so its items: the menu must still be there. */
   G_OBJECT_CLASS (shell_popup_sub_menu_menu_item_parent_class)->dispose (object);
+
+  g_clear_object (&priv->menu);
 }
 
 static void

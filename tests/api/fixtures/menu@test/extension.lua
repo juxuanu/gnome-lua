@@ -96,6 +96,19 @@ function ext.enable()
   local m = ind.menu
   kept.ind, kept.menu = ind, m
 
+  -- A failed check must not leave its items behind for the cases after it:
+  -- every case of this menu ends with an empty menu.
+  local plain_case = case
+  local function case(name, fn, ...)
+    return plain_case(name, function(...)
+      local ok, err = pcall(fn, ...)
+      m:clear()
+      if not ok then
+        error(err, 0)
+      end
+    end, ...)
+  end
+
   -- -------------------------------------------------------------------
   -- The menu
   -- -------------------------------------------------------------------

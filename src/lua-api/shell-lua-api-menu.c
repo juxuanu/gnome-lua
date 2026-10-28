@@ -904,7 +904,17 @@ static void
 widget_item_get_child (lua_State *L,
                        GObject   *object)
 {
-  ClutterActor *child = clutter_actor_get_first_child (CLUTTER_ACTOR (object));
+  ClutterActor *child;
+
+  /* The item has children of its own (the ornament icon is the first one):
+   * the widget is the one the extension owns. */
+  for (child = clutter_actor_get_first_child (CLUTTER_ACTOR (object));
+       child != NULL;
+       child = clutter_actor_get_next_sibling (child))
+    {
+      if (shell_lua_object_is_owned (L, G_OBJECT (child)))
+        break;
+    }
 
   shell_lua_api_ui_push_widget (L, child);
 }
