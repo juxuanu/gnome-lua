@@ -19,6 +19,31 @@ end
 
 test.wait_startup ()
 
+-- The shell makes actors of its own the first time the system menu opens (the
+-- textures of the icons of its buttons, for one): they are not the fixture's,
+-- and they stay. Open and close the menu once, so that the fingerprint that
+-- the harness takes before the extension runs already has them.
+do
+  local button = main.panel:get_status_area_indicator ("quickSettings")
+  if button == nil then
+    fail ("the top bar has no quick settings button")
+  end
+  local menu = button.menu
+
+  menu:open ()
+  harness.wait_until (function ()
+    return menu.is_open
+  end, "the system menu to open")
+  test.sleep (500)
+  test.wait_leisure ()
+  menu:close ()
+  harness.wait_until (function ()
+    return not menu.is_open
+  end, "the system menu to close")
+  test.sleep (800)
+  test.wait_leisure ()
+end
+
 harness.run {
   uuid = "quick-settings@test",
 
