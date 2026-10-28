@@ -589,16 +589,24 @@ export const Dash = GObject.registerClass({
         }
     }
 
+    /**
+     * @param {DashItemContainer} container - a child of the icon box or the
+     *   show-apps icon
+     * @returns {IconGrid.BaseIcon} the icon the container shows
+     */
+    _iconOf(container) {
+        // The show-apps icon wraps a plain button; app items wrap an AppIcon
+        return container === this._showAppsIcon
+            ? container.icon : container.child.icon;
+    }
+
     _adjustIconSize() {
         // For the icon size, we only consider children which are "proper"
         // icons (i.e. ignoring drag placeholders) and which are not
         // animating out (which means they will be destroyed at the end of
         // the animation)
         const iconChildren = this._box.get_children().filter(actor => {
-            return actor.child &&
-                   actor.child._delegate &&
-                   actor.child._delegate.icon &&
-                   !actor.animatingOut;
+            return actor.child?.icon && !actor.animatingOut;
         });
 
         iconChildren.push(this._showAppsIcon);
@@ -618,7 +626,7 @@ export const Dash = GObject.registerClass({
         const spacing = themeNode.get_length('spacing');
 
         const firstButton = iconChildren[0].child;
-        const firstIcon = firstButton._delegate.icon;
+        const firstIcon = this._iconOf(iconChildren[0]);
 
         // Enforce valid spacings during the size request
         firstIcon.icon.ensure_style();
@@ -655,7 +663,7 @@ export const Dash = GObject.registerClass({
 
         const scale = oldIconSize / newIconSize;
         for (let i = 0; i < iconChildren.length; i++) {
-            const icon = iconChildren[i].child._delegate.icon;
+            const icon = this._iconOf(iconChildren[i]);
 
             // Set the new size immediately, to keep the icons' sizes
             // in sync with this.iconSize
@@ -699,12 +707,10 @@ export const Dash = GObject.registerClass({
         const running = this._appSystem.get_running();
 
         const children = this._box.get_children().filter(actor => {
-            return actor.child &&
-                   actor.child._delegate &&
-                   actor.child._delegate.app;
+            return actor.child?.app;
         });
         // Apps currently in the dash
-        const oldApps = children.map(actor => actor.child._delegate.app);
+        const oldApps = children.map(actor => actor.child.app);
         // Apps supposed to be in the dash
         const newApps = [];
 
@@ -773,7 +779,7 @@ export const Dash = GObject.registerClass({
                 ? newApps[newIndex + 1] : null;
             const insertHere = nextApp && nextApp === oldApp;
             const alreadyRemoved = removedActors.reduce((result, actor) => {
-                const removedApp = actor.child._delegate.app;
+                const removedApp = actor.child.app;
                 return result || removedApp === newApp;
             }, false);
 
@@ -982,7 +988,7 @@ export const Dash = GObject.registerClass({
                 children[i] === this._dragPlaceholder)
                 continue;
 
-            const childId = children[i].child._delegate.app.get_id();
+            const childId = children[i].child.app.get_id();
             if (childId === id)
                 continue;
             if (childId in favorites)
