@@ -95,4 +95,7 @@ gboolean shell_animatable_ease_property (ClutterAnimatable      *animatable,
                                          GDestroyNotify          destroy,
                                          GError                **error);
 
+/* (skip) private: called by ShellGlobal before ::shutdown */
+void _shell_ease_shutdown (void);
+
 G_END_DECLS

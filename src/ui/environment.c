@@ -124,8 +124,14 @@ typedef struct
   gulong stopped_id;
   gulong removed_id;
   gulong destroy_id;
-  gulong shutdown_id;
 } EaseState;
+
+/* Every EaseState waiting on a transition. Dropped wholesale by
+ * _shell_ease_shutdown(), which ShellGlobal runs before it emits
+ * ::shutdown so that no completion callback fires into JS or Lua while
+ * the UI is being torn down (the JS version achieved the same ordering
+ * by connecting its session signal holder before any other module). */
+static GList *live_states = NULL;
 
 static EaseState *
 ease_state_new (ShellEaseCallback callback,
@@ -150,7 +156,7 @@ ease_state_disconnect (EaseState *state)
   g_clear_signal_handler (&state->stopped_id, state->transition);
   g_clear_signal_handler (&state->removed_id, state->actor);
   g_clear_signal_handler (&state->destroy_id, state->actor);
-  g_clear_signal_handler (&state->shutdown_id, state->global);
+  live_states = g_list_remove (live_states, state);
 }
 
 static void
@@ -228,8 +234,7 @@ ease_state_complete (EaseState *state,
 }
 
 static void
-on_global_shutdown (ShellGlobal *global,
-                    EaseState   *state)
+ease_state_drop (EaseState *state)
 {
   GDestroyNotify destroy = state->destroy;
   gpointer user_data = state->user_data;
@@ -241,6 +246,19 @@ on_global_shutdown (ShellGlobal *global,
 
   if (destroy)
     destroy (user_data);
+}
+
+/**
+ * _shell_ease_shutdown: (skip)
+ *
+ * Drops every pending ease completion without calling its callback.
+ * Called by ShellGlobal right before it emits ::shutdown.
+ */
+void
+_shell_ease_shutdown (void)
+{
+  while (live_states != NULL)
+    ease_state_drop (live_states->data);
 }
 
 static void
@@ -284,10 +302,7 @@ ease_state_watch_transition (EaseState         *state,
   state->transition = g_object_ref (transition);
   state->actor = actor ? g_object_ref (actor) : NULL;
   state->global = shell_global_get ();
-
-  state->shutdown_id = g_signal_connect (state->global, "shutdown",
-                                         G_CALLBACK (on_global_shutdown),
-                                         state);
+  live_states = g_list_prepend (live_states, state);
 
   if (state->uses_work)
     {

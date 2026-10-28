@@ -43,6 +43,7 @@
 
 #include "shell-enum-types.h"
 #include "shell-global-private.h"
+#include "ui/environment.h"
 #include "shell-hooks.h"
 #include "shell-lua.h"
 #include "shell-lua-extension.h"
@@ -1698,6 +1699,10 @@ _shell_global_locate_pointer (ShellGlobal *global)
 void
 _shell_global_notify_shutdown (ShellGlobal *global)
 {
+  /* Pending ease() completions must not fire into UI code that the
+   * ::shutdown handlers below are about to destroy. */
+  _shell_ease_shutdown ();
+
   /* Lua extensions (gnome-lua): let them react while the shell is intact */
   shell_hook_registry_emit_after (shell_hook_registry_get_default (),
                                   "shell.shutting-down", NULL);
