@@ -248,3 +248,8 @@ never call extension code directly.
   for its GType; the privileged inspector state registers the extension API's
   types first, so it calls `shell_lua_handle_prefer_type ()` for its generic
   `gobject.*` chain.
+* `clutter_actor_destroy ()` runs the most derived `dispose ()` first and
+  `ClutterActor`'s dispose emits `::destroy` last, so a field cleared in
+  `dispose ()` is already `NULL` in the `destroy` vfunc and in `::destroy`
+  handlers. Destroy what a field owns in `dispose ()` itself (or chain up
+  first, then clear it), or the owned menu survives its item.

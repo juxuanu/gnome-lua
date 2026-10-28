@@ -1433,14 +1433,13 @@ shell_quick_settings_item_constructed (GObject *object)
     }
 }
 
+/* The menu lives in the overlay of the quick settings menu, not below the
+ * item: it goes with the item, or it would stay behind for good. */
 static void
-shell_quick_settings_item_destroy (ClutterActor *actor)
+shell_quick_settings_item_destroy_menu (ShellQuickSettingsItem *self)
 {
-  ShellQuickSettingsItem *self = SHELL_QUICK_SETTINGS_ITEM (actor);
   ShellQuickSettingsItemPrivate *priv = shell_quick_settings_item_get_instance_private (self);
 
-  /* The menu lives in the overlay of the quick settings menu, not below the
-   * item: it goes with the item, or it would stay behind for good */
   if (priv->menu != NULL && priv->menu_owned)
     {
       g_autoptr (ShellQuickToggleMenu) menu = g_steal_pointer (&priv->menu);
@@ -1450,6 +1449,12 @@ shell_quick_settings_item_destroy (ClutterActor *actor)
     }
 
   g_clear_object (&priv->menu);
+}
+
+static void
+shell_quick_settings_item_destroy (ClutterActor *actor)
+{
+  shell_quick_settings_item_destroy_menu (SHELL_QUICK_SETTINGS_ITEM (actor));
 
   CLUTTER_ACTOR_CLASS (shell_quick_settings_item_parent_class)->destroy (actor);
 }
@@ -1460,8 +1465,12 @@ shell_quick_settings_item_dispose (GObject *object)
   ShellQuickSettingsItem *self = SHELL_QUICK_SETTINGS_ITEM (object);
   ShellQuickSettingsItemPrivate *priv = shell_quick_settings_item_get_instance_private (self);
 
+  /* clutter_actor_destroy () runs g_object_run_dispose (), which calls this
+   * (the most derived dispose) before ClutterActor's dispose emits "destroy"
+   * and so before the destroy vfunc above: the menu must be destroyed here,
+   * while the item still holds it, or it would outlive its item. */
+  shell_quick_settings_item_destroy_menu (self);
   g_clear_object (&priv->menu_manager);
-  g_clear_object (&priv->menu);
 
   G_OBJECT_CLASS (shell_quick_settings_item_parent_class)->dispose (object);
 }

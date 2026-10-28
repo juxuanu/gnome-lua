@@ -4876,6 +4876,30 @@ group_notification_added_cb (ShellNotificationMessageGroup *group,
   view_move_message (self, CLUTTER_ACTOR (group), view_group_index (self, group));
 }
 
+/* source_to_group only borrows its groups (the item that holds a group in the
+ * list owns it), and an unmapped list destroys a group at once when its
+ * message is removed (the easing completes synchronously): the entry goes
+ * with the group, so that the table never holds a dead pointer. (Not by way
+ * of group->source: the group's dispose, which runs before ClutterActor's
+ * emits ::destroy, has cleared it.) */
+static void
+group_destroy_cb (ClutterActor     *group,
+                  ShellMessageView *self)
+{
+  GHashTableIter iter;
+  gpointer value;
+
+  g_hash_table_iter_init (&iter, self->source_to_group);
+  while (g_hash_table_iter_next (&iter, NULL, &value))
+    {
+      if (value == group)
+        {
+          g_hash_table_iter_remove (&iter);
+          break;
+        }
+    }
+}
+
 static void
 view_add_notification_source (ShellMessageView *self,
                               ShellSource      *source)
@@ -4883,8 +4907,12 @@ view_add_notification_source (ShellMessageView *self,
   ClutterActor *group = notification_message_group_new (source);
   ShellNotificationMessageGroup *group_self = SHELL_NOTIFICATION_MESSAGE_GROUP (group);
 
+  /* Our reference lasts until the list's item has taken its own (released
+   * below); the table borrows the group */
   g_object_ref_sink (group);
   g_hash_table_insert (self->source_to_group, g_object_ref (source), group);
+  g_signal_connect_object (group, "destroy",
+                           G_CALLBACK (group_destroy_cb), self, 0);
 
   g_signal_connect_object (group, "notify::focus-child",
                            G_CALLBACK (group_focus_child_changed_cb), self, 0);
@@ -4912,7 +4940,8 @@ view_remove_notification_source (ShellMessageView *self,
   if (group == NULL)
     return;
 
-  /* removing the message destroys the group */
+  /* Removing the message can destroy the group at once (and with it the
+   * table entry, group_destroy_cb ()): nothing of it is read afterwards */
   has_urgent = group_get_has_urgent (SHELL_NOTIFICATION_MESSAGE_GROUP (group));
   view_remove_message (self, group);
 
