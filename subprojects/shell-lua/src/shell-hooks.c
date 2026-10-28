@@ -562,7 +562,7 @@ merge_amendments (GVariantDict *result,
     g_variant_dict_insert_value (result, key, value);
 }
 
-/**
+/*
  * shell_hook_registry_emit_before:
  * @self: the registry
  * @name: hook name
@@ -663,7 +663,7 @@ shell_hook_registry_emit_before (ShellHookRegistry *self,
   return verdict;
 }
 
-/**
+/*
  * shell_hook_registry_emit_after:
  * @self: the registry
  * @name: hook name

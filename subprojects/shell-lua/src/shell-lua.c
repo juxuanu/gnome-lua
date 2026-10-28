@@ -980,6 +980,11 @@ shell_lua_state_init (ShellLuaState *self)
 
 /**
  * shell_lua_state_new:
+ * @id: identifier used in log messages
+ * @kind: sandboxed or privileged
+ * @limits: (nullable): limits, or %NULL for the defaults of @kind
+ *
+ * Returns: (transfer full): a new state
  *
  * Never returns NULL for valid arguments. If the lua_State cannot be created
  * or the API modules fail to populate it (a programming error, logged as

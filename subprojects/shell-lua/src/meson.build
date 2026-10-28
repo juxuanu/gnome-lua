@@ -58,8 +58,18 @@ endif
 if enable_introspection
   assert(pkgdatadir != '', 'Installing introspection, but pkgdatadir is unset!')
 
+  # The handle and variant layers take lua_State* and are not introspectable;
+  # only the GObject-facing headers go through the scanner.
+  shell_lua_gir_sources = files(
+    'shell-lua.c', 'shell-lua.h',
+    'shell-hooks.c', 'shell-hooks.h',
+    'shell-lua-extension.c', 'shell-lua-extension-manager.c', 'shell-lua-extension.h',
+    'shell-lua-inspector.c', 'shell-lua-inspector.h',
+  )
+
   libshell_lua_gir = gnome.generate_gir(libshell_lua,
-    sources: shell_lua_sources + shell_lua_public_headers,
+    sources: shell_lua_gir_sources,
+    fatal_warnings: true,
     nsversion: '1',
     namespace: 'ShellLua',
     identifier_prefix: ['ShellLua', 'ShellHook'],

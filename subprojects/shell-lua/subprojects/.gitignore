@@ -1,0 +1,3 @@
+# Meson-managed download of the vendored Lua (see lua.wrap)
+/lua-5.5.1
+/packagecache

@@ -65,12 +65,21 @@ ShellLuaStateKind  shell_lua_state_get_kind       (ShellLuaState *self);
 gboolean           shell_lua_state_is_alive       (ShellLuaState *self);
 
 /* (skip) raw access; only api-*.c and tests should need it. */
+/**
+ * shell_lua_state_get_L: (skip)
+ */
 lua_State         *shell_lua_state_get_L          (ShellLuaState *self);
 
 /* Opaque owner pointer, used by the API modules to find the extension that
  * owns a state (NULL for inspector/test states). Not referenced. */
+/**
+ * shell_lua_state_set_owner: (skip)
+ */
 void               shell_lua_state_set_owner      (ShellLuaState *self,
                                                    gpointer       owner);
+/**
+ * shell_lua_state_get_owner: (skip)
+ */
 gpointer           shell_lua_state_get_owner      (ShellLuaState *self);
 
 /* require() resolution. Roots are searched in order; a module name "a.b" maps
@@ -112,15 +121,27 @@ gboolean           shell_lua_state_do_file        (ShellLuaState  *self,
 
 /* Registry references for Lua values held by C (callbacks). ref pops the
  * value on top of the stack. */
+/**
+ * shell_lua_state_ref: (skip)
+ */
 int                shell_lua_state_ref            (ShellLuaState *self);
+/**
+ * shell_lua_state_unref: (skip)
+ */
 void               shell_lua_state_unref          (ShellLuaState *self,
                                                    int            ref);
+/**
+ * shell_lua_state_push_ref: (skip)
+ */
 void               shell_lua_state_push_ref       (ShellLuaState *self,
                                                    int            ref);
 
 /* Teardown callbacks run (LIFO) when the state is destroyed, before the
  * lua_State is closed. Used by API modules to release C-side resources that
  * Lua code created. Returns an id for early removal. */
+/**
+ * shell_lua_state_add_teardown: (skip)
+ */
 guint              shell_lua_state_add_teardown   (ShellLuaState  *self,
                                                    GDestroyNotify  func,
                                                    gpointer        data);
@@ -139,6 +160,11 @@ void               shell_lua_state_gc               (ShellLuaState *self);
 
 /* The state whose code is executing right now (innermost pcall), or NULL.
  * Used by API modules and by the fatal-signal handler. */
+/**
+ * shell_lua_state_get_current:
+ *
+ * Returns: (transfer none) (nullable): the state whose code is running
+ */
 ShellLuaState     *shell_lua_state_get_current    (void);
 
 /* Async-signal-safe-ish dump of the current state's Lua traceback to stderr.

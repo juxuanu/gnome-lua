@@ -12,6 +12,11 @@ G_BEGIN_DECLS
 #define SHELL_TYPE_LUA_INSPECTOR (shell_lua_inspector_get_type ())
 G_DECLARE_FINAL_TYPE (ShellLuaInspector, shell_lua_inspector, SHELL, LUA_INSPECTOR, GObject)
 
+/**
+ * shell_lua_inspector_get_default:
+ *
+ * Returns: (transfer none): the singleton inspector
+ */
 ShellLuaInspector *shell_lua_inspector_get_default (void);
 
 /**
@@ -32,6 +37,11 @@ void  shell_lua_inspector_reset (ShellLuaInspector *self);
 /* Read-only snapshot for the Looking Glass "Extensions"/"Memory" views:
  * a(sstuu) of (uuid, state-name, lua-bytes, error-count, state-number) per live state
  * plus the inspector itself. (transfer full) */
+/**
+ * shell_lua_inspector_get_states:
+ *
+ * Returns: (transfer full): a(sstuu) of (uuid, state-name, lua-bytes, error-count, state-number)
+ */
 GVariant *shell_lua_inspector_get_states (ShellLuaInspector *self);
 
 G_END_DECLS
