@@ -25,7 +25,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import UPower from 'gi://UPowerGlib';
 
-import * as CheckBox from './checkBox.js';
 import * as Dialog from './dialog.js';
 import * as GnomeSession from '../misc/gnomeSession.js';
 import * as LoginManager from '../misc/loginManager.js';
@@ -194,7 +193,7 @@ function _roundSecondsToInterval(totalSeconds, secondsLeft, interval) {
 }
 
 function _setCheckBoxLabel(checkBox, text) {
-    const label = checkBox.getLabelActor();
+    const label = checkBox.get_label_actor();
 
     if (text) {
         label.set_text(text);
@@ -254,7 +253,7 @@ class EndSessionDialog extends ModalDialog.ModalDialog {
 
         this._messageDialogContent = new Dialog.MessageDialogContent();
 
-        this._checkBox = new CheckBox.CheckBox();
+        this._checkBox = new Shell.CheckBox();
         this._checkBox.connect('clicked', this._sync.bind(this));
         this._messageDialogContent.add_child(this._checkBox);
 

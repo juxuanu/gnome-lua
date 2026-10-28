@@ -6,7 +6,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as CheckBox from './checkBox.js';
 import * as Dialog from './dialog.js';
 import * as MessageTray from './messageTray.js';
 import * as ModalDialog from './modalDialog.js';
@@ -297,13 +296,13 @@ const ShellMountPasswordDialog = GObject.registerClass({
         let curGridRow = 0;
 
         if (flags & Gio.AskPasswordFlags.TCRYPT) {
-            this._hiddenVolume = new CheckBox.CheckBox(_('Hidden Volume'));
+            this._hiddenVolume = Shell.CheckBox.new(_('Hidden Volume'));
             content.add_child(this._hiddenVolume);
 
-            this._systemVolume = new CheckBox.CheckBox(_('Windows System Volume'));
+            this._systemVolume = Shell.CheckBox.new(_('Windows System Volume'));
             content.add_child(this._systemVolume);
 
-            this._keyfilesCheckbox = new CheckBox.CheckBox(_('Uses Keyfiles'));
+            this._keyfilesCheckbox = Shell.CheckBox.new(_('Uses Keyfiles'));
             this._keyfilesCheckbox.connect('clicked', this._onKeyfilesCheckboxClicked.bind(this));
             content.add_child(this._keyfilesCheckbox);
 
@@ -383,7 +382,7 @@ const ShellMountPasswordDialog = GObject.registerClass({
         content.add_child(passwordGrid);
 
         if (flags & Gio.AskPasswordFlags.SAVING_SUPPORTED) {
-            this._rememberChoice = new CheckBox.CheckBox(_('Remember Password'));
+            this._rememberChoice = Shell.CheckBox.new(_('Remember Password'));
             this._rememberChoice.checked =
                 global.settings.get_boolean(REMEMBER_MOUNT_PASSWORD_KEY);
             content.add_child(this._rememberChoice);

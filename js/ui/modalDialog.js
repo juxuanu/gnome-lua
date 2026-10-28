@@ -6,7 +6,6 @@ import St from 'gi://St';
 
 import * as Dialog from './dialog.js';
 import * as Layout from './layout.js';
-import * as Lightbox from './lightbox.js';
 import * as Main from './main.js';
 import * as Params from '../misc/params.js';
 
@@ -82,9 +81,10 @@ export const ModalDialog = GObject.registerClass({
         this.buttonLayout = this.dialogLayout.buttonLayout;
 
         if (!this._shellReactive) {
-            this._lightbox = new Lightbox.Lightbox(this, {
-                inhibitEvents: true,
-                radialEffect: true,
+            this._lightbox = new Shell.Lightbox({
+                container: this,
+                inhibit_events: true,
+                radial_effect: true,
             });
             this._lightbox.highlight(this._backgroundBin);
 
@@ -132,7 +132,7 @@ export const ModalDialog = GObject.registerClass({
 
         this.dialogLayout.opacity = 255;
         if (this._lightbox)
-            this._lightbox.lightOn();
+            this._lightbox.light_on(0);
         this.opacity = 0;
         this.show();
         this.ease({

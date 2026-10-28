@@ -9,7 +9,6 @@ import St from 'gi://St';
 import * as Dialog from '../dialog.js';
 import * as ModalDialog from '../modalDialog.js';
 import * as ShellEntry from '../shellEntry.js';
-import * as CheckBox from '../checkBox.js';
 import {wiggle} from '../../misc/animationUtils.js';
 
 const KeyringDialog = GObject.registerClass(
@@ -87,8 +86,8 @@ class KeyringDialog extends ModalDialog.ModalDialog {
         passwordBox.add_child(warningBox);
         content.add_child(passwordBox);
 
-        this._choice = new CheckBox.CheckBox();
-        this.prompt.bind_property('choice-label', this._choice.getLabelActor(),
+        this._choice = new Shell.CheckBox();
+        this.prompt.bind_property('choice-label', this._choice.get_label_actor(),
             'text', GObject.BindingFlags.SYNC_CREATE);
         this.prompt.bind_property('choice-chosen', this._choice,
             'checked', GObject.BindingFlags.SYNC_CREATE | GObject.BindingFlags.BIDIRECTIONAL);

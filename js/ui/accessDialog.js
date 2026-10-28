@@ -6,7 +6,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as CheckBox from './checkBox.js';
 import * as Dialog from './dialog.js';
 import * as ModalDialog from './modalDialog.js';
 
@@ -62,8 +61,8 @@ class AccessDialog extends ModalDialog.ModalDialog {
             if (opts.length > 0)
                 continue; // radio buttons, not implemented
 
-            const check = new CheckBox.CheckBox();
-            check.getLabelActor().text = name;
+            const check = new Shell.CheckBox();
+            check.get_label_actor().text = name;
             check.checked = selected === 'true';
             content.add_child(check);
 

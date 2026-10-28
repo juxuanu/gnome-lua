@@ -42,7 +42,6 @@ import * as TimeLimitsManager from '../misc/timeLimitsManager.js';
 import * as WindowManager from './windowManager.js';
 import * as Magnifier from './magnifier.js';
 import * as KbdA11yDialog from './kbdA11yDialog.js';
-import * as LocatePointer from './locatePointer.js';
 import {formatError} from '../misc/errorUtils.js';
 import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as Util from '../misc/util.js';
@@ -240,7 +239,7 @@ async function _initializeUI() {
     kbdA11yDialog = new KbdA11yDialog.KbdA11yDialog();
     wm = new WindowManager.WindowManager();
     magnifier = new Magnifier.Magnifier();
-    locatePointer = new LocatePointer.LocatePointer();
+    locatePointer = new Shell.LocatePointer({ui_group: uiGroup});
 
     if (LoginManager.canLock())
         screenShield = new ScreenShield.ScreenShield();

@@ -11,7 +11,6 @@ import St from 'gi://St';
 
 import * as GrabHelper from './grabHelper.js';
 import * as Layout from './layout.js';
-import * as Lightbox from './lightbox.js';
 import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
 import * as Workspace from './workspace.js';
@@ -3497,10 +3496,11 @@ class PickPixel extends St.Widget {
 const FLASHSPOT_ANIMATION_OUT_TIME = 500; // milliseconds
 
 export const Flashspot = GObject.registerClass(
-class Flashspot extends Lightbox.Lightbox {
+class Flashspot extends Shell.Lightbox {
     _init(area) {
-        super._init(Main.uiGroup, {
-            inhibitEvents: true,
+        super._init({
+            container: Main.uiGroup,
+            inhibit_events: true,
             width: area.width,
             height: area.height,
         });

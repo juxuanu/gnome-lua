@@ -12,7 +12,6 @@ import * as Signals from '../misc/signals.js';
 import * as GnomeSession from '../misc/gnomeSession.js';
 import * as OVirt from '../gdm/oVirt.js';
 import * as LoginManager from '../misc/loginManager.js';
-import * as Lightbox from './lightbox.js';
 import * as Main from './main.js';
 import * as Overview from './overview.js';
 import * as MessageTray from './messageTray.js';
@@ -125,14 +124,16 @@ export class ScreenShield extends Signals.EventEmitter {
         // The "long" lightbox is used for the longer (20 seconds) fade from session
         // to idle status, the "short" is used for quickly fading to black when locking
         // manually
-        this._longLightbox = new Lightbox.Lightbox(Main.uiGroup, {
-            inhibitEvents: true,
-            fadeFactor: 1,
+        this._longLightbox = new Shell.Lightbox({
+            container: Main.uiGroup,
+            inhibit_events: true,
+            fade_factor: 1,
         });
         this._longLightbox.connect('notify::active', this._onLongLightbox.bind(this));
-        this._shortLightbox = new Lightbox.Lightbox(Main.uiGroup, {
-            inhibitEvents: true,
-            fadeFactor: 1,
+        this._shortLightbox = new Shell.Lightbox({
+            container: Main.uiGroup,
+            inhibit_events: true,
+            fade_factor: 1,
         });
         this._shortLightbox.connect('notify::active', this._onShortLightbox.bind(this));
 
@@ -282,7 +283,7 @@ export class ScreenShield extends Signals.EventEmitter {
 
     _activateFade(lightbox, time) {
         Main.uiGroup.set_child_above_sibling(lightbox, null);
-        lightbox.lightOn(time);
+        lightbox.light_on(time);
 
         if (this._becameActiveId === 0)
             this._becameActiveId = this.idleMonitor.add_user_active_watch(this._onUserBecameActive.bind(this));
@@ -307,8 +308,8 @@ export class ScreenShield extends Signals.EventEmitter {
         this._becameActiveId = 0;
 
         if (this._isLocked) {
-            this._longLightbox.lightOff();
-            this._shortLightbox.lightOff();
+            this._longLightbox.light_off(0);
+            this._shortLightbox.light_off(0);
         } else {
             this.deactivate(false);
         }
@@ -570,8 +571,8 @@ export class ScreenShield extends Signals.EventEmitter {
             this._grab = null;
         }
 
-        this._longLightbox.lightOff();
-        this._shortLightbox.lightOff();
+        this._longLightbox.light_off(0);
+        this._shortLightbox.light_off(0);
 
         const {reducedMotion} = St.Settings.get();
         const useMotion = reducedMotion !== St.ReducedMotion.REDUCE;
