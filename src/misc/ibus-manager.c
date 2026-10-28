@@ -580,8 +580,8 @@ on_completion_engine_set (GObject      *source,
  * @self: a #ShellIBusManager
  * @enabled: whether completion should be enabled
  * @cancellable: (nullable): unused
- * @callback: (scope async): called when the engine was switched
- * @user_data: (closure): data for @callback
+ * @callback: (scope async) (closure user_data): called when the engine was switched
+ * @user_data: data for @callback
  *
  * Enables or disables the word completion of the on-screen keyboard, which
  * is done by the typing-booster engine. It needs the engine to be available

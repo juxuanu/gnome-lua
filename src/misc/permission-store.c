@@ -24,8 +24,8 @@
 /**
  * shell_permission_store_new:
  * @cancellable: (nullable): a #GCancellable
- * @callback: (scope async): called when the proxy is ready
- * @user_data: (closure): user data for @callback
+ * @callback: (scope async) (closure user_data): called when the proxy is ready
+ * @user_data: user data for @callback
  *
  * Starts creating a proxy for org.freedesktop.impl.portal.PermissionStore on
  * the session bus. Finish with shell_permission_store_new_finish().

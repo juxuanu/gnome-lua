@@ -22,8 +22,8 @@
 /**
  * shell_gnome_session_presence_new:
  * @cancellable: (nullable): a #GCancellable
- * @callback: (scope async): called when the proxy is ready
- * @user_data: (closure): user data for @callback
+ * @callback: (scope async) (closure user_data): called when the proxy is ready
+ * @user_data: user data for @callback
  *
  * Starts creating a proxy for org.gnome.SessionManager.Presence on the
  * session bus. Finish with shell_gnome_session_presence_new_finish().
@@ -59,8 +59,8 @@ shell_gnome_session_presence_new_finish (GAsyncResult  *res,
 /**
  * shell_gnome_session_manager_new:
  * @cancellable: (nullable): a #GCancellable
- * @callback: (scope async): called when the proxy is ready
- * @user_data: (closure): user data for @callback
+ * @callback: (scope async) (closure user_data): called when the proxy is ready
+ * @user_data: user data for @callback
  *
  * Starts creating a proxy for org.gnome.SessionManager on the session bus.
  * Finish with shell_gnome_session_manager_new_finish().
@@ -120,8 +120,8 @@ shell_gnome_session_manager_new_sync (GCancellable  *cancellable,
  * shell_gnome_session_inhibitor_new:
  * @object_path: the object path of the inhibitor
  * @cancellable: (nullable): a #GCancellable
- * @callback: (scope async): called when the proxy is ready
- * @user_data: (closure): user data for @callback
+ * @callback: (scope async) (closure user_data): called when the proxy is ready
+ * @user_data: user data for @callback
  *
  * Starts creating a proxy for an org.gnome.SessionManager.Inhibitor on the
  * session bus. Inhibitors are immutable, so the proxy does not need to track

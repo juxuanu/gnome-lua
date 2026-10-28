@@ -454,8 +454,8 @@ current_user_path_ready (GObject      *source,
  * shell_login_manager_get_current_user_async:
  * @self: a #ShellLoginManager
  * @cancellable: (nullable): a #GCancellable
- * @callback: (scope async): called when the proxy is available
- * @user_data: (closure): user data for @callback
+ * @callback: (scope async) (closure user_data): called when the proxy is available
+ * @user_data: user data for @callback
  *
  * Gets a proxy for the logind object of the user running the shell. The
  * proxy is created once and then cached.
@@ -608,8 +608,8 @@ auto_session_proxy_ready (GObject      *source,
  * shell_login_manager_get_current_session_async:
  * @self: a #ShellLoginManager
  * @cancellable: (nullable): a #GCancellable
- * @callback: (scope async): called when the proxy is available
- * @user_data: (closure): user data for @callback
+ * @callback: (scope async) (closure user_data): called when the proxy is available
+ * @user_data: user data for @callback
  *
  * Gets a proxy for the logind session the shell runs in, found through
  * `XDG_SESSION_ID` or, if that is unset, by asking logind directly. The
@@ -706,8 +706,8 @@ can_reboot_to_boot_loader_menu_ready (GObject      *source,
  * shell_login_manager_can_reboot_to_boot_loader_menu_async:
  * @self: a #ShellLoginManager
  * @cancellable: (nullable): a #GCancellable
- * @callback: (scope async): called when the answer is known
- * @user_data: (closure): user data for @callback
+ * @callback: (scope async) (closure user_data): called when the answer is known
+ * @user_data: user data for @callback
  *
  * Asks logind whether the machine can be rebooted into the boot loader menu.
  */
@@ -827,8 +827,8 @@ list_sessions_ready (GObject      *source,
  * shell_login_manager_list_sessions_async:
  * @self: a #ShellLoginManager
  * @cancellable: (nullable): a #GCancellable
- * @callback: (scope async): called when the sessions are known
- * @user_data: (closure): user data for @callback
+ * @callback: (scope async) (closure user_data): called when the sessions are known
+ * @user_data: user data for @callback
  *
  * Lists the sessions known to logind.
  */
@@ -953,8 +953,8 @@ inhibit_ready (GObject      *source,
  * @self: a #ShellLoginManager
  * @reason: why sleep is being delayed, shown to the user by logind tools
  * @cancellable: (nullable): a #GCancellable
- * @callback: (scope async): called when the inhibitor is taken
- * @user_data: (closure): user data for @callback
+ * @callback: (scope async) (closure user_data): called when the inhibitor is taken
+ * @user_data: user data for @callback
  *
  * Takes a delay inhibitor on sleep. The inhibitor is released by closing the
  * stream returned by shell_login_manager_inhibit_finish().

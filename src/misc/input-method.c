@@ -953,8 +953,8 @@ on_virtual_key_press_done (GObject      *source,
  * @self: a #ShellInputMethod
  * @keyval: the keyval to press and release
  * @cancellable: (nullable): a #GCancellable
- * @callback: (scope async): called when the key was processed
- * @user_data: (closure): data for @callback
+ * @callback: (scope async) (closure user_data): called when the key was processed
+ * @user_data: data for @callback
  *
  * Sends a key press and release to the input method engine without going
  * through the compositor, e.g. from the on-screen keyboard.
