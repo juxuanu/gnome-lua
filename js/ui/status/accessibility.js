@@ -4,8 +4,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {QuickToggle} from '../quickSettings.js';
-
 const A11Y_SCHEMA                   = 'org.gnome.desktop.a11y';
 const KEY_ALWAYS_SHOW               = 'always-show-universal-access-status';
 
@@ -152,7 +150,7 @@ class ATIndicator extends Shell.PanelMenuButton {
 });
 
 export const HighContrastToggle = GObject.registerClass(
-class HighContrastToggle extends QuickToggle {
+class HighContrastToggle extends Shell.QuickToggle {
     constructor() {
         super({
             title: _('High Contrast'),
@@ -168,7 +166,7 @@ class HighContrastToggle extends QuickToggle {
 });
 
 export const MagnifierToggle = GObject.registerClass(
-class MagnifierToggle extends QuickToggle {
+class MagnifierToggle extends Shell.QuickToggle {
     constructor() {
         super({
             title: _('Zoom'),
@@ -184,7 +182,7 @@ class MagnifierToggle extends QuickToggle {
 });
 
 export const LargeTextToggle = GObject.registerClass(
-class LargeTextToggle extends QuickToggle {
+class LargeTextToggle extends Shell.QuickToggle {
     constructor() {
         super({
             title: _('Large Text'),
@@ -220,7 +218,7 @@ class LargeTextToggle extends QuickToggle {
 });
 
 export const ScreenReaderToggle = GObject.registerClass(
-class ScreenReaderToggle extends QuickToggle {
+class ScreenReaderToggle extends Shell.QuickToggle {
     constructor() {
         super({
             title: _('Screen Reader'),
@@ -236,7 +234,7 @@ class ScreenReaderToggle extends QuickToggle {
 });
 
 export const ScreenKeyboardToggle = GObject.registerClass(
-class ScreenKeyboardToggle extends QuickToggle {
+class ScreenKeyboardToggle extends Shell.QuickToggle {
     constructor() {
         super({
             title: _('Screen Keyboard'),
@@ -252,7 +250,7 @@ class ScreenKeyboardToggle extends QuickToggle {
 });
 
 export const VisualBellToggle = GObject.registerClass(
-class VisualBellToggle extends QuickToggle {
+class VisualBellToggle extends Shell.QuickToggle {
     constructor() {
         super({
             title: _('Visual Alerts'),
@@ -268,7 +266,7 @@ class VisualBellToggle extends QuickToggle {
 });
 
 export const StickyKeysToggle = GObject.registerClass(
-class StickyKeysToggle extends QuickToggle {
+class StickyKeysToggle extends Shell.QuickToggle {
     constructor() {
         super({
             title: _('Sticky Keys'),
@@ -284,7 +282,7 @@ class StickyKeysToggle extends QuickToggle {
 });
 
 export const SlowKeysToggle = GObject.registerClass(
-class SlowKeysToggle extends QuickToggle {
+class SlowKeysToggle extends Shell.QuickToggle {
     constructor() {
         super({
             title: _('Slow Keys'),
@@ -300,7 +298,7 @@ class SlowKeysToggle extends QuickToggle {
 });
 
 export const BounceKeysToggle = GObject.registerClass(
-class BounceKeysToggle extends QuickToggle {
+class BounceKeysToggle extends Shell.QuickToggle {
     constructor() {
         super({
             title: _('Bounce Keys'),
@@ -316,7 +314,7 @@ class BounceKeysToggle extends QuickToggle {
 });
 
 export const MouseKeysToggle = GObject.registerClass(
-class MouseKeysToggle extends QuickToggle {
+class MouseKeysToggle extends Shell.QuickToggle {
     constructor() {
         super({
             title: _('Mouse Keys'),

@@ -47,7 +47,6 @@ js/ui/osdWindow.js
 js/ui/overviewControls.js
 js/ui/overview.js
 js/ui/panelItems.js
-js/ui/quickSettings.js
 js/ui/screenShield.js
 js/ui/screenshot.js
 js/ui/shellMountOperation.js
@@ -94,6 +93,7 @@ src/ui/keyboard.c
 src/ui/message-list.c
 src/ui/message-tray.c
 src/ui/pad-osd.c
+src/ui/quick-settings.c
 src/ui/run-dialog.c
 src/ui/search-controller.c
 src/ui/search.c

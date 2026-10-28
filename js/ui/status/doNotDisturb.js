@@ -2,10 +2,8 @@ import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
-import {QuickToggle} from '../quickSettings.js';
-
 const DoNotDisturbToggle = GObject.registerClass(
-class DoNotDisturbToggle extends QuickToggle {
+class DoNotDisturbToggle extends Shell.QuickToggle {
     constructor() {
         super({
             title: _('Do Not Disturb'),

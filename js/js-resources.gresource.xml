@@ -61,7 +61,6 @@
     <file>ui/overview.js</file>
     <file>ui/overviewControls.js</file>
     <file>ui/panelItems.js</file>
-    <file>ui/quickSettings.js</file>
     <file>ui/qrCode.js</file>
     <file>ui/screenShield.js</file>
     <file>ui/screenshot.js</file>

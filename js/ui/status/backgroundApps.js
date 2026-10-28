@@ -8,8 +8,6 @@ import St from 'gi://St';
 import * as Main from '../main.js';
 import * as Util from '../../misc/util.js';
 
-import {QuickToggle} from '../quickSettings.js';
-
 const DBUS_NAME = 'org.freedesktop.background.Monitor';
 const DBUS_OBJECT_PATH = '/org/freedesktop/background/monitor';
 
@@ -133,7 +131,7 @@ const BackgroundAppMenuItem = GObject.registerClass({
 });
 
 const BackgroundAppsToggle = GObject.registerClass(
-class BackgroundAppsToggle extends QuickToggle {
+class BackgroundAppsToggle extends Shell.QuickToggle {
     _init() {
         super._init({
             visible: false,
@@ -145,11 +143,11 @@ class BackgroundAppsToggle extends QuickToggle {
 
         this.add_style_class_name('background-apps-quick-toggle');
 
-        this._box.set_child_above_sibling(this._icon, null);
+        this.get_box().set_child_above_sibling(this.get_icon(), null);
 
         this._appSystem = Shell.AppSystem.get_default();
 
-        this.menu.setHeader(
+        this.menu.set_header(
             'background-app-ghost-symbolic',
             C_('title', 'Background Apps'));
 

@@ -2,8 +2,6 @@ import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
-import {QuickMenuToggle} from '../quickSettings.js';
-
 const BUS_NAME = 'org.freedesktop.UPower.PowerProfiles';
 const OBJECT_PATH = '/org/freedesktop/UPower/PowerProfiles';
 
@@ -35,7 +33,7 @@ const FALLBACK_PARAMS = {
 const LAST_PROFILE_KEY = 'last-selected-power-profile';
 
 const PowerProfilesToggle = GObject.registerClass(
-class PowerProfilesToggle extends QuickMenuToggle {
+class PowerProfilesToggle extends Shell.QuickMenuToggle {
     _init() {
         super._init({
             title: C_('Quick settings button title', 'Power Mode'),
@@ -70,7 +68,7 @@ class PowerProfilesToggle extends QuickMenuToggle {
 
         this._profileSection = new Shell.PopupMenuSection();
         this.menu.add_menu_item(this._profileSection);
-        this.menu.setHeader('power-profile-balanced-symbolic', C_('Quick settings menu header', 'Power Mode'));
+        this.menu.set_header('power-profile-balanced-symbolic', C_('Quick settings menu header', 'Power Mode'));
         this.menu.add_menu_item(new Shell.PopupSeparatorMenuItem());
         this.menu.add_settings_action(_('Power Settings'),
             'gnome-power-panel.desktop');

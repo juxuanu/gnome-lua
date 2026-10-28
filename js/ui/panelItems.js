@@ -7,7 +7,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Config from '../misc/config.js';
-import {QuickSettingsMenu} from './quickSettings.js';
 import * as Main from './main.js';
 import * as Util from '../misc/util.js';
 
@@ -313,7 +312,10 @@ class QuickSettings extends Shell.PanelMenuButton {
         });
         this.add_child(this._indicators);
 
-        this.set_menu(new QuickSettingsMenu(this, N_QUICK_SETTINGS_COLUMNS));
+        this.set_menu(new Shell.QuickSettingsMenu({
+            source_actor: this,
+            n_columns: N_QUICK_SETTINGS_COLUMNS,
+        }));
 
         this._setupIndicators().catch(error =>
             logError(error, 'Failed to setup quick settings'));
@@ -382,7 +384,7 @@ class QuickSettings extends Shell.PanelMenuButton {
         this._indicators.add_child(this._system);
 
         // add our quick settings items before any external ones
-        const sibling = this.menu.getFirstItem();
+        const sibling = this.menu.get_first_item();
         this._addItemsBefore(this._system.get_quick_settings_items(),
             sibling, N_QUICK_SETTINGS_COLUMNS);
         this._addItemsBefore(this._volumeOutput.get_quick_settings_items(),
@@ -411,11 +413,11 @@ class QuickSettings extends Shell.PanelMenuButton {
 
         // append background apps
         this._backgroundApps.get_quick_settings_items().forEach(
-            item => this.menu.addItem(item, N_QUICK_SETTINGS_COLUMNS));
+            item => this.menu.add_item(item, N_QUICK_SETTINGS_COLUMNS));
     }
 
     _addItemsBefore(items, sibling, colSpan = 1) {
-        items.forEach(item => this.menu.insertItemBefore(item, sibling, colSpan));
+        items.forEach(item => this.menu.insert_item_before(item, sibling, colSpan));
     }
 
     /**

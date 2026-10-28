@@ -6,8 +6,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {QuickMenuToggle} from '../quickSettings.js';
-
 const BUS_NAME = 'org.gnome.SettingsDaemon.Power';
 const OBJECT_PATH = '/org/gnome/SettingsDaemon/Power';
 
@@ -146,7 +144,7 @@ const DiscreteItem = GObject.registerClass({
 });
 
 const KeyboardBrightnessToggle = GObject.registerClass(
-class KeyboardBrightnessToggle extends QuickMenuToggle {
+class KeyboardBrightnessToggle extends Shell.QuickMenuToggle {
     _init() {
         super._init({
             title: _('Keyboard'),

@@ -10,8 +10,6 @@ import UPower from 'gi://UPowerGlib';
 
 import * as Main from '../main.js';
 
-import {QuickSettingsItem, QuickToggle} from '../quickSettings.js';
-
 const BUS_NAME = 'org.freedesktop.UPower';
 const OBJECT_PATH = '/org/freedesktop/UPower/devices/DisplayDevice';
 
@@ -26,7 +24,7 @@ const PowerToggle = GObject.registerClass({
             GObject.ParamFlags.READWRITE,
             ''),
     },
-}, class PowerToggle extends QuickToggle {
+}, class PowerToggle extends Shell.QuickToggle {
     _init() {
         super._init({
             accessible_role: Atk.Role.PUSH_BUTTON,
@@ -44,7 +42,7 @@ const PowerToggle = GObject.registerClass({
             });
 
         this.bind_property('fallback-icon-name',
-            this._icon, 'fallback-icon-name',
+            this.get_icon(), 'fallback-icon-name',
             GObject.BindingFlags.SYNC_CREATE);
 
         this.connect('clicked', () => {
@@ -104,7 +102,7 @@ const PowerToggle = GObject.registerClass({
 });
 
 const ScreenshotItem = GObject.registerClass(
-class ScreenshotItem extends QuickSettingsItem {
+class ScreenshotItem extends Shell.QuickSettingsItem {
     _init() {
         super._init({
             style_class: 'icon-button',
@@ -127,7 +125,7 @@ class ScreenshotItem extends QuickSettingsItem {
 });
 
 const SettingsItem = GObject.registerClass(
-class SettingsItem extends QuickSettingsItem {
+class SettingsItem extends Shell.QuickSettingsItem {
     _init() {
         super._init({
             style_class: 'icon-button',
@@ -161,7 +159,7 @@ class SettingsItem extends QuickSettingsItem {
 });
 
 const ShutdownItem = GObject.registerClass(
-class ShutdownItem extends QuickSettingsItem {
+class ShutdownItem extends Shell.QuickSettingsItem {
     _init() {
         super._init({
             style_class: 'icon-button',
@@ -174,7 +172,7 @@ class ShutdownItem extends QuickSettingsItem {
         this._systemActions = Shell.SystemActions.get_default();
         this._items = [];
 
-        this.menu.setHeader('system-shutdown-symbolic', C_('title', 'Power Off'));
+        this.menu.set_header('system-shutdown-symbolic', C_('title', 'Power Off'));
 
         this._addSystemAction(_('Suspend'), 'can-suspend', () => {
             this._systemActions.activate_suspend();
@@ -236,7 +234,7 @@ class ShutdownItem extends QuickSettingsItem {
 });
 
 const LockItem = GObject.registerClass(
-class LockItem extends QuickSettingsItem {
+class LockItem extends Shell.QuickSettingsItem {
     _init() {
         this._systemActions = Shell.SystemActions.get_default();
 
@@ -259,7 +257,7 @@ class LockItem extends QuickSettingsItem {
 
 
 const SystemItem = GObject.registerClass(
-class SystemItem extends QuickSettingsItem {
+class SystemItem extends Shell.QuickSettingsItem {
     _init() {
         super._init({
             style_class: 'quick-settings-system-item',

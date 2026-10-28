@@ -13,8 +13,6 @@ import * as Main from '../main.js';
 import * as Signals from '../../misc/signals.js';
 import * as Util from '../../misc/util.js';
 
-import {QuickMenuToggle} from '../quickSettings.js';
-
 import {registerDestroyableType} from '../../misc/signalTracker.js';
 
 Gio._promisify(Gio.DBusConnection.prototype, 'call');
@@ -1380,7 +1378,7 @@ const NMToggle = GObject.registerClass({
     Signals: {
         'activation-failed': {},
     },
-}, class NMToggle extends QuickMenuToggle {
+}, class NMToggle extends Shell.QuickMenuToggle {
     constructor() {
         super();
 
@@ -1544,7 +1542,7 @@ class NMVpnToggle extends NMToggle {
     constructor() {
         super();
 
-        this.menu.setHeader('network-vpn-symbolic', _('VPN'));
+        this.menu.set_header('network-vpn-symbolic', _('VPN'));
         this.menuButtonAccessibleName = _('Open VPN menu');
         this.menu.add_settings_action(_('VPN Settings'),
             'gnome-network-panel.desktop');
@@ -1807,9 +1805,9 @@ class NMWirelessToggle extends NMDeviceToggle {
                 this._stopScanning();
         }, this);
 
-        this.menu.setHeader('network-wireless-symbolic', _('Wi–Fi'));
+        this.menu.set_header('network-wireless-symbolic', _('Wi–Fi'));
         this.menuButtonAccessibleName = _('Open Wi–Fi menu');
-        this.menu.addHeaderSuffix(this._scanningSpinner);
+        this.menu.add_header_suffix(this._scanningSpinner);
         this.menu.add_settings_action(_('All Networks'),
             'gnome-wifi-panel.desktop');
     }
@@ -1920,7 +1918,7 @@ class NMWiredToggle extends NMDeviceToggle {
     constructor() {
         super(NM.DeviceType.ETHERNET);
 
-        this.menu.setHeader('network-wired-symbolic', _('Wired Connections'));
+        this.menu.set_header('network-wired-symbolic', _('Wired Connections'));
         this.menuButtonAccessibleName = _('Open wired connections menu');
         this.menu.add_settings_action(_('Wired Settings'),
             'gnome-network-panel.desktop');
@@ -1936,7 +1934,7 @@ class NMBluetoothToggle extends NMDeviceToggle {
     constructor() {
         super(NM.DeviceType.BT);
 
-        this.menu.setHeader('network-cellular-symbolic', _('Bluetooth Tethers'));
+        this.menu.set_header('network-cellular-symbolic', _('Bluetooth Tethers'));
         this.menuButtonAccessibleName = _('Open Bluetooth tethers menu');
         this.menu.add_settings_action(_('Bluetooth Settings'),
             'gnome-network-panel.desktop');
@@ -1957,7 +1955,7 @@ class NMModemToggle extends NMDeviceToggle {
     constructor() {
         super(NM.DeviceType.MODEM);
 
-        this.menu.setHeader('network-cellular-symbolic', _('Mobile Connections'));
+        this.menu.set_header('network-cellular-symbolic', _('Mobile Connections'));
         this.menuButtonAccessibleName = _('Open mobile connections menu');
 
         const settingsLabel = _('Mobile Broadband Settings');

@@ -4,10 +4,8 @@ import Shell from 'gi://Shell';
 
 import * as Main from '../main.js';
 
-import {QuickToggle} from '../quickSettings.js';
-
 const DarkModeToggle = GObject.registerClass(
-class DarkModeToggle extends QuickToggle {
+class DarkModeToggle extends Shell.QuickToggle {
     _init() {
         super._init({
             title: _('Dark Style'),

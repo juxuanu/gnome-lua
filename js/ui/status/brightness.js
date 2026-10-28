@@ -3,7 +3,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {QuickSlider} from '../quickSettings.js';
 import * as Main from '../main.js';
 import {registerDestroyableType} from '../../misc/signalTracker.js';
 
@@ -51,7 +50,7 @@ class BrightnessSliderMenu extends Shell.PopupMenuSection {
 }
 
 const BrightnessItem = GObject.registerClass(
-class BrightnessItem extends QuickSlider {
+class BrightnessItem extends Shell.QuickSlider {
     _init() {
         super._init({
             iconName: 'display-brightness-symbolic',
@@ -60,7 +59,7 @@ class BrightnessItem extends QuickSlider {
 
         this.slider.accessible_name = BRIGHTNESS_NAME;
 
-        this.menu.setHeader('display-brightness-symbolic', BRIGHTNESS_NAME);
+        this.menu.set_header('display-brightness-symbolic', BRIGHTNESS_NAME);
         this._monitorBrightnessSection = new BrightnessSliderMenu();
         this.menu.add_menu_item(this._monitorBrightnessSection);
 

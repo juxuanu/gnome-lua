@@ -9,8 +9,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {QuickMenuToggle} from '../quickSettings.js';
-
 const {AdapterState} = GnomeBluetooth;
 
 const BUS_NAME = 'org.gnome.SettingsDaemon.Rfkill';
@@ -267,14 +265,14 @@ class BluetoothDeviceItem extends Shell.PopupBaseMenuItem {
 });
 
 const BluetoothToggle = GObject.registerClass(
-class BluetoothToggle extends QuickMenuToggle {
+class BluetoothToggle extends Shell.QuickMenuToggle {
     _init(client) {
         super._init({
             title: _('Bluetooth'),
             menuButtonAccessibleName: _('Open Bluetooth menu'),
         });
 
-        this.menu.setHeader('bluetooth-active-symbolic', _('Bluetooth'));
+        this.menu.set_header('bluetooth-active-symbolic', _('Bluetooth'));
 
         this._deviceItems = new Map();
         this._deviceSection = new Shell.PopupMenuSection();

@@ -257,6 +257,18 @@ Clutter.Actor.prototype[Symbol.iterator] = function* () {
     defaultAnimate(Shell.BoxPointer, 'close', [null]);
 }
 
+// gnome-lua: `QuickToggleMenu.setHeader (icon, title, subtitle = '')` took an
+// icon name or a Gio.Icon and an optional subtitle.
+{
+    const origSetHeader = Shell.QuickToggleMenu.prototype.set_header;
+    Shell.QuickToggleMenu.prototype.set_header = function (icon, title, subtitle = '') {
+        if (icon instanceof Gio.Icon)
+            this.set_header_gicon(icon, title, subtitle);
+        else
+            origSetHeader.call(this, icon, title, subtitle);
+    };
+}
+
 // gnome-lua: the reason of the destruction of notifications and sources was
 // optional and defaulted to DISMISSED.
 {

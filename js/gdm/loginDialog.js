@@ -36,7 +36,6 @@ import * as Settings from './settings.js';
 import * as Main from '../ui/main.js';
 import * as Realmd from './realmd.js';
 import * as UserWidget from '../ui/userWidget.js';
-import {QuickSettingsMenu} from '../ui/quickSettings.js';
 import {MessageType} from './userVerifier.js';
 import * as A11y from '../ui/status/accessibility.js';
 
@@ -330,18 +329,21 @@ class A11yMenuButton extends St.Button {
             can_focus: true,
         });
 
-        this._menu = new QuickSettingsMenu(this, N_A11Y_MENU_COLUMNS);
+        this._menu = new Shell.QuickSettingsMenu({
+            source_actor: this,
+            n_columns: N_A11Y_MENU_COLUMNS,
+        });
 
-        this._menu.addItem(new A11y.HighContrastToggle());
-        this._menu.addItem(new A11y.MagnifierToggle());
-        this._menu.addItem(new A11y.LargeTextToggle());
-        this._menu.addItem(new A11y.ScreenReaderToggle());
-        this._menu.addItem(new A11y.ScreenKeyboardToggle());
-        this._menu.addItem(new A11y.VisualBellToggle());
-        this._menu.addItem(new A11y.StickyKeysToggle());
-        this._menu.addItem(new A11y.SlowKeysToggle());
-        this._menu.addItem(new A11y.BounceKeysToggle());
-        this._menu.addItem(new A11y.MouseKeysToggle());
+        this._menu.add_item(new A11y.HighContrastToggle(), 1);
+        this._menu.add_item(new A11y.MagnifierToggle(), 1);
+        this._menu.add_item(new A11y.LargeTextToggle(), 1);
+        this._menu.add_item(new A11y.ScreenReaderToggle(), 1);
+        this._menu.add_item(new A11y.ScreenKeyboardToggle(), 1);
+        this._menu.add_item(new A11y.VisualBellToggle(), 1);
+        this._menu.add_item(new A11y.StickyKeysToggle(), 1);
+        this._menu.add_item(new A11y.SlowKeysToggle(), 1);
+        this._menu.add_item(new A11y.BounceKeysToggle(), 1);
+        this._menu.add_item(new A11y.MouseKeysToggle(), 1);
 
         Main.uiGroup.add_child(this._menu.actor);
         this._menu.actor.hide();

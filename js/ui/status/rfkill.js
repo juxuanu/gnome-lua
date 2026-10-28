@@ -3,8 +3,6 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
-import {QuickToggle} from '../quickSettings.js';
-
 const BUS_NAME = 'org.gnome.SettingsDaemon.Rfkill';
 const OBJECT_PATH = '/org/gnome/SettingsDaemon/Rfkill';
 
@@ -90,7 +88,7 @@ export function getRfkillManager() {
 }
 
 const RfkillToggle = GObject.registerClass(
-class RfkillToggle extends QuickToggle {
+class RfkillToggle extends Shell.QuickToggle {
     _init() {
         super._init({
             title: _('Airplane Mode'),

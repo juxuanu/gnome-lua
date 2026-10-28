@@ -2,10 +2,8 @@ import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
-import {QuickToggle} from '../quickSettings.js';
-
 const RotationToggle = GObject.registerClass(
-class RotationToggle extends QuickToggle {
+class RotationToggle extends Shell.QuickToggle {
     _init() {
         this._systemActions = Shell.SystemActions.get_default();
 

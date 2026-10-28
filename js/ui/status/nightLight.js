@@ -3,8 +3,6 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
-import {QuickToggle} from '../quickSettings.js';
-
 const BUS_NAME = 'org.gnome.SettingsDaemon.Color';
 const OBJECT_PATH = '/org/gnome/SettingsDaemon/Color';
 
@@ -12,7 +10,7 @@ const ColorInterface = Shell.dbus_load_interface_xml('org.gnome.SettingsDaemon.C
 const colorInfo = Gio.DBusInterfaceInfo.new_for_xml(ColorInterface);
 
 const NightLightToggle = GObject.registerClass(
-class NightLightToggle extends QuickToggle {
+class NightLightToggle extends Shell.QuickToggle {
     _init() {
         super._init({
             title: _('Night Light'),

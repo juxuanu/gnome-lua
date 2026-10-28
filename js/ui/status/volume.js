@@ -7,8 +7,6 @@ import Shell from 'gi://Shell';
 
 import * as Main from '../main.js';
 
-import {QuickSlider} from '../quickSettings.js';
-
 const ALLOW_AMPLIFIED_VOLUME_KEY = 'allow-volume-above-100-percent';
 const UNMUTE_DEFAULT_VOLUME = 0.25;
 
@@ -33,7 +31,7 @@ const StreamSlider = GObject.registerClass({
     Signals: {
         'stream-updated': {},
     },
-}, class StreamSlider extends QuickSlider {
+}, class StreamSlider extends Shell.QuickSlider {
     _init(control) {
         super._init({
             icon_reactive: true,
@@ -314,7 +312,7 @@ class OutputStreamSlider extends StreamSlider {
             'audio-volume-overamplified-symbolic',
         ];
 
-        this.menu.setHeader('audio-headphones-symbolic', _('Sound Output'));
+        this.menu.set_header('audio-headphones-symbolic', _('Sound Output'));
         this.menuButtonAccessibleName = _('Open sound output menu');
     }
 
@@ -391,7 +389,7 @@ class InputStreamSlider extends StreamSlider {
             'microphone-sensitivity-high-symbolic',
         ];
 
-        this.menu.setHeader('audio-input-microphone-symbolic', _('Sound Input'));
+        this.menu.set_header('audio-input-microphone-symbolic', _('Sound Input'));
         this.menuButtonAccessibleName = _('Open sound input menu');
     }
 
