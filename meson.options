@@ -16,6 +16,12 @@ option('gtk_doc',
   description: 'Build API reference'
 )
 
+option('introspection',
+  type: 'boolean',
+  value: true,
+  description: 'Generate the GObject Introspection data of libshell and libst (the API reference is built from it) and install the typelibs. The shell does not need it at run time any more'
+)
+
 option('man',
   type: 'boolean',
   value: true,

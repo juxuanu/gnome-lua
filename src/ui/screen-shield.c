@@ -18,9 +18,9 @@
  *  - org.gnome.ScreenSaver is exported by the #ShellScreenSaverService the
  *    shield creates, as before.
  *  - The time limits manager (`Main.timeLimitsManager`) is the
- *    :time-limits-manager property, which main.js sets once it exists.
+ *    :time-limits-manager property, which ShellMain sets once it exists.
  *  - The dialog is created from the value of #ShellSessionMode:unlock-dialog
- *    (`Main.getUnlockDialogClass ()` of main.js): ShellLoginDialog for
+ *    (`Main.getUnlockDialogClass ()` of ShellMain): ShellLoginDialog for
  *    `login-dialog`, ShellUnlockDialog for `unlock-dialog`.
  *  - Failing to reach the session manager or logind is a message (the JS
  *    logged the exception), and nothing runs after ShellGlobal::shutdown.
@@ -1472,7 +1472,7 @@ shell_screen_shield_class_init (ShellScreenShieldClass *klass)
    * ShellScreenShield:time-limits-manager:
    *
    * The #ShellTimeLimitsManager (`Main.timeLimitsManager`) whose
-   * :should-lock-session blocks the unlocking. main.js sets it once the
+   * :should-lock-session blocks the unlocking. ShellMain sets it once the
    * manager exists.
    */
   props[PROP_TIME_LIMITS_MANAGER] =

@@ -98,7 +98,7 @@ an unknown value like `other`.
 
 | Key | Values |
 |---|---|
-| `overview.showing` `reason` | `hot-corner` (`layout.c` hot corner, handled in `overview.c`), `activities-button` (`panelItems.js`), `overlay-key`, `keybinding`, `gesture`, `drag`, `dbus` (`shell-dbus.c`, via `main.js`), `other` |
+| `overview.showing` `reason` | `hot-corner` (`layout.c` hot corner, handled in `overview.c`), `activities-button` (`panel-items.c`), `overlay-key`, `keybinding`, `gesture`, `drag`, `dbus` (`shell-dbus.c`, via `main.js`), `other` |
 | `overview.hiding` `reason` | the values above, plus `escape`, `window-activated` (`Main.activateWindow`), `app-launched`, `search`, `session` (session mode change or lock) |
 | `target` | `window-picker`, `app-grid` |
 

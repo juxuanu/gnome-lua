@@ -8,10 +8,10 @@
  * docs/PORT_STATUS.md:
  *
  *  - "Take Screenshot" does not reach the screenshot module (screenshot-ui.c)
- *    itself. The window is painted here and the texture is handed to main.js
+ *    itself. The window is painted here and the texture is handed to ShellMain
  *    through the #ShellWindowMenuManager::screenshot-requested signal, which
  *    window-manager.c forwards as #ShellWindowManager::screenshot-requested
- *    and main.js connects to shell_screenshot_capture_screenshot_async ().
+ *    and ShellMain connects to shell_screenshot_capture_screenshot_async ().
  *  - `Main.layoutManager` and `Main.sessionMode` are read from #ShellMain.
  *  - A window menu type other than %META_WINDOW_MENU_WM logs a warning
  *    instead of throwing.

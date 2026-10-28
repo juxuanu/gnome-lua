@@ -15,7 +15,7 @@
  *  - `Main.overview` and `Main.xdndHandler` drag signals are the property
  *    #ShellMessageTray:dragging, and the `focus-active-notification`
  *    keybinding of `Main.wm` calls
- *    shell_message_tray_expand_active_notification (); main.js connects both.
+ *    shell_message_tray_expand_active_notification (); ShellMain connects both.
  *  - `getSystemSource ()` is a method of the tray, as the singleton needs the
  *    tray to register the source.
  *  - Hooks (docs/api/hooks.md): `notification.showing` (cancellable) before a
@@ -4639,7 +4639,7 @@ out:
  * @self: a #ShellMessageTray
  *
  * Expands the banner that is shown and moves the focus to it. This is what
- * the `focus-active-notification` keybinding does; main.js installs the
+ * the `focus-active-notification` keybinding does; ShellMain installs the
  * keybinding.
  */
 void
@@ -5071,7 +5071,7 @@ shell_message_tray_class_init (ShellMessageTrayClass *klass)
    * ShellMessageTray:banner-alignment:
    *
    * Where the banners are placed along the top of the monitor. The panel
-   * aligns them with the date menu; main.js forwards
+   * aligns them with the date menu; ShellMain forwards
    * #ShellPanel:banner-alignment.
    */
   tray_props[TRAY_PROP_BANNER_ALIGNMENT] =
@@ -5086,7 +5086,7 @@ shell_message_tray_class_init (ShellMessageTrayClass *klass)
    * ShellMessageTray:banner-blocked:
    *
    * Whether banners are held back, for example while a menu is open in the
-   * same box of the top bar. main.js forwards #ShellPanel:banner-blocked.
+   * same box of the top bar. ShellMain forwards #ShellPanel:banner-blocked.
    */
   tray_props[TRAY_PROP_BANNER_BLOCKED] =
     g_param_spec_boolean ("banner-blocked", NULL, NULL,
@@ -5109,7 +5109,7 @@ shell_message_tray_class_init (ShellMessageTrayClass *klass)
    * ShellMessageTray:dragging:
    *
    * Whether a drag is going on, in the overview or from another application.
-   * The tray is hidden from the pick meanwhile; main.js sets it from the drag
+   * The tray is hidden from the pick meanwhile; ShellMain sets it from the drag
    * signals of the overview and of the Xdnd handler.
    */
   tray_props[TRAY_PROP_DRAGGING] =
@@ -5189,7 +5189,7 @@ shell_message_tray_init (ShellMessageTray *self)
  * shell_message_tray_new:
  *
  * Creates the message tray (`new MessageTray ()`). It adds itself to the
- * chrome of the layout manager of #ShellMain, which main.js creates first.
+ * chrome of the layout manager of #ShellMain, which ShellMain creates first.
  *
  * Returns: (transfer full): a new #ShellMessageTray
  */

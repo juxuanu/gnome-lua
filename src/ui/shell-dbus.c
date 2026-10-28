@@ -17,14 +17,14 @@
  *  - #ShellBrightnessService: org.gnome.Shell.Brightness (BrightnessDBus).
  *
  * The overview and the window manager are JS: the JS code that reached them
- * is a signal of the service, connected by js/ui/main.js. The screen shield
+ * is a signal of the service, connected by src/ui/main.c. The screen shield
  * (src/ui/screen-shield.c) connects to the signals of the ScreenSaver
  * service. The methods of those interfaces
  * that return a value use signals with a return value or, when the answer
  * comes later (Eval), hand the #GDBusMethodInvocation to the handler. The
  * extension service calls the extension manager of extension-system.c
  * directly. The JS also created the Screenshot service in the constructor of
- * GnomeShell, js/ui/main.js does it now.
+ * GnomeShell, src/ui/main.c does it now.
  *
  * Differences with the JS version:
  *
@@ -32,7 +32,7 @@
  *    (the JS getter did not notify);
  *  - org.gnome.Shell.Brightness does not emit PropertiesChanged for
  *    HasBrightnessControl when the service is created;
- *  - setting OverviewActive over D-Bus asks main.js to show or hide the
+ *  - setting OverviewActive over D-Bus asks ShellMain to show or hide the
  *    overview, and the property only changes when the overview has; a
  *    skeleton property is written first by the D-Bus call, so it is put back
  *    to its previous value before the request (nothing is emitted for that);
@@ -916,7 +916,7 @@ shell_dbus_service_get_overview_active (ShellDBusService *self)
  * @self: a #ShellDBusService
  * @active: whether the overview is visible
  *
- * Updates the OverviewActive property; js/ui/main.js calls it when the
+ * Updates the OverviewActive property; src/ui/main.c calls it when the
  * overview is showing or hidden.
  */
 void
@@ -1242,7 +1242,7 @@ shell_dbus_service_init (ShellDBusService *self)
  * shell_dbus_service_new:
  *
  * Creates the service and exports org.gnome.Shell at /org/gnome/Shell on the
- * session bus. js/ui/main.js creates the only instance.
+ * session bus. src/ui/main.c creates the only instance.
  *
  * Returns: (transfer full): a new #ShellDBusService
  */
@@ -1655,7 +1655,7 @@ shell_dbus_extensions_service_init (ShellDBusExtensionsService *self)
  * @manager: the extension manager
  *
  * Creates the service and exports org.gnome.Shell.Extensions at
- * /org/gnome/Shell on the session bus. js/ui/main.js creates the only
+ * /org/gnome/Shell on the session bus. src/ui/main.c creates the only
  * instance.
  *
  * Returns: (transfer full): a new #ShellDBusExtensionsService
@@ -2131,7 +2131,7 @@ shell_screen_time_service_init (ShellScreenTimeService *self)
  *   `last-break-end-time` (uint64) properties
  *
  * Creates the service and exports org.gnome.Shell.ScreenTime at
- * /org/gnome/Shell/ScreenTime on the session bus. js/ui/main.js creates the
+ * /org/gnome/Shell/ScreenTime on the session bus. src/ui/main.c creates the
  * only instance.
  *
  * Returns: (transfer full): a new #ShellScreenTimeService
@@ -2338,7 +2338,7 @@ shell_brightness_service_init (ShellBrightnessService *self)
  *
  * Creates the service, exports org.gnome.Shell.Brightness at
  * /org/gnome/Shell/Brightness and owns org.gnome.Shell.Brightness on the
- * session bus. js/ui/main.js creates the only instance.
+ * session bus. src/ui/main.c creates the only instance.
  *
  * Returns: (transfer full): a new #ShellBrightnessService
  */

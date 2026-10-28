@@ -44,11 +44,6 @@ if get_option('extensions_tool')
   )
 endif
 
-typelib_cflags = [
-  '-DMUTTER_TYPELIB_DIR="@0@"'.format(mutter_typelibdir),
-  '-DSHELL_TYPELIB_DIR="@0@"'.format(pkglibdir),
-]
-
 gnome_shell_cflags = [
   '-DCLUTTER_ENABLE_EXPERIMENTAL_API',
   '-DCOGL_ENABLE_EXPERIMENTAL_API',
@@ -56,6 +51,7 @@ gnome_shell_cflags = [
   '-DLOCALEDIR="@0@"'.format(localedir),
   '-DDATADIR="@0@"'.format(datadir),
   '-DGNOME_SHELL_LIBEXECDIR="@0@"'.format(libexecdir),
+  '-DMUTTER_TEST_LIBRARY="libmutter-test-@0@.so"'.format(mutter_api_version),
   '-DGNOME_SHELL_DATADIR="@0@"'.format(pkgdatadir),
   '-DGNOME_SHELL_PKGLIBDIR="@0@"'.format(pkglibdir)
 ]
@@ -68,10 +64,8 @@ gnome_shell_deps = [
   atk_bridge_dep,
   atspi_dep,
   gdk_pixbuf_dep,
-  gjs_dep,
   mtk_dep,
   clutter_dep,
-  gi_dep,
   polkit_dep,
   gcr_dep,
   libsystemd_dep,
@@ -86,7 +80,6 @@ endif
 gnome_shell_deps += nm_deps
 
 tools_cflags = '-DLOCALEDIR="@0@"'.format(localedir)
-tools_deps = [gio_dep, gjs_dep]
 
 libshell_menu_sources = [
   'gtkactionmuxer.h',
@@ -283,6 +276,7 @@ libshell_private_headers = [
   'shell-app-cache-private.h',
   'shell-app-system-private.h',
   'shell-global-private.h',
+  'shell-test-runner.h',
   'shell-wm-private.h',
   'gdm/auth-services.h',
   'gdm/auth-services-legacy.h',
@@ -296,9 +290,11 @@ libshell_private_headers = [
   'gdm/login-dialog.h',
   'gdm/web-login.h',
   'ui/unlock-dialog.h',
+  'ui/components.h',
   'ui/deferred-work.h',
   'ui/extension-downloader.h',
-  'ui/extension-system-private.h'
+  'ui/extension-system-private.h',
+  'ui/panel-items.h'
 ]
 
 if have_xwayland
@@ -483,6 +479,7 @@ endif
 
 libshell_private_sources = [
   'shell-app-cache.c',
+  'shell-test-runner.c',
   'gdm/auth-services.c',
   'gdm/auth-services-legacy.c',
   'gdm/auth-services-sssd-switchable.c',
@@ -495,8 +492,10 @@ libshell_private_sources = [
   'gdm/login-dialog.c',
   'gdm/web-login.c',
   'ui/unlock-dialog.c',
+  'ui/components.c',
   'ui/deferred-work.c',
   'ui/extension-downloader.c',
+  'ui/panel-items.c',
 ]
 
 libshell_enums = gnome.mkenums_simple('shell-enum-types',
@@ -544,7 +543,6 @@ libshell_gir_sources = [
 ]
 
 libshell_no_gir_sources = [
-  js_resources,
   libshell_private_headers,
   libshell_private_sources
 ]
@@ -861,43 +859,50 @@ libshell_dep = declare_dependency(
   include_directories: [include_directories('tray')],
 )
 
-libshell_gir_includes = [
-  'AccountsService-1.0',
-  'Atspi-2.0',
-  'Clutter-@0@'.format(mutter_api_version),
-  'Meta-@0@'.format(mutter_api_version),
-  'Gcr-4',
-  'Gdm-1.0',
-  'GioUnix-2.0',
-  'GnomeDesktop-4.0',
-  'IBus-1.0',
-  'GWeather-4.0',
-  'PolkitAgent-1.0',
-  'GdkPixbuf-2.0'
-]
+# Nothing loads the typelibs at run time any more (GJS is gone); the GIR is
+# kept for the API reference (docs/reference) and for downstreams that want
+# the bindings. -Dintrospection=false skips it.
+if get_option('introspection')
+  libshell_gir_includes = [
+    'AccountsService-1.0',
+    'Atspi-2.0',
+    'Clutter-@0@'.format(mutter_api_version),
+    'Meta-@0@'.format(mutter_api_version),
+    'Gcr-4',
+    'Gdm-1.0',
+    'GioUnix-2.0',
+    'GnomeDesktop-4.0',
+    'IBus-1.0',
+    'GWeather-4.0',
+    'PolkitAgent-1.0',
+    'GdkPixbuf-2.0'
+  ]
 
-if have_networkmanager
-  libshell_gir_includes += ['NM-1.0']
+  if have_networkmanager
+    libshell_gir_includes += ['NM-1.0']
+  endif
+
+  libshell_gir_includes += [
+    libgvc_gir[0],
+    libshell_lua_gir[0],
+    libst_gir[0]
+  ]
+
+  libshell_gir = gnome.generate_gir(libshell,
+    sources: libshell_gir_sources,
+    nsversion: mutter_api_version,
+    namespace: 'Shell',
+    includes: libshell_gir_includes,
+    dependencies: [libgvc_dep],
+    extra_args: ['--quiet'],
+    kwargs: introspection_common,
+  )
+else
+  libshell_gir = []
 endif
 
-libshell_gir_includes += [
-  libgvc_gir[0],
-  libshell_lua_gir[0],
-  libst_gir[0]
-]
-
-libshell_gir = gnome.generate_gir(libshell,
-  sources: libshell_gir_sources,
-  nsversion: mutter_api_version,
-  namespace: 'Shell',
-  includes: libshell_gir_includes,
-  dependencies: [libgvc_dep],
-  extra_args: ['--quiet'],
-  kwargs: introspection_common,
-)
-
 gnome_shell_binary = executable('gnome-shell', 'main.c',
-  c_args: gnome_shell_cflags + typelib_cflags,
+  c_args: gnome_shell_cflags,
   dependencies: gnome_shell_deps + [libshell_dep, libst_dep, mutter_dep],
   include_directories: [conf_inc],
   build_rpath: mutter_typelibdir,
@@ -918,16 +923,9 @@ if have_portal_helper
   )
 endif
 
-gnome_shell_perf_helper = executable('gnome-shell-perf-helper', 'shell-perf-helper.c', js_resources,
+gnome_shell_perf_helper = executable('gnome-shell-perf-helper', 'shell-perf-helper.c',
   dependencies: [gtk_dep, gio_dep, m_dep],
   include_directories: [conf_inc],
   install_dir: libexecdir,
   install: true
-)
-
-run_test = executable('run-js-test', 'run-js-test.c',
-  dependencies: [gio_dep, gi_dep, gjs_dep, libshell_dep],
-  c_args: typelib_cflags,
-  include_directories: [conf_inc],
-  build_rpath: mutter_typelibdir,
 )

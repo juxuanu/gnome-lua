@@ -2,7 +2,7 @@
 /*
  * deferred-work.h: Work that an actor does when it is mapped or, if it never
  * is, after a while. The C counterpart of `Main.initializeDeferredWork ()`
- * and `Main.queueDeferredWork ()` of js/ui/main.js, for the C modules that
+ * and `Main.queueDeferredWork ()` of src/ui/main.c, for the C modules that
  * used them (the application grid and the dash). Private to libshell.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later

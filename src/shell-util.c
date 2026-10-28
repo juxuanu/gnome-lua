@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -19,10 +20,14 @@
 #include "shell-app-cache-private.h"
 #include "shell-global.h"
 #include "shell-util.h"
+#include "ui/main.h"
 #include <glib/gi18n-lib.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <meta/meta-context.h>
 #include <meta/display.h>
+
+#define GNOME_DESKTOP_USE_UNSTABLE_API
+#include <libgnome-desktop/gnome-systemd.h>
 #ifdef HAVE_XWAYLAND
 #include <meta/meta-x11-display.h>
 #endif
@@ -1015,4 +1020,396 @@ shell_util_spawn_async (const char          *working_directory,
 {
   return shell_util_spawn_async_with_pipes (working_directory, argv, envp,
                                             flags, NULL, NULL, NULL, error);
+}
+
+/*
+ * _GNOMEversionToNumber (): like Number() but returns sortable values for the
+ * special-cases 'alpha', 'beta' and 'rc'. Returns NaN for unhandled
+ * 'versions'.
+ */
+static double
+gnome_version_to_number (const char *version)
+{
+  char *end = NULL;
+  double ret;
+
+  if (*version != '\0')
+    {
+      ret = g_ascii_strtod (version, &end);
+      if (*end == '\0')
+        return ret;
+    }
+
+  if (strcmp (version, "alpha") == 0)
+    return -3;
+  if (strcmp (version, "beta") == 0)
+    return -2;
+  if (strcmp (version, "rc") == 0)
+    return -1;
+
+  return NAN;
+}
+
+/**
+ * shell_util_gnome_version_compare:
+ * @version1: a string containing a GNOME version
+ * @version2: a string containing another GNOME version
+ *
+ * Compares two GNOME versions, where the pre-release names `alpha`, `beta`
+ * and `rc` sort before a number (`GNOMEversionCompare ()` of util.js).
+ *
+ * Returns: an integer less than, equal to, or greater than zero, if
+ *   @version1 is older, equal or newer than @version2
+ */
+int
+shell_util_gnome_version_compare (const char *version1,
+                                  const char *version2)
+{
+  g_auto (GStrv) v1_array = NULL;
+  g_auto (GStrv) v2_array = NULL;
+  guint v1_length, v2_length, i;
+
+  g_return_val_if_fail (version1 != NULL, 0);
+  g_return_val_if_fail (version2 != NULL, 0);
+
+  v1_array = g_strsplit (version1, ".", -1);
+  v2_array = g_strsplit (version2, ".", -1);
+  v1_length = g_strv_length (v1_array);
+  v2_length = g_strv_length (v2_array);
+
+  for (i = 0; i < MAX (v1_length, v2_length); i++)
+    {
+      const char *elem1 = i < v1_length && *v1_array[i] != '\0' ? v1_array[i] : "0";
+      const char *elem2 = i < v2_length && *v2_array[i] != '\0' ? v2_array[i] : "0";
+      double number1 = gnome_version_to_number (elem1);
+      double number2 = gnome_version_to_number (elem2);
+
+      if (number1 < number2)
+        return -1;
+      if (number1 > number2)
+        return 1;
+    }
+
+  return 0;
+}
+
+/*
+ * lowerBound (): the position of the first element that is not lower than
+ * @val according to @cmp. This is quite like an ordinary binary search,
+ * except that it doesn't stop at the first element comparing equal.
+ */
+static guint
+lower_bound (GPtrArray   *array,
+             gpointer     val,
+             GCompareFunc cmp)
+{
+  guint min = 0;
+  guint max = array->len;
+
+  while (min < max)
+    {
+      guint mid = min + (max - min) / 2;
+
+      if (cmp (g_ptr_array_index (array, mid), val) < 0)
+        min = mid + 1;
+      else
+        max = mid;
+    }
+
+  return min;
+}
+
+/**
+ * shell_util_insert_sorted:
+ * @array: (element-type gpointer): an array sorted according to @cmp
+ * @val: a value to insert
+ * @cmp: (scope call): the sorting function, called with an element of @array
+ *   first and @val second
+ *
+ * Inserts @val into @array, preserving the sorting invariants and placing it
+ * before the first element that compares equal (`insertSorted ()` of
+ * util.js). @cmp is not called when @array is empty.
+ *
+ * Returns: the position at which @val was inserted
+ */
+guint
+shell_util_insert_sorted (GPtrArray   *array,
+                          gpointer     val,
+                          GCompareFunc cmp)
+{
+  guint pos;
+
+  g_return_val_if_fail (array != NULL, 0);
+  g_return_val_if_fail (cmp != NULL, 0);
+
+  pos = lower_bound (array, val, cmp);
+  g_ptr_array_insert (array, pos, val);
+
+  return pos;
+}
+
+G_DEFINE_BOXED_TYPE (ShellDatadirChild, shell_datadir_child,
+                     shell_datadir_child_copy, shell_datadir_child_free)
+
+/**
+ * shell_datadir_child_copy:
+ * @child: a #ShellDatadirChild
+ *
+ * Returns: (transfer full): a copy of @child
+ */
+ShellDatadirChild *
+shell_datadir_child_copy (const ShellDatadirChild *child)
+{
+  ShellDatadirChild *copy = g_new0 (ShellDatadirChild, 1);
+
+  copy->file = g_object_ref (child->file);
+  copy->info = g_object_ref (child->info);
+
+  return copy;
+}
+
+/**
+ * shell_datadir_child_free:
+ * @child: a #ShellDatadirChild
+ *
+ * Frees @child.
+ */
+void
+shell_datadir_child_free (ShellDatadirChild *child)
+{
+  g_clear_object (&child->file);
+  g_clear_object (&child->info);
+  g_free (child);
+}
+
+/**
+ * shell_util_collect_from_datadirs:
+ * @subdir: the subdirectory to search within the data directories
+ * @include_user_dir: whether the user's data directory should also be
+ *   searched, before the system data directories
+ *
+ * Lists the children of the `gnome-shell/<subdir>` directories of the data
+ * directories, the user's first (`collectFromDatadirs ()` of fileUtils.js).
+ * Directories that cannot be read are skipped.
+ *
+ * Returns: (transfer full) (element-type ShellDatadirChild): the children
+ */
+GPtrArray *
+shell_util_collect_from_datadirs (const char *subdir,
+                                  gboolean    include_user_dir)
+{
+  g_autoptr (GPtrArray) children = NULL;
+  g_autoptr (GPtrArray) data_dirs = g_ptr_array_new ();
+  const char * const *system_dirs;
+  guint i;
+
+  g_return_val_if_fail (subdir != NULL, NULL);
+
+  children = g_ptr_array_new_with_free_func ((GDestroyNotify) shell_datadir_child_free);
+
+  if (include_user_dir)
+    g_ptr_array_add (data_dirs, (gpointer) g_get_user_data_dir ());
+
+  system_dirs = g_get_system_data_dirs ();
+  for (i = 0; system_dirs[i] != NULL; i++)
+    g_ptr_array_add (data_dirs, (gpointer) system_dirs[i]);
+
+  for (i = 0; i < data_dirs->len; i++)
+    {
+      g_autofree char *path = g_build_filename (g_ptr_array_index (data_dirs, i),
+                                                "gnome-shell", subdir, NULL);
+      g_autoptr (GFile) dir = g_file_new_for_path (path);
+      g_autoptr (GFileEnumerator) file_enum =
+        g_file_enumerate_children (dir, "standard::name,standard::type",
+                                   G_FILE_QUERY_INFO_NONE, NULL, NULL);
+      GFileInfo *info;
+
+      if (file_enum == NULL)
+        continue;
+
+      while ((info = g_file_enumerator_next_file (file_enum, NULL, NULL)) != NULL)
+        {
+          ShellDatadirChild *child = g_new0 (ShellDatadirChild, 1);
+
+          child->file = g_file_enumerator_get_child (file_enum, info);
+          child->info = info;
+          g_ptr_array_add (children, child);
+        }
+    }
+
+  return g_steal_pointer (&children);
+}
+
+static void
+spawn_child_watch_cb (GPid     pid,
+                      int      wait_status,
+                      gpointer user_data)
+{
+}
+
+/**
+ * shell_util_try_spawn:
+ * @argv: (array zero-terminated=1) (element-type filename): an argv array
+ * @error: return location for a #GError
+ *
+ * Runs @argv in the background, in a systemd scope of its own when possible
+ * (`trySpawn ()` of util.js). A command that is not found is reported as
+ * "Command not found", other failures with the part of the message of GLib
+ * in parentheses.
+ *
+ * Returns: %FALSE with @error set if launching @argv failed
+ */
+gboolean
+shell_util_try_spawn (const char * const  *argv,
+                      GError             **error)
+{
+  g_autoptr (GAppLaunchContext) launch_context = NULL;
+  g_auto (GStrv) envp = NULL;
+  g_autoptr (GError) spawn_error = NULL;
+  GPid pid;
+
+  g_return_val_if_fail (argv != NULL && argv[0] != NULL, FALSE);
+
+  launch_context = shell_global_create_app_launch_context (shell_global_get (), 0, -1);
+  envp = g_app_launch_context_get_environment (launch_context);
+
+  pid = shell_util_spawn_async (NULL, argv, (const char * const *) envp,
+                                G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD,
+                                &spawn_error);
+  if (pid == 0)
+    {
+      /* Rewrite the error in case of ENOENT */
+      if (g_error_matches (spawn_error, G_SPAWN_ERROR, G_SPAWN_ERROR_NOENT))
+        {
+          g_set_error_literal (error, G_SPAWN_ERROR, G_SPAWN_ERROR_NOENT,
+                               _("Command not found"));
+        }
+      else
+        {
+          /* The error string is like:
+           *   Failed to execute child process "foo" (No such file or directory)
+           * We are only interested in the part in the parentheses. (And
+           * we can't pattern match the text, since it gets localized.) */
+          g_autoptr (GRegex) regex = g_regex_new (".*\\((.+)\\)", 0, 0, NULL);
+          g_autofree char *message = NULL;
+
+          if (regex != NULL)
+            message = g_regex_replace (regex, spawn_error->message, -1, 0,
+                                       "\\1", 0, NULL);
+          g_set_error_literal (error, spawn_error->domain, spawn_error->code,
+                               message != NULL ? message : spawn_error->message);
+        }
+      return FALSE;
+    }
+
+  /* Async call, we don't need the reply though */
+  gnome_start_systemd_scope (argv[0], pid, NULL, NULL, NULL, NULL, NULL);
+
+  /* Dummy child watch; we don't want to double-fork internally
+   * because then we lose the parent-child relationship, which
+   * can break polkit.  See https://bugzilla.redhat.com//show_bug.cgi?id=819275 */
+  g_child_watch_add (pid, spawn_child_watch_cb, NULL);
+
+  return TRUE;
+}
+
+/**
+ * shell_util_try_spawn_command_line:
+ * @command_line: a command line
+ * @error: return location for a #GError
+ *
+ * Runs @command_line in the background (`trySpawnCommandLine ()` of util.js).
+ *
+ * Returns: %FALSE with @error set if parsing or launching @command_line
+ *   failed
+ */
+gboolean
+shell_util_try_spawn_command_line (const char  *command_line,
+                                   GError     **error)
+{
+  g_auto (GStrv) argv = NULL;
+
+  g_return_val_if_fail (command_line != NULL, FALSE);
+
+  if (!g_shell_parse_argv (command_line, NULL, &argv, error))
+    return FALSE;
+
+  return shell_util_try_spawn ((const char * const *) argv, error);
+}
+
+static void
+spawn_report_error (const char   *command,
+                    const GError *error)
+{
+  g_autofree char *title = g_strdup_printf (_("Execution of “%s” failed:"), command);
+
+  shell_main_notify_error (shell_main_get_default (), title, error->message);
+}
+
+/**
+ * shell_util_spawn:
+ * @argv: (array zero-terminated=1) (element-type filename): an argv array
+ *
+ * Runs @argv in the background, notifying the user of the errors that occur
+ * when trying to start the program (`spawn ()` of util.js).
+ */
+void
+shell_util_spawn (const char * const *argv)
+{
+  g_autoptr (GError) error = NULL;
+
+  g_return_if_fail (argv != NULL && argv[0] != NULL);
+
+  if (!shell_util_try_spawn (argv, &error))
+    spawn_report_error (argv[0], error);
+}
+
+/**
+ * shell_util_spawn_command_line:
+ * @command_line: a command line
+ *
+ * Runs @command_line in the background, notifying the user of the errors that
+ * occur when trying to parse or start the program (`spawnCommandLine ()` of
+ * util.js).
+ */
+void
+shell_util_spawn_command_line (const char *command_line)
+{
+  g_autoptr (GError) error = NULL;
+
+  g_return_if_fail (command_line != NULL);
+
+  if (!shell_util_try_spawn_command_line (command_line, &error))
+    spawn_report_error (command_line, error);
+}
+
+/**
+ * shell_util_spawn_app:
+ * @argv: (array zero-terminated=1) (element-type filename): an argv array
+ *
+ * Runs @argv as if it was an application, handling startup notification
+ * (`spawnApp ()` of util.js). The user is notified of the errors.
+ */
+void
+shell_util_spawn_app (const char * const *argv)
+{
+  g_autoptr (GError) error = NULL;
+  g_autoptr (GAppInfo) app = NULL;
+  g_autoptr (GAppLaunchContext) context = NULL;
+  g_autofree char *command_line = NULL;
+
+  g_return_if_fail (argv != NULL && argv[0] != NULL);
+
+  command_line = g_strjoinv (" ", (char **) argv);
+  app = g_app_info_create_from_commandline (command_line, NULL,
+                                            G_APP_INFO_CREATE_SUPPORTS_STARTUP_NOTIFICATION,
+                                            &error);
+  if (app != NULL)
+    {
+      context = shell_global_create_app_launch_context (shell_global_get (), 0, -1);
+      g_app_info_launch (app, NULL, G_APP_LAUNCH_CONTEXT (context), &error);
+    }
+
+  if (error != NULL)
+    spawn_report_error (argv[0], error);
 }

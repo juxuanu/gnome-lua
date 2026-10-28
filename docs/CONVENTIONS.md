@@ -82,16 +82,18 @@ static guint signals[LAST_SIGNAL] = { 0 };
 * `get_property`/`set_property` always have a `default:` that calls
   `G_OBJECT_WARN_INVALID_PROPERTY_ID`.
 
-## GI annotations (mandatory while `js/` exists)
+## GI annotations (public headers)
 
-The remaining JS imports the ported module through GI, so the `.c` must be
-annotated like the rest of `src/`: every public function gets gtk-doc comments
+No JS imports the modules any more (GJS is gone), but the GIR of libshell is
+still generated with `g-ir-scanner --warn-error` (the API reference is built
+from it), so a public header must be annotated like the rest of `src/`;
+private headers (`libshell_private_headers` in `src/meson.build`) need not be: every public function gets gtk-doc comments
 with `(transfer ...)`, `(nullable)`, `(out)`, `(element-type ...)`, `(closure)`,
 `(scope async)` as needed, and `Returns:`. Check
 the generated `Shell-*.gir` under `build/src/` after adding a function; a missing annotation is a bug
 in the port, not in the JS caller. Names JS used must stay reachable: keep
 property/signal names, and add `shell_<module>_<method>` for each public JS
-method. The annotations become optional only after M6 removes `g-ir-scanner`.
+method. The annotations become optional if the `introspection` option is ever dropped.
 
 ## Former `Main.*` singletons
 
@@ -211,7 +213,7 @@ never call extension code directly.
 * Signals with a return value cannot return a string array (`gi-docgen` crashes
   on it); return a `GVariant` (`as`) or an object.
 * glib-mkenums reads one enum value per line: no multi-line `A | B | C` values.
-* Shutdown runs a nested main loop in `main.js` (waiting for the time limits
+* Shutdown runs a nested main loop in `src/ui/main.c` (waiting for the time limits
   manager), so pending JS promises and timeouts still fire after the actors were
   destroyed; C ports must not reach destroyed actors from async completions.
 * A destroyed actor keeps its address until it is finalized, so a weak pointer

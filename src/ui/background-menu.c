@@ -243,7 +243,7 @@ background_destroy_cb (ClutterActor *actor)
  * button. The menu is destroyed along with @actor. Adding the menu to an
  * actor which already has one does nothing.
  *
- * main.js calls this for every #ShellLayoutManager::background-added.
+ * ShellMain calls this for every #ShellLayoutManager::background-added.
  */
 void
 shell_background_menu_add_to (ClutterActor       *actor,

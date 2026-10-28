@@ -3,7 +3,7 @@
  * layout.c: The stage hierarchy of the shell (the "chrome"), the monitors, the
  * hot corners and the startup animation. Port of js/ui/layout.js.
  *
- * What the JS reached through other JS modules is now a signal that main.js
+ * What the JS reached through other JS modules is now a signal that ShellMain
  * connects (it is the only part of the shell that knows all the JS objects):
  *
  *  - Main.overview.toggle () for the hot corners:
@@ -1222,7 +1222,7 @@ static void update_hot_corners (ShellLayoutManager *self);
 static void startup_resume (ShellLayoutManager *self);
 
 /* Main.sessionMode.<flag>, with a default for a shell without a session
- * mode (never in practice: main.js sets it before it creates the layout
+ * mode (never in practice: ShellMain sets it before it creates the layout
  * manager) */
 static gboolean
 session_mode_get_flag (const char *property,
@@ -2564,7 +2564,7 @@ shell_layout_manager_constructed (GObject *object)
                       meta_backend_get_monitor_manager (shell_global_get_backend (global)));
   self->monitors_changed_id = g_signal_connect (self->monitor_manager, "monitors-changed",
                                                 G_CALLBACK (monitors_changed_cb), self);
-  /* Nobody is connected to the signals yet, main.js attaches the background
+  /* Nobody is connected to the signals yet, ShellMain attaches the background
    * menus from shell_layout_manager_begin_startup () */
   monitors_changed (self);
 
@@ -3046,9 +3046,9 @@ shell_layout_manager_class_init (ShellLayoutManagerClass *klass)
    * @monitor_index: the index of the monitor
    *
    * Emitted when the background of a monitor was created, or replaced because
-   * the user changed it. main.js adds the background menu to it
+   * the user changed it. ShellMain adds the background menu to it
    * (`Shell.BackgroundMenu.add_to ()`). The backgrounds which exist
-   * before main.js connects are announced again by
+   * before ShellMain connects are announced again by
    * shell_layout_manager_begin_startup ().
    */
   signals[BACKGROUND_ADDED] =
@@ -3065,7 +3065,7 @@ shell_layout_manager_class_init (ShellLayoutManagerClass *klass)
    * @monitor_index: the monitor of the hot corner
    * @in_fullscreen: whether a fullscreen window is on the monitor
    *
-   * Emitted when the pointer pressed enough against a hot corner. main.js
+   * Emitted when the pointer pressed enough against a hot corner. ShellMain
    * toggles the overview (`Main.overview.toggle ()`), unless it is not
    * supposed to be by a corner (a fullscreen window and the overview is not
    * visible, or `shouldToggleByCornerOrButton ()` is false).
@@ -3130,7 +3130,7 @@ shell_layout_manager_init (ShellLayoutManager *self)
  * backgrounds are created, but the startup only begins with
  * shell_layout_manager_begin_startup ().
  *
- * There is a single layout manager, created by main.js.
+ * There is a single layout manager, created by ShellMain.
  *
  * Returns: (transfer full): a new #ShellLayoutManager
  */
@@ -3146,7 +3146,7 @@ shell_layout_manager_new (void)
  *
  * Starts following the session mode and runs the startup sequence: load the
  * background, emit #ShellLayoutManager::startup-prepared, run the startup
- * animation and emit #ShellLayoutManager::startup-complete. main.js calls
+ * animation and emit #ShellLayoutManager::startup-complete. ShellMain calls
  * this after everything else is constructed and connected (`layoutManager.init ()`
  * of old; the name `init` is taken by GObject).
  *
@@ -3236,7 +3236,7 @@ shell_layout_manager_hide_overview (ShellLayoutManager *self)
  * shell_layout_manager_modal_ended:
  * @self: a #ShellLayoutManager
  *
- * Called by main.js when the last modal ended, to update the regions
+ * Called by ShellMain when the last modal ended, to update the regions
  * ("We don't update the stage input region while in a modal").
  */
 void

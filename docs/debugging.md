@@ -3,36 +3,30 @@
 ## Looking Glass
 
 [Looking Glass][lg] is a built-in debugger and inspector tool that makes
-it possible to run arbitrary JS code inside the shell, visually select
+it possible to run arbitrary Lua code inside the shell, visually select
 any object from the shell's scene, and much more.
 
 It can be accessed by entering `lg` into the run dialog (Alt+F2).
 
 [lg]: looking-glass.md
 
-## JavaScript stacktraces
+## Stacktraces
 
-gnome-shell is split between C and JavaScript. It is sometimes necessary
-to debug the interaction between the two, for example when JavaScript
-code triggers a warning or crash on the C side.
+gnome-shell is C with an embedded Lua interpreter for extensions. When it
+receives a fatal signal (SIGABRT, SIGFPE, SIGTRAP, and SIGSEGV/SIGBUS with
+`SHELL_DEBUG=backtrace-segfaults`), it prints the Lua traceback of the
+extension that was running, if any, then the C stack (symbolized by the
+sanitizer in AddressSanitizer builds, `backtrace_symbols_fd ()` otherwise).
 
-In gdb, the JavaScript stacktrace can be printed with
-```
-<gdb> gjs_dumpstack()
-```
+The `SHELL_DEBUG` environment variable can be used to print the same stacks
+automatically:
 
-The `SHELL_DEBUG` environment variable can be used to print
-the JavaScript stack automatically:
+ * `backtrace-warnings`: when a warning or critical is logged
+ * `backtrace-segfaults`: on segfaults
 
- * `backtrace-warning`: when a warning is logged
- * `backtrace-segfault`: on segfaults
-
-To log a stacktrace when some particular JavaScript code is reached, you
-can insert the following code:
-
-```js
-console.trace('trace from doSomething()')
-```
+An error in the code of an extension is logged with its Lua traceback by the
+extension manager. In the Looking Glass evaluator (which is not sandboxed),
+`print (debug.traceback ('trace from do_something ()'))` logs a traceback.
 
 ## Debugging the session's gnome-shell proces
 

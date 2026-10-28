@@ -19,7 +19,7 @@
  *  - the answers of the org.gnome.Shell.Extensions D-Bus interface, which
  *    #ShellDBusExtensionsService (shell-dbus.c) takes from here.
  *
- * js/ui/main.js creates the only instance (`Main.extensionManager`).
+ * src/ui/main.c creates the only instance (`Main.extensionManager`).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */

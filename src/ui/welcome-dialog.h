@@ -6,7 +6,7 @@
  * #ShellWelcomeDialog is a #ShellModalDialog. Opening it does nothing, and
  * returns %FALSE, if GNOME Tour is not installed. The tour hides the overview
  * when it is launched: the dialog emits ::overview-hide-requested, which
- * main.js connects to `Main.overview.hide ()`.
+ * ShellMain connects to `Main.overview.hide ()`.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */

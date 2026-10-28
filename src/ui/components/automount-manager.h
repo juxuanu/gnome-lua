@@ -4,7 +4,7 @@
  * are added, unless the session is inactive or inhibited. Port of
  * js/ui/components/automountManager.js.
  *
- * The component manager of the shell (js/ui/components.js) creates it for
+ * The component manager of the shell (src/ui/components.c) creates it for
  * the session modes that list `automountManager` and calls shell_automount_manager_enable ()
  * and shell_automount_manager_disable () when the session mode changes.
  *

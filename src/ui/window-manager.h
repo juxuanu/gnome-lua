@@ -7,12 +7,12 @@
  * and window switching keybindings, and the table of the key bindings that
  * may run in a given #ShellActionMode. Port of js/ui/windowManager.js.
  *
- * #ShellWindowManager is created by main.js (`new Shell.WindowManager ()`)
+ * #ShellWindowManager is created by ShellMain (`new Shell.WindowManager ()`)
  * and kept in `Main.wm`. It drives the #ShellWM of #ShellGlobal (the object
  * that mutter's plugin forwards the effects to) and owns a
  * #ShellWorkspaceAnimationController (see workspace-animation.h).
  *
- * The JS-only parts of the shell are reached through signals that main.js
+ * The JS-only parts of the shell are reached through signals that ShellMain
  * answers. The #ShellWindowManager:overview-visible, :overview-closing and
  * :overview-animating properties are kept in sync with the overview by the
  * overview itself (overview.c), which also connects to the signals of the

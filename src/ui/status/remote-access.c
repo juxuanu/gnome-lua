@@ -10,7 +10,7 @@
  * docs/PORT_STATUS.md:
  *
  *  - `Main.screenshotUI` is not reachable from C: the
- *    `screencast-in-progress` properties are set by panelItems.js, and the
+ *    `screencast-in-progress` properties are set by panel-items.c, and the
  *    click on the recording indicator is the signal
  *    #ShellScreenRecordingIndicator::stop-screencast-requested. As in the
  *    JS, the applet only looks at the property when the handles change.

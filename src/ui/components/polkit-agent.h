@@ -5,7 +5,7 @@
  * the user itself) when an action needs an authorization. Port of
  * js/ui/components/polkitAgent.js.
  *
- * The component manager of the shell (js/ui/components.js) creates it for the
+ * The component manager of the shell (src/ui/components.c) creates it for the
  * session modes that list `polkitAgent` and calls
  * shell_polkit_agent_component_enable () and
  * shell_polkit_agent_component_disable () when the session mode changes. The

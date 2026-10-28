@@ -3,7 +3,7 @@
  * layout.h: The stage hierarchy of the shell (the "chrome"), the monitors, the
  * hot corners and the startup animation. Port of js/ui/layout.js.
  *
- * #ShellLayoutManager is created by main.js (`new Shell.LayoutManager ()`)
+ * #ShellLayoutManager is created by ShellMain (`new Shell.LayoutManager ()`)
  * and kept in `Main.layoutManager`; there is no global accessor. The ported
  * UI code that needs the monitors reads them from #MetaDisplay, like the
  * Layout.MonitorConstraint of the JS did.

@@ -2199,7 +2199,7 @@ shell_extension_manager_init (ShellExtensionManager *self)
  * @session_mode: the session mode
  * @message_tray: (nullable): the message tray
  *
- * Creates the extension manager. js/ui/main.js creates the only instance;
+ * Creates the extension manager. src/ui/main.c creates the only instance;
  * shell_extension_manager_start () loads and starts the extensions.
  *
  * Returns: (transfer full): a new #ShellExtensionManager

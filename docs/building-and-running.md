@@ -16,6 +16,23 @@ that cannot always be satisfied by distribution packages.
 This is particular true for [mutter], which is developed in lock-step
 with gnome-shell and always has to be built from source.
 
+The shell no longer depends on GJS or SpiderMonkey: it is C plus an embedded
+Lua 5.5 (vendored as a Meson subproject, see `docs/PLAN.md`). The
+GObject Introspection data of libshell and libst is still generated, as the
+API reference is built from it; `-Dintrospection=false` skips it (it cannot be
+combined with `-Dgtk_doc=true`).
+
+## Running the tests
+
+```sh
+$ meson test -C _build
+```
+
+The `unit` suite holds GTest programs that link libshell. The `shell` suite
+starts the shell headless under `gnome-shell-test-tool` with a Lua script from
+`tests/shell/` (the `SHELL_TEST_SCRIPT` runner of `src/shell-test-runner.c`).
+Run them under `G_DEBUG=fatal-warnings` as CI does.
+
 [meson]: https://mesonbuild.com/
 [mutter]: https://mutter.gnome.org
 

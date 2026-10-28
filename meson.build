@@ -22,7 +22,6 @@ ecal_req = '>= 3.33.1'
 eds_req = '>= 3.33.1'
 gcr_req = '>= 3.90.0'
 gio_req = '>= 2.86.0'
-gjs_req = '>= 1.87.1'
 gtk_req = '>= 4.0'
 mutter_req = '>= 51.0'
 polkit_req = '>= 0.100'
@@ -82,10 +81,8 @@ ecal_dep = dependency('libecal-2.0', version: ecal_req)
 eds_dep = dependency('libedataserver-1.2', version: eds_req)
 gcr_dep = dependency('gcr-4', version: gcr_req)
 gdk_pixbuf_dep = dependency('gdk-pixbuf-2.0')
-gi_dep = dependency('girepository-2.0', version: gio_req)
 gio_dep = dependency('gio-2.0', version: gio_req)
 gio_unix_dep = dependency('gio-unix-2.0', version: gio_req)
-gjs_dep = dependency('gjs-1.0', version: gjs_req)
 gtk_dep = dependency('gtk4', version: gtk_req)
 libxml_dep = dependency('libxml-2.0')
 clutter_dep = dependency(clutter_pc, version: mutter_req)
@@ -210,7 +207,6 @@ have_asan_tests = get_option('b_sanitize') == 'address'
 mutter_typelibdir = mutter_dep.get_variable('typelibdir')
 mutter_pkglibdir = mutter_dep.get_variable('pkglibdir')
 python = find_program('python3')
-gjs = find_program('gjs')
 generate_app_list = find_program('build-aux/generate-app-list.py')
 
 cc = meson.get_compiler('c')
@@ -243,11 +239,8 @@ cdata.set('HAVE_FDWALK', cc.has_function('fdwalk'))
 cdata.set('HAVE_MALLINFO', cc.has_function('mallinfo'))
 cdata.set('HAVE_MALLINFO2', cc.has_function('mallinfo2'))
 cdata.set('HAVE_SYS_RESOURCE_H', cc.has_header('sys/resource.h'))
-cdata.set('HAVE_EXE_INTROSPECTION',
-  cc.has_header('elf.h') and
-  cc.has_header('link.h') and
-  cc.has_define('__GLIBC__', prefix: '#include <link.h>')
-)
+cdata.set('HAVE_EXECINFO_H', cc.has_header('execinfo.h'))
+cdata.set('HAVE_BLUETOOTH', have_bluetooth)
 cdata.set('HAVE__NL_TIME_FIRST_WEEKDAY',
   cc.has_header_symbol('langinfo.h', '_NL_TIME_FIRST_WEEKDAY')
 )
@@ -400,8 +393,6 @@ if get_option('tests')
     common_test_env.set('LD_PRELOAD', mutter_pkglibdir / 'libasan-preloader.so')
   endif
 
-  jasmine = find_program('jasmine')
-
   add_test_setup('default',
     is_default: true,
     env: common_test_env,
@@ -411,7 +402,6 @@ endif
 po_dir = join_paths(meson.current_source_dir(), 'po')
 
 subdir('data')
-subdir('js')
 subdir('src')
 subdir('po')
 
@@ -420,6 +410,9 @@ if get_option('tests') and have_xwayland
 endif
 
 if get_option('gtk_doc')
+  if not get_option('introspection')
+    error('The API reference is generated from the GIR: gtk_doc needs introspection')
+  endif
   subdir('docs/reference')
 endif
 

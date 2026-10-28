@@ -21,7 +21,7 @@
  *
  * Differences from the JS module, other than the renames above:
  *
- *  - `Main.screenshotUI` is created by main.js with
+ *  - `Main.screenshotUI` is created by ShellMain with
  *    `new Shell.ScreenshotUI ({window_manager: wm})`: the window manager is
  *    the one the four key bindings (`show-screenshot-ui`,
  *    `show-screen-recording-ui`, `screenshot-window` and `screenshot`) are

@@ -7,7 +7,7 @@
  *
  * What the JS reached through singletons that are still JS (the overview,
  * the window manager, the screen shield, ...) is a signal of the service,
- * which js/ui/main.js (and src/ui/screen-shield.c) connect to those
+ * which src/ui/main.c (and src/ui/screen-shield.c) connect to those
  * singletons. The extension service answers through the extension manager
  * (extension-system.h), which it is given.
  *

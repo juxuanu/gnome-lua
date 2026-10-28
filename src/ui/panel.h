@@ -4,11 +4,11 @@
  * menu manager that lets one of their menus be open at a time, and the
  * dragging of maximized windows by their title area. Port of js/ui/panel.js.
  *
- * #ShellPanel is created by main.js (`new Shell.Panel ()`), which then
+ * #ShellPanel is created by ShellMain (`new Shell.Panel ()`), which then
  * connects #ShellPanel::create-indicator and calls shell_panel_begin_startup ().
  * The indicators of the shell itself (the activities button, the date menu,
  * the quick settings, ...) are still JS classes; they live in
- * js/ui/panelItems.js, and that module's createPanelItem () answers the
+ * src/ui/panel-items.c, and that module's createPanelItem () answers the
  * signal. They extend #ShellPanelMenuButton (see panel-menu.h).
  *
  * Hooks declared here: "panel.indicator-added" and "panel.menu-opened"

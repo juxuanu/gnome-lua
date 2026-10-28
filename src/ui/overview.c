@@ -11,7 +11,7 @@
  *    manager, the layout manager, the XDND handler, the Ctrl+Alt+Tab manager
  *    and the session mode), and creates its actor when it is constructed, or
  *    when the session mode gets an overview.
- *  - The bridges in main.js and overviewControls.js are gone: the overview
+ *  - The bridges in ShellMain and overviewControls.js are gone: the overview
  *    connects to #ShellWindowManager::overview-hide-requested and
  *    ::item-drag-begin and its siblings, to #ShellLayoutManager::hot-corner-activated,
  *    ::startup-animation-requested and ::monitors-changed, and to the XDND
@@ -104,7 +104,7 @@ struct _ShellOverview
 {
   GObject parent;
 
-  /* Construct properties, held weakly: the owner is main.js */
+  /* Construct properties, held weakly: the owner is ShellMain */
   ShellWindowManager *window_manager;
   ShellLayoutManager *layout_manager;
   ShellXdndHandler *xdnd_handler;
@@ -1917,7 +1917,7 @@ shell_overview_init (ShellOverview *self)
  * @ctrl_alt_tab_manager: (nullable): the Ctrl+Alt+Tab manager
  * @session_mode: the session mode
  *
- * Creates the overview (`new Overview ()`). main.js creates it once, after
+ * Creates the overview (`new Overview ()`). ShellMain creates it once, after
  * the window manager.
  *
  * Returns: (transfer full): a new #ShellOverview

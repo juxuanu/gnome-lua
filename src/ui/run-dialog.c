@@ -11,7 +11,7 @@
  *    `check_cloexec_fds` are handled here. `lg` (open Looking Glass) and `rt`
  *    (reload the theme) need `Main.createLookingGlass ()` and
  *    `Main.loadTheme ()`, which are still JS: any other input is offered to
- *    the #ShellRunDialog::internal-command signal first, which main.js
+ *    the #ShellRunDialog::internal-command signal first, which ShellMain
  *    connects to. A handler returns %TRUE for the commands it knows; the
  *    input is run as a command line otherwise.
  *  - `Util.trySpawnCommandLine ()` (js/misc/util.js is still JS) is
@@ -598,7 +598,7 @@ shell_run_dialog_class_init (ShellRunDialogClass *klass)
    *
    * Emitted when a command is run while the internal commands of the
    * development tools are enabled and @name is not one of the ones which the
-   * dialog handles itself (`debugexit` and `check_cloexec_fds`). main.js
+   * dialog handles itself (`debugexit` and `check_cloexec_fds`). ShellMain
    * handles `lg` (open Looking Glass) and `rt` (reload the theme), which need
    * JS-only code.
    *

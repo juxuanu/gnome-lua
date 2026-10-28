@@ -7,11 +7,11 @@
  * What the JS reached through the `Main` module is done like this:
  *
  *  - `Main.osdWindowManager.show (icon, null, levels)` is the
- *    #ShellBrightnessManager::osd-requested signal, which js/ui/main.js
+ *    #ShellBrightnessManager::osd-requested signal, which src/ui/main.c
  *    forwards to the OSD window manager.
  *  - `Main.wm.addKeybinding ()` is meta_display_add_keybinding (). The window
  *    manager also records in which action modes a keybinding is allowed, which
- *    is JS only: main.js calls `Main.wm.allowKeybinding (name, Shell.ActionMode.ALL)`
+ *    is JS only: ShellMain calls `Main.wm.allowKeybinding (name, Shell.ActionMode.ALL)`
  *    for every name of shell_brightness_manager_get_keybinding_names ().
  *  - `Main.layoutManager.monitors` was never used, the scales are keyed by the
  *    #MetaLogicalMonitor of #MetaMonitorManager.
@@ -1483,7 +1483,7 @@ shell_brightness_manager_class_init (ShellBrightnessManagerClass *klass)
    * @levels: a `a(idd)` variant of `(monitor, level, max-level)`
    *
    * Emitted when the on-screen display should show the brightness of the
-   * monitors in @levels. js/ui/main.js shows it with
+   * monitors in @levels. src/ui/main.c shows it with
    * `osdWindowManager.show (icon, null, levels)`.
    */
   signals[OSD_REQUESTED] =
@@ -1506,7 +1506,7 @@ shell_brightness_manager_init (ShellBrightnessManager *self)
  * shell_brightness_manager_new:
  *
  * Creates the brightness manager, which adds the brightness keybindings and
- * starts to follow the monitors. js/ui/main.js creates the only instance.
+ * starts to follow the monitors. src/ui/main.c creates the only instance.
  *
  * Returns: (transfer full): a new #ShellBrightnessManager
  */

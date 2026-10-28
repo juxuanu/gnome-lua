@@ -55,6 +55,10 @@ def start_shell(xdg_home, wrap=None, perf_output=None):
     if perf_output is not None:
         env['SHELL_PERF_OUTPUT'] = perf_output
 
+    # The Lua test script that the shell runs (src/shell-test-runner.c) once
+    # it is up, and exits with an error if it fails
+    env['SHELL_TEST_SCRIPT'] = os.path.abspath(options.script)
+
     env['GSETTINGS_BACKEND'] = 'keyfile'
 
     gsettings_config = GSettingsConfig()
@@ -72,9 +76,6 @@ def start_shell(xdg_home, wrap=None, perf_output=None):
     if wrap:
         args += wrap.split(' ')
     args.append(os.path.join(self_dir, 'gnome-shell'))
-
-    args.append('--automation-script')
-    args.append(options.script)
 
     if options.disable_animations:
         gsettings_config.add('org/gnome/desktop/interface', 'enable-animations', 'false')
@@ -227,8 +228,8 @@ def run_performance_test(wrap=None):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("script",
-                    metavar="AUTOMATION_SCRIPT",
-                    help="Automation script to run")
+                    metavar="TEST_SCRIPT",
+                    help="Lua test script to run (tests/shell/*.lua)")
 parser.add_argument("--test-iters", type=int, metavar="ITERS",
                     help="Numbers of iterations of the test to run",
                     default=1)

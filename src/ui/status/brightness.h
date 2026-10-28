@@ -5,8 +5,8 @@
  *
  * Only #ShellBrightnessIndicator (`Indicator`) is public, the slider item
  * is private to brightness.c. The brightness manager (`Main.brightnessManager`)
- * is a construct-only property because it has no accessor in C: main.js
- * creates it and panelItems.js passes it on.
+ * is a construct-only property because it has no accessor in C: ShellMain
+ * creates it and panel-items.c passes it on.
  */
 
 #pragma once

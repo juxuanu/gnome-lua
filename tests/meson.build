@@ -9,66 +9,12 @@ dbus_runner = configure_file(
   configuration: dbusrunnerconf,
 )
 
-gvc_typelib_path = fs.parent(libgvc.get_variable('libgvc_gir')[1].full_path())
-shell_lua_typelib_path = fs.parent(libshell_lua_gir[1].full_path())
-shell_typelib_path = fs.parent(libshell_gir[1].full_path())
-st_typelib_path = fs.parent(libst_gir[1].full_path())
-
-# Shared tests dependencies.
+# Shared tests dependencies. Nothing introspects any more: the shell tests
+# run as Lua in the shell's own test runner
 tests_dependencies = [
   compiled_schemas,
   data_resources_targets,
-  libst_gir[1],
-  libshell_gir[1],
-  libgvc_gir[1],
-  libshell_lua_gir[1],
 ]
-
-unit_testenv = environment()
-unit_testenv.set('GNOME_SHELL_DATADIR', data_builddir)
-unit_testenv.append('GI_TYPELIB_PATH', gvc_typelib_path, separator: ':')
-unit_testenv.append('GI_TYPELIB_PATH', shell_lua_typelib_path, separator: ':')
-unit_testenv.append('GI_TYPELIB_PATH', shell_typelib_path, separator: ':')
-unit_testenv.append('GI_TYPELIB_PATH', st_typelib_path, separator: ':')
-
-unit_tests = {
-  'asyncMutex': {},
-  'errorUtils': {},
-  'fileUtils': {
-    'env': {
-      'XDG_DATA_DIRS': join_paths(meson.current_source_dir(), 'unit/fixtures/datadirs/system'),
-      'XDG_DATA_HOME': join_paths(meson.current_source_dir(), 'unit/fixtures/datadirs/home'),
-    },
-  },
-  'highlighter': {},
-  'insertSorted': {},
-  'markup': {},
-  'params': {},
-  'signalTracker': {},
-  'url': {},
-  'versionCompare': {},
-}
-
-foreach test, extra_args : unit_tests
-  local_test_env = unit_testenv
-  foreach var, value : extra_args.get('env', {})
-    local_test_env.set(var, value)
-  endforeach
-
-  test(test, jasmine,
-    args: [
-      '--module',
-      '--tap',
-      '--no-config',
-      '--interpreter', run_test,
-      'unit/@0@.js'.format(test),
-    ],
-    suite: 'unit',
-    depends: tests_dependencies,
-    env: local_test_env,
-    protocol: 'tap',
-    workdir: meson.current_source_dir())
-endforeach
 
 # GTest programs: they link libshell and drive the classes with an injected
 # environment (clock, idle monitor, settings, logind, ...), so they need
@@ -76,6 +22,18 @@ endforeach
 c_unit_tests = {
   'break-manager': {},
   'extension-system': {},
+  'file-utils': {
+    # The data directories that the collection of files reads
+    'env': {
+      'XDG_DATA_DIRS': join_paths(meson.current_source_dir(), 'unit/fixtures/datadirs/system'),
+      'XDG_DATA_HOME': join_paths(meson.current_source_dir(), 'unit/fixtures/datadirs/home'),
+    },
+  },
+  'highlighter': {},
+  'insert-sorted': {},
+  'markup': {},
+  'url': {},
+  'version-compare': {},
   'time-limits-manager': {
     # The time limits tests hard-code UTC to keep the code brief, so must be
     # run in UTC
@@ -149,8 +107,6 @@ shell_testenv.set('GNOME_SHELL_DATADIR', data_builddir)
 shell_testenv.set('GNOME_SHELL_BUILDDIR', src_builddir)
 shell_testenv.set('GNOME_SHELL_SESSION_MODE', 'user')
 shell_testenv.set('SHELL_BACKGROUND_IMAGE', '@0@'.format(background_file))
-shell_testenv.append('GI_TYPELIB_PATH', gvc_typelib_path, separator: ':')
-shell_testenv.append('GI_TYPELIB_PATH', shell_lua_typelib_path, separator: ':')
 shell_testenv.append('LD_LIBRARY_PATH', libgvc_path, separator: ':')
 shell_testenv.append('LD_LIBRARY_PATH', libshell_lua_path, separator: ':')
 
@@ -169,7 +125,7 @@ foreach shell_test : shell_tests
       test_tool,
       '--headless',
       options,
-      '@0@/shell/@1@.js'.format(meson.current_source_dir(), test_name),
+      '@0@/shell/@1@.lua'.format(meson.current_source_dir(), test_name),
     ],
     depends: [
       gnome_shell_binary,

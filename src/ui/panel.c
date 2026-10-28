@@ -2,13 +2,13 @@
 /*
  * panel.c: The top bar. Port of js/ui/panel.js.
  *
- * What stayed in JS (js/ui/panelItems.js): the indicators of the shell
+ * What stayed in JS (src/ui/panel-items.c): the indicators of the shell
  * (`ActivitiesButton`, `QuickSettings`, the date menu, the accessibility,
  * keyboard, dwell click and screen recording or sharing indicators) and the
  * `PANEL_ITEM_IMPLEMENTATIONS` table that maps their roles to classes. The
  * panel does not know those classes: when the session mode asks for a role
  * that has no indicator yet it emits #ShellPanel::create-indicator and takes
- * what the handler returns. main.js connects that signal to
+ * what the handler returns. ShellMain connects that signal to
  * `PanelItems.createPanelItem ()`. The roles themselves are known here too
  * (see shell_panel_is_builtin_role ()), as the panel hides the indicators of
  * the shell that the session mode does not list, and keeps extensions from
@@ -17,16 +17,16 @@
  * Differences from the JS class, other than the renames listed in
  * docs/PORT_STATUS.md:
  *
- *  - The panel is created inactive: main.js connects #ShellPanel::create-indicator
+ *  - The panel is created inactive: ShellMain connects #ShellPanel::create-indicator
  *    and calls shell_panel_begin_startup (), which creates the indicators. The
  *    constructor of the JS class did it all at once.
  *  - `Main.overview.connectObject ('showing' / 'hiding')` is the property
- *    #ShellPanel:overview-visible, which main.js sets from the overview
+ *    #ShellPanel:overview-visible, which ShellMain sets from the overview
  *    signals.
  *  - `Main.messageTray.bannerAlignment` and `bannerBlocked` are the read-only
  *    properties #ShellPanel:banner-alignment and #ShellPanel:banner-blocked,
- *    which main.js forwards to the message tray.
- *  - `Main.ctrlAltTabManager.addGroup (panel, ...)` is done by main.js.
+ *    which ShellMain forwards to the message tray.
+ *  - `Main.ctrlAltTabManager.addGroup (panel, ...)` is done by ShellMain.
  *  - `statusArea`, the JS object that maps roles to indicators, is
  *    shell_panel_get_status_area_indicator () and
  *    shell_panel_list_status_area_roles (). The panel keeps a reference on its
@@ -56,7 +56,7 @@
 #include "ui/panel.h"
 #include "ui/session-mode.h"
 
-/* Roles of PANEL_ITEM_IMPLEMENTATIONS (js/ui/panelItems.js) */
+/* Roles of PANEL_ITEM_IMPLEMENTATIONS (src/ui/panel-items.c) */
 static const char * const builtin_roles[] = {
   "activities",
   "quickSettings",
@@ -1090,7 +1090,7 @@ shell_panel_get_overview_visible (ShellPanel *self)
  * @visible: whether the overview is showing
  *
  * Gives the panel the `overview` pseudo class while the overview is shown.
- * main.js calls it with %TRUE when the overview starts showing and with
+ * ShellMain calls it with %TRUE when the overview starts showing and with
  * %FALSE when it starts hiding.
  */
 void
@@ -1410,7 +1410,7 @@ shell_panel_class_init (ShellPanelClass *klass)
    * ShellPanel:overview-visible:
    *
    * Whether the overview is shown: the panel has the `overview` pseudo
-   * class meanwhile. Set by main.js from the `showing` and `hiding` signals
+   * class meanwhile. Set by ShellMain from the `showing` and `hiding` signals
    * of the overview.
    */
   props[PROP_OVERVIEW_VISIBLE] =
@@ -1437,7 +1437,7 @@ shell_panel_class_init (ShellPanelClass *klass)
    * ShellPanel:banner-alignment:
    *
    * Where notification banners are aligned: the side of the screen the date
-   * menu is on, or the center if the session mode has none. main.js sets the
+   * menu is on, or the center if the session mode has none. ShellMain sets the
    * `bannerAlignment` of the message tray from it.
    */
   props[PROP_BANNER_ALIGNMENT] =
@@ -1452,7 +1452,7 @@ shell_panel_class_init (ShellPanelClass *klass)
    * ShellPanel:banner-blocked:
    *
    * Whether the banners should be hidden: a menu is open in the box of the top
-   * bar the banners are aligned with. main.js sets the `bannerBlocked` of the
+   * bar the banners are aligned with. ShellMain sets the `bannerBlocked` of the
    * message tray from it.
    */
   props[PROP_BANNER_BLOCKED] =

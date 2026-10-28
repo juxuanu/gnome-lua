@@ -16,7 +16,7 @@
  * docs/PORT_STATUS.md:
  *
  *  - `Main.layoutManager.modalDialogGroup` is not reachable from C yet (the
- *    layout manager is still JS): main.js hands it over with
+ *    layout manager is still JS): ShellMain hands it over with
  *    shell_modal_dialog_set_default_container () once the layout manager
  *    exists, and every dialog is added to it unless it is constructed with an
  *    explicit "container".
@@ -25,7 +25,7 @@
  *    geometry of the monitor from the display, as #ShellOsdWindow does. It
  *    has no work-area or primary mode as the dialog never used them.
  *  - `Main.layoutManager.emit ('system-modal-opened')` is
- *    shell_main_system_modal_opened (); main.js forwards that signal to the
+ *    shell_main_system_modal_opened (); ShellMain forwards that signal to the
  *    layout manager so its JS listeners still get it.
  */
 
@@ -193,7 +193,7 @@ static ClutterActor *default_container = NULL; /* weak */
  * @container: (nullable): the actor that new dialogs are added to
  *
  * Sets the actor that a #ShellModalDialog constructed without a
- * #ShellModalDialog:container is added to. main.js calls this once with
+ * #ShellModalDialog:container is added to. ShellMain calls this once with
  * `Main.layoutManager.modalDialogGroup`, right after the layout manager is
  * created, as the layout manager is not ported to C yet. The actor is not
  * kept alive.

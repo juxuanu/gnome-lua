@@ -5,7 +5,7 @@
  * networks, wired 802.1X networks, DSL, mobile broadband and VPN connections.
  * Port of js/ui/components/networkAgent.js.
  *
- * The component manager of the shell (js/ui/components.js) creates it for the
+ * The component manager of the shell (src/ui/components.c) creates it for the
  * session modes that list `networkAgent` and calls
  * shell_network_agent_component_enable () and
  * shell_network_agent_component_disable () when the session mode changes.

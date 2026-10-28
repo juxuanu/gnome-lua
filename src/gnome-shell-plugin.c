@@ -37,7 +37,6 @@
 #include <string.h>
 
 #include <clutter/clutter.h>
-#include <gjs/gjs.h>
 #include <meta/display.h>
 #include <meta/meta-plugin.h>
 #include <meta/util.h>

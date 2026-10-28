@@ -9,10 +9,7 @@ data/org.gnome.Shell.CalendarServer.desktop.in.in
 data/org.gnome.Shell.PortalHelper.desktop.in
 data/X-GNOME-Shell-System.directory.desktop.in
 data/X-GNOME-Shell-Utilities.directory.desktop.in
-js/misc/util.js
-js/ui/main.js
 src/ui/mpris.c
-js/ui/panelItems.js
 src/calendar-server/reminder-watcher.c
 src/dbus-services/extensions/extension-prefs-window.c
 src/gdm/auth-prompt.c
@@ -58,11 +55,13 @@ src/ui/inhibit-shortcuts-dialog.c
 src/ui/kbd-a11y-dialog.c
 src/ui/keyboard.c
 src/ui/looking-glass.c
+src/ui/main.c
 src/ui/message-list.c
 src/ui/message-tray.c
 src/ui/overview-controls.c
 src/ui/overview.c
 src/ui/pad-osd.c
+src/ui/panel-items.c
 src/ui/quick-settings.c
 src/ui/run-dialog.c
 src/ui/screen-shield.c

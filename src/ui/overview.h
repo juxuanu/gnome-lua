@@ -6,7 +6,7 @@
  * js/ui/overview.js; see overview-controls.h and workspaces-view.h for the
  * other two modules of the overview.
  *
- * #ShellOverview is created by main.js, after the window manager
+ * #ShellOverview is created by ShellMain, after the window manager
  * (`Main.overview = new Shell.Overview ({window_manager, layout_manager,
  * xdnd_handler, ctrl_alt_tab_manager, session_mode})`) and is kept in
  * `Main.overview`. It connects itself to the objects it is created with, and

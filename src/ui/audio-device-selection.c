@@ -8,7 +8,7 @@
  * gdbus-codegen skeleton, #ShellAudioDeviceSelection) and owns the name of the
  * same name. `Main.overview.hide ()` (the overview is still JS) is the
  * #ShellAudioDeviceSelectionDBus::overview-hide-requested signal, which
- * main.js connects.
+ * ShellMain connects.
  *
  * Differences from the JS module, other than the renames listed in
  * docs/PORT_STATUS.md:

@@ -4,7 +4,7 @@
  * regions showing a magnified clone of the `uiGroup`, the magnified mouse
  * pointer and the crosshairs. Port of js/ui/magnifier.js.
  *
- * #ShellMagnifier is created by main.js (`new Shell.Magnifier ()`) after the
+ * #ShellMagnifier is created by ShellMain (`new Shell.Magnifier ()`) after the
  * layout manager and kept in `Main.magnifier`. It reads its settings from
  * `org.gnome.desktop.a11y.magnifier` and follows
  * #StSettings:magnifier-active by itself.

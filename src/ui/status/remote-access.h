@@ -7,7 +7,7 @@
  * quick settings, #ShellScreenRecordingIndicator and
  * #ShellScreenSharingIndicator are the buttons which stop a recording or a
  * sharing session. The screenshot UI (`Main.screenshotUI`) is not known to
- * the C code: panelItems.js sets the #ShellRemoteAccessApplet:screencast-in-progress
+ * the C code: panel-items.c sets the #ShellRemoteAccessApplet:screencast-in-progress
  * and #ShellScreenRecordingIndicator:screencast-in-progress properties from
  * it and connects #ShellScreenRecordingIndicator::stop-screencast-requested.
  */

@@ -50,7 +50,7 @@ shell_status_set_visible (gpointer actor,
     clutter_actor_hide (CLUTTER_ACTOR (actor));
 }
 
-/* Main.sessionMode, NULL until main.js has set it */
+/* Main.sessionMode, NULL until ShellMain has set it */
 static inline ShellSessionMode *
 shell_status_get_session_mode (void)
 {

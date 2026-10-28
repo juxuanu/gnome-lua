@@ -7,7 +7,7 @@
  *
  * The actions that need the JS-only parts of the shell (the screen shield,
  * the overview and the screenshot UI) are requested with signals that
- * js/ui/main.js connects to those objects.
+ * src/ui/main.c connects to those objects.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */

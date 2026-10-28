@@ -4,7 +4,7 @@
  * are mounted, or asks the user what to do with them in a notification. Port
  * of js/ui/components/autorunManager.js.
  *
- * The component manager of the shell (js/ui/components.js) creates it for
+ * The component manager of the shell (src/ui/components.c) creates it for
  * the session modes that list `autorunManager` and calls shell_autorun_manager_enable ()
  * and shell_autorun_manager_disable () when the session mode changes.
  *

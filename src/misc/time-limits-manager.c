@@ -2409,7 +2409,7 @@ on_shutdown_done (ShellTimeLimitsManager *self,
  *   is shut down and the state file is written
  * @user_data: user data for @callback
  *
- * Shuts down the state machine and writes out the state file. js/ui/main.js
+ * Shuts down the state machine and writes out the state file. src/ui/main.c
  * blocks the shutdown of the shell until @callback is called.
  */
 void
@@ -2920,7 +2920,7 @@ shell_time_limits_manager_init (ShellTimeLimitsManager *self)
  *
  * Creates a time limits manager that tracks the real clock, logind, the
  * `org.gnome.desktop.screen-time-limits` settings and the parental controls.
- * js/ui/main.js creates the only instance.
+ * src/ui/main.c creates the only instance.
  *
  * Returns: (transfer full): a new #ShellTimeLimitsManager
  */

@@ -6,11 +6,11 @@ Like most projects, gnome-shell has a few rules and conventions around the codin
 
 In general, it's a good idea to look at a few [merged MRs](https://gitlab.gnome.org/GNOME/gnome-shell/-/merge_requests?scope=all&state=merged) before making your first MR. This will help you get a good idea of what commit messages and code changes usually look like.
 
-## JavaScript coding style
+## Coding style
 
 The gnome-shell codebase has fairly consistent coding style. When working on gnome-shell, you should be on the safe side by following the coding style of the existing code around you.
 
-The full JS coding style rules are [here](https://gitlab.gnome.org/GNOME/gnome-shell/-/blob/main/docs/js-coding-style.md).
+The C coding style rules are in [docs/c-coding-style.md](c-coding-style.md), the conventions of the ported code in [docs/CONVENTIONS.md](CONVENTIONS.md).
 
 ## Writing commit messages
 

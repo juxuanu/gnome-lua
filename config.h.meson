@@ -40,8 +40,11 @@
 /* Define if polkit defines autocleanup functions */
 #mesondefine HAVE_POLKIT_AUTOCLEANUP
 
-/* Define to 1 if the <elf.h> and <link.h> header file exist. */
-#mesondefine HAVE_EXE_INTROSPECTION
+/* Define to 1 if the <execinfo.h> header file exists (backtrace ()). */
+#mesondefine HAVE_EXECINFO_H
+
+/* Define if the Bluetooth indicator (ui/status/bluetooth.c) is built */
+#mesondefine HAVE_BLUETOOTH
 
 /* Whether GNOME Shell is built with XWayland support */
 #mesondefine HAVE_XWAYLAND

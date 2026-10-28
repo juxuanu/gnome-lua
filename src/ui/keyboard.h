@@ -3,7 +3,7 @@
  * keyboard.h: The on-screen keyboard. Port of js/ui/keyboard.js.
  *
  * #ShellOskManager is the former `Keyboard.KeyboardManager`, created by
- * main.js (`new Shell.OskManager ({input_method: inputMethod})`) and kept in
+ * ShellMain (`new Shell.OskManager ({input_method: inputMethod})`) and kept in
  * `Main.keyboard`. It shows or hides the keyboard actor depending on the
  * accessibility setting, the touch mode and the last input device. The
  * actor and its helpers (keys, the emoji panel, the focus tracker and the

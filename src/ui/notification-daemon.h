@@ -6,7 +6,7 @@
  * service that GApplication uses. Port of js/ui/notificationDaemon.js.
  *
  * Only #ShellNotificationDaemon is public (it was the only export that was
- * used, by main.js); the two daemons, the sources and the notifications they
+ * used, by ShellMain); the two daemons, the sources and the notifications they
  * create are private to notification-daemon.c.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later

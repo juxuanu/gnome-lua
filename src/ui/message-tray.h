@@ -21,7 +21,7 @@
  *  - #ShellMessageTray (`MessageTray`): the banner queue, final.
  *
  * `getSystemSource ()` is shell_message_tray_get_system_source (); the
- * `Main.messageTray` singleton is still created by main.js.
+ * `Main.messageTray` singleton is still created by ShellMain.
  *
  * The enumerations replace `MessageTray.State`, `.NotificationDestroyedReason`,
  * `.Urgency` and `.PrivacyScope`.

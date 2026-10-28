@@ -15,7 +15,7 @@
  *    #ShellMain:session-mode.
  *  - `Main.activateWindow ()` is done here (switching to the workspace of the
  *    window and activating it); what it does on top of that, hiding the
- *    overview and closing the calendar, is up to the handler main.js connects
+ *    overview and closing the calendar, is up to the handler ShellMain connects
  *    to #ShellCtrlAltTabManager::window-activated.
  *  - A window of the workspace without an application gets the generic
  *    application icon; the JS code threw an error.

@@ -1,0 +1,2504 @@
+/* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
+/*
+ * shell-test-runner.c: runs the Lua test script named by SHELL_TEST_SCRIPT
+ * (the Lua files of tests/shell) inside the shell. It replaces the automation
+ * scripts of the JS shell (js/ui/scripting.js and the JS modules of tests/shell).
+ *
+ * The script runs in a privileged Lua state, a ShellLuaInspector of its own
+ * (the one of Looking Glass is not touched): full standard library, generic
+ * handles for GObjects (`obj.some_property`, `obj.some_property = value`,
+ * dashes of the property names are underscores), and these globals:
+ *
+ *   global, stage, main   ShellGlobal, its stage and ShellMain: the
+ *                         singletons of the shell are reached through
+ *                         `main` (main.panel, main.overview,
+ *                         main.layout_manager, main.message_tray,
+ *                         main.window_manager ...)
+ *   print                 writes to stdout
+ *   test                  the module described below
+ *
+ * and, on the handles, the methods the tests need (obj:connect (name, fn),
+ * obj:disconnect (id), main.overview:show (), panel:navigate_focus (...)
+ * ...: see the method tables at the end of this file).
+ *
+ * The script is a coroutine. These functions of `test` wait, by yielding it
+ * until the main loop has done what was asked; they can only be called by
+ * the script itself, not by a callback (signal handler or timeout):
+ *
+ *   test.sleep (ms)               sleep (Scripting.sleep)
+ *   test.wait_leisure ()          until the shell is idle (waitLeisure)
+ *   test.wait_startup ()          until the startup of the shell is done:
+ *                                 the end of the layout manager's
+ *                                 startup-complete (the script starts
+ *                                 before it, as the init () function of the
+ *                                 JS tests ran)
+ *   test.watch (obj, signal)      starts listening to a signal; returns a
+ *                                 waiter
+ *   test.wait (waiter [, ms])     until the signal was emitted (at once if
+ *                                 it was already); an error after @ms
+ *   test.wait_signal (obj, signal [, ms])  watch and wait
+ *   test.wait_for (predicate, description [, ms])  polls until true
+ *   test.wait_and_draw (ms)       redraws the stage at every frame for @ms
+ *   test.create_window {width, height, alpha, maximized, redraws,
+ *                       text_input}
+ *                                 creates a window with
+ *                                 gnome-shell-perf-helper (which is
+ *                                 started the first time)
+ *   test.wait_windows ()          until the windows are mapped and drawn
+ *   test.destroy_windows ()       destroys them
+ *
+ * Other functions: test.timeout (ms, fn), test.now (), test.new (type,
+ * {property = value ...}) (a GObject, kept alive by the runner),
+ * test.new_monitor (width, height, refresh_rate) (a virtual monitor of
+ * Mutter's test library; has :destroy ()), test.create_virtual_device
+ * (device type), test.set_boolean (schema, key, value), test.expect_equal
+ * (a, b, description), test.log (...), test.print (...); and for the
+ * performance log (js/ui/scripting.js): test.define_event (name,
+ * description [, signature]), test.event (name), test.event_i (name, int),
+ * test.collect_statistics (). The events are `script.<name>`.
+ *
+ * When the script returns, the performance log is replayed to the handlers
+ * the script registered with test.on_event ("script.name", function (time,
+ * arg) ... end) (also for "clutter.stagePaintDone", "malloc.usedSize" ...)
+ * or test.on_script_event ("name", fn), the functions registered with
+ * test.finish (fn) are called, and the metrics (test.metrics (table), each
+ * entry {description, units, value}) are written to SHELL_PERF_OUTPUT as
+ * JSON or printed. An error anywhere (the script, a callback, a failed call
+ * of the perf helper) makes the shell exit with an error.
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
+
+#include "config.h"
+
+#include <dlfcn.h>
+#include <math.h>
+#include <string.h>
+
+#include <clutter/clutter.h>
+#include <gio/gio.h>
+#include <meta/display.h>
+#include <meta/meta-backend.h>
+#include <meta/meta-context.h>
+#include <meta/window.h>
+
+#include "shell-app-system.h"
+#include "shell-app.h"
+#include "shell-global.h"
+#include "shell-lua-handle.h"
+#include "shell-lua-inspector.h"
+#include "shell-enum-types.h"
+#include "shell-perf-log.h"
+#include "shell-test-runner.h"
+#include "st.h"
+/* The generated St enum types (ST_TYPE_DIRECTION_TYPE) are not part of st.h */
+#define ST_H_INSIDE 1
+#include "st-enum-types.h"
+#undef ST_H_INSIDE
+#include "ui/layout.h"
+#include "ui/main.h"
+#include "ui/message-tray.h"
+#include "ui/overview.h"
+#include "ui/panel.h"
+#include "ui/popup-menu.h"
+
+#ifndef MUTTER_TEST_LIBRARY
+#define MUTTER_TEST_LIBRARY "libmutter-test-51.so"
+#endif
+
+#define SCRIPT_ENV "SHELL_TEST_SCRIPT"
+#define MUTTER_TEST_LIBRARY_ENV "SHELL_TEST_MUTTER_TEST_LIBRARY"
+
+#define POLL_INTERVAL_MS 20
+
+#define PERF_HELPER_NAME "org.gnome.Shell.PerfHelper"
+#define PERF_HELPER_PATH "/org/gnome/Shell/PerfHelper"
+
+#define WAITER_METATABLE "ShellTestWaiter"
+#define MONITOR_METATABLE "ShellTestMonitor"
+
+typedef GObject * (* TestMonitorNewFunc)     (MetaContext *context,
+                                              int          width,
+                                              int          height,
+                                              float        refresh_rate,
+                                              GError     **error);
+typedef void      (* TestMonitorDestroyFunc) (GObject     *monitor);
+
+typedef struct
+{
+  GWeakRef  object;
+  gulong    handler_id;
+  gboolean  emitted;
+  gboolean  waiting;
+  gboolean  timed_out;
+  guint     serial;
+  char     *signal;
+} Waiter;
+
+typedef struct
+{
+  GObject *monitor; /* NULL once destroyed */
+} TestMonitor;
+
+typedef struct
+{
+  char *script;
+
+  ShellLuaInspector *inspector;
+  lua_State *L;   /* the main thread of the state */
+  lua_State *co;  /* the thread of the script */
+  int co_ref;
+
+  guint poll_id;
+  gulong shutdown_id;
+  gulong startup_id;
+  GWeakRef layout_manager;
+
+  gboolean startup_complete;
+  gboolean waiting_startup;
+  gboolean finished;      /* the shell was told to terminate */
+
+  /* The script is parked while it waits for something to resume it */
+  gboolean parked;
+  guint park_serial;
+  guint wake_source;      /* the timeout that resumes it, if any */
+
+  /* gnome-shell-perf-helper */
+  GSubprocess *helper;
+  guint helper_watch_id;
+  gboolean helper_ready;
+  gboolean helper_auto_exit;
+  GDBusConnection *bus;
+  GCancellable *cancellable;
+  char *pending_method;
+  GVariant *pending_params;
+  guint pending_serial;
+
+  /* Mutter's test library, for the virtual monitors */
+  void *test_library;
+  TestMonitorNewFunc monitor_new;
+  TestMonitorDestroyFunc monitor_destroy;
+
+  GPtrArray *keep;      /* GObject, strong: what the script created */
+  GPtrArray *monitors;  /* TestMonitor */
+  GPtrArray *waiters;   /* Waiter */
+} Runner;
+
+static Runner *the_runner = NULL;
+
+gboolean
+shell_test_runner_is_enabled (void)
+{
+  const char *script = g_getenv (SCRIPT_ENV);
+
+  return script != NULL && script[0] != '\0';
+}
+
+/* ------------------------------------------------------------------------ */
+/* Ending the run                                                            */
+/* ------------------------------------------------------------------------ */
+
+static void
+runner_finish (Runner *r,
+               GError *error)
+{
+  MetaContext *context;
+
+  if (r->finished)
+    return;
+
+  r->finished = TRUE;
+  context = shell_global_get_context (shell_global_get ());
+
+  if (error != NULL)
+    {
+      g_printerr ("Test script %s failed: %s\n", r->script, error->message);
+      meta_context_terminate_with_error (context, error);
+    }
+  else
+    {
+      g_message ("Test script %s finished", r->script);
+      meta_context_terminate (context);
+    }
+}
+
+static void G_GNUC_PRINTF (2, 3)
+runner_fail (Runner     *r,
+             const char *format,
+             ...)
+{
+  g_autoptr (GError) error = NULL;
+  g_autofree char *message = NULL;
+  va_list args;
+
+  va_start (args, format);
+  message = g_strdup_vprintf (format, args);
+  va_end (args);
+
+  error = g_error_new_literal (G_IO_ERROR, G_IO_ERROR_FAILED, message);
+  runner_finish (r, error);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Calling Lua                                                               */
+/* ------------------------------------------------------------------------ */
+
+/* A message with the traceback for the error on the top of the stack of the
+ * dead thread @t. @L is any live thread of the state. */
+static char *
+thread_error_message (lua_State *L,
+                      lua_State *t)
+{
+  const char *message;
+  char *result;
+
+  if (!lua_checkstack (L, 6) || !lua_checkstack (t, 4))
+    return g_strdup ("error (out of stack space)");
+
+  message = luaL_tolstring (t, -1, NULL);
+  luaL_traceback (L, t, message, 0);
+  result = g_strdup (lua_tostring (L, -1));
+  lua_pop (L, 1);
+  lua_pop (t, 2);
+  return result;
+}
+
+/*
+ * Calls the function that is below its @nargs arguments on top of the stack
+ * of the main thread, in a thread of its own (so that it can fail and be
+ * told off without touching the script). The function and the arguments are
+ * popped. The (first) result is stored in @result if it is not NULL.
+ * Returns FALSE and fails the run if the call raised an error or yielded.
+ */
+static gboolean
+call_in_thread (Runner   *r,
+                int       nargs,
+                gboolean *result)
+{
+  lua_State *L = r->L;
+  lua_State *t;
+  int status, nres = 0;
+  int function_index = lua_gettop (L) - nargs;
+  gboolean ok = TRUE;
+
+  t = lua_newthread (L);
+  lua_insert (L, function_index);
+  lua_xmove (L, t, nargs + 1);
+
+  status = lua_resume (t, L, nargs, &nres);
+  if (status == LUA_OK)
+    {
+      if (result != NULL)
+        *result = nres > 0 && lua_toboolean (t, -nres);
+    }
+  else if (status == LUA_YIELD)
+    {
+      ok = FALSE;
+      runner_fail (r, "A callback cannot wait: test.sleep () and the other waiting functions can only be called by the script itself");
+    }
+  else
+    {
+      g_autofree char *message = thread_error_message (L, t);
+
+      ok = FALSE;
+      runner_fail (r, "Error in a callback: %s", message);
+    }
+
+  lua_pop (L, 1);
+  return ok;
+}
+
+static void resume_script (Runner *r);
+
+/* Marks the script as waiting; the caller then arms what resumes it and
+ * yields. Raises an error if @L is not the thread of the script. */
+static guint
+begin_park (lua_State  *L,
+            const char *what)
+{
+  Runner *r = the_runner;
+
+  if (r == NULL || L != r->co)
+    luaL_error (L, "test.%s () can only be called by the script itself, not by a callback",
+                what);
+
+  r->parked = TRUE;
+  r->park_serial++;
+  return r->park_serial;
+}
+
+/* Resumes the script if it still waits for @serial */
+static gboolean
+wake_if_parked (guint serial)
+{
+  Runner *r = the_runner;
+
+  if (r == NULL || r->L == NULL || !r->parked || serial != r->park_serial)
+    return FALSE;
+
+  resume_script (r);
+  return TRUE;
+}
+
+static gboolean
+wake_idle_cb (gpointer data)
+{
+  wake_if_parked (GPOINTER_TO_UINT (data));
+  return G_SOURCE_REMOVE;
+}
+
+static gboolean
+sleep_timeout_cb (gpointer data)
+{
+  Runner *r = the_runner;
+
+  if (r != NULL && r->parked && GPOINTER_TO_UINT (data) == r->park_serial)
+    {
+      r->wake_source = 0;
+      resume_script (r);
+    }
+
+  return G_SOURCE_REMOVE;
+}
+
+static void
+script_finished (Runner *r);
+
+static void
+resume_script (Runner *r)
+{
+  int status, nres = 0;
+
+  r->parked = FALSE;
+  g_clear_handle_id (&r->wake_source, g_source_remove);
+
+  status = lua_resume (r->co, r->L, 0, &nres);
+  if (status == LUA_YIELD)
+    {
+      lua_pop (r->co, nres);
+      if (!r->parked)
+        runner_fail (r, "The script yielded without waiting for anything: use the waiting functions of the test module");
+    }
+  else if (status == LUA_OK)
+    {
+      script_finished (r);
+    }
+  else
+    {
+      g_autofree char *message = thread_error_message (r->L, r->co);
+
+      runner_fail (r, "%s", message);
+    }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Helpers for the functions of the module                                    */
+/* ------------------------------------------------------------------------ */
+
+static gpointer
+check_instance (lua_State *L,
+                int        idx,
+                GType      type)
+{
+  GObject *object = shell_lua_handle_check (L, idx, NULL);
+
+  if (!G_TYPE_CHECK_INSTANCE_TYPE (object, type))
+    luaL_error (L, "bad argument #%d (%s expected, got %s)", idx,
+                g_type_name (type), G_OBJECT_TYPE_NAME (object));
+
+  return object;
+}
+
+static gpointer
+opt_instance (lua_State *L,
+              int        idx,
+              GType      type)
+{
+  if (lua_isnoneornil (L, idx))
+    return NULL;
+
+  return check_instance (L, idx, type);
+}
+
+static void
+push_object_or_nil (lua_State *L,
+                    gpointer   object)
+{
+  if (object != NULL)
+    shell_lua_inspector_push_object (L, G_OBJECT (object));
+  else
+    lua_pushnil (L);
+}
+
+/* The value of the enum with the nick at @idx */
+static int
+check_enum (lua_State *L,
+            int        idx,
+            GType      type)
+{
+  const char *nick = luaL_checkstring (L, idx);
+  GEnumClass *klass = g_type_class_ref (type);
+  GEnumValue *value = g_enum_get_value_by_nick (klass, nick);
+  int result;
+
+  if (value == NULL)
+    {
+      GString *valid = g_string_new (NULL);
+      guint i;
+
+      for (i = 0; i < klass->n_values; i++)
+        g_string_append_printf (valid, "%s%s", i > 0 ? ", " : "", klass->values[i].value_nick);
+      g_type_class_unref (klass);
+      lua_pushfstring (L, "invalid %s '%s', expected one of: %s",
+                       g_type_name (type), nick, valid->str);
+      g_string_free (valid, TRUE);
+      lua_error (L);
+    }
+
+  result = value->value;
+  g_type_class_unref (klass);
+  return result;
+}
+
+static void
+push_rectangle (lua_State *L,
+                lua_Number x,
+                lua_Number y,
+                lua_Number width,
+                lua_Number height)
+{
+  lua_createtable (L, 0, 4);
+  lua_pushnumber (L, x);
+  lua_setfield (L, -2, "x");
+  lua_pushnumber (L, y);
+  lua_setfield (L, -2, "y");
+  lua_pushnumber (L, width);
+  lua_setfield (L, -2, "width");
+  lua_pushnumber (L, height);
+  lua_setfield (L, -2, "height");
+}
+
+static void
+push_monitor (lua_State          *L,
+              const ShellMonitor *monitor)
+{
+  if (monitor == NULL)
+    {
+      lua_pushnil (L);
+      return;
+    }
+
+  push_rectangle (L, monitor->x, monitor->y, monitor->width, monitor->height);
+  lua_pushinteger (L, monitor->index);
+  lua_setfield (L, -2, "index");
+  lua_pushnumber (L, monitor->geometry_scale);
+  lua_setfield (L, -2, "geometry_scale");
+}
+
+static void
+keep_object (Runner  *r,
+             GObject *object)
+{
+  if (g_object_is_floating (object))
+    g_object_ref_sink (object);
+  else
+    g_object_ref (object);
+
+  g_ptr_array_add (r->keep, object);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Signals                                                                   */
+/* ------------------------------------------------------------------------ */
+
+typedef struct
+{
+  GClosure closure;
+  int ref;
+} LuaClosure;
+
+typedef struct
+{
+  int ref;
+  const GValue *params;
+  guint n_params;
+} HandlerCall;
+
+static void
+push_signal_value (lua_State    *L,
+                   const GValue *value)
+{
+  switch (G_TYPE_FUNDAMENTAL (G_VALUE_TYPE (value)))
+    {
+    case G_TYPE_BOOLEAN:
+    case G_TYPE_CHAR:
+    case G_TYPE_UCHAR:
+    case G_TYPE_INT:
+    case G_TYPE_UINT:
+    case G_TYPE_LONG:
+    case G_TYPE_ULONG:
+    case G_TYPE_INT64:
+    case G_TYPE_UINT64:
+    case G_TYPE_FLOAT:
+    case G_TYPE_DOUBLE:
+    case G_TYPE_STRING:
+    case G_TYPE_ENUM:
+    case G_TYPE_FLAGS:
+    case G_TYPE_OBJECT:
+    case G_TYPE_INTERFACE:
+      shell_lua_push_gvalue (L, value);
+      break;
+
+    default:
+      /* boxed types and the like: the name of the type */
+      lua_pushfstring (L, "<%s>", g_type_name (G_VALUE_TYPE (value)));
+      break;
+    }
+}
+
+/* Runs in the thread of the call: the errors raised here fail the call, not
+ * the process */
+static int
+handler_trampoline (lua_State *L)
+{
+  HandlerCall *call = lua_touserdata (L, 1);
+  guint i;
+
+  luaL_checkstack (L, call->n_params + 4, "signal arguments");
+  lua_rawgeti (L, LUA_REGISTRYINDEX, call->ref);
+  for (i = 0; i < call->n_params; i++)
+    push_signal_value (L, &call->params[i]);
+  lua_call (L, call->n_params, 1);
+  lua_pushboolean (L, lua_toboolean (L, -1));
+  return 1;
+}
+
+static void
+lua_closure_marshal (GClosure     *closure,
+                     GValue       *return_value,
+                     guint         n_param_values,
+                     const GValue *param_values,
+                     gpointer      invocation_hint,
+                     gpointer      marshal_data)
+{
+  LuaClosure *lua_closure = (LuaClosure *) closure;
+  Runner *r = the_runner;
+  HandlerCall call;
+  gboolean result = FALSE;
+
+  if (r == NULL || r->L == NULL)
+    return;
+
+  call.ref = lua_closure->ref;
+  call.params = param_values;
+  call.n_params = n_param_values;
+
+  if (!lua_checkstack (r->L, 4))
+    return;
+
+  lua_pushcfunction (r->L, handler_trampoline);
+  lua_pushlightuserdata (r->L, &call);
+  call_in_thread (r, 1, &result);
+
+  /* A handler returns what a signal with a boolean result stops with; a
+   * handler that returns nothing continues the emission */
+  if (return_value != NULL && G_VALUE_HOLDS_BOOLEAN (return_value))
+    g_value_set_boolean (return_value, result);
+}
+
+static void
+lua_closure_finalized (gpointer data,
+                       GClosure *closure)
+{
+  LuaClosure *lua_closure = (LuaClosure *) closure;
+  Runner *r = the_runner;
+
+  if (r != NULL && r->L != NULL)
+    luaL_unref (r->L, LUA_REGISTRYINDEX, lua_closure->ref);
+}
+
+/* obj:connect (name, fn) -> id */
+static int
+l_object_connect (lua_State *L)
+{
+  GObject *object = shell_lua_handle_check (L, 1, NULL);
+  const char *name = luaL_checkstring (L, 2);
+  GClosure *closure;
+  LuaClosure *lua_closure;
+  guint signal_id;
+  GQuark detail;
+  gulong id;
+
+  luaL_checktype (L, 3, LUA_TFUNCTION);
+
+  if (!g_signal_parse_name (name, G_OBJECT_TYPE (object), &signal_id, &detail, TRUE))
+    return luaL_error (L, "%s has no signal '%s'", G_OBJECT_TYPE_NAME (object), name);
+
+  closure = g_closure_new_simple (sizeof (LuaClosure), NULL);
+  lua_closure = (LuaClosure *) closure;
+  lua_pushvalue (L, 3);
+  lua_closure->ref = luaL_ref (L, LUA_REGISTRYINDEX);
+  g_closure_add_finalize_notifier (closure, NULL, lua_closure_finalized);
+  g_closure_set_marshal (closure, lua_closure_marshal);
+
+  id = g_signal_connect_closure_by_id (object, signal_id, detail, closure, FALSE);
+  lua_pushinteger (L, (lua_Integer) id);
+  return 1;
+}
+
+/* obj:disconnect (id) */
+static int
+l_object_disconnect (lua_State *L)
+{
+  GObject *object = shell_lua_handle_check (L, 1, NULL);
+  lua_Integer id = luaL_checkinteger (L, 2);
+
+  if (id <= 0 || !g_signal_handler_is_connected (object, (gulong) id))
+    return luaL_error (L, "no handler %I is connected to the object", id);
+
+  g_signal_handler_disconnect (object, (gulong) id);
+  return 0;
+}
+
+static const luaL_Reg object_methods[] = {
+  { "connect", l_object_connect },
+  { "disconnect", l_object_disconnect },
+  { NULL, NULL }
+};
+
+/* Waiters: test.watch () and test.wait () */
+
+static void
+waiter_disconnect (Waiter *waiter)
+{
+  GObject *object;
+
+  if (waiter->handler_id == 0)
+    return;
+
+  object = g_weak_ref_get (&waiter->object);
+  if (object != NULL)
+    {
+      if (g_signal_handler_is_connected (object, waiter->handler_id))
+        g_signal_handler_disconnect (object, waiter->handler_id);
+      g_object_unref (object);
+    }
+  waiter->handler_id = 0;
+}
+
+static void
+waiter_free (Waiter *waiter)
+{
+  waiter_disconnect (waiter);
+  g_weak_ref_clear (&waiter->object);
+  g_free (waiter->signal);
+  g_free (waiter);
+}
+
+static void
+waiter_marshal (GClosure     *closure,
+                GValue       *return_value,
+                guint         n_param_values,
+                const GValue *param_values,
+                gpointer      invocation_hint,
+                gpointer      marshal_data)
+{
+  Waiter *waiter = closure->data;
+  Runner *r = the_runner;
+
+  if (r == NULL || waiter->emitted)
+    return;
+
+  waiter->emitted = TRUE;
+  waiter_disconnect (waiter);
+
+  /* The script goes on once the emitter is done, like a resolved promise */
+  if (waiter->waiting && r->parked && waiter->serial == r->park_serial)
+    g_idle_add (wake_idle_cb, GUINT_TO_POINTER (waiter->serial));
+}
+
+/* test.watch (object, signal) -> waiter */
+static int
+l_watch (lua_State *L)
+{
+  Runner *r = the_runner;
+  GObject *object = shell_lua_handle_check (L, 1, NULL);
+  const char *name = luaL_checkstring (L, 2);
+  Waiter *waiter, **udata;
+  GClosure *closure;
+  guint signal_id;
+  GQuark detail;
+
+  if (!g_signal_parse_name (name, G_OBJECT_TYPE (object), &signal_id, &detail, TRUE))
+    return luaL_error (L, "%s has no signal '%s'", G_OBJECT_TYPE_NAME (object), name);
+
+  waiter = g_new0 (Waiter, 1);
+  g_weak_ref_init (&waiter->object, object);
+  waiter->signal = g_strdup (name);
+  g_ptr_array_add (r->waiters, waiter);
+
+  closure = g_closure_new_simple (sizeof (GClosure), waiter);
+  g_closure_set_marshal (closure, waiter_marshal);
+  waiter->handler_id = g_signal_connect_closure_by_id (object, signal_id, detail,
+                                                       closure, FALSE);
+
+  udata = lua_newuserdatauv (L, sizeof (Waiter *), 0);
+  *udata = waiter;
+  luaL_setmetatable (L, WAITER_METATABLE);
+  return 1;
+}
+
+static int
+wait_continue (lua_State   *L,
+               int          status,
+               lua_KContext ctx)
+{
+  Waiter *waiter = *(Waiter **) luaL_checkudata (L, 1, WAITER_METATABLE);
+
+  waiter->waiting = FALSE;
+  if (waiter->timed_out)
+    {
+      waiter->timed_out = FALSE;
+      waiter_disconnect (waiter);
+      return luaL_error (L, "Timeout waiting for the signal '%s'", waiter->signal);
+    }
+
+  return 0;
+}
+
+static gboolean
+wait_timeout_cb (gpointer data)
+{
+  Runner *r = the_runner;
+  guint serial = GPOINTER_TO_UINT (data);
+  guint i;
+
+  if (r == NULL || !r->parked || serial != r->park_serial)
+    return G_SOURCE_REMOVE;
+
+  r->wake_source = 0;
+  for (i = 0; i < r->waiters->len; i++)
+    {
+      Waiter *waiter = g_ptr_array_index (r->waiters, i);
+
+      if (waiter->waiting && waiter->serial == serial)
+        waiter->timed_out = TRUE;
+    }
+
+  resume_script (r);
+  return G_SOURCE_REMOVE;
+}
+
+/* test.wait (waiter [, timeout_ms]) */
+static int
+l_wait (lua_State *L)
+{
+  Runner *r = the_runner;
+  Waiter *waiter = *(Waiter **) luaL_checkudata (L, 1, WAITER_METATABLE);
+  lua_Integer timeout = luaL_optinteger (L, 2, 0);
+  guint serial;
+
+  if (waiter->emitted)
+    return 0;
+
+  serial = begin_park (L, "wait");
+  waiter->waiting = TRUE;
+  waiter->serial = serial;
+  if (timeout > 0)
+    r->wake_source = g_timeout_add ((guint) timeout, wait_timeout_cb, GUINT_TO_POINTER (serial));
+
+  return lua_yieldk (L, 0, 0, wait_continue);
+}
+
+/* ------------------------------------------------------------------------ */
+/* test.sleep (), test.wait_leisure (), test.wait_startup ()                  */
+/* ------------------------------------------------------------------------ */
+
+static int
+l_sleep (lua_State *L)
+{
+  Runner *r = the_runner;
+  lua_Number ms = luaL_checknumber (L, 1);
+  guint serial = begin_park (L, "sleep");
+
+  r->wake_source = g_timeout_add ((guint) MAX (ms, 0), sleep_timeout_cb,
+                                  GUINT_TO_POINTER (serial));
+  g_source_set_name_by_id (r->wake_source, "[gnome-shell] test sleep");
+  return lua_yield (L, 0);
+}
+
+typedef struct
+{
+  ClutterTimeline *timeline;
+  guint serial;
+} DrawWait;
+
+static void
+draw_wait_new_frame_cb (ClutterTimeline *timeline,
+                        int              msecs,
+                        gpointer         user_data)
+{
+  ClutterStage *stage = shell_global_get_stage (shell_global_get ());
+
+  clutter_actor_queue_redraw (CLUTTER_ACTOR (stage));
+}
+
+static gboolean
+draw_wait_done_cb (gpointer user_data)
+{
+  DrawWait *wait = user_data;
+
+  wake_if_parked (wait->serial);
+  g_object_unref (wait->timeline);
+  g_free (wait);
+  return G_SOURCE_REMOVE;
+}
+
+static void
+draw_wait_completed_cb (ClutterTimeline *timeline,
+                        gpointer         user_data)
+{
+  /* Finish outside of the emission of the timeline */
+  clutter_timeline_stop (timeline);
+  g_idle_add (draw_wait_done_cb, user_data);
+}
+
+/* test.wait_and_draw (ms): redraws the stage at every frame for @ms
+ * milliseconds (the measurements of redraw times need a stage that paints) */
+static int
+l_wait_and_draw (lua_State *L)
+{
+  lua_Number ms = luaL_checknumber (L, 1);
+  guint serial = begin_park (L, "wait_and_draw");
+  ClutterStage *stage = shell_global_get_stage (shell_global_get ());
+  DrawWait *wait = g_new0 (DrawWait, 1);
+
+  wait->serial = serial;
+  wait->timeline = clutter_timeline_new_for_actor (CLUTTER_ACTOR (stage), (guint) MAX (ms, 1));
+  g_signal_connect (wait->timeline, "new-frame", G_CALLBACK (draw_wait_new_frame_cb), NULL);
+  g_signal_connect (wait->timeline, "completed", G_CALLBACK (draw_wait_completed_cb), wait);
+  clutter_timeline_start (wait->timeline);
+  return lua_yield (L, 0);
+}
+
+static void
+leisure_cb (gpointer data)
+{
+  wake_if_parked (GPOINTER_TO_UINT (data));
+}
+
+static int
+l_wait_leisure (lua_State *L)
+{
+  guint serial = begin_park (L, "wait_leisure");
+
+  shell_global_run_at_leisure (shell_global_get (), leisure_cb,
+                               GUINT_TO_POINTER (serial), NULL);
+  return lua_yield (L, 0);
+}
+
+static int
+l_wait_startup (lua_State *L)
+{
+  Runner *r = the_runner;
+
+  if (r->startup_complete)
+    return 0;
+
+  begin_park (L, "wait_startup");
+  r->waiting_startup = TRUE;
+  return lua_yield (L, 0);
+}
+
+static void
+startup_complete_cb (ShellLayoutManager *layout_manager,
+                     gpointer            user_data)
+{
+  Runner *r = user_data;
+
+  r->startup_complete = TRUE;
+  if (r->waiting_startup && r->parked)
+    {
+      r->waiting_startup = FALSE;
+      g_idle_add (wake_idle_cb, GUINT_TO_POINTER (r->park_serial));
+    }
+}
+
+/* ------------------------------------------------------------------------ */
+/* test.timeout (), test.now (), test.expect_equal (), logging               */
+/* ------------------------------------------------------------------------ */
+
+typedef struct
+{
+  int ref;
+} TimeoutCall;
+
+static gboolean
+timeout_call_cb (gpointer data)
+{
+  TimeoutCall *call = data;
+  Runner *r = the_runner;
+
+  if (r != NULL && r->L != NULL)
+    {
+      if (lua_checkstack (r->L, 4))
+        {
+          lua_rawgeti (r->L, LUA_REGISTRYINDEX, call->ref);
+          call_in_thread (r, 0, NULL);
+        }
+      luaL_unref (r->L, LUA_REGISTRYINDEX, call->ref);
+    }
+
+  g_free (call);
+  return G_SOURCE_REMOVE;
+}
+
+/* test.timeout (ms, fn): calls fn once after ms milliseconds */
+static int
+l_timeout (lua_State *L)
+{
+  lua_Number ms = luaL_checknumber (L, 1);
+  TimeoutCall *call;
+
+  luaL_checktype (L, 2, LUA_TFUNCTION);
+  call = g_new0 (TimeoutCall, 1);
+  lua_pushvalue (L, 2);
+  call->ref = luaL_ref (L, LUA_REGISTRYINDEX);
+  g_timeout_add ((guint) MAX (ms, 0), timeout_call_cb, call);
+  return 0;
+}
+
+static int
+l_now (lua_State *L)
+{
+  lua_pushinteger (L, g_get_monotonic_time () / 1000);
+  return 1;
+}
+
+/* The arguments joined by tabs */
+static const char *
+join_arguments (lua_State *L)
+{
+  int n = lua_gettop (L);
+  luaL_Buffer buffer;
+  int i;
+
+  luaL_buffinit (L, &buffer);
+  for (i = 1; i <= n; i++)
+    {
+      luaL_tolstring (L, i, NULL);
+      if (i > 1)
+        luaL_addchar (&buffer, '\t');
+      luaL_addvalue (&buffer);
+    }
+  luaL_pushresult (&buffer);
+  return lua_tostring (L, -1);
+}
+
+static int
+l_print (lua_State *L)
+{
+  g_print ("%s\n", join_arguments (L));
+  return 0;
+}
+
+static int
+l_log (lua_State *L)
+{
+  g_message ("%s", join_arguments (L));
+  return 0;
+}
+
+/* ------------------------------------------------------------------------ */
+/* The performance log                                                       */
+/* ------------------------------------------------------------------------ */
+
+/* test.define_event (name, description [, signature]) */
+static int
+l_define_event (lua_State *L)
+{
+  const char *name = luaL_checkstring (L, 1);
+  const char *description = luaL_checkstring (L, 2);
+  const char *signature = luaL_optstring (L, 3, "");
+  g_autofree char *event = g_strconcat ("script.", name, NULL);
+
+  shell_perf_log_define_event (shell_perf_log_get_default (), event, description, signature);
+  return 0;
+}
+
+static int
+l_event (lua_State *L)
+{
+  const char *name = luaL_checkstring (L, 1);
+  g_autofree char *event = g_strconcat ("script.", name, NULL);
+
+  shell_perf_log_event (shell_perf_log_get_default (), event);
+  return 0;
+}
+
+static int
+l_event_i (lua_State *L)
+{
+  const char *name = luaL_checkstring (L, 1);
+  lua_Integer value = luaL_checkinteger (L, 2);
+  g_autofree char *event = g_strconcat ("script.", name, NULL);
+
+  shell_perf_log_event_i (shell_perf_log_get_default (), event, (gint32) value);
+  return 0;
+}
+
+static int
+l_collect_statistics (lua_State *L)
+{
+  shell_perf_log_collect_statistics (shell_perf_log_get_default ());
+  return 0;
+}
+
+static void
+replay_cb (gint64      time,
+           const char *name,
+           const char *signature,
+           GValue     *arg,
+           gpointer    user_data)
+{
+  lua_State *L = user_data;
+
+  lua_createtable (L, 0, 3);
+  lua_pushinteger (L, time);
+  lua_setfield (L, -2, "time");
+  lua_pushstring (L, name);
+  lua_setfield (L, -2, "name");
+  if (G_VALUE_HOLDS_INT (arg))
+    lua_pushinteger (L, g_value_get_int (arg));
+  else if (G_VALUE_HOLDS_INT64 (arg))
+    lua_pushinteger (L, g_value_get_int64 (arg));
+  else if (G_VALUE_HOLDS_STRING (arg) && g_value_get_string (arg) != NULL)
+    lua_pushstring (L, g_value_get_string (arg));
+  else
+    lua_pushnil (L);
+  lua_setfield (L, -2, "arg");
+  lua_rawseti (L, -2, (lua_Integer) lua_rawlen (L, -2) + 1);
+}
+
+/* test.events (): the events of the performance log, an array of {time,
+ * name, arg} */
+static int
+l_events (lua_State *L)
+{
+  lua_newtable (L);
+  luaL_checkstack (L, 6, "events");
+  shell_perf_log_replay (shell_perf_log_get_default (), replay_cb, L);
+  return 1;
+}
+
+static gboolean
+write_report (const char  *path,
+              const char  *metrics,
+              GError     **error)
+{
+  g_autoptr (GFile) file = g_file_new_for_path (path);
+  g_autoptr (GFileOutputStream) raw = NULL;
+  g_autoptr (GOutputStream) out = NULL;
+  ShellPerfLog *perf_log = shell_perf_log_get_default ();
+  ShellLayoutManager *layout_manager = shell_main_get_layout_manager (shell_main_get_default ());
+  int n_monitors, primary, i;
+
+  raw = g_file_replace (file, NULL, FALSE, G_FILE_CREATE_NONE, NULL, error);
+  if (raw == NULL)
+    return FALSE;
+
+  out = g_buffered_output_stream_new_sized (G_OUTPUT_STREAM (raw), 4096);
+
+  if (!g_output_stream_write_all (out, "{\n\"events\":\n", 12, NULL, NULL, error) ||
+      !shell_perf_log_dump_events (perf_log, out, error))
+    return FALSE;
+
+  n_monitors = shell_layout_manager_get_n_monitors (layout_manager);
+  primary = shell_layout_manager_get_primary_index (layout_manager);
+  if (!g_output_stream_write_all (out, ",\n\"monitors\":\n[", 15, NULL, NULL, error))
+    return FALSE;
+
+  for (i = 0; i < n_monitors; i++)
+    {
+      ShellMonitor *monitor = shell_layout_manager_get_monitor (layout_manager, i);
+      g_autofree char *entry = NULL;
+      gboolean ok;
+
+      entry = g_strdup_printf ("%s\"%s%dx%d+%d+%d\"", i != 0 ? ", " : "",
+                               i == primary ? "*" : "",
+                               monitor->width, monitor->height, monitor->x, monitor->y);
+      shell_monitor_free (monitor);
+      ok = g_output_stream_write_all (out, entry, strlen (entry), NULL, NULL, error);
+      if (!ok)
+        return FALSE;
+    }
+
+  if (!g_output_stream_write_all (out, " ]", 2, NULL, NULL, error) ||
+      !g_output_stream_write_all (out, ",\n\"metrics\":\n[ ", 15, NULL, NULL, error) ||
+      !g_output_stream_write_all (out, metrics, strlen (metrics), NULL, NULL, error) ||
+      !g_output_stream_write_all (out, " ]", 2, NULL, NULL, error) ||
+      !g_output_stream_write_all (out, ",\n\"log\":\n", 9, NULL, NULL, error) ||
+      !shell_perf_log_dump_log (perf_log, out, error) ||
+      !g_output_stream_write_all (out, "\n}\n", 3, NULL, NULL, error))
+    return FALSE;
+
+  return g_output_stream_close (out, NULL, error);
+}
+
+/* test.write_report (path, metrics): the JSON report that
+ * gnome-shell-test-tool reads: the events, the monitors, the metrics (@metrics
+ * is the text of their JSON objects) and the log */
+static int
+l_write_report (lua_State *L)
+{
+  const char *path = luaL_checkstring (L, 1);
+  const char *metrics = luaL_checkstring (L, 2);
+  g_autoptr (GError) error = NULL;
+
+  if (!write_report (path, metrics, &error))
+    {
+      lua_pushfstring (L, "Could not write %s: %s", path, error->message);
+      g_clear_error (&error);
+      return lua_error (L);
+    }
+
+  return 0;
+}
+
+/* ------------------------------------------------------------------------ */
+/* gnome-shell-perf-helper: test windows                                      */
+/* ------------------------------------------------------------------------ */
+
+static void
+perf_call_done_cb (GObject      *source,
+                   GAsyncResult *result,
+                   gpointer      user_data)
+{
+  g_autoptr (GError) error = NULL;
+  g_autoptr (GVariant) reply = NULL;
+  Runner *r;
+
+  reply = g_dbus_connection_call_finish (G_DBUS_CONNECTION (source), result, &error);
+  r = the_runner;
+  if (r == NULL || r->L == NULL)
+    return;
+
+  if (reply == NULL)
+    {
+      if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+        runner_fail (r, "The call to gnome-shell-perf-helper failed: %s", error->message);
+      return;
+    }
+
+  wake_if_parked (GPOINTER_TO_UINT (user_data));
+}
+
+static void
+send_pending_call (Runner *r)
+{
+  g_autofree char *method = g_steal_pointer (&r->pending_method);
+  GVariant *params = g_steal_pointer (&r->pending_params);
+
+  g_dbus_connection_call (r->bus, PERF_HELPER_NAME, PERF_HELPER_PATH, PERF_HELPER_NAME,
+                          method, params, NULL, G_DBUS_CALL_FLAGS_NONE, -1,
+                          r->cancellable, perf_call_done_cb,
+                          GUINT_TO_POINTER (r->pending_serial));
+  g_variant_unref (params);
+}
+
+static void
+helper_name_appeared_cb (GDBusConnection *connection,
+                         const char      *name,
+                         const char      *name_owner,
+                         gpointer         user_data)
+{
+  Runner *r = the_runner;
+
+  if (r == NULL || r->helper_ready)
+    return;
+
+  r->helper_ready = TRUE;
+  g_set_object (&r->bus, connection);
+  if (r->pending_method != NULL)
+    send_pending_call (r);
+}
+
+static void
+helper_name_vanished_cb (GDBusConnection *connection,
+                         const char      *name,
+                         gpointer         user_data)
+{
+  /* The helper is not up yet, or it has exited as it was asked to */
+}
+
+static gboolean
+ensure_helper_started (Runner  *r,
+                       GError **error)
+{
+  const char *directory;
+  g_autofree char *command = NULL;
+
+  if (r->helper != NULL)
+    return TRUE;
+
+  directory = g_getenv ("GNOME_SHELL_BUILDDIR");
+  if (directory == NULL || directory[0] == '\0')
+    directory = GNOME_SHELL_LIBEXECDIR;
+
+  command = g_build_filename (directory, "gnome-shell-perf-helper", NULL);
+  r->helper = g_subprocess_new (G_SUBPROCESS_FLAGS_NONE, error, command, NULL);
+  if (r->helper == NULL)
+    return FALSE;
+
+  r->helper_auto_exit = TRUE;
+  r->helper_watch_id = g_bus_watch_name (G_BUS_TYPE_SESSION, PERF_HELPER_NAME,
+                                         G_BUS_NAME_WATCHER_FLAGS_NONE,
+                                         helper_name_appeared_cb,
+                                         helper_name_vanished_cb,
+                                         NULL, NULL);
+  return TRUE;
+}
+
+/* Sends @method to the helper once it is up, and resumes the script on the
+ * reply. @params is floating and consumed. */
+static int
+perf_helper_call (lua_State  *L,
+                  const char *what,
+                  const char *method,
+                  GVariant   *params)
+{
+  Runner *r = the_runner;
+  g_autoptr (GError) error = NULL;
+  guint serial;
+
+  g_variant_ref_sink (params);
+  if (L != r->co)
+    {
+      g_variant_unref (params);
+      return luaL_error (L, "test.%s () can only be called by the script itself, not by a callback",
+                         what);
+    }
+
+  if (!ensure_helper_started (r, &error))
+    {
+      g_variant_unref (params);
+      lua_pushfstring (L, "Could not start gnome-shell-perf-helper: %s", error->message);
+      g_clear_error (&error);
+      return lua_error (L);
+    }
+
+  serial = begin_park (L, what);
+  g_free (r->pending_method);
+  r->pending_method = g_strdup (method);
+  g_clear_pointer (&r->pending_params, g_variant_unref);
+  r->pending_params = params;
+  r->pending_serial = serial;
+
+  if (r->helper_ready)
+    send_pending_call (r);
+
+  return lua_yield (L, 0);
+}
+
+static lua_Integer
+opt_field_integer (lua_State  *L,
+                   int         table,
+                   const char *name,
+                   lua_Integer def)
+{
+  lua_Integer value = def;
+
+  if (lua_getfield (L, table, name) != LUA_TNIL)
+    {
+      int isnum;
+
+      value = lua_tointegerx (L, -1, &isnum);
+      if (!isnum)
+        luaL_error (L, "field '%s' must be an integer", name);
+    }
+  lua_pop (L, 1);
+  return value;
+}
+
+static gboolean
+opt_field_boolean (lua_State  *L,
+                   int         table,
+                   const char *name,
+                   gboolean    def)
+{
+  gboolean value = def;
+
+  if (lua_getfield (L, table, name) != LUA_TNIL)
+    {
+      if (!lua_isboolean (L, -1))
+        luaL_error (L, "field '%s' must be a boolean", name);
+      value = lua_toboolean (L, -1);
+    }
+  lua_pop (L, 1);
+  return value;
+}
+
+/* test.create_window {width = 640, height = 480, alpha = false,
+ * maximized = false, redraws = false, text_input = false} */
+static int
+l_create_window (lua_State *L)
+{
+  static const char * const fields[] = {
+    "width", "height", "alpha", "maximized", "redraws", "text_input", NULL
+  };
+  lua_Integer width, height;
+  gboolean alpha, maximized, redraws, text_input;
+
+  if (lua_isnoneornil (L, 1))
+    lua_newtable (L);
+  luaL_checktype (L, 1, LUA_TTABLE);
+
+  /* Params.parse () did not allow unknown parameters */
+  lua_pushnil (L);
+  while (lua_next (L, 1) != 0)
+    {
+      const char *key = lua_type (L, -2) == LUA_TSTRING ? lua_tostring (L, -2) : NULL;
+
+      if (key == NULL || !g_strv_contains (fields, key))
+        return luaL_error (L, "unknown window parameter '%s'",
+                           key != NULL ? key : luaL_typename (L, -2));
+      lua_pop (L, 1);
+    }
+
+  width = opt_field_integer (L, 1, "width", 640);
+  height = opt_field_integer (L, 1, "height", 480);
+  alpha = opt_field_boolean (L, 1, "alpha", FALSE);
+  maximized = opt_field_boolean (L, 1, "maximized", FALSE);
+  redraws = opt_field_boolean (L, 1, "redraws", FALSE);
+  text_input = opt_field_boolean (L, 1, "text_input", FALSE);
+
+  return perf_helper_call (L, "create_window", "CreateWindow",
+                           g_variant_new ("(iibbbb)", (int) width, (int) height,
+                                          alpha, maximized, redraws, text_input));
+}
+
+static int
+l_wait_windows (lua_State *L)
+{
+  return perf_helper_call (L, "wait_windows", "WaitWindows", g_variant_new ("()"));
+}
+
+static int
+l_destroy_windows (lua_State *L)
+{
+  return perf_helper_call (L, "destroy_windows", "DestroyWindows", g_variant_new ("()"));
+}
+
+/* Don't exit the perf helper after running the script: it then remains
+ * until something else makes it exit, e.g. the Wayland socket closing */
+static int
+l_disable_helper_auto_exit (lua_State *L)
+{
+  Runner *r = the_runner;
+  g_autoptr (GError) error = NULL;
+
+  if (!ensure_helper_started (r, &error))
+    {
+      lua_pushfstring (L, "Could not start gnome-shell-perf-helper: %s", error->message);
+      g_clear_error (&error);
+      return lua_error (L);
+    }
+
+  r->helper_auto_exit = FALSE;
+  return 0;
+}
+
+static void
+helper_exit_done_cb (GObject      *source,
+                     GAsyncResult *result,
+                     gpointer      user_data)
+{
+  g_autoptr (GError) error = NULL;
+  g_autoptr (GVariant) reply = NULL;
+  Runner *r;
+
+  reply = g_dbus_connection_call_finish (G_DBUS_CONNECTION (source), result, &error);
+  r = the_runner;
+  if (r == NULL || r->L == NULL)
+    return;
+
+  if (reply == NULL && !g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+    runner_fail (r, "Failed to exit gnome-shell-perf-helper: %s", error->message);
+  else
+    runner_finish (r, NULL);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Objects the script creates                                                 */
+/* ------------------------------------------------------------------------ */
+
+typedef struct
+{
+  lua_State *L;
+  GType type;
+  GObjectClass *klass;
+  GArray *pspecs;   /* GParamSpec * */
+  GArray *values;   /* GValue */
+} NewObject;
+
+static int
+convert_properties_cb (lua_State *L)
+{
+  NewObject *info = lua_touserdata (L, 1);
+
+  luaL_checkstack (L, 6, "properties");
+  lua_pushnil (L);
+  while (lua_next (L, 2) != 0)
+    {
+      g_autofree char *name = NULL;
+      GParamSpec *pspec;
+      GValue value = G_VALUE_INIT;
+
+      if (lua_type (L, -2) != LUA_TSTRING)
+        return luaL_error (L, "property names must be strings");
+
+      name = g_strdelimit (g_strdup (lua_tostring (L, -2)), "_", '-');
+      pspec = g_object_class_find_property (info->klass, name);
+      if (pspec == NULL)
+        return luaL_error (L, "%s has no property '%s'", g_type_name (info->type), name);
+
+      g_value_init (&value, G_PARAM_SPEC_VALUE_TYPE (pspec));
+      g_array_append_val (info->values, value);
+      g_array_append_val (info->pspecs, pspec);
+      shell_lua_to_gvalue (L, -1, &g_array_index (info->values, GValue,
+                                                  info->values->len - 1));
+      lua_pop (L, 1);
+    }
+
+  return 0;
+}
+
+/* test.new (type_name, {property = value ...}) -> the object */
+static int
+l_new (lua_State *L)
+{
+  Runner *r = the_runner;
+  const char *type_name = luaL_checkstring (L, 1);
+  NewObject info = { L, 0, NULL, NULL, NULL };
+  GObject *object = NULL;
+  const char **names = NULL;
+  GValue *values = NULL;
+  guint i, n;
+  int status;
+
+  if (lua_isnoneornil (L, 2))
+    lua_newtable (L);
+  luaL_checktype (L, 2, LUA_TTABLE);
+
+  info.type = g_type_from_name (type_name);
+  if (info.type == 0 || !g_type_is_a (info.type, G_TYPE_OBJECT) ||
+      G_TYPE_IS_ABSTRACT (info.type))
+    return luaL_error (L, "'%s' is not the name of a type of objects that can be created", type_name);
+
+  info.klass = g_type_class_ref (info.type);
+  info.pspecs = g_array_new (FALSE, FALSE, sizeof (GParamSpec *));
+  info.values = g_array_new (FALSE, TRUE, sizeof (GValue));
+  g_array_set_clear_func (info.values, (GDestroyNotify) g_value_unset);
+
+  lua_pushcfunction (L, convert_properties_cb);
+  lua_pushlightuserdata (L, &info);
+  lua_pushvalue (L, 2);
+  status = lua_pcall (L, 2, 0, 0);
+
+  if (status == LUA_OK)
+    {
+      n = info.pspecs->len;
+      names = g_new0 (const char *, n + 1);
+      values = g_new0 (GValue, n + 1);
+      for (i = 0; i < n; i++)
+        {
+          names[i] = g_param_spec_get_name (g_array_index (info.pspecs, GParamSpec *, i));
+          values[i] = g_array_index (info.values, GValue, i);
+        }
+      object = g_object_new_with_properties (info.type, n, names, values);
+      g_free (names);
+      g_free (values); /* shallow copies: the array owns the contents */
+    }
+
+  g_array_unref (info.pspecs);
+  g_array_unref (info.values);
+  g_type_class_unref (info.klass);
+
+  if (status != LUA_OK)
+    return lua_error (L);
+
+  keep_object (r, object);
+  g_object_unref (object);
+  shell_lua_inspector_push_object (L, object);
+  return 1;
+}
+
+/* test.set_boolean (schema_id, key, value) */
+static int
+l_set_boolean (lua_State *L)
+{
+  const char *schema_id = luaL_checkstring (L, 1);
+  const char *key = luaL_checkstring (L, 2);
+  gboolean value;
+  GSettingsSchemaSource *source = g_settings_schema_source_get_default ();
+  GSettingsSchema *schema;
+  GSettings *settings;
+
+  luaL_checktype (L, 3, LUA_TBOOLEAN);
+  value = lua_toboolean (L, 3);
+
+  schema = g_settings_schema_source_lookup (source, schema_id, TRUE);
+  if (schema == NULL)
+    return luaL_error (L, "no such schema: %s", schema_id);
+  if (!g_settings_schema_has_key (schema, key))
+    {
+      g_settings_schema_unref (schema);
+      return luaL_error (L, "schema %s has no key '%s'", schema_id, key);
+    }
+
+  settings = g_settings_new_full (schema, NULL, NULL);
+  g_settings_schema_unref (schema);
+  g_settings_set_boolean (settings, key, value);
+  g_settings_sync ();
+  g_object_unref (settings);
+  return 0;
+}
+
+/* test.create_virtual_device (type): a virtual input device of the default
+ * seat, for the type with the nick of ClutterInputDeviceType
+ * (`keyboard-device`); it stays until the shell exits */
+static int
+l_create_virtual_device (lua_State *L)
+{
+  Runner *r = the_runner;
+  ClutterInputDeviceType type = check_enum (L, 1, CLUTTER_TYPE_INPUT_DEVICE_TYPE);
+  ClutterStage *stage = shell_global_get_stage (shell_global_get ());
+  ClutterContext *context = clutter_actor_get_context (CLUTTER_ACTOR (stage));
+  ClutterSeat *seat = clutter_backend_get_default_seat (clutter_context_get_backend (context));
+  ClutterVirtualInputDevice *device = clutter_seat_create_virtual_device (seat, type);
+
+  g_ptr_array_add (r->keep, device);
+  return 0;
+}
+
+/* Virtual monitors: Mutter's test library is loaded when the first is made,
+ * it is not a dependency of the shell */
+
+static gboolean
+load_test_library (Runner  *r,
+                   GError **error)
+{
+  const char *name = g_getenv (MUTTER_TEST_LIBRARY_ENV);
+
+  if (r->test_library != NULL)
+    return TRUE;
+
+  if (name == NULL || name[0] == '\0')
+    name = MUTTER_TEST_LIBRARY;
+
+  r->test_library = dlopen (name, RTLD_NOW | RTLD_GLOBAL);
+  if (r->test_library == NULL)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "Could not load %s: %s", name, dlerror ());
+      return FALSE;
+    }
+
+  r->monitor_new = (TestMonitorNewFunc) dlsym (r->test_library, "meta_test_monitor_new");
+  r->monitor_destroy = (TestMonitorDestroyFunc) dlsym (r->test_library, "meta_test_monitor_destroy");
+  if (r->monitor_new == NULL || r->monitor_destroy == NULL)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "%s has no virtual monitors (meta_test_monitor_new ())", name);
+      dlclose (r->test_library);
+      r->test_library = NULL;
+      return FALSE;
+    }
+
+  return TRUE;
+}
+
+/* test.new_monitor (width, height, refresh_rate) -> monitor, which has
+ * :destroy () */
+static int
+l_new_monitor (lua_State *L)
+{
+  Runner *r = the_runner;
+  lua_Integer width = luaL_checkinteger (L, 1);
+  lua_Integer height = luaL_checkinteger (L, 2);
+  lua_Number refresh_rate = luaL_checknumber (L, 3);
+  g_autoptr (GError) error = NULL;
+  TestMonitor *monitor, **udata;
+  GObject *object;
+
+  if (!load_test_library (r, &error))
+    {
+      lua_pushstring (L, error->message);
+      g_clear_error (&error);
+      return lua_error (L);
+    }
+
+  object = r->monitor_new (shell_global_get_context (shell_global_get ()),
+                           (int) width, (int) height, (float) refresh_rate, &error);
+  if (object == NULL)
+    {
+      lua_pushfstring (L, "Could not create a virtual monitor: %s", error->message);
+      g_clear_error (&error);
+      return lua_error (L);
+    }
+
+  monitor = g_new0 (TestMonitor, 1);
+  monitor->monitor = object;
+  g_ptr_array_add (r->monitors, monitor);
+
+  udata = lua_newuserdatauv (L, sizeof (TestMonitor *), 0);
+  *udata = monitor;
+  luaL_setmetatable (L, MONITOR_METATABLE);
+  return 1;
+}
+
+static void
+destroy_monitor (Runner      *r,
+                 TestMonitor *monitor)
+{
+  GObject *object = g_steal_pointer (&monitor->monitor);
+
+  /* meta_test_monitor_destroy () takes the reference of the creation */
+  if (object != NULL)
+    r->monitor_destroy (object);
+}
+
+static int
+l_monitor_destroy (lua_State *L)
+{
+  TestMonitor *monitor = *(TestMonitor **) luaL_checkudata (L, 1, MONITOR_METATABLE);
+
+  destroy_monitor (the_runner, monitor);
+  return 0;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Methods on the handles of the objects of the shell                         */
+/* ------------------------------------------------------------------------ */
+
+/* ClutterActor */
+
+static int
+l_actor_get_transformed_position (lua_State *L)
+{
+  ClutterActor *actor = check_instance (L, 1, CLUTTER_TYPE_ACTOR);
+  float x, y;
+
+  clutter_actor_get_transformed_position (actor, &x, &y);
+  lua_pushnumber (L, x);
+  lua_pushnumber (L, y);
+  return 2;
+}
+
+/* actor:get_allocation_box () -> {x, y, width, height} */
+static int
+l_actor_get_allocation_box (lua_State *L)
+{
+  ClutterActor *actor = check_instance (L, 1, CLUTTER_TYPE_ACTOR);
+  ClutterActorBox box;
+
+  clutter_actor_get_allocation_box (actor, &box);
+  push_rectangle (L, box.x1, box.y1, clutter_actor_box_get_width (&box),
+                  clutter_actor_box_get_height (&box));
+  return 1;
+}
+
+static int
+l_actor_queue_redraw (lua_State *L)
+{
+  clutter_actor_queue_redraw (check_instance (L, 1, CLUTTER_TYPE_ACTOR));
+  return 0;
+}
+
+static const luaL_Reg actor_methods[] = {
+  { "get_transformed_position", l_actor_get_transformed_position },
+  { "get_allocation_box", l_actor_get_allocation_box },
+  { "queue_redraw", l_actor_queue_redraw },
+  { NULL, NULL }
+};
+
+/* stage:get_actor_at_pos (pick_mode, x, y) */
+static int
+l_stage_get_actor_at_pos (lua_State *L)
+{
+  ClutterStage *stage = check_instance (L, 1, CLUTTER_TYPE_STAGE);
+  ClutterPickMode mode = check_enum (L, 2, CLUTTER_TYPE_PICK_MODE);
+  lua_Number x = luaL_checknumber (L, 3);
+  lua_Number y = luaL_checknumber (L, 4);
+
+  push_object_or_nil (L, clutter_stage_get_actor_at_pos (stage, mode, x, y));
+  return 1;
+}
+
+static const luaL_Reg stage_methods[] = {
+  { "get_actor_at_pos", l_stage_get_actor_at_pos },
+  { NULL, NULL }
+};
+
+/* widget:navigate_focus (from, direction, wrap_around) -> boolean */
+static int
+l_widget_navigate_focus (lua_State *L)
+{
+  StWidget *widget = check_instance (L, 1, ST_TYPE_WIDGET);
+  ClutterActor *from = opt_instance (L, 2, CLUTTER_TYPE_ACTOR);
+  StDirectionType direction = check_enum (L, 3, ST_TYPE_DIRECTION_TYPE);
+  gboolean wrap_around;
+
+  luaL_checktype (L, 4, LUA_TBOOLEAN);
+  wrap_around = lua_toboolean (L, 4);
+
+  lua_pushboolean (L, st_widget_navigate_focus (widget, from, direction, wrap_around));
+  return 1;
+}
+
+static const luaL_Reg widget_methods[] = {
+  { "navigate_focus", l_widget_navigate_focus },
+  { NULL, NULL }
+};
+
+/* ShellOverview */
+
+static int
+l_overview_show (lua_State *L)
+{
+  shell_overview_show (check_instance (L, 1, SHELL_TYPE_OVERVIEW));
+  return 0;
+}
+
+static int
+l_overview_hide (lua_State *L)
+{
+  shell_overview_hide (check_instance (L, 1, SHELL_TYPE_OVERVIEW));
+  return 0;
+}
+
+static const luaL_Reg overview_methods[] = {
+  { "show", l_overview_show },
+  { "hide", l_overview_hide },
+  { NULL, NULL }
+};
+
+/* ShellPanel */
+
+static int
+l_panel_get_status_area_indicator (lua_State *L)
+{
+  ShellPanel *panel = check_instance (L, 1, SHELL_TYPE_PANEL);
+  const char *role = luaL_checkstring (L, 2);
+
+  push_object_or_nil (L, shell_panel_get_status_area_indicator (panel, role));
+  return 1;
+}
+
+static const luaL_Reg panel_methods[] = {
+  { "get_status_area_indicator", l_panel_get_status_area_indicator },
+  { NULL, NULL }
+};
+
+/* ShellPopupMenuBase: open and close with the animation of the JS default */
+
+static int
+l_menu_open (lua_State *L)
+{
+  ShellPopupMenuBase *menu = check_instance (L, 1, SHELL_TYPE_POPUP_MENU_BASE);
+
+  lua_pushboolean (L, shell_popup_menu_base_open (menu, SHELL_POPUP_ANIMATION_FULL));
+  return 1;
+}
+
+static int
+l_menu_close (lua_State *L)
+{
+  ShellPopupMenuBase *menu = check_instance (L, 1, SHELL_TYPE_POPUP_MENU_BASE);
+
+  lua_pushboolean (L, shell_popup_menu_base_close (menu, SHELL_POPUP_ANIMATION_FULL));
+  return 1;
+}
+
+static const luaL_Reg menu_methods[] = {
+  { "open", l_menu_open },
+  { "close", l_menu_close },
+  { NULL, NULL }
+};
+
+/* ShellMessageTray, ShellSource, ShellNotification */
+
+static int
+l_tray_get_system_source (lua_State *L)
+{
+  ShellMessageTray *tray = check_instance (L, 1, SHELL_TYPE_MESSAGE_TRAY);
+
+  push_object_or_nil (L, shell_message_tray_get_system_source (tray));
+  return 1;
+}
+
+static const luaL_Reg tray_methods[] = {
+  { "get_system_source", l_tray_get_system_source },
+  { NULL, NULL }
+};
+
+static int
+l_source_add_notification (lua_State *L)
+{
+  ShellSource *source = check_instance (L, 1, SHELL_TYPE_SOURCE);
+  ShellNotification *notification = check_instance (L, 2, SHELL_TYPE_NOTIFICATION);
+
+  shell_source_add_notification (source, notification);
+  return 0;
+}
+
+static const luaL_Reg source_methods[] = {
+  { "add_notification", l_source_add_notification },
+  { NULL, NULL }
+};
+
+/* notification:destroy ([reason]), the reason is dismissed by default */
+static int
+l_notification_destroy (lua_State *L)
+{
+  ShellNotification *notification = check_instance (L, 1, SHELL_TYPE_NOTIFICATION);
+  ShellNotificationDestroyedReason reason = SHELL_NOTIFICATION_DESTROYED_REASON_DISMISSED;
+
+  if (!lua_isnoneornil (L, 2))
+    reason = check_enum (L, 2, SHELL_TYPE_NOTIFICATION_DESTROYED_REASON);
+
+  shell_notification_destroy (notification, reason);
+  return 0;
+}
+
+static const luaL_Reg notification_methods[] = {
+  { "destroy", l_notification_destroy },
+  { NULL, NULL }
+};
+
+/* ShellLayoutManager */
+
+static int
+l_layout_get_monitor (lua_State *L)
+{
+  ShellLayoutManager *layout_manager = check_instance (L, 1, SHELL_TYPE_LAYOUT_MANAGER);
+  int index = luaL_checkinteger (L, 2);
+  ShellMonitor *monitor = shell_layout_manager_get_monitor (layout_manager, index);
+
+  push_monitor (L, monitor);
+  g_clear_pointer (&monitor, shell_monitor_free);
+  return 1;
+}
+
+static int
+l_layout_get_primary_monitor (lua_State *L)
+{
+  ShellLayoutManager *layout_manager = check_instance (L, 1, SHELL_TYPE_LAYOUT_MANAGER);
+  ShellMonitor *monitor = shell_layout_manager_get_primary_monitor (layout_manager);
+
+  push_monitor (L, monitor);
+  g_clear_pointer (&monitor, shell_monitor_free);
+  return 1;
+}
+
+static int
+l_layout_get_n_background_managers (lua_State *L)
+{
+  ShellLayoutManager *layout_manager = check_instance (L, 1, SHELL_TYPE_LAYOUT_MANAGER);
+
+  lua_pushinteger (L, shell_layout_manager_get_n_background_managers (layout_manager));
+  return 1;
+}
+
+static const luaL_Reg layout_methods[] = {
+  { "get_monitor", l_layout_get_monitor },
+  { "get_primary_monitor", l_layout_get_primary_monitor },
+  { "get_n_background_managers", l_layout_get_n_background_managers },
+  { NULL, NULL }
+};
+
+/* MetaDisplay, MetaBackend, MetaWindow */
+
+static int
+l_display_get_n_monitors (lua_State *L)
+{
+  MetaDisplay *display = check_instance (L, 1, META_TYPE_DISPLAY);
+
+  lua_pushinteger (L, meta_display_get_n_monitors (display));
+  return 1;
+}
+
+static int
+l_display_get_monitor_geometry (lua_State *L)
+{
+  MetaDisplay *display = check_instance (L, 1, META_TYPE_DISPLAY);
+  int index = luaL_checkinteger (L, 2);
+  MtkRectangle geometry;
+
+  if (index < 0 || index >= meta_display_get_n_monitors (display))
+    return luaL_error (L, "no monitor %d", index);
+
+  meta_display_get_monitor_geometry (display, index, &geometry);
+  push_rectangle (L, geometry.x, geometry.y, geometry.width, geometry.height);
+  return 1;
+}
+
+static const luaL_Reg display_methods[] = {
+  { "get_n_monitors", l_display_get_n_monitors },
+  { "get_monitor_geometry", l_display_get_monitor_geometry },
+  { NULL, NULL }
+};
+
+static int
+l_backend_get_monitor_manager (lua_State *L)
+{
+  MetaBackend *backend = check_instance (L, 1, META_TYPE_BACKEND);
+
+  push_object_or_nil (L, meta_backend_get_monitor_manager (backend));
+  return 1;
+}
+
+static const luaL_Reg backend_methods[] = {
+  { "get_monitor_manager", l_backend_get_monitor_manager },
+  { NULL, NULL }
+};
+
+static int
+l_window_get_compositor_private (lua_State *L)
+{
+  MetaWindow *window = check_instance (L, 1, META_TYPE_WINDOW);
+
+  push_object_or_nil (L, meta_window_get_compositor_private (window));
+  return 1;
+}
+
+/* window:delete (timestamp) */
+static int
+l_window_delete (lua_State *L)
+{
+  MetaWindow *window = check_instance (L, 1, META_TYPE_WINDOW);
+  lua_Integer timestamp = luaL_checkinteger (L, 2);
+
+  meta_window_delete (window, (guint32) timestamp);
+  return 0;
+}
+
+static const luaL_Reg window_methods[] = {
+  { "get_compositor_private", l_window_get_compositor_private },
+  { "delete", l_window_delete },
+  { NULL, NULL }
+};
+
+/* ShellGlobal, ShellAppSystem, ShellApp */
+
+static int
+l_global_get_current_time (lua_State *L)
+{
+  ShellGlobal *global = check_instance (L, 1, SHELL_TYPE_GLOBAL);
+
+  lua_pushinteger (L, shell_global_get_current_time (global));
+  return 1;
+}
+
+static int
+l_global_get_app_system (lua_State *L)
+{
+  ShellGlobal *global = check_instance (L, 1, SHELL_TYPE_GLOBAL);
+
+  push_object_or_nil (L, shell_global_get_app_system (global));
+  return 1;
+}
+
+static const luaL_Reg global_methods[] = {
+  { "get_current_time", l_global_get_current_time },
+  { "get_app_system", l_global_get_app_system },
+  { NULL, NULL }
+};
+
+static int
+l_app_system_lookup_app (lua_State *L)
+{
+  ShellAppSystem *app_system = check_instance (L, 1, SHELL_TYPE_APP_SYSTEM);
+  const char *id = luaL_checkstring (L, 2);
+
+  push_object_or_nil (L, shell_app_system_lookup_app (app_system, id));
+  return 1;
+}
+
+static const luaL_Reg app_system_methods[] = {
+  { "lookup_app", l_app_system_lookup_app },
+  { NULL, NULL }
+};
+
+static int
+l_app_activate (lua_State *L)
+{
+  shell_app_activate (check_instance (L, 1, SHELL_TYPE_APP));
+  return 0;
+}
+
+/* app:get_windows () -> array of MetaWindow */
+static int
+l_app_get_windows (lua_State *L)
+{
+  ShellApp *app = check_instance (L, 1, SHELL_TYPE_APP);
+  GSList *windows = shell_app_get_windows (app);
+  GSList *l;
+  int i = 1;
+
+  lua_newtable (L);
+  for (l = windows; l != NULL; l = l->next)
+    {
+      luaL_checkstack (L, 4, "get_windows");
+      shell_lua_inspector_push_object (L, G_OBJECT (l->data));
+      lua_rawseti (L, -2, i++);
+    }
+  return 1;
+}
+
+static const luaL_Reg app_methods[] = {
+  { "activate", l_app_activate },
+  { "get_windows", l_app_get_windows },
+  { NULL, NULL }
+};
+
+static void
+register_object_methods (void)
+{
+  static gboolean registered = FALSE;
+
+  if (registered)
+    return;
+  registered = TRUE;
+
+  shell_lua_inspector_add_object_methods (G_TYPE_OBJECT, object_methods);
+  shell_lua_inspector_add_object_methods (CLUTTER_TYPE_ACTOR, actor_methods);
+  shell_lua_inspector_add_object_methods (CLUTTER_TYPE_STAGE, stage_methods);
+  shell_lua_inspector_add_object_methods (ST_TYPE_WIDGET, widget_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_OVERVIEW, overview_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_PANEL, panel_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_POPUP_MENU_BASE, menu_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_MESSAGE_TRAY, tray_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_SOURCE, source_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_NOTIFICATION, notification_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_LAYOUT_MANAGER, layout_methods);
+  shell_lua_inspector_add_object_methods (META_TYPE_DISPLAY, display_methods);
+  shell_lua_inspector_add_object_methods (META_TYPE_BACKEND, backend_methods);
+  shell_lua_inspector_add_object_methods (META_TYPE_WINDOW, window_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_GLOBAL, global_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_APP_SYSTEM, app_system_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_APP, app_methods);
+}
+
+/* ------------------------------------------------------------------------ */
+/* The test module and the script                                             */
+/* ------------------------------------------------------------------------ */
+
+static const luaL_Reg test_functions[] = {
+  { "sleep", l_sleep },
+  { "wait_leisure", l_wait_leisure },
+  { "wait_startup", l_wait_startup },
+  { "wait_and_draw", l_wait_and_draw },
+  { "watch", l_watch },
+  { "wait", l_wait },
+  { "create_window", l_create_window },
+  { "wait_windows", l_wait_windows },
+  { "destroy_windows", l_destroy_windows },
+  { "disable_helper_auto_exit", l_disable_helper_auto_exit },
+  { "timeout", l_timeout },
+  { "now", l_now },
+  { "new", l_new },
+  { "new_monitor", l_new_monitor },
+  { "create_virtual_device", l_create_virtual_device },
+  { "set_boolean", l_set_boolean },
+  { "print", l_print },
+  { "log", l_log },
+  { "define_event", l_define_event },
+  { "event", l_event },
+  { "event_i", l_event_i },
+  { "collect_statistics", l_collect_statistics },
+  { "events", l_events },
+  { "write_report", l_write_report },
+  { NULL, NULL }
+};
+
+static const luaL_Reg monitor_methods[] = {
+  { "destroy", l_monitor_destroy },
+  { NULL, NULL }
+};
+
+/* The parts of the module that are easier in Lua */
+static const char prelude[] =
+"local test = test\n"
+"local handlers, finishers, metrics = {}, {}, {}\n"
+"\n"
+"print = test.print\n"
+"\n"
+"function test.on_event (name, fn)\n"
+"  handlers[name] = fn\n"
+"end\n"
+"\n"
+"function test.on_script_event (name, fn)\n"
+"  handlers['script.' .. name] = fn\n"
+"end\n"
+"\n"
+"function test.finish (fn)\n"
+"  finishers[#finishers + 1] = fn\n"
+"end\n"
+"\n"
+"function test.metrics (table)\n"
+"  metrics = table\n"
+"  return table\n"
+"end\n"
+"\n"
+"function test.expect_equal (a, b, description)\n"
+"  if a ~= b then\n"
+"    error ((description and (description .. ' ') or '') .. tostring (a) ..\n"
+"           ' does not match ' .. tostring (b), 2)\n"
+"  end\n"
+"end\n"
+"\n"
+"function test.wait_signal (object, name, timeout)\n"
+"  test.wait (test.watch (object, name), timeout)\n"
+"end\n"
+"\n"
+"function test.wait_for (predicate, description, timeout)\n"
+"  local start = test.now ()\n"
+"  timeout = timeout or 10000\n"
+"  while not predicate () do\n"
+"    if test.now () - start > timeout then\n"
+"      error ('Timeout waiting for ' .. description, 2)\n"
+"    end\n"
+"    test.sleep (100)\n"
+"  end\n"
+"end\n"
+"\n"
+"local escapes = { ['\"'] = '\\\\\"', ['\\\\'] = '\\\\\\\\', ['\\n'] = '\\\\n',\n"
+"                  ['\\r'] = '\\\\r', ['\\t'] = '\\\\t', ['\\b'] = '\\\\b',\n"
+"                  ['\\f'] = '\\\\f' }\n"
+"\n"
+"local function json_string (s)\n"
+"  local escaped = tostring (s):gsub ('[%c\"\\\\]', function (c)\n"
+"    return escapes[c] or string.format ('\\\\u%04x', c:byte ())\n"
+"  end)\n"
+"  return '\"' .. escaped .. '\"'\n"
+"end\n"
+"\n"
+"local function json_value (v)\n"
+"  if type (v) == 'string' then\n"
+"    return json_string (v)\n"
+"  elseif math.type (v) == 'integer' then\n"
+"    return string.format ('%d', v)\n"
+"  elseif type (v) == 'number' then\n"
+"    if v ~= v or v == math.huge or v == -math.huge then\n"
+"      return 'null'\n"
+"    end\n"
+"    return string.format ('%.17g', v)\n"
+"  end\n"
+"  return tostring (v)\n"
+"end\n"
+"\n"
+"local function report ()\n"
+"  local names = {}\n"
+"  for name in pairs (metrics) do\n"
+"    names[#names + 1] = name\n"
+"  end\n"
+"  table.sort (names)\n"
+"\n"
+"  local output = os.getenv ('SHELL_PERF_OUTPUT')\n"
+"  if output and output ~= '' then\n"
+"    local entries = {}\n"
+"    for _, name in ipairs (names) do\n"
+"      local metric = metrics[name]\n"
+"      if metric.description == nil then\n"
+"        print ('Error: No description found for metric ' .. name)\n"
+"      elseif metric.units == nil then\n"
+"        print ('Error: No units found for metric ' .. name)\n"
+"      elseif metric.value == nil then\n"
+"        print ('Error: No value found for metric ' .. name)\n"
+"      else\n"
+"        entries[#entries + 1] = string.format (\n"
+"          '{ \"name\": %s,\\n    \"description\": %s,\\n    \"units\": %s,\\n    \"value\": %s }',\n"
+"          json_string (name), json_string (metric.description),\n"
+"          json_string (metric.units), json_value (metric.value))\n"
+"      end\n"
+"    end\n"
+"    test.write_report (output, table.concat (entries, ',\\n  '))\n"
+"  else\n"
+"    print ('------------------------------------------------------------')\n"
+"    for _, name in ipairs (names) do\n"
+"      local metric = metrics[name]\n"
+"      print ('# ' .. tostring (metric.description))\n"
+"      print (name .. ': ' .. tostring (metric.value) .. tostring (metric.units))\n"
+"    end\n"
+"    print ('------------------------------------------------------------')\n"
+"  end\n"
+"end\n"
+"\n"
+"-- Called when the script is done: replays the performance log to the\n"
+"-- handlers, then the finish functions, then reports the metrics\n"
+"function test.__collect ()\n"
+"  for _, event in ipairs (test.events ()) do\n"
+"    local handler = handlers[event.name]\n"
+"    if handler then\n"
+"      handler (event.time, event.arg)\n"
+"    end\n"
+"  end\n"
+"  for _, finisher in ipairs (finishers) do\n"
+"    finisher ()\n"
+"  end\n"
+"  report ()\n"
+"end\n";
+
+static int
+l_boot (lua_State *L)
+{
+  Runner *r = the_runner;
+
+  luaL_checkstack (L, 12, "boot");
+
+  lua_rawgeti (L, LUA_REGISTRYINDEX, LUA_RIDX_MAINTHREAD);
+  r->L = lua_tothread (L, -1);
+  lua_pop (L, 1);
+
+  luaL_newmetatable (L, WAITER_METATABLE);
+  lua_pop (L, 1);
+
+  luaL_newmetatable (L, MONITOR_METATABLE);
+  lua_newtable (L);
+  luaL_setfuncs (L, monitor_methods, 0);
+  lua_setfield (L, -2, "__index");
+  lua_pop (L, 1);
+
+  lua_newtable (L);
+  luaL_setfuncs (L, test_functions, 0);
+  lua_setglobal (L, "test");
+
+  if (luaL_loadbufferx (L, prelude, sizeof (prelude) - 1, "=(test prelude)", "t") != LUA_OK)
+    return lua_error (L);
+  lua_call (L, 0, 0);
+
+  /* The script, as a coroutine of its own: stack is [chunk] -> [] */
+  if (luaL_loadfile (L, r->script) != LUA_OK)
+    return lua_error (L);
+
+  r->co = lua_newthread (L);
+  lua_pushvalue (L, -1);
+  r->co_ref = luaL_ref (L, LUA_REGISTRYINDEX);
+  lua_pop (L, 1);
+  lua_xmove (L, r->co, 1);
+
+  return 0;
+}
+
+static gboolean
+first_resume_cb (gpointer data)
+{
+  Runner *r = the_runner;
+
+  if (r != NULL && r->parked && GPOINTER_TO_UINT (data) == r->park_serial)
+    resume_script (r);
+
+  return G_SOURCE_REMOVE;
+}
+
+static void
+script_finished (Runner *r)
+{
+  gboolean helper_exit;
+
+  if (!lua_checkstack (r->L, 4))
+    {
+      runner_fail (r, "out of stack space");
+      return;
+    }
+
+  lua_getglobal (r->L, "test");
+  lua_getfield (r->L, -1, "__collect");
+  lua_remove (r->L, -2);
+  if (!call_in_thread (r, 0, NULL))
+    return;
+
+  /* The helper exits with the script, unless the script wants its windows to
+   * remain during the exit of the shell */
+  helper_exit = r->helper != NULL && r->helper_auto_exit;
+  if (helper_exit && r->helper_ready)
+    {
+      g_dbus_connection_call (r->bus, PERF_HELPER_NAME, PERF_HELPER_PATH, PERF_HELPER_NAME,
+                              "Exit", g_variant_new ("()"), NULL, G_DBUS_CALL_FLAGS_NONE,
+                              -1, r->cancellable, helper_exit_done_cb, NULL);
+      return;
+    }
+
+  runner_finish (r, NULL);
+}
+
+static void
+boot (Runner *r)
+{
+  g_autoptr (GError) error = NULL;
+  g_autoptr (ShellLayoutManager) layout_manager = NULL;
+  ShellGlobal *global = shell_global_get ();
+  ShellMain *main_object = shell_main_get_default ();
+  g_autofree char *result = NULL;
+
+  register_object_methods ();
+
+  shell_perf_log_set_enabled (shell_perf_log_get_default (), TRUE);
+
+  r->inspector = g_object_new (SHELL_TYPE_LUA_INSPECTOR, NULL);
+  shell_lua_inspector_add_function (r->inspector, "__test_boot", l_boot);
+  shell_lua_inspector_set_global_object (r->inspector, "global", G_OBJECT (global));
+  shell_lua_inspector_set_global_object (r->inspector, "stage",
+                                         G_OBJECT (shell_global_get_stage (global)));
+  shell_lua_inspector_set_global_object (r->inspector, "main", G_OBJECT (main_object));
+
+  /* The startup is complete once the layout manager says so, or when the
+   * action mode left NONE (ShellMain sets it then) if we missed that */
+  layout_manager = g_object_ref (shell_main_get_layout_manager (main_object));
+  g_weak_ref_set (&r->layout_manager, layout_manager);
+  r->startup_id = g_signal_connect (layout_manager, "startup-complete",
+                                    G_CALLBACK (startup_complete_cb), r);
+  r->startup_complete = shell_main_get_action_mode (main_object) != SHELL_ACTION_MODE_NONE;
+
+  result = shell_lua_inspector_eval (r->inspector, "__test_boot ()", &error);
+  if (result == NULL)
+    {
+      runner_fail (r, "Could not load %s: %s", r->script, error->message);
+      return;
+    }
+
+  /* Start the script from the main loop: it runs outside of the evaluation */
+  r->parked = TRUE;
+  r->park_serial++;
+  g_idle_add (first_resume_cb, GUINT_TO_POINTER (r->park_serial));
+}
+
+static gboolean
+poll_ready_cb (gpointer data)
+{
+  Runner *r = data;
+  ShellMain *main_object = shell_main_get_default ();
+
+  if (shell_global_get_stage (shell_global_get ()) == NULL ||
+      shell_main_get_layout_manager (main_object) == NULL ||
+      shell_main_get_window_manager (main_object) == NULL ||
+      shell_main_get_overview (main_object) == NULL ||
+      shell_main_get_message_tray (main_object) == NULL ||
+      shell_main_get_panel (main_object) == NULL)
+    return G_SOURCE_CONTINUE;
+
+  r->poll_id = 0;
+  boot (r);
+  return G_SOURCE_REMOVE;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Teardown                                                                  */
+/* ------------------------------------------------------------------------ */
+
+static void
+runner_free (Runner *r)
+{
+  guint i;
+
+  r->finished = TRUE;
+  g_clear_handle_id (&r->poll_id, g_source_remove);
+  g_clear_handle_id (&r->wake_source, g_source_remove);
+
+  if (r->cancellable != NULL)
+    g_cancellable_cancel (r->cancellable);
+
+  for (i = 0; i < r->waiters->len; i++)
+    waiter_disconnect (g_ptr_array_index (r->waiters, i));
+
+  if (r->startup_id != 0)
+    {
+      g_autoptr (GObject) layout_manager = g_weak_ref_get (&r->layout_manager);
+
+      if (layout_manager != NULL)
+        g_signal_handler_disconnect (layout_manager, r->startup_id);
+      r->startup_id = 0;
+    }
+  g_weak_ref_clear (&r->layout_manager);
+
+  /* What the script made, while the state can still be told */
+  for (i = 0; i < r->monitors->len; i++)
+    destroy_monitor (r, g_ptr_array_index (r->monitors, i));
+  g_ptr_array_set_size (r->keep, 0);
+
+  /* The state is closed with the inspector: from now on the closures and the
+   * callbacks that are left do nothing */
+  the_runner = NULL;
+  r->L = NULL;
+  r->co = NULL;
+  g_clear_object (&r->inspector);
+
+  if (r->helper_watch_id != 0)
+    g_bus_unwatch_name (r->helper_watch_id);
+  g_clear_object (&r->bus);
+  g_clear_object (&r->helper);
+  g_clear_object (&r->cancellable);
+  g_clear_pointer (&r->pending_params, g_variant_unref);
+  g_free (r->pending_method);
+
+  g_ptr_array_unref (r->monitors);
+  g_ptr_array_unref (r->keep);
+  g_ptr_array_unref (r->waiters);
+  g_free (r->script);
+  g_free (r);
+}
+
+static void
+shutdown_cb (ShellGlobal *global,
+             gpointer     user_data)
+{
+  Runner *r = user_data;
+
+  g_signal_handler_disconnect (global, r->shutdown_id);
+  r->shutdown_id = 0;
+  runner_free (r);
+}
+
+static void
+test_monitor_free (TestMonitor *monitor)
+{
+  g_free (monitor);
+}
+
+void
+shell_test_runner_start (void)
+{
+  const char *script = g_getenv (SCRIPT_ENV);
+  g_autofree char *absolute = NULL;
+  Runner *r;
+
+  if (script == NULL || script[0] == '\0' || the_runner != NULL)
+    return;
+
+  if (!g_path_is_absolute (script))
+    {
+      g_autofree char *cwd = g_get_current_dir ();
+
+      absolute = g_build_filename (cwd, script, NULL);
+    }
+  else
+    {
+      absolute = g_strdup (script);
+    }
+
+  r = g_new0 (Runner, 1);
+  r->script = g_steal_pointer (&absolute);
+  r->helper_auto_exit = TRUE;
+  r->cancellable = g_cancellable_new ();
+  r->keep = g_ptr_array_new_with_free_func (g_object_unref);
+  r->monitors = g_ptr_array_new_with_free_func ((GDestroyNotify) test_monitor_free);
+  r->waiters = g_ptr_array_new_with_free_func ((GDestroyNotify) waiter_free);
+  g_weak_ref_init (&r->layout_manager, NULL);
+  the_runner = r;
+
+  r->shutdown_id = g_signal_connect_after (shell_global_get (), "shutdown",
+                                           G_CALLBACK (shutdown_cb), r);
+  r->poll_id = g_timeout_add (POLL_INTERVAL_MS, poll_ready_cb, r);
+  g_source_set_name_by_id (r->poll_id, "[gnome-shell] test runner start");
+}

@@ -7,14 +7,14 @@
  * What the JS reached through the `Main` module is done like this:
  *
  *  - `Main.sessionMode` is the #ShellSystemActions:session-mode property,
- *    which js/ui/main.js sets right after it creates the session mode. While
+ *    which src/ui/main.c sets right after it creates the session mode. While
  *    it is unset the session counts as neither locked nor a greeter.
  *  - `Main.screenShield.lock (animate)` is the #ShellSystemActions::lock-screen-requested
  *    signal.
  *  - `Main.overview.hide ()` (when logging out) is the
  *    #ShellSystemActions::hide-overview-requested signal.
  *  - `Main.overview` 'hidden' followed by `Screenshot.showScreenshotUI ()` is
- *    the #ShellSystemActions::screenshot-ui-requested signal; main.js waits
+ *    the #ShellSystemActions::screenshot-ui-requested signal; ShellMain waits
  *    for the overview to be hidden before it opens the UI.
  *  - `Main.layoutManager`'s 'monitors-changed' is the signal of the same name
  *    of the #MetaMonitorManager, which is what the layout manager forwards.
@@ -1545,7 +1545,7 @@ shell_system_actions_class_init (ShellSystemActionsClass *klass)
   /**
    * ShellSystemActions:session-mode:
    *
-   * The session mode of the shell (`Main.sessionMode`), set by js/ui/main.js.
+   * The session mode of the shell (`Main.sessionMode`), set by src/ui/main.c.
    */
   props[PROP_SESSION_MODE] =
     g_param_spec_object ("session-mode", NULL, NULL,

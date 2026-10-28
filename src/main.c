@@ -11,29 +11,32 @@
 #if defined (HAVE_MALLINFO) || defined (HAVE_MALLINFO2)
 #include <malloc.h>
 #endif
+#include <errno.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <clutter/clutter.h>
 #include <glib-unix.h>
 #include <glib/gi18n-lib.h>
-#include <girepository/girepository.h>
 #include <meta/meta-context.h>
 #include <meta/meta-plugin.h>
 #include <meta/prefs.h>
 #include <atk-bridge.h>
-#include <link.h>
 
-#ifdef HAVE_EXE_INTROSPECTION
-#include <dlfcn.h>
-#include <elf.h>
+#ifdef HAVE_EXECINFO_H
+#include <execinfo.h>
 #endif
 
 #include "shell-global.h"
 #include "shell-global-private.h"
 #include "shell-lua.h"
 #include "shell-perf-log.h"
+#include "shell-test-runner.h"
 #include "st.h"
+#include "ui/main.h"
+#include "ui/session-mode.h"
 
 extern GType gnome_shell_plugin_get_type (void);
 
@@ -46,7 +49,6 @@ static gboolean is_gdm_mode = FALSE;
 static char *session_mode = NULL;
 static int caught_signal = 0;
 static gboolean force_animations = FALSE;
-static char *script_path = NULL;
 static char *lua_extension_path = NULL;
 
 #define DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER 1
@@ -89,7 +91,7 @@ shell_dbus_acquire_name (GDBusProxy  *bus,
 }
 
 static void
-shell_dbus_init ()
+shell_dbus_init (void)
 {
   GDBusConnection *session;
   GDBusProxy *bus;
@@ -134,170 +136,6 @@ shell_dbus_init ()
 
   g_object_unref (bus);
   g_object_unref (session);
-}
-
-#ifdef HAVE_EXE_INTROSPECTION
-static void
-maybe_add_rpath_introspection_paths (GIRepository *repo)
-{
-  ElfW (Dyn) *dyn;
-  ElfW (Dyn) *rpath = NULL;
-  ElfW (Dyn) *runpath = NULL;
-  const char *strtab = NULL;
-  g_auto (GStrv) paths = NULL;
-  g_autofree char *exe_dir = NULL;
-  GStrv str;
-  Dl_info dl_info;
-  struct link_map *link_map = NULL;
-
-  for (dyn = _DYNAMIC; dyn->d_tag != DT_NULL; dyn++)
-    {
-      if (dyn->d_tag == DT_RPATH)
-        rpath = dyn;
-      else if (dyn->d_tag == DT_RUNPATH)
-        runpath = dyn;
-      else if (dyn->d_tag == DT_STRTAB)
-        strtab = (const char *) dyn->d_un.d_val;
-    }
-
-  if ((!rpath && !runpath) || !strtab)
-    return;
-
-  if (dladdr1 (_DYNAMIC, &dl_info, (void **) &link_map, RTLD_DL_LINKMAP))
-    {
-      /* Sanity check */
-      g_return_if_fail ((void *) _DYNAMIC == (void *) link_map->l_ld);
-
-      /* strtab should be at an offset above our load address. If it's not
-       * then this is a special architecture (riscv, mips) that has a
-       * readonly _DYNAMIC section that's not relocated. So in that case
-       * strtab is currently an offset rather than an address. Let's make it
-       * an address...
-       */
-      if (strtab < (const char *) link_map->l_addr)
-        strtab += link_map->l_addr;
-    }
-
-  if (rpath)
-    paths = g_strsplit (strtab + rpath->d_un.d_val, ":", -1);
-  else
-    paths = g_strsplit (strtab + runpath->d_un.d_val, ":", -1);
-
-  if (!paths)
-    return;
-
-  for (str = paths; *str; str++)
-    {
-      g_autoptr (GError) error = NULL;
-      g_autoptr (GString) rpath_dir = NULL;
-
-      if (!strstr (*str, "$ORIGIN"))
-        continue;
-
-      if (!exe_dir)
-        {
-          g_autofree char *exe_path = NULL;
-
-          exe_path = g_file_read_link ("/proc/self/exe", &error);
-          if (!exe_path)
-            {
-              g_warning ("Failed to find directory of executable: %s",
-                         error->message);
-              return;
-            }
-
-          exe_dir = g_path_get_dirname (exe_path);
-        }
-
-      rpath_dir = g_string_new (*str);
-      g_string_replace (rpath_dir, "$ORIGIN", exe_dir, 0);
-
-      g_debug ("Prepending RPATH directory '%s' "
-               "to introsepciton library search path",
-               rpath_dir->str);
-      gi_repository_prepend_search_path (repo, rpath_dir->str);
-      gi_repository_prepend_library_path (repo, rpath_dir->str);
-    }
-}
-#endif /* HAVE_EXE_INTROSPECTION */
-
-static void
-shell_introspection_init (void)
-{
-  g_autoptr (GIRepository) repo = NULL;
-
-  repo = gi_repository_dup_default ();
-
-  gi_repository_prepend_search_path (repo, MUTTER_TYPELIB_DIR);
-  gi_repository_prepend_search_path (repo, SHELL_TYPELIB_DIR);
-
-  /* We need to explicitly add the directories where the private libraries are
-   * installed to the GIR's library path, so that they can be found at runtime
-   * when linking using DT_RUNPATH (instead of DT_RPATH), which is the default
-   * for some linkers (e.g. gold) and in some distros (e.g. Debian).
-   */
-  gi_repository_prepend_library_path (repo, MUTTER_TYPELIB_DIR);
-  gi_repository_prepend_library_path (repo, GNOME_SHELL_PKGLIBDIR);
-
-#ifdef HAVE_EXE_INTROSPECTION
-  maybe_add_rpath_introspection_paths (repo);
-#endif
-}
-
-static void
-shell_profiler_init (void)
-{
-  ShellGlobal *global;
-  GjsProfiler *profiler;
-  GjsContext *context;
-  const char *enabled;
-  const char *fd_str;
-  int fd = -1;
-
-  /* Sysprof uses the "GJS_TRACE_FD=N" environment variable to connect GJS
-   * profiler data to the combined Sysprof capture. Since we are in control of
-   * the GjsContext, we need to proxy this FD across to the GJS profiler.
-   */
-
-  fd_str = g_getenv ("GJS_TRACE_FD");
-  enabled = g_getenv ("GJS_ENABLE_PROFILER");
-  if (fd_str == NULL || enabled == NULL)
-    return;
-
-  global = shell_global_get ();
-  g_return_if_fail (global);
-
-  context = _shell_global_get_gjs_context (global);
-  g_return_if_fail (context);
-
-  profiler = gjs_context_get_profiler (context);
-  g_return_if_fail (profiler);
-
-  if (fd_str)
-    {
-      fd = atoi (fd_str);
-
-      if (fd > 2)
-        {
-          gjs_profiler_set_fd (profiler, fd);
-          gjs_profiler_start (profiler);
-        }
-    }
-}
-
-static void
-shell_profiler_shutdown (void)
-{
-  ShellGlobal *global;
-  GjsProfiler *profiler;
-  GjsContext *context;
-
-  global = shell_global_get ();
-  context = _shell_global_get_gjs_context (global);
-  profiler = gjs_context_get_profiler (context);
-
-  if (profiler)
-    gjs_profiler_stop (profiler);
 }
 
 static void
@@ -376,6 +214,53 @@ shell_init_debug (const char *debug_env)
                                        G_N_ELEMENTS (keys));
 }
 
+/*
+ * Prints the stack of the calling thread to stderr: the Lua traceback of the
+ * extension state that is running, if there is one, then the C stack (the
+ * sanitizer's under AddressSanitizer, which symbolizes it, otherwise
+ * backtrace_symbols_fd ()). It only uses write () and, after
+ * dump_stack_init (), does not allocate, so a fatal signal handler can call
+ * it. This replaces gjs_dumpstack ().
+ */
+static void
+dump_stack (void)
+{
+  /* Lua extensions (gnome-lua): does not allocate; prints nothing if no Lua
+   * code is running */
+  shell_lua_dump_stack ();
+
+#ifdef __SANITIZE_ADDRESS__
+  /* The C side of a fatal warning (gnome-lua): the sanitizer symbolizes
+   * the stack of the frame that raised it */
+  __sanitizer_print_stack_trace ();
+#elif defined (HAVE_EXECINFO_H)
+  {
+    static const char header[] = "== C stack ==\n";
+    void *frames[128];
+    ssize_t ignored;
+    int n_frames;
+
+    ignored = write (STDERR_FILENO, header, sizeof header - 1);
+    (void) ignored;
+
+    n_frames = backtrace (frames, G_N_ELEMENTS (frames));
+    backtrace_symbols_fd (frames, n_frames, STDERR_FILENO);
+  }
+#endif
+}
+
+/* The first call of backtrace () loads libgcc, which allocates: do it before
+ * a signal handler has to */
+static void
+dump_stack_init (void)
+{
+#if !defined (__SANITIZE_ADDRESS__) && defined (HAVE_EXECINFO_H)
+  void *frame;
+
+  backtrace (&frame, 1);
+#endif
+}
+
 static GLogWriterOutput
 default_log_writer (GLogLevelFlags   log_level,
                     const GLogField *fields,
@@ -383,7 +268,6 @@ default_log_writer (GLogLevelFlags   log_level,
                     gpointer         user_data)
 {
   GLogWriterOutput output;
-  int i;
 
   output = g_log_writer_default (log_level, fields, n_fields, user_data);
 
@@ -391,22 +275,7 @@ default_log_writer (GLogLevelFlags   log_level,
       ((log_level & G_LOG_LEVEL_CRITICAL) ||
        (log_level & G_LOG_LEVEL_WARNING)) &&
       g_thread_self () == main_thread)
-    {
-      const char *log_domain = NULL;
-
-      for (i = 0; i < n_fields; i++)
-        {
-          if (g_strcmp0 (fields[i].key, "GLIB_DOMAIN") == 0)
-            {
-              log_domain = fields[i].value;
-              break;
-            }
-        }
-
-      /* Filter out Gjs logs, those already have the stack */
-      if (g_strcmp0 (log_domain, "Gjs") != 0)
-        gjs_dumpstack ();
-    }
+    dump_stack ();
 
   return output;
 }
@@ -421,19 +290,19 @@ shut_up (GLogLevelFlags   log_level,
 }
 
 static void
-dump_gjs_stack_alarm_sigaction (int signo)
+dump_stack_alarm_sigaction (int signo)
 {
   g_log_set_writer_func (g_log_writer_default, NULL, NULL);
-  g_warning ("Failed to dump Javascript stack, got stuck");
+  g_warning ("Failed to dump the stack, got stuck");
   g_log_set_writer_func (default_log_writer, NULL, NULL);
 
   raise (caught_signal);
 }
 
 static void
-dump_gjs_stack_on_signal_handler (int signo)
+dump_stack_on_signal_handler (int signo)
 {
-  struct sigaction sa = { .sa_handler = dump_gjs_stack_alarm_sigaction };
+  struct sigaction sa = { .sa_handler = dump_stack_alarm_sigaction };
   gsize i;
 
   /* Ignore all the signals starting this point, a part the one we'll raise
@@ -453,26 +322,18 @@ dump_gjs_stack_on_signal_handler (int signo)
   sigaction (SIGALRM, &sa, NULL);
 
   alarm (5);
-  /* Lua extensions (gnome-lua): does not allocate; prints nothing if no Lua
-   * code is running */
-  shell_lua_dump_stack ();
-  gjs_dumpstack ();
-#ifdef __SANITIZE_ADDRESS__
-  /* The C side of a fatal warning (gnome-lua): the sanitizer symbolizes
-   * the stack of the frame that raised it */
-  __sanitizer_print_stack_trace ();
-#endif
+  dump_stack ();
   alarm (0);
 
   raise (signo);
 }
 
 static void
-dump_gjs_stack_on_signal (int signo)
+dump_stack_on_signal (int signo)
 {
   struct sigaction sa = {
     .sa_flags   = SA_RESETHAND | SA_NODEFER,
-    .sa_handler = dump_gjs_stack_on_signal_handler,
+    .sa_handler = dump_stack_on_signal_handler,
   };
 
   sigemptyset (&sa.sa_mask);
@@ -487,29 +348,16 @@ list_modes (const char  *option_name,
             gpointer     data,
             GError     **error)
 {
-  ShellGlobal *global;
-  GjsContext *context;
-  uint8_t status;
+  g_auto (GStrv) modes = NULL;
+  int i;
 
-  /* Many of our imports require global to be set, so rather than
-   * tayloring our imports carefully here to avoid that dependency,
-   * we just set it. */
   g_log_set_writer_func (shut_up, NULL, NULL);
 
-  _shell_global_init (NULL);
-  global = shell_global_get ();
-  context = _shell_global_get_gjs_context (global);
+  modes = shell_session_mode_list_modes ();
+  for (i = 0; modes[i] != NULL; i++)
+    g_print ("%s\n", modes[i]);
 
-  shell_introspection_init ();
-
-  if (!gjs_context_eval_module_file (context,
-                                     "resource:///org/gnome/shell/ui/listModes.js",
-                                     &status,
-                                     NULL))
-      g_message ("Retrieving list of available modes failed.");
-
-  g_object_unref (context);
-  exit (status);
+  exit (0);
 }
 
 static gboolean
@@ -551,12 +399,6 @@ GOptionEntry gnome_shell_options[] = {
     "force-animations", 0, G_OPTION_FLAG_NONE, G_OPTION_ARG_NONE,
     &force_animations,
     N_("Force animations to be enabled"),
-    NULL
-  },
-  {
-    "automation-script", 0, G_OPTION_FLAG_HIDDEN, G_OPTION_ARG_FILENAME,
-    &script_path,
-    "",
     NULL
   },
   {
@@ -645,11 +487,27 @@ change_to_home_directory (void)
     g_warning ("Could not change to home directory %s", home_dir);
 }
 
+/*
+ * Starts the shell once the main loop runs (what init.js queued with
+ * GLib.idle_add ()): creates the singletons and the UI. If that fails the
+ * main loop ends with the error, which main () reports.
+ */
+static gboolean
+start_shell_cb (gpointer user_data)
+{
+  MetaContext *context = user_data;
+  GError *error = NULL;
+
+  if (!shell_main_start (shell_main_get_default (), &error))
+    meta_context_terminate_with_error (context, error);
+
+  return G_SOURCE_REMOVE;
+}
+
 int
 main (int argc, char **argv)
 {
   g_autoptr (MetaContext) context = NULL;
-  g_autoptr (GFile) automation_script = NULL;
   g_autofree char *cwd = NULL;
   GError *error = NULL;
   int ecode = EXIT_SUCCESS;
@@ -658,18 +516,11 @@ main (int argc, char **argv)
   bind_textdomain_codeset (GETTEXT_PACKAGE, "UTF-8");
   textdomain (GETTEXT_PACKAGE);
 
-  /* FIXME: Add gjs API to set this stuff and don't depend on the
-   * environment.  These propagate to child processes.
-   */
-  g_setenv ("GJS_DEBUG_OUTPUT", "stderr", TRUE);
-  g_setenv ("GJS_DEBUG_TOPICS", "JS ERROR;JS LOG", TRUE);
-
   main_thread = g_thread_self ();
 
   context = meta_create_context (WM_NAME);
   meta_context_add_option_entries (context, gnome_shell_options,
                                    GETTEXT_PACKAGE);
-  meta_context_add_option_group (context, gi_repository_get_option_group ());
 
   session_mode = (char *) g_getenv ("GNOME_SHELL_SESSION_MODE");
 
@@ -690,32 +541,23 @@ main (int argc, char **argv)
   if (session_mode == NULL)
     session_mode = is_gdm_mode ? (char *)"gdm" : (char *)"user";
 
-  dump_gjs_stack_on_signal (SIGABRT);
-  dump_gjs_stack_on_signal (SIGFPE);
-  dump_gjs_stack_on_signal (SIGIOT);
-  dump_gjs_stack_on_signal (SIGTRAP);
+  dump_stack_init ();
+  dump_stack_on_signal (SIGABRT);
+  dump_stack_on_signal (SIGFPE);
+  dump_stack_on_signal (SIGIOT);
+  dump_stack_on_signal (SIGTRAP);
 
   if ((_shell_debug & SHELL_DEBUG_BACKTRACE_SEGFAULTS))
     {
-      dump_gjs_stack_on_signal (SIGBUS);
-      dump_gjs_stack_on_signal (SIGSEGV);
+      dump_stack_on_signal (SIGBUS);
+      dump_stack_on_signal (SIGSEGV);
     }
 
-  if (script_path)
-    automation_script = g_file_new_for_commandline_arg_and_cwd (script_path, cwd);
-
-  /* Initialize the Shell global, including GjsContext
-   * GjsContext will iterate the default main loop to
-   * resolve internal modules.
-   */
+  /* Initialize the Shell global */
   _shell_global_init ("session-mode", session_mode,
                       "force-animations", force_animations,
-                      "automation-script", automation_script,
                       NULL);
 
-  /* Setup Meta _after_ the Shell global to avoid GjsContext
-   * iterating on the main loop once Meta starts adding events
-   */
   if (!meta_context_setup (context, &error))
     {
       g_printerr ("Failed to setup: %s\n", error->message);
@@ -727,7 +569,6 @@ main (int argc, char **argv)
   shell_dbus_init ();
   shell_a11y_init ();
   shell_perf_log_init ();
-  shell_introspection_init ();
 
   /* Ensure the GNOME Shell cursor implementation registers itself as
    * a GIO extension.
@@ -735,8 +576,6 @@ main (int argc, char **argv)
   g_type_ensure (ST_TYPE_CURSOR);
 
   g_log_set_writer_func (default_log_writer, NULL, NULL);
-
-  shell_profiler_init ();
 
   meta_context_raise_rlimit_nofile (context, NULL);
 
@@ -746,17 +585,15 @@ main (int argc, char **argv)
       return EXIT_FAILURE;
     }
 
-  /* init.js calls meta_context_start_main_loop(), gjs_context_eval_module_file()
-   * will not return until Mutter is exited.
-   */
-  GjsContext *gjs_context = _shell_global_get_gjs_context (shell_global_get());
-  uint8_t status;
-  if (!gjs_context_eval_module_file (gjs_context,
-                                     "resource:///org/gnome/shell/ui/init.js",
-                                     &status,
-                                     &error))
+  shell_test_runner_start (); /* runs $SHELL_TEST_SCRIPT, if set, once the UI is built */
+
+  /* Queue starting the shell, then run the main loop of the Meta context
+   * (what init.js did); it returns when Mutter is exited. */
+  g_idle_add_full (G_PRIORITY_DEFAULT, start_shell_cb, context, NULL);
+
+  if (!meta_context_run_main_loop (context, &error))
     {
-      g_message ("Execution of main.js threw exception: %s", error->message);
+      g_message ("GNOME Shell terminated with an error: %s", error->message);
       g_error_free (error);
       /* We just exit() here, since in a development environment you'll get the
        * error in your shell output, and it's way better than a busted WM,
@@ -765,25 +602,19 @@ main (int argc, char **argv)
        * In production, we shouldn't crash =)  But if we do, we should get
        * restarted by the session infrastructure, which is likely going
        * to be better than some undefined state.
-       *
-       * If there was a generic "hook into bug-buddy for non-C crashes"
-       * infrastructure, here would be the place to put it.
        */
-      g_object_unref (gjs_context);
       exit (1);
     }
 
   g_message ("Shutting down GNOME Shell");
   _shell_global_notify_shutdown (shell_global_get ());
 
-  /* Lua extensions (gnome-lua): disable them while the JS context is alive */
+  /* Lua extensions (gnome-lua): disable them while the UI is alive */
   g_debug ("Tearing down Lua extensions");
   _shell_global_shutdown_lua (shell_global_get ());
 
-  shell_profiler_shutdown ();
-
-  g_debug ("Tearing down the gjs context");
-  _shell_global_destroy_gjs_context (shell_global_get ());
+  g_debug ("Tearing down the shell");
+  shell_main_shutdown (shell_main_get_default ());
   g_object_unref (shell_global_get ());
 
   g_debug ("Tearing down the mutter context");

@@ -12,10 +12,10 @@
  *    does not reach `Main.screenshotUI` (a JS object): after the quick
  *    settings menu closed it emits ::screenshot-ui-requested (before the
  *    next redraw, as the JS scheduled the call) on the button, the row of
- *    buttons and the indicator, and js/ui/panelItems.js opens the UI.
+ *    buttons and the indicator, and src/ui/panel-items.c opens the UI.
  *  - `Main.overview.hide ()` and `Main.panel.close_quick_settings ()` of the
  *    power and the settings buttons are ShellMain::settings-app-activating,
- *    which main.js answers with exactly those two calls. The buttons of the
+ *    which ShellMain answers with exactly those two calls. The buttons of the
  *    power off menu close the quick settings through the panel.
  *  - The battery is read from a gdbus-codegen proxy of
  *    org.freedesktop.UPower.Device; an unreachable UPower is a debug message

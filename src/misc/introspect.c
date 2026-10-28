@@ -697,7 +697,7 @@ shell_introspect_service_init (ShellIntrospectService *self)
  * shell_introspect_service_new:
  *
  * Creates the service, exports it on the session bus and owns
- * org.gnome.Shell.Introspect. js/ui/main.js creates the only instance.
+ * org.gnome.Shell.Introspect. src/ui/main.c creates the only instance.
  *
  * Returns: (transfer full): a new #ShellIntrospectService
  */

@@ -191,7 +191,7 @@ shell_welcome_dialog_class_init (ShellWelcomeDialogClass *klass)
    * @self: the #ShellWelcomeDialog
    *
    * Emitted when the user takes the tour, which hides the overview
-   * (`Main.overview.hide ()`). main.js connects it. The handler must not
+   * (`Main.overview.hide ()`). ShellMain connects it. The handler must not
    * return a value.
    */
   signals[OVERVIEW_HIDE_REQUESTED] =

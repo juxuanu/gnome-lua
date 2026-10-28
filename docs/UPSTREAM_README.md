@@ -102,15 +102,11 @@ a few more basic tips and tricks.
 
 ## Documentation
 
- * [Coding style and conventions for JavaScript][js-style]
  * [Coding style and conventions for C code][c-style]
- * [The GJS Developer Guide][gjs-guide]
  * [Building and Running][building]
  * [Debugging][debugging]
 
-[js-style]: docs/js-coding-style.md
 [c-style]: docs/c-coding-style.md
-[gjs-guide]: https://gjs.guide
 [building]: docs/building-and-running.md
 [debugging]: docs/debugging.md
 

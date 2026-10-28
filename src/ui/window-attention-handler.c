@@ -11,7 +11,7 @@
  *  - `Main.activateWindow ()` is done here (switching to the workspace of the
  *    window if needed); the rest of it, hiding the overview and closing the
  *    calendar, is up to the handler of
- *    #ShellWindowAttentionHandler::window-activated, which main.js connects
+ *    #ShellWindowAttentionHandler::window-activated, which ShellMain connects
  *    (as it does for #ShellCtrlAltTabManager::window-activated).
  *  - A window without a title gives the body `“” is ready` (the JS
  *    formatted the string "null").
@@ -522,7 +522,7 @@ shell_window_attention_handler_init (ShellWindowAttentionHandler *self)
  * @message_tray: the message tray to add the notification sources to
  *
  * Starts to follow the windows that ask for attention
- * (`new WindowAttentionHandler ()`); main.js creates the only instance.
+ * (`new WindowAttentionHandler ()`); ShellMain creates the only instance.
  *
  * Returns: (transfer full): a new #ShellWindowAttentionHandler
  */

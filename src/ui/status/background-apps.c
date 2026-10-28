@@ -12,7 +12,7 @@
  * docs/PORT_STATUS.md:
  *
  *  - `Main.overview.hide ()` is the signal
- *    #ShellBackgroundAppsIndicator::overview-hide-requested (panelItems.js
+ *    #ShellBackgroundAppsIndicator::overview-hide-requested (panel-items.c
  *    connects it); `Main.panel`, `Main.sessionMode` are read from
  *    #ShellMain.
  *  - The applications are sorted with g_utf8_collate () where the JS used

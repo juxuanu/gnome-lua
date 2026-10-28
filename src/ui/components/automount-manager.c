@@ -21,7 +21,7 @@
  *    "Unable to mount volume"; after ShellGlobal::shutdown the completions do
  *    nothing.
  *  - The create-mount-operation, close-mount-operation and borrow-dialog
- *    signals which connected the JS dialogs through js/ui/components.js are
+ *    signals which connected the JS dialogs through src/ui/components.c are
  *    gone.
  *  - The entry of a volume that was mounted without a mount operation is
  *    removed from the table of the active operations.

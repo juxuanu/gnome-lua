@@ -12,7 +12,7 @@
  *  - `Main.layoutManager`, `Main.sessionMode`, `Main.messageTray` and
  *    `Main.panel` are the properties of #ShellMain;
  *  - `Main.wm` (the key bindings of the UI, `Main.overview.hide ()`) is the
- *    #ShellScreenshotUI:window-manager property, which main.js sets, and the
+ *    #ShellScreenshotUI:window-manager property, which ShellMain sets, and the
  *    #ShellWindowManager::overview-hide-requested signal;
  *  - `Main.screenshotUI` (InteractiveScreenshot) is the
  *    #ShellScreenshotService:screenshot-ui property.

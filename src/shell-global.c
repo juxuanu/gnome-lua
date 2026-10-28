@@ -19,7 +19,6 @@
 #endif
 
 #include <gio/gio.h>
-#include <girepository/girepository.h>
 #include <meta/meta-backend.h>
 #include <meta/meta-context.h>
 #include <meta/display.h>
@@ -70,8 +69,6 @@ struct _ShellGlobal {
 
   char *session_mode;
 
-  GjsContext *js_context;
-
   /* Lua extensions (gnome-lua): created lazily, see
    * shell_global_get_lua_extension_manager() */
   ShellLuaExtensionManager *lua_extension_manager;
@@ -85,7 +82,6 @@ struct _ShellGlobal {
   char *userdatadir;
   GFile *userdatadir_path;
   GFile *runtime_state_path;
-  GFile *automation_script;
 
   ShellWindowTracker *window_tracker;
   ShellAppSystem *app_system;
@@ -135,7 +131,6 @@ enum {
   PROP_FRAME_FINISH_TIMESTAMP,
   PROP_SWITCHEROO_CONTROL,
   PROP_FORCE_ANIMATIONS,
-  PROP_AUTOMATION_SCRIPT,
 
   N_PROPS
 };
@@ -247,9 +242,6 @@ shell_global_set_property(GObject         *object,
     case PROP_FORCE_ANIMATIONS:
       shell_global_set_force_animations (global, g_value_get_boolean (value));
       break;
-    case PROP_AUTOMATION_SCRIPT:
-      g_set_object (&global->automation_script, g_value_get_object (value));
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -327,9 +319,6 @@ shell_global_get_property(GObject         *object,
     case PROP_FORCE_ANIMATIONS:
       g_value_set_boolean (value, global->force_animations);
       break;
-    case PROP_AUTOMATION_SCRIPT:
-      g_value_set_object (value, global->automation_script);
-      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -370,9 +359,7 @@ static void
 shell_global_init (ShellGlobal *global)
 {
   const char *datadir = g_getenv ("GNOME_SHELL_DATADIR");
-  const char *shell_js = g_getenv("GNOME_SHELL_JS");
   g_autofree char *imagedir = NULL;
-  g_auto (GStrv) search_path = NULL;
   g_autofree char *path = NULL;
   const char *byteorder_string;
 
@@ -380,9 +367,8 @@ shell_global_init (ShellGlobal *global)
     datadir = GNOME_SHELL_DATADIR;
   global->datadir = datadir;
 
-  /* We make sure imagedir ends with a '/', since the JS won't have
-   * access to g_build_filename() and so will end up just
-   * concatenating global.imagedir to a filename.
+  /* We make sure imagedir ends with a '/', since its users just concatenate
+   * it to a filename.
    */
   imagedir = g_build_filename (datadir, "images/", NULL);
   if (g_file_test (imagedir, G_FILE_TEST_IS_DIR))
@@ -411,46 +397,6 @@ shell_global_init (ShellGlobal *global)
 
   global->settings = g_settings_new ("org.gnome.shell");
 
-  if (shell_js)
-    {
-      int i, j;
-      search_path = g_strsplit (shell_js, ":", -1);
-
-      /* The naive g_strsplit above will split 'resource:///foo/bar' into 'resource',
-       * '///foo/bar'. Combine these back together by looking for a literal 'resource'
-       * in the array. */
-      for (i = 0, j = 0; search_path[i];)
-        {
-          char *out;
-
-          if (strcmp (search_path[i], "resource") == 0 && search_path[i + 1] != NULL)
-            {
-              out = g_strconcat (search_path[i], ":", search_path[i + 1], NULL);
-              g_free (search_path[i]);
-              g_free (search_path[i + 1]);
-              i += 2;
-            }
-          else
-            {
-              out = search_path[i];
-              i += 1;
-            }
-
-          search_path[j++] = out;
-        }
-
-      search_path[j] = NULL; /* NULL-terminate the now possibly shorter array */
-    }
-  else
-    {
-      search_path = g_malloc0 (2 * sizeof (char *));
-      search_path[0] = g_strdup ("resource:///org/gnome/shell");
-    }
-
-  global->js_context = g_object_new (GJS_TYPE_CONTEXT,
-                                     "search-path", search_path,
-                                     NULL);
-
   global->save_ops = g_hash_table_new_full (g_file_hash,
                                             (GEqualFunc) g_file_equal,
                                             g_object_unref, g_object_unref);
@@ -473,7 +419,6 @@ shell_global_finalize (GObject *object)
   /* Lua extensions (gnome-lua): normally already done at shutdown */
   _shell_global_shutdown_lua (global);
 
-  g_clear_object (&global->js_context);
   g_object_unref (global->settings);
 
   g_clear_object (&global->window_tracker);
@@ -637,11 +582,6 @@ shell_global_class_init (ShellGlobalClass *klass)
                           FALSE,
                           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_EXPLICIT_NOTIFY);
 
-  props[PROP_AUTOMATION_SCRIPT] =
-    g_param_spec_object ("automation-script", NULL, NULL,
-                         G_TYPE_FILE,
-                         G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
-
   g_object_class_install_properties (gobject_class, N_PROPS, props);
 }
 
@@ -704,24 +644,6 @@ shell_global_get (void)
 {
   g_return_val_if_fail (the_object, NULL);
   return the_object;
-}
-
-/**
- * _shell_global_destroy_gjs_context: (skip)
- * @self: global object
- *
- * Destroys the GjsContext held by ShellGlobal, in order to break reference
- * counting cycles. (The GjsContext holds a reference to ShellGlobal because
- * it's available as window.global inside JS.)
- */
-void
-_shell_global_destroy_gjs_context (ShellGlobal *self)
-{
-  /* Lua extensions (gnome-lua): tear them down before the JS context goes
-   * away, they may own objects JS code still knows about. */
-  _shell_global_shutdown_lua (self);
-
-  g_clear_object (&self->js_context);
 }
 
 /**
@@ -1080,12 +1002,6 @@ _shell_global_set_plugin (ShellGlobal *global,
   global->focus_manager = st_focus_manager_get_for_stage (global->stage);
 
   update_scaling_factor (global, settings);
-}
-
-GjsContext *
-_shell_global_get_gjs_context (ShellGlobal *global)
-{
-  return global->js_context;
 }
 
 /* Code to close all file descriptors before we exec; copied from gspawn.c in GLib.
@@ -1450,17 +1366,6 @@ shell_global_get_userdatadir (ShellGlobal *global)
   return global->userdatadir;
 }
 
-/**
- * shell_global_get_automation_script:
- *
- * Return value: (transfer none):
- */
-GFile *
-shell_global_get_automation_script (ShellGlobal *global)
-{
-  return global->automation_script;
-}
-
 static void
 delete_variant_cb (GObject      *object,
                    GAsyncResult *result,
@@ -1714,7 +1619,7 @@ _shell_global_notify_shutdown (ShellGlobal *global)
  * shell_global_notify_startup_complete:
  * @global: a #ShellGlobal
  *
- * Called by Main.js once the layout manager finished the startup animation.
+ * Called by #ShellMain once the layout manager finished the startup animation.
  * Emits the "shell.started" hook for Lua extensions.
  */
 void
@@ -1812,9 +1717,8 @@ _shell_global_shutdown_lua (ShellGlobal *global)
  * @global: a #ShellGlobal
  * @info: (out caller-allocates): the #ShellMemoryInfo to fill
  *
- * Fills @info with memory statistics. The gjs_* fields are not collected by
- * this function (they are left zero); the lua_* fields report all live Lua
- * states.
+ * Fills @info with memory statistics: the memory in use by malloc and the
+ * live Lua states.
  */
 void
 shell_global_get_memory_info (ShellGlobal     *global,

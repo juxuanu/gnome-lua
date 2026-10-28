@@ -10,7 +10,7 @@
  * menu manager and the #ShellWorkspaceAnimationController.
  *
  * What is still JS (the screenshot UI) is reached through the signals of
- * #ShellWindowManager, which main.js connects to; the state of the overview
+ * #ShellWindowManager, which ShellMain connects to; the state of the overview
  * (overview.c) is handed over with the #ShellWindowManager:overview-visible,
  * :overview-closing and :overview-animating properties, which the overview
  * sets itself, and the overview connects to its signals.
@@ -4321,7 +4321,7 @@ shell_window_manager_class_init (ShellWindowManagerClass *klass)
    * ShellWindowManager:ctrl-alt-tab-manager:
    *
    * The #ShellCtrlAltTabManager (`Main.ctrlAltTabManager`) which the
-   * `switch-panels` key bindings pop up. main.js sets it.
+   * `switch-panels` key bindings pop up. ShellMain sets it.
    */
   props[PROP_CTRL_ALT_TAB_MANAGER] =
     g_param_spec_object ("ctrl-alt-tab-manager", NULL, NULL,
@@ -4338,7 +4338,7 @@ shell_window_manager_class_init (ShellWindowManagerClass *klass)
    *
    * Emitted when the window manager activates a window or an application
    * from a key binding, which hides the overview (`Main.overview.hide ()`).
-   * main.js connects it. The handler must not return a value.
+   * ShellMain connects it. The handler must not return a value.
    */
   signals[OVERVIEW_HIDE_REQUESTED] =
     g_signal_new ("overview-hide-requested",
@@ -4352,7 +4352,7 @@ shell_window_manager_class_init (ShellWindowManagerClass *klass)
    * @self: the #ShellWindowManager
    * @texture: the texture with the contents of a window
    *
-   * Emitted when "Take Screenshot" is activated in a window menu. main.js
+   * Emitted when "Take Screenshot" is activated in a window menu. ShellMain
    * connects it to shell_screenshot_capture_screenshot_async (texture, NULL,
    * 1, NULL, 0, 0, 1, %SHELL_SCREENSHOT_KIND_WINDOW, ...).
    */
@@ -4437,7 +4437,7 @@ shell_window_manager_init (ShellWindowManager *self)
  * shell_window_manager_new:
  *
  * Creates the window manager of the shell (`new WindowManager ()`), which
- * hooks into the #ShellWM of #ShellGlobal. main.js creates it once, after
+ * hooks into the #ShellWM of #ShellGlobal. ShellMain creates it once, after
  * the layout manager, the overview and the Ctrl+Alt+Tab manager; set
  * #ShellWindowManager:ctrl-alt-tab-manager, connect its signals and keep
  * its overview properties in sync.

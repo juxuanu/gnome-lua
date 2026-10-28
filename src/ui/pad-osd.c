@@ -2614,7 +2614,7 @@ shell_pad_osd_service_init (ShellPadOsdService *self)
  * Creates the service, exports org.gnome.Shell.Wacom.PadOsd at
  * /org/gnome/Shell/Wacom on the session bus and owns the bus name of the
  * interface (`new PadOsdService ()`). `Show (device_node, edition_mode)`
- * asks the display for the OSD of the pad with that device node. js/ui/main.js
+ * asks the display for the OSD of the pad with that device node. src/ui/main.c
  * creates the only instance.
  *
  * Returns: (transfer full): a new #ShellPadOsdService

@@ -4,7 +4,7 @@
  * dialog which asks for the passwords of the keyrings and the confirmations
  * of the secret service. Port of js/ui/components/keyring.js.
  *
- * The component manager of the shell (js/ui/components.js) creates it for the
+ * The component manager of the shell (src/ui/components.c) creates it for the
  * session modes that list `keyring` and calls shell_keyring_component_enable ()
  * and shell_keyring_component_disable () when the session mode changes. The
  * prompts themselves are #ShellKeyringPrompt, the dialog is private to

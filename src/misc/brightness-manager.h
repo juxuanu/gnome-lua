@@ -4,7 +4,7 @@
  * backlight, as one global scale plus one scale per monitor. Port of
  * js/misc/brightnessManager.js.
  *
- * The OSD is not shown by the manager: js/ui/main.js connects
+ * The OSD is not shown by the manager: src/ui/main.c connects
  * #ShellBrightnessManager::osd-requested to the OSD window manager, and calls
  * Main.wm.allowKeybinding () for the names of
  * shell_brightness_manager_get_keybinding_names ().

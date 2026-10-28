@@ -4,7 +4,7 @@
  * shell (top bar, dash, overview, ...) and the windows of the workspace, for
  * users that cannot use the pointer. Port of js/ui/ctrlAltTab.js.
  *
- * #ShellCtrlAltTabManager is created by main.js (`new Shell.CtrlAltTabManager ()`
+ * #ShellCtrlAltTabManager is created by ShellMain (`new Shell.CtrlAltTabManager ()`
  * and kept in `Main.ctrlAltTabManager`). The popup it shows and the list in
  * the popup are private to ctrl-alt-tab.c; they are subclasses of
  * #ShellSwitcherPopup and #ShellSwitcherList.

@@ -210,14 +210,23 @@ portal helper.
 * Exit: `js/` is empty except `init.js`.
 
 ### M6 — Delete GJS (effort 0.5)
-* Remove `gjs` from `meson.build`, delete `run-js-test.c`, `js/`, the JS
-  gresource, eslint config; `init.js` responsibilities move into `main.c`.
-* Drop `g-ir-scanner` for `libshell` (keep GIR generation optional behind a Meson
-  option only if downstreams ask for it).
-* Replace `gjs_dumpstack` on fatal signals with a C backtrace plus the Lua
-  traceback of whichever extension state was running, if any.
-* Exit: the binary links neither `libgjs` nor `libmozjs`; startup time, RSS and
-  frame time are measured against upstream 51.1 and published in `docs/PERF.md`.
+* [x] Remove `gjs` from `meson.build` (`gjs_dep`, `gjs_req`, the `gjs` program,
+  `girepository-2.0`), delete `run-js-test.c`, `js/`, the JS gresource, the
+  eslint configuration and CI jobs, the jasmine wrap and `docs/js-coding-style.md`.
+* [x] `init.js` responsibilities move into `main.c` (idle start of
+  `shell_main_start ()`, the Meta main loop, terminate with error); `main.js`
+  is `ShellMain` (`src/ui/main.c`), `components.js` is `src/ui/components.c`,
+  `panelItems.js` is `src/ui/panel-items.c`.
+* [x] `ShellGlobal` has no `GjsContext`; the Sysprof GJS profiler hooks and
+  `ShellMemoryInfo.gjs_*` are gone.
+* [x] `g-ir-scanner` for libshell: kept behind the `introspection` Meson option
+  (default on, the API reference is built from it); nothing loads the typelibs.
+* [x] Replace `gjs_dumpstack` on fatal signals with the Lua traceback of
+  the running extension state plus a C backtrace
+  (`backtrace_symbols_fd`, or the sanitizer's under ASan).
+* [ ] Exit: the binary links neither `libgjs` nor `libmozjs` (no reference left
+  in the Meson files; to be confirmed on a real build), startup time, RSS and
+  frame time measured against upstream 51.1 and published in `docs/PERF.md`.
 
 ### M7 — Extension API v1 (effort 2.5; design starts during M2)
 * `docs/api/` is written *before* code: every `shell.*` function with its

@@ -118,4 +118,46 @@ GPid shell_util_spawn_async (const char          *working_directory,
                              GSpawnFlags          flags,
                              GError             **error);
 
+/* Ports of the helpers of js/misc/util.js and js/misc/fileUtils.js */
+gboolean shell_util_try_spawn                  (const char * const *argv,
+                                                GError            **error);
+gboolean shell_util_try_spawn_command_line     (const char         *command_line,
+                                                GError            **error);
+void     shell_util_spawn                      (const char * const *argv);
+void     shell_util_spawn_command_line         (const char         *command_line);
+void     shell_util_spawn_app                  (const char * const *argv);
+
+int      shell_util_gnome_version_compare      (const char         *version1,
+                                                const char         *version2);
+
+guint    shell_util_insert_sorted              (GPtrArray          *array,
+                                                gpointer            val,
+                                                GCompareFunc        cmp);
+
+#define SHELL_TYPE_DATADIR_CHILD (shell_datadir_child_get_type ())
+
+typedef struct _ShellDatadirChild ShellDatadirChild;
+
+/**
+ * ShellDatadirChild:
+ * @file: the file of the child
+ * @info: the file info of the child, with the `standard::name` and
+ *   `standard::type` attributes
+ *
+ * A child of a `gnome-shell/<subdir>` directory of a data directory, as
+ * returned by shell_util_collect_from_datadirs ().
+ */
+struct _ShellDatadirChild
+{
+  GFile     *file;
+  GFileInfo *info;
+};
+
+GType              shell_datadir_child_get_type        (void);
+ShellDatadirChild *shell_datadir_child_copy            (const ShellDatadirChild *child);
+void               shell_datadir_child_free            (ShellDatadirChild       *child);
+
+GPtrArray *shell_util_collect_from_datadirs    (const char         *subdir,
+                                                gboolean            include_user_dir);
+
 G_END_DECLS

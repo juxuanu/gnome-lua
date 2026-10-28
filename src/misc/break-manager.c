@@ -1050,7 +1050,7 @@ shell_break_manager_init (ShellBreakManager *self)
  * shell_break_manager_new:
  *
  * Creates a break manager that tracks the real clock and idle time and reads
- * the `org.gnome.desktop.break-reminders` settings. js/ui/main.js creates the
+ * the `org.gnome.desktop.break-reminders` settings. src/ui/main.c creates the
  * only instance.
  *
  * Returns: (transfer full): a new #ShellBreakManager

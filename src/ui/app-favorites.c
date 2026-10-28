@@ -6,7 +6,7 @@
  * The JS class showed a "Pinned to Dash" / "Unpinned From Dash" notification
  * with an Undo button, which needs js/ui/messageTray.js (M4). Here the
  * #ShellAppFavorites::favorite-added and ::favorite-removed signals say what
- * happened and main.js shows the notification; its Undo button calls
+ * happened and ShellMain shows the notification; its Undo button calls
  * shell_app_favorites_remove_favorite_silently () or
  * shell_app_favorites_add_favorite_silently (), the JS `_removeFavorite ()` and
  * `_addFavorite ()`.
@@ -272,7 +272,7 @@ shell_app_favorites_class_init (ShellAppFavoritesClass *klass)
    *
    * Emitted after shell_app_favorites_add_favorite () or
    * shell_app_favorites_add_favorite_at_pos () pinned an application, but not
-   * after it was moved or pinned silently. main.js shows a notification with an
+   * after it was moved or pinned silently. ShellMain shows a notification with an
    * Undo button for it.
    */
   signals[FAVORITE_ADDED] =
@@ -289,7 +289,7 @@ shell_app_favorites_class_init (ShellAppFavoritesClass *klass)
    * @pos: the position it had among the favorites
    *
    * Emitted after shell_app_favorites_remove_favorite () unpinned an
-   * application, but not after it was moved or unpinned silently. main.js
+   * application, but not after it was moved or unpinned silently. ShellMain
    * shows a notification with an Undo button for it, which pins @app at @pos
    * again.
    */

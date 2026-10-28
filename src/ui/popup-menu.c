@@ -22,7 +22,7 @@
  *    `Main.overview.hide ()` / `Main.panel.closeQuickSettings ()` pair of
  *    addSettingsAction () are reached through #ShellMain (its `session-mode`
  *    property and its "system-modal-opened" and "settings-app-activating"
- *    signals), which main.js feeds.
+ *    signals), which ShellMain feeds.
  */
 
 #include "config.h"
@@ -1921,7 +1921,7 @@ settings_action_cb (const ClutterEvent *event,
  *
  * Adds an item which activates a settings panel. The item is only visible
  * if the session mode allows settings. Activating it emits
- * #ShellMain::settings-app-activating first, which main.js uses to hide the
+ * #ShellMain::settings-app-activating first, which ShellMain uses to hide the
  * overview and close the quick settings.
  *
  * Returns: (transfer none): the new item

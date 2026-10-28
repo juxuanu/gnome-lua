@@ -33,7 +33,7 @@
  *    #ShellNotificationDaemon:message-tray (`Main.messageTray`).
  *  - What the sources did through `Main.overview.hide ()` and
  *    `Main.panel.close_calendar ()` when they bring an application up is the
- *    signal #ShellNotificationDaemon::app-opened, which main.js connects.
+ *    signal #ShellNotificationDaemon::app-opened, which ShellMain connects.
  *  - `Notify` validates the `image-data` hint instead of passing it on and
  *    provoking a critical warning: invalid image data is ignored. A hint that
  *    has the wrong D-Bus type is ignored too (JS coerced it); the truthiness
@@ -2583,7 +2583,7 @@ shell_notification_daemon_class_init (ShellNotificationDaemonClass *klass)
    * @self: the daemon
    *
    * Emitted after the activation of a notification, or of its source, brought
-   * an application up. main.js hides the overview and closes the calendar
+   * an application up. ShellMain hides the overview and closes the calendar
    * (what the sources did with `Main.overview.hide ()` and
    * `Main.panel.close_calendar ()`).
    */
@@ -2605,7 +2605,7 @@ shell_notification_daemon_init (ShellNotificationDaemon *self)
  * @message_tray: the message tray to add the notification sources to
  *
  * Creates the notification daemons, exports them on the session bus and owns
- * org.gtk.Notifications (`new NotificationDaemon ()`). js/ui/main.js creates
+ * org.gtk.Notifications (`new NotificationDaemon ()`). src/ui/main.c creates
  * the only instance.
  *
  * Returns: (transfer full): a new #ShellNotificationDaemon

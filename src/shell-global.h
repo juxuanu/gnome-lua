@@ -48,8 +48,6 @@ ClutterActor * shell_global_get_top_window_group (ShellGlobal *global);
 const char * shell_global_get_datadir (ShellGlobal *global);
 const char * shell_global_get_userdatadir (ShellGlobal *global);
 
-GFile * shell_global_get_automation_script (ShellGlobal *global);
-
 gboolean shell_global_get_force_animations (ShellGlobal *global);
 void     shell_global_set_force_animations (ShellGlobal *global,
                                             gboolean     force);
@@ -63,19 +61,9 @@ void    shell_global_get_pointer             (ShellGlobal         *global,
 typedef struct {
   guint glibc_uordblks;
 
-  guint js_bytes;
-
-  guint gjs_boxed;
-  guint gjs_gobject;
-  guint gjs_function;
-  guint gjs_closure;
-
   /* Lua extensions (gnome-lua): live lua_States and their total heap */
   guint lua_states;
   guint lua_bytes;
-
-  /* 32 bit to avoid js conversion problems with 64 bit */
-  guint  last_gc_seconds_ago;
 } ShellMemoryInfo;
 
 void shell_global_get_memory_info (ShellGlobal     *global,

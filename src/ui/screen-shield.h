@@ -5,7 +5,7 @@
  * to authenticate and exports org.gnome.ScreenSaver. Port of
  * js/ui/screenShield.js.
  *
- * #ShellScreenShield is created by main.js (`new Shell.ScreenShield ()`, kept
+ * #ShellScreenShield is created by ShellMain (`new Shell.ScreenShield ()`, kept
  * in `Main.screenShield`, only when the session can lock). The dialog it
  * shows is chosen by #ShellSessionMode:unlock-dialog: the login screen
  * (js/gdm/loginDialog.js, `login-dialog`) in the gdm session mode, the unlock
