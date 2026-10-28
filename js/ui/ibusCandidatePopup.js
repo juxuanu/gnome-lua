@@ -2,9 +2,9 @@ import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import IBus from 'gi://IBus';
 import Mtk from 'gi://Mtk';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as BoxPointer from './boxpointer.js';
 import * as Main from './main.js';
 
 const MAX_CANDIDATES_PER_PAGE = 16;
@@ -148,9 +148,9 @@ const CandidateArea = GObject.registerClass({
 });
 
 export const CandidatePopup = GObject.registerClass(
-class IbusCandidatePopup extends BoxPointer.BoxPointer {
+class IbusCandidatePopup extends Shell.BoxPointer {
     _init() {
-        super._init(St.Side.TOP);
+        super._init({arrow_side: St.Side.TOP});
         this.visible = false;
         this.style_class = 'candidate-popup-boxpointer';
 
@@ -320,7 +320,7 @@ class IbusCandidatePopup extends BoxPointer.BoxPointer {
             this._updateVisibility();
         });
         panelService.connect('focus-out', () => {
-            this.close(BoxPointer.PopupAnimation.NONE);
+            this.close(Shell.PopupAnimation.NONE, null);
             Main.keyboard.resetSuggestions();
         });
     }
@@ -330,7 +330,7 @@ class IbusCandidatePopup extends BoxPointer.BoxPointer {
         this._dummyCursor.set_size(Math.round(w), Math.round(h));
 
         if (this.visible)
-            this.setPosition(this._dummyCursor, 0);
+            this.set_position(this._dummyCursor, 0);
     }
 
     _updateVisibility() {
@@ -340,10 +340,10 @@ class IbusCandidatePopup extends BoxPointer.BoxPointer {
                           this._candidateArea.visible);
 
         if (isVisible) {
-            this.setPosition(this._dummyCursor, 0);
-            this.open(BoxPointer.PopupAnimation.NONE);
+            this.set_position(this._dummyCursor, 0);
+            this.open(Shell.PopupAnimation.NONE, null);
         } else {
-            this.close(BoxPointer.PopupAnimation.NONE);
+            this.close(Shell.PopupAnimation.NONE, null);
         }
     }
 

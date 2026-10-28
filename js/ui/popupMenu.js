@@ -7,7 +7,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Signals from '../misc/signals.js';
 
-import * as BoxPointer from './boxpointer.js';
 import * as Main from './main.js';
 import * as Params from '../misc/params.js';
 
@@ -1028,7 +1027,7 @@ export class PopupMenu extends PopupMenuBase {
         this._arrowAlignment = arrowAlignment;
         this._arrowSide = arrowSide;
 
-        this._boxPointer = new BoxPointer.BoxPointer(arrowSide);
+        this._boxPointer = new Shell.BoxPointer({arrow_side: arrowSide});
         this.actor = this._boxPointer;
         this.actor._delegate = this;
         this.actor.style_class = 'popup-menu-boxpointer';
@@ -1074,7 +1073,7 @@ export class PopupMenu extends PopupMenuBase {
             return Clutter.EVENT_PROPAGATE;
 
         let navKey;
-        switch (this._boxPointer.arrowSide) {
+        switch (this._boxPointer.arrow_side) {
         case St.Side.TOP:
             navKey = Clutter.KEY_Down;
             break;
@@ -1110,21 +1109,21 @@ export class PopupMenu extends PopupMenuBase {
     }
 
     setArrowOrigin(origin) {
-        this._boxPointer.setArrowOrigin(origin);
+        this._boxPointer.set_arrow_origin(origin);
     }
 
     setSourceAlignment(alignment) {
-        this._boxPointer.setSourceAlignment(alignment);
+        this._boxPointer.set_source_alignment(alignment);
     }
 
     _getPopupAnimationFromParams(params = {}) {
         const {animate = true, fadeOnly = false} = params;
         if (!animate)
-            return BoxPointer.PopupAnimation.NONE;
+            return Shell.PopupAnimation.NONE;
 
         return fadeOnly
-            ? BoxPointer.PopupAnimation.FADE
-            : BoxPointer.PopupAnimation.FULL;
+            ? Shell.PopupAnimation.FADE
+            : Shell.PopupAnimation.FULL;
     }
 
     /**
@@ -1145,8 +1144,8 @@ export class PopupMenu extends PopupMenuBase {
         }
 
         const animate = this._getPopupAnimationFromParams(params);
-        this._boxPointer.setPosition(this.sourceActor, this._arrowAlignment);
-        this._boxPointer.open(animate);
+        this._boxPointer.set_position(this.sourceActor, this._arrowAlignment);
+        this._boxPointer.open(animate, null);
 
         this.actor.get_parent().set_child_above_sibling(this.actor, null);
 

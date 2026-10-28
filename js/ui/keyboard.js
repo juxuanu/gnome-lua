@@ -9,7 +9,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Signals from '../misc/signals.js';
 
-import * as BoxPointer from './boxpointer.js';
 import * as InputSourceManager from './status/keyboard.js';
 import * as IBusManager from '../misc/ibusManager.js';
 import * as Main from './main.js';
@@ -82,10 +81,10 @@ class NoGrabPopup extends PopupMenu.PopupMenu {
         super(actor, 0.5, arrowSide);
 
         actor.connectObject(
-            'destroy', () => this.close(BoxPointer.PopupAnimation.FULL),
+            'destroy', () => this.close(Shell.PopupAnimation.FULL),
             'notify::mapped', () => {
                 if (!actor.is_mapped())
-                    this.close(BoxPointer.PopupAnimation.FULL);
+                    this.close(Shell.PopupAnimation.FULL);
             },
             this);
 
@@ -93,7 +92,7 @@ class NoGrabPopup extends PopupMenu.PopupMenu {
         this._clickGesture.connect(
             'may-recognize', this._onMayRecognize.bind(this));
         this._clickGesture.connect(
-            'recognize', () => this.close(BoxPointer.PopupAnimation.FULL));
+            'recognize', () => this.close(Shell.PopupAnimation.FULL));
     }
 
     _onMayRecognize(gesture) {
@@ -286,11 +285,11 @@ const Key = GObject.registerClass({
     }
 
     _showSubkeys() {
-        this._menu.open(BoxPointer.PopupAnimation.FULL);
+        this._menu.open(Shell.PopupAnimation.FULL);
     }
 
     _hideSubkeys() {
-        this._menu?.close(BoxPointer.PopupAnimation.FULL);
+        this._menu?.close(Shell.PopupAnimation.FULL);
     }
 
     _makeKey(commitString, label, icon) {
@@ -1459,7 +1458,7 @@ export const Keyboard = GObject.registerClass({
 
         this._languagePopup = new LanguageSelectionPopup(keyActor);
         Main.layoutManager.addTopChrome(this._languagePopup.actor);
-        this._languagePopup.open(BoxPointer.PopupAnimation.FULL);
+        this._languagePopup.open(Shell.PopupAnimation.FULL);
     }
 
     _updateCurrentPageVisible() {

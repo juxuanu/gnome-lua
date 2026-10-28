@@ -23,7 +23,7 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/ui/main.js` | 1069 | todo | |
 | `js/ui/background.js` | 997 | todo | |
 | `js/ui/panel.js` | 786 | todo | |
-| `js/ui/boxpointer.js` | 689 | todo | |
+| `js/ui/boxpointer.js` | 689 | ported | `src/ui/box-pointer.[ch]` (`ShellBoxPointer`, derivable; `ShellPopupAnimation` flags). `new BoxPointer(side)` is now `new Shell.BoxPointer({arrow_side: side})`; methods are snake_case (`set_position`, `set_arrow_origin`, `open(animate, onComplete)`, ...), `.arrowSide` is `.arrow_side`, `BoxPointer.PopupAnimation` is `Shell.PopupAnimation`. `bin` is a read-only property. New `arrow-alignment`/`arrow-actor` properties. Monitor/work area come straight from MetaDisplay (workspace 0), falling back to the primary monitor for an off-screen source. |
 | `js/ui/dnd.js` | 643 | todo | |
 | `js/ui/shellDBus.js` | 634 | todo | |
 | `js/ui/workspaceAnimation.js` | 599 | todo | |
@@ -103,7 +103,7 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/ui/workspaceSwitcherPopup.js` | 128 | todo | |
 | `js/ui/switchMonitor.js` | 122 | todo | |
 | `js/ui/pageIndicators.js` | 115 | todo | |
-| `js/ui/checkBox.js` | 48 | todo | |
+| `js/ui/checkBox.js` | 48 | ported | `src/ui/check-box.[ch]` (`ShellCheckBox`, final StButton). `new CheckBox(text)` is now `Shell.CheckBox.new(text)`; `setLabel`/`getLabelActor` are `set_label`/`get_label_actor`. No `label` construct property (StButton owns that name). |
 
 ## M4
 
@@ -133,7 +133,7 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/ui/ibusCandidatePopup.js` | 357 | todo | |
 | `js/ui/status/accessibility.js` | 327 | todo | |
 | `js/ui/status/thunderbolt.js` | 325 | todo | |
-| `js/ui/lightbox.js` | 294 | todo | |
+| `js/ui/lightbox.js` | 294 | ported | `src/ui/lightbox.[ch]` (`ShellLightbox`, derivable because Flashspot subclasses it; private `ShellRadialShaderEffect`). `new Lightbox(c, {inhibitEvents, fadeFactor, radialEffect})` is now `new Shell.Lightbox({container: c, inhibit_events, fade_factor, radial_effect})`; `lightOn`/`lightOff` take a mandatory time (`light_on(0)`), `highlight` is `highlight`. The DEFAULT_FADE_FACTOR/VIGNETTE_* exports are gone. |
 | `js/ui/components/automountManager.js` | 262 | todo | |
 | `js/ui/mpris.js` | 258 | todo | |
 | `js/ui/status/backgroundApps.js` | 258 | todo | |
@@ -152,7 +152,7 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/ui/status/darkMode.js` | 50 | todo | |
 | `js/ui/status/autoRotate.js` | 45 | todo | |
 | `js/ui/status/doNotDisturb.js` | 39 | todo | |
-| `js/ui/locatePointer.js` | 36 | todo | |
+| `js/ui/locatePointer.js` | 36 | ported | `src/ui/locate-pointer.[ch]` (`ShellLocatePointer`, final GObject). `new LocatePointer()` is now `new Shell.LocatePointer({ui_group: uiGroup})`; `show()` unchanged. Ripples and settings are released on dispose. |
 | `js/ui/status/camera.js` | 19 | todo | |
 
 ## M5
