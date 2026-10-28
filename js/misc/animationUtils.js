@@ -1,5 +1,6 @@
 import St from 'gi://St';
 import Clutter from 'gi://Clutter';
+import Shell from 'gi://Shell';
 
 import * as Params from './params.js';
 import {logErrorUnlessCancelled} from './errorUtils.js';
@@ -25,11 +26,7 @@ export function adjustAnimationTime(msecs, params) {
         animationRequired: false,
     });
 
-    const settings = St.Settings.get();
-
-    if (!settings.enable_animations && !params.animationRequired)
-        return 0;
-    return settings.slow_down_factor * msecs;
+    return Shell.adjust_animation_time(msecs, params.animationRequired);
 }
 
 /**

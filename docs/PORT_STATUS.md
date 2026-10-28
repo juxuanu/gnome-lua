@@ -31,7 +31,7 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/misc/systemActions.js` | 525 | todo | |
 | `js/misc/inputMethod.js` | 480 | todo | |
 | `js/misc/util.js` | 471 | todo | |
-| `js/ui/environment.js` | 464 | todo | |
+| `js/ui/environment.js` | 464 | wip | ease helpers in C; remaining JS is the GJS bootstrap, deleted in M6 |
 | `js/misc/ibusManager.js` | 372 | todo | |
 | `js/ui/dialog.js` | 352 | todo | |
 | `js/misc/weather.js` | 327 | todo | |
@@ -54,7 +54,7 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/misc/extensionUtils.js` | 172 | todo | |
 | `js/ui/pointerA11yTimeout.js` | 136 | todo | |
 | `js/ui/xdndHandler.js` | 127 | todo | |
-| `js/misc/animationUtils.js` | 124 | todo | |
+| `js/misc/animationUtils.js` | 124 | wip | adjustAnimationTime in C |
 | `js/ui/osdMonitorLabeler.js` | 119 | todo | |
 | `js/ui/ripples.js` | 112 | todo | |
 | `js/misc/history.js` | 111 | todo | |

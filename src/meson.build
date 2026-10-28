@@ -130,7 +130,8 @@ libshell_public_headers = [
   'shell-window-preview-layout.h',
   'shell-window-tracker.h',
   'shell-wm.h',
-  'shell-workspace-background.h'
+  'shell-workspace-background.h',
+  'ui/environment.h'
 ]
 
 if have_xwayland
@@ -187,7 +188,8 @@ libshell_sources = [
   'shell-window-preview-layout.c',
   'shell-window-tracker.c',
   'shell-wm.c',
-  'shell-workspace-background.c'
+  'shell-workspace-background.c',
+  'ui/environment.c'
 ]
 
 if have_xwayland

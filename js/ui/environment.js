@@ -19,8 +19,6 @@ import * as SignalTracker from '../misc/signalTracker.js';
 import {adjustAnimationTime} from '../misc/animationUtils.js';
 import {logErrorUnlessCancelled} from '../misc/errorUtils.js';
 
-const sessionSignalHolder = new SignalTracker.TransientSignalHolder();
-
 setConsoleLogDomain('GNOME Shell');
 
 Gio._promisify(Gio.DataInputStream.prototype, 'fill_async');
@@ -55,17 +53,9 @@ function _patchLayoutClass(layoutClass, styleProps) {
     }
 }
 
-function _makeEaseCallback(params, cleanup) {
-    const onComplete = params.onComplete;
-    delete params.onComplete;
-
-    const onStopped = params.onStopped;
-    delete params.onStopped;
-
+function _makeEaseCallback(onComplete, onStopped) {
     const {promise, resolve, reject} = Promise.withResolvers();
     const callback = isFinished => {
-        cleanup?.();
-
         if (onStopped)
             onStopped(isFinished);
         if (onComplete && isFinished)
@@ -82,214 +72,69 @@ function _makeEaseCallback(params, cleanup) {
     return {promise, callback};
 }
 
-function _setupTransitionCompletion(transition, actor, callback, prepare) {
-    const signalHolder = new SignalTracker.TransientSignalHolder(sessionSignalHolder);
-
-    const complete = finished => {
-        signalHolder.destroy();
-        callback(finished);
-    };
-
-    if (prepare) {
-        if (transition.delay)
-            transition.connectObject('started', () => prepare(), signalHolder);
-        else
-            prepare();
-    }
-
-    transition.connectObject('stopped', (_, finished) =>
-        complete(finished), signalHolder);
-
-    actor?.connectObject(
-        'transition-removed', (_, removedTransition, finished) => {
-            if (removedTransition === transition)
-                complete(finished);
-        },
-        'destroy', () => complete(false),
-        signalHolder);
-}
-
-function _makeEasePrepareAndCleanup(duration) {
-    if (!duration)
-        return {prepare: null, cleanup: null};
-
-    let canCleanup = false;
-    const prepare = () => {
-        global.compositor.disable_unredirect();
-        global.begin_work();
-        canCleanup = true;
-    };
-    const cleanup = () => {
-        if (!canCleanup)
-            return;
-        global.compositor.enable_unredirect();
-        global.end_work();
-    };
-
-    return {prepare, cleanup};
-}
-
-function _getPropertyTarget(actor, propName) {
-    if (!propName.startsWith('@'))
-        return [actor, propName];
-
-    const [type, name, prop] = propName.split('.');
-    switch (type) {
-    case '@layout':
-        return [actor.layout_manager, name];
-    case '@actions':
-        return [actor.get_action(name), prop];
-    case '@constraints':
-        return [actor.get_constraint(name), prop];
-    case '@content':
-        return [actor.content, name];
-    case '@effects':
-        return [actor.get_effect(name), prop];
-    }
-
-    throw new Error(`Invalid property name ${propName}`);
+function _makeEaseParams({
+    duration, delay, mode, repeatCount, autoReverse, animationRequired,
+}) {
+    // Every field is set, so we don't depend on how GJS allocates the boxed
+    const easeParams = new Shell.EaseParams();
+    easeParams.duration = duration ?? -1;
+    easeParams.delay = delay === undefined ? -1 : delay;
+    easeParams.mode = mode ?? 0;
+    easeParams.repeat_count = repeatCount;
+    easeParams.auto_reverse = autoReverse;
+    easeParams.animation_required = animationRequired;
+    return easeParams;
 }
 
 function _easeActor(actor, params) {
-    params = {
-        repeatCount: 0,
-        autoReverse: false,
-        animationRequired: false,
-        ...params,
-    };
+    const {
+        onComplete, onStopped,
+        duration, delay, mode,
+        repeatCount = 0, autoReverse = false, animationRequired = false,
+        ...props
+    } = {...params};
 
-    actor.save_easing_state();
+    const easeParams = _makeEaseParams({
+        duration, delay, mode, repeatCount, autoReverse, animationRequired,
+    });
+    const {promise, callback} = _makeEaseCallback(onComplete, onStopped);
 
-    const animationRequired = params.animationRequired;
-    delete params.animationRequired;
+    const animatedProps = Object.keys(props).map(p => p.replaceAll('_', '-'));
 
-    const duration = params.duration ?? actor.get_easing_duration();
-    actor.set_easing_duration(duration, {animationRequired});
-    delete params.duration;
-
-    if (params.delay !== undefined)
-        actor.set_easing_delay(params.delay, {animationRequired});
-    delete params.delay;
-
-    const repeatCount = params.repeatCount;
-    delete params.repeatCount;
-
-    const autoReverse = params.autoReverse;
-    delete params.autoReverse;
-
-    // repeatCount doesn't include the initial iteration
-    const numIterations = repeatCount + 1;
-    // whether the transition should finish where it started
-    const isReversed = autoReverse && numIterations % 2 === 0;
-
-    if (params.mode !== undefined)
-        actor.set_easing_mode(params.mode);
-    delete params.mode;
-
-    const easingDuration = actor.get_easing_duration();
-    const {prepare, cleanup} = _makeEasePrepareAndCleanup(easingDuration);
-    const {promise, callback} = _makeEaseCallback(params, cleanup);
-
-    // cancel overwritten transitions
-    const animatedProps = Object.keys(params).map(p => p.replaceAll('_', '-'));
-    animatedProps.forEach(p => actor.remove_transition(p));
-
-    if (easingDuration > 0 || !isReversed)
-        actor.set(params);
-    actor.restore_easing_state();
-
-    const transitions = animatedProps
-        .map(p => actor.get_transition(p))
-        .filter(t => t !== null);
-
-    transitions.forEach(t => t.set({repeatCount, autoReverse}));
-
-    const [transition] = transitions;
-
-    if (transition) {
-        _setupTransitionCompletion(transition, actor, callback, prepare);
-    } else {
-        prepare?.();
-        callback(true);
-    }
+    // saves the easing state, cancels overwritten transitions
+    if (Shell.actor_ease_begin(actor, easeParams, animatedProps))
+        actor.set(props);
+    // restores the easing state, then sets up the repeat and the completion
+    Shell.actor_ease_end(actor, easeParams, animatedProps, callback);
 
     return promise;
 }
 
 function _easeAnimatableProperty(animatable, propName, target, params) {
-    params = {
-        repeatCount: 0,
-        autoReverse: false,
-        animationRequired: false,
-        ...params,
-    };
+    const {
+        onComplete, onStopped,
+        duration, delay, mode, progress_mode: progressMode,
+        repeatCount = 0, autoReverse = false, animationRequired = false,
+        ...unknown
+    } = {...params};
 
-    // Avoid pointless difference with ease()
-    if (params.mode)
-        params.progress_mode = params.mode;
-    delete params.mode;
-
-    const animationRequired = params.animationRequired;
-    delete params.animationRequired;
-
-    if (params.duration)
-        params.duration = adjustAnimationTime(params.duration, {animationRequired});
-    let duration = Math.floor(params.duration || 0);
-
-    if (params.delay)
-        params.delay = adjustAnimationTime(params.delay, {animationRequired});
-
-    const repeatCount = params.repeatCount;
-    delete params.repeatCount;
-
-    const autoReverse = params.autoReverse;
-    delete params.autoReverse;
-
-    // repeatCount doesn't include the initial iteration
-    const numIterations = repeatCount + 1;
-    // whether the transition should finish where it started
-    const isReversed = autoReverse && numIterations % 2 === 0;
-
-    // The object is a Clutter.Animatable.
-    const actor = animatable.get_actor();
-
-    // Copy Clutter's behavior for implicit animations, see
-    // should_skip_implicit_transition()
-    if (!actor?.mapped)
-        duration = 0;
-
-    const {prepare, cleanup} = _makeEasePrepareAndCleanup(duration);
-    const {promise, callback} = _makeEaseCallback(params, cleanup);
-
-    // cancel overwritten transition
-    animatable.remove_transition(propName);
-
-    if (duration === 0) {
-        const [obj, prop] = _getPropertyTarget(animatable, propName);
-
-        if (!isReversed)
-            obj[prop] = target;
-
-        prepare?.();
-        callback(true);
-
-        return promise;
+    if (Object.keys(unknown).length > 0) {
+        throw new Error(
+            `Unsupported ease_property() parameters: ${Object.keys(unknown).join(', ')}`);
     }
 
-    const pspec = animatable.find_property(propName);
-    const transition = new Clutter.PropertyTransition({
-        property_name: propName,
-        interval: new Clutter.Interval({value_type: pspec.value_type}),
-        remove_on_complete: true,
-        repeat_count: repeatCount,
-        auto_reverse: autoReverse,
-        ...params,
+    const easeParams = _makeEaseParams({
+        duration,
+        delay,
+        // Avoid pointless difference with ease()
+        mode: mode || progressMode,
+        repeatCount,
+        autoReverse,
+        animationRequired,
     });
-    animatable.add_transition(propName, transition);
+    const {promise, callback} = _makeEaseCallback(onComplete, onStopped);
 
-    transition.set_to(target);
-
-    _setupTransitionCompletion(transition, actor, callback, prepare);
+    Shell.animatable_ease_property(animatable, propName, target, easeParams, callback);
 
     return promise;
 }
@@ -318,9 +163,6 @@ GObject.Object.prototype.disconnect_object = function (...args) {
 };
 
 SignalTracker.registerDestroyableType(Clutter.Actor);
-
-global.connectObject('shutdown', () => sessionSignalHolder.destroy(),
-    sessionSignalHolder);
 
 Cairo.Context.prototype.setSourceColor = function (color) {
     const {red, green, blue, alpha} = color;
