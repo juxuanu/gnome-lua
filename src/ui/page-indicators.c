@@ -322,12 +322,15 @@ shell_page_indicators_get_property (GObject    *object,
     }
 }
 
+static void shell_page_indicators_constructed (GObject *object);
+
 static void
 shell_page_indicators_class_init (ShellPageIndicatorsClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
   ClutterActorClass *actor_class = CLUTTER_ACTOR_CLASS (klass);
 
+  object_class->constructed = shell_page_indicators_constructed;
   object_class->get_property = shell_page_indicators_get_property;
 
   actor_class->get_preferred_height = shell_page_indicators_get_preferred_height;
@@ -368,14 +371,27 @@ shell_page_indicators_init (ShellPageIndicators *self)
 
   self->indicators_reactive = TRUE;
 
-  /* The JS constructor defaulted to a vertical layout */
-  st_box_layout_set_orientation (ST_BOX_LAYOUT (self),
-                                 CLUTTER_ORIENTATION_VERTICAL);
   st_widget_set_style_class_name (ST_WIDGET (self), "page-indicators");
   clutter_actor_set_x_expand (actor, TRUE);
   clutter_actor_set_y_expand (actor, TRUE);
   clutter_actor_set_reactive (actor, TRUE);
   clutter_actor_set_clip_to_allocation (actor, TRUE);
+}
+
+/* StBoxLayout's ClutterBoxLayout is created by ClutterActor's constructed(),
+ * so the orientation can only be touched from here on, never from init(). */
+static void
+shell_page_indicators_constructed (GObject *object)
+{
+  ShellPageIndicators *self = SHELL_PAGE_INDICATORS (object);
+
+  G_OBJECT_CLASS (shell_page_indicators_parent_class)->constructed (object);
+
+  /* The JS constructor defaulted to a vertical layout. "orientation" is
+   * not a construct property, so a value passed to g_object_new() is
+   * applied after this and re-runs update_alignment() through notify. */
+  st_box_layout_set_orientation (ST_BOX_LAYOUT (self),
+                                 CLUTTER_ORIENTATION_VERTICAL);
   update_alignment (self);
 
   /* The alignment follows the orientation given at construction (and any

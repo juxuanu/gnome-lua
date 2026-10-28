@@ -341,10 +341,10 @@ shell_dialog_make_inactive (ShellDialog *self)
  *   own is activated by Return, KP Enter and ISO Enter.
  * @is_default: whether this is the default button: it is styled with the
  *   `default` pseudo class and becomes the initial key focus
- * @action: (scope notified) (nullable): called when the button is clicked or
- *   its key is released
- * @user_data: (closure action): data for @action
- * @destroy: (destroy action): called when @user_data is no longer needed,
+ * @action: (scope notified) (nullable) (closure user_data) (destroy destroy):
+ *   called when the button is clicked or its key is released
+ * @user_data: data for @action
+ * @destroy: called when @user_data is no longer needed,
  *   that is when the button is destroyed and its key binding dropped
  *
  * Adds a button to the end of the button row. This replaces the former
@@ -1087,11 +1087,23 @@ shell_message_dialog_content_destroy (ClutterActor *actor)
   CLUTTER_ACTOR_CLASS (shell_message_dialog_content_parent_class)->destroy (actor);
 }
 
+/* StBoxLayout's layout manager only exists after ClutterActor's
+ * constructed(), so the orientation cannot be set from init(). */
+static void
+shell_message_dialog_content_constructed (GObject *object)
+{
+  G_OBJECT_CLASS (shell_message_dialog_content_parent_class)->constructed (object);
+  st_box_layout_set_orientation (ST_BOX_LAYOUT (object),
+                                 CLUTTER_ORIENTATION_VERTICAL);
+}
+
 static void
 shell_message_dialog_content_class_init (ShellMessageDialogContentClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
   ClutterActorClass *actor_class = CLUTTER_ACTOR_CLASS (klass);
+
+  object_class->constructed = shell_message_dialog_content_constructed;
 
   object_class->get_property = shell_message_dialog_content_get_property;
   object_class->set_property = shell_message_dialog_content_set_property;
@@ -1139,8 +1151,6 @@ shell_message_dialog_content_init (ShellMessageDialogContent *self)
 
   st_widget_set_style_class_name (ST_WIDGET (self), "message-dialog-content");
   clutter_actor_set_x_expand (actor, TRUE);
-  st_box_layout_set_orientation (ST_BOX_LAYOUT (self),
-                                 CLUTTER_ORIENTATION_VERTICAL);
 
   title = create_wrapping_label ("message-dialog-title");
   description = create_wrapping_label ("message-dialog-description");
@@ -1303,9 +1313,19 @@ shell_list_section_finalize (GObject *object)
 }
 
 static void
+shell_list_section_constructed (GObject *object)
+{
+  G_OBJECT_CLASS (shell_list_section_parent_class)->constructed (object);
+  st_box_layout_set_orientation (ST_BOX_LAYOUT (object),
+                                 CLUTTER_ORIENTATION_VERTICAL);
+}
+
+static void
 shell_list_section_class_init (ShellListSectionClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
+
+  object_class->constructed = shell_list_section_constructed;
 
   object_class->get_property = shell_list_section_get_property;
   object_class->set_property = shell_list_section_set_property;
@@ -1348,8 +1368,6 @@ shell_list_section_init (ShellListSection *self)
 
   st_widget_set_style_class_name (ST_WIDGET (self), "dialog-list");
   clutter_actor_set_x_expand (actor, TRUE);
-  st_box_layout_set_orientation (ST_BOX_LAYOUT (self),
-                                 CLUTTER_ORIENTATION_VERTICAL);
 
   title = create_wrapping_label ("dialog-list-title");
   sync_label (title, NULL);
