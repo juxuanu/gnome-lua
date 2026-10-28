@@ -1,0 +1,5 @@
+option('interpreter',
+  type: 'boolean',
+  value: true,
+  description: 'Build the standalone lua interpreter (lua.c).'
+)

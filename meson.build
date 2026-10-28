@@ -285,6 +285,21 @@ libgvc = subproject('gvc',
 )
 libgvc_gir = libgvc.get_variable('libgvc_gir')
 
+# Embedded Lua 5.5 runtime + extension manager (subprojects/shell-lua).
+# Built shared so g-ir-scanner can dump it; vendors Lua via its own wrap.
+libshell_lua = subproject('shell-lua',
+  default_options: [
+    'package_name=' + meson.project_name(),
+    'pkgdatadir=' + pkgdatadir,
+    'pkglibdir=' + pkglibdir,
+    'static=false',
+    'introspection=enabled',
+    'tests=false'
+  ]
+)
+libshell_lua_dep = libshell_lua.get_variable('libshell_lua_dep')
+libshell_lua_gir = libshell_lua.get_variable('libshell_lua_gir')
+
 libshew = dependency('libshew',
   default_options: [
     'package_name=@0@'.format(meson.project_name()),

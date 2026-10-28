@@ -10,6 +10,7 @@ dbus_runner = configure_file(
 )
 
 gvc_typelib_path = fs.parent(libgvc.get_variable('libgvc_gir')[1].full_path())
+shell_lua_typelib_path = fs.parent(libshell_lua_gir[1].full_path())
 shell_typelib_path = fs.parent(libshell_gir[1].full_path())
 st_typelib_path = fs.parent(libst_gir[1].full_path())
 
@@ -20,11 +21,13 @@ tests_dependencies = [
   libst_gir[1],
   libshell_gir[1],
   libgvc_gir[1],
+  libshell_lua_gir[1],
 ]
 
 unit_testenv = environment()
 unit_testenv.set('GNOME_SHELL_DATADIR', data_builddir)
 unit_testenv.append('GI_TYPELIB_PATH', gvc_typelib_path, separator: ':')
+unit_testenv.append('GI_TYPELIB_PATH', shell_lua_typelib_path, separator: ':')
 unit_testenv.append('GI_TYPELIB_PATH', shell_typelib_path, separator: ':')
 unit_testenv.append('GI_TYPELIB_PATH', st_typelib_path, separator: ':')
 
@@ -107,6 +110,7 @@ shell_tests = [
 ]
 
 libgvc_path = fs.parent(libgvc.get_variable('libgvc').full_path())
+libshell_lua_path = fs.parent(libshell_lua.get_variable('libshell_lua').full_path())
 
 background_file = join_paths(meson.current_source_dir(), 'data', 'background.png')
 
@@ -118,7 +122,9 @@ shell_testenv.set('GNOME_SHELL_BUILDDIR', src_builddir)
 shell_testenv.set('GNOME_SHELL_SESSION_MODE', 'user')
 shell_testenv.set('SHELL_BACKGROUND_IMAGE', '@0@'.format(background_file))
 shell_testenv.append('GI_TYPELIB_PATH', gvc_typelib_path, separator: ':')
+shell_testenv.append('GI_TYPELIB_PATH', shell_lua_typelib_path, separator: ':')
 shell_testenv.append('LD_LIBRARY_PATH', libgvc_path, separator: ':')
+shell_testenv.append('LD_LIBRARY_PATH', libshell_lua_path, separator: ':')
 
 foreach shell_test : shell_tests
   test_name = shell_test['name']

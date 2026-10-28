@@ -1,0 +1,35 @@
+option('package_name',
+  type: 'string',
+  value: 'shell-lua',
+  description: 'Package name of the embedding project (informational; accepted so gnome-shell can pass it like it does for gvc).'
+)
+
+option('pkglibdir',
+  type: 'string',
+  value: '',
+  description: 'The private directory the shared library/typelib will be installed into (required for shared or introspected builds that are installed).'
+)
+
+option('pkgdatadir',
+  type: 'string',
+  value: '',
+  description: 'The private directory the gir file will be installed into.'
+)
+
+option('static',
+  type: 'boolean',
+  value: true,
+  description: 'Build libshell-lua as a static library. Introspection needs a shared library, so this must be false for introspection=enabled.'
+)
+
+option('introspection',
+  type: 'feature',
+  value: 'auto',
+  description: 'Build the ShellLua GObject-introspection data (requires static=false).'
+)
+
+option('tests',
+  type: 'boolean',
+  value: true,
+  description: 'Build and run the unit tests (also builds the lua interpreter).'
+)
