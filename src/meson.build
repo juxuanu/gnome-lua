@@ -804,11 +804,12 @@ endif
 # The proxy of ui/status/network.c (type ShellPortalHelper); the captive
 # portal login goes through the portal helper only if it is built
 if have_portal_helper
-  dbus_generated += gnome.gdbus_codegen('portal-helper-dbus',
+  portal_helper_dbus = gnome.gdbus_codegen('portal-helper-dbus',
     sources: '../data/dbus-interfaces/org.gnome.Shell.PortalHelper.xml',
     interface_prefix: 'org.gnome.Shell.',
     namespace: 'Shell'
   )
+  dbus_generated += portal_helper_dbus
 endif
 
 libshell_no_gir_sources += dbus_generated
@@ -881,10 +882,12 @@ gnome_shell_binary = executable('gnome-shell', 'main.c',
 )
 
 if have_portal_helper
+  # The captive portal login window: a plain GTK application (the skeleton
+  # of the D-Bus interface is compiled into it as well as into libshell)
   executable('gnome-shell-portal-helper',
-    'gnome-shell-portal-helper.c', portal_resources,
+    'portal-helper/main.c', portal_helper_dbus,
     c_args: tools_cflags,
-    dependencies: tools_deps,
+    dependencies: [gio_dep, gtk_dep, webkitgtk_dep, libadwaita_dep],
     include_directories: [conf_inc],
     install_dir: libexecdir,
     install: true
