@@ -843,9 +843,11 @@ ensure_indicator (ShellPanel *self,
   if (indicator != NULL)
     return g_object_ref (indicator);
 
-  /* A role nobody implements is a bug, but not worth more than ignoring it */
+  /* A role nobody implements is a bug, but not worth more than ignoring it.
+   * The handler returns the indicator borrowed: it is owned by the container
+   * its construction put it in (or still floating). */
   g_signal_emit (self, signals[CREATE_INDICATOR], 0, role, &created);
-  return created;
+  return created != NULL ? g_object_ref_sink (created) : NULL;
 }
 
 static void

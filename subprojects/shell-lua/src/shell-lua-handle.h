@@ -83,6 +83,13 @@ typedef struct {
 void      shell_lua_handle_register_type (lua_State                *L,
                                           const ShellLuaHandleType *type);
 
+/* Make @type (registered already) the one handles of its GType get when
+ * pushed without a type name, instead of the first type registered for the
+ * GType. The privileged inspector state uses it so that the generic
+ * GObject handles win over the extension API's types. */
+void      shell_lua_handle_prefer_type   (lua_State                *L,
+                                          const ShellLuaHandleType *type);
+
 /* Push the handle for @object. The same object yields the same userdata
  * within one lua_State while it is alive (weak cache keyed by pointer).
  * @type_name may be NULL to use the most specific registered type for

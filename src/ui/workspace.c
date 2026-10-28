@@ -1313,7 +1313,10 @@ workspace_layout_allocate (ClutterLayoutManager *manager,
           Area workarea = { core->workarea.x, core->workarea.y,
                             core->workarea.width, core->workarea.height };
 
-          layout_free (core->layout);
+          /* Computing the layout can drop the last reference of a window
+           * preview, whose destroy handler clears core->layout: no stale
+           * pointer may be left in it meanwhile */
+          g_clear_pointer (&core->layout, layout_free);
           core->layout = core_create_best_layout (core, &workarea);
           self->needs_layout = FALSE;
           layout_changed = TRUE;

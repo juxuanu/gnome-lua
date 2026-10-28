@@ -287,6 +287,10 @@ register_generic_chain (lua_State *L,
     register_generic_chain (L, parent);
 
   shell_lua_handle_register_type (L, &gt->type);
+  /* The extension API registers its own types for some of these GTypes
+   * first (shell.Widget for StWidget, ...); here the generic handles with
+   * every property and connect () are the ones wanted. */
+  shell_lua_handle_prefer_type (L, &gt->type);
 }
 
 static void

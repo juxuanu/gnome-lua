@@ -1477,6 +1477,22 @@ shell_lua_handle_peek (lua_State  *L,
 }
 
 void
+shell_lua_handle_prefer_type (lua_State                *L,
+                              const ShellLuaHandleType *type)
+{
+  g_return_if_fail (L != NULL);
+  g_return_if_fail (type != NULL && type->name != NULL);
+  g_return_if_fail (find_type (L, type->name) == type);
+
+  luaL_checkstack (L, 4, "shell_lua_handle_prefer_type");
+  lua_rawgetp (L, LUA_REGISTRYINDEX, &gtypes_key);
+  lua_pushinteger (L, (lua_Integer) type->gtype);
+  lua_pushlightuserdata (L, (void *) type);
+  lua_rawset (L, -3);
+  lua_pop (L, 1);
+}
+
+void
 shell_lua_handle_set_resolver (lua_State              *L,
                                ShellLuaHandleResolver  resolver)
 {

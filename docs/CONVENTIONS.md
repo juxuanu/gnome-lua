@@ -234,3 +234,17 @@ never call extension code directly.
   short-circuit order, or read sizes only on the path that needs them.
 * Hold another object's adjustment, actor or proxy you connect to but do not
   own through a weak pointer; it can be finalized before you disconnect.
+* An object a signal handler returns is borrowed: the marshaller and the
+  emitter balance their references, so `g_signal_emit (..., &created)` gives
+  the caller no reference of its own. A creator that sinks the object into a
+  container (`ShellPanelButtonBox` does in `constructed ()`) leaves the
+  container as the sole owner; take `g_object_ref_sink ()` before storing it,
+  or the object finalizes in the middle of its own dispose at shutdown.
+* Replacing a heap structure a reentrant callback can clear: clear the
+  field first (`g_clear_pointer (&core->layout, layout_free)`), then compute
+  the new value; computing it may drop the last reference of an actor whose
+  destroy handler frees the field.
+* An object pushed without a type name gets the first handle type registered
+  for its GType; the privileged inspector state registers the extension API's
+  types first, so it calls `shell_lua_handle_prefer_type ()` for its generic
+  `gobject.*` chain.

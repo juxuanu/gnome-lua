@@ -4907,13 +4907,16 @@ view_remove_notification_source (ShellMessageView *self,
                                  ShellSource      *source)
 {
   ClutterActor *group = g_hash_table_lookup (self->source_to_group, source);
+  gboolean has_urgent;
 
   if (group == NULL)
     return;
 
+  /* removing the message destroys the group */
+  has_urgent = group_get_has_urgent (SHELL_NOTIFICATION_MESSAGE_GROUP (group));
   view_remove_message (self, group);
 
-  if (group_get_has_urgent (SHELL_NOTIFICATION_MESSAGE_GROUP (group)))
+  if (has_urgent)
     self->n_urgent--;
 
   g_hash_table_remove (self->source_to_group, source);

@@ -237,7 +237,7 @@ shell_test_runner_is_enabled (void)
 
 static void
 runner_finish (Runner *r,
-               GError *error)
+               GError *error) /* (transfer full) */
 {
   MetaContext *context;
 
@@ -250,7 +250,7 @@ runner_finish (Runner *r,
   if (error != NULL)
     {
       g_printerr ("Test script %s failed: %s\n", r->script, error->message);
-      meta_context_terminate_with_error (context, error);
+      meta_context_terminate_with_error (context, error); /* takes the error */
     }
   else
     {
@@ -273,7 +273,7 @@ runner_fail (Runner     *r,
   va_end (args);
 
   error = g_error_new_literal (G_IO_ERROR, G_IO_ERROR_FAILED, message);
-  runner_finish (r, error);
+  runner_finish (r, g_steal_pointer (&error));
 }
 
 /* ------------------------------------------------------------------------ */

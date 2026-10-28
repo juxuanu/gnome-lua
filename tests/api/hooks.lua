@@ -57,6 +57,10 @@ local function overview_scenarios (c)
   table.move (SHOW, 1, #SHOW, 1, BOTH)
   table.move (HIDE, 1, #HIDE, #BOTH + 1, BOTH)
 
+  -- a session without windows starts in the overview
+  if overview.visible then
+    overview:hide ()
+  end
   settle (c, false)
 
   -- shown and hidden: the phases in order, the payloads
