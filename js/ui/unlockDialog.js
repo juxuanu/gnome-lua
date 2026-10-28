@@ -1104,7 +1104,7 @@ export const UnlockDialog = GObject.registerClass({
 
     _updateAuthBlocked() {
         this._authPrompt?.setAuthBlocked(
-            Main.timeLimitsManager.shouldLockSession);
+            Main.timeLimitsManager.should_lock_session);
     }
 
     cancel() {

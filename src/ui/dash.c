@@ -14,7 +14,7 @@
  *    `overview-closing` to %TRUE, and `item-drag-begin`, `item-drag-end` and
  *    `item-drag-cancelled` are its signals of the same name. The drags of
  *    windows are shell_dash_window_drag_begin () and
- *    shell_dash_window_drag_end (), which overviewControls.js calls
+ *    shell_dash_window_drag_end (), which overview-controls.c calls
  *    (`window-drag-begin`, and `window-drag-cancelled` and `-end`).
  *  - `Main.ctrlAltTabManager` is the one of the window manager, and
  *    `Main.initializeDeferredWork ()` is shell_deferred_work_new ().

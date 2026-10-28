@@ -13,9 +13,10 @@
  * #ShellWorkspaceAnimationController (see workspace-animation.h).
  *
  * The JS-only parts of the shell are reached through signals that main.js
- * answers, and through the #ShellWindowManager:overview-visible and
- * #ShellWindowManager:overview-closing properties that main.js keeps in sync
- * with the overview.
+ * answers. The #ShellWindowManager:overview-visible, :overview-closing and
+ * :overview-animating properties are kept in sync with the overview by the
+ * overview itself (overview.c), which also connects to the signals of the
+ * window manager.
  */
 
 #pragma once
@@ -157,7 +158,7 @@ StAdjustment *shell_window_manager_create_workspaces_adjustment (ShellWindowMana
 void     shell_window_manager_skip_next_effect            (ShellWindowManager *self,
                                                            MetaWindowActor    *actor);
 
-/* The state of the overview, kept in sync by main.js */
+/* The state of the overview, kept in sync by the overview (overview.c) */
 gboolean shell_window_manager_get_overview_visible        (ShellWindowManager *self);
 void     shell_window_manager_set_overview_visible        (ShellWindowManager *self,
                                                            gboolean            visible);

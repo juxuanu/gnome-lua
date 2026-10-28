@@ -9,10 +9,11 @@
  * (#ShellWorkspaceTracker), the tile preview, the resize popup, the window
  * menu manager and the #ShellWorkspaceAnimationController.
  *
- * What is still JS (the overview and the screenshot UI) is reached through the signals of
+ * What is still JS (the screenshot UI) is reached through the signals of
  * #ShellWindowManager, which main.js connects to; the state of the overview
- * is handed over with the #ShellWindowManager:overview-visible and
- * #ShellWindowManager:overview-closing properties.
+ * (overview.c) is handed over with the #ShellWindowManager:overview-visible,
+ * :overview-closing and :overview-animating properties, which the overview
+ * sets itself, and the overview connects to its signals.
  *
  * Differences from the JS module, other than the renames listed in
  * docs/PORT_STATUS.md:
@@ -3722,7 +3723,7 @@ shell_window_manager_get_overview_visible (ShellWindowManager *self)
  * @self: a #ShellWindowManager
  * @visible: whether the overview is visible
  *
- * Sets #ShellWindowManager:overview-visible. main.js sets it to %TRUE when
+ * Sets #ShellWindowManager:overview-visible. The overview sets it to %TRUE when
  * the overview starts showing and to %FALSE when it is hidden. The windows
  * which were waiting for the overview to hide to animate their mapping
  * start to animate when it becomes %FALSE.
@@ -3763,7 +3764,7 @@ shell_window_manager_get_overview_closing (ShellWindowManager *self)
  * @self: a #ShellWindowManager
  * @closing: whether the overview is animating out
  *
- * Sets #ShellWindowManager:overview-closing. main.js sets it to %TRUE when
+ * Sets #ShellWindowManager:overview-closing. The overview sets it to %TRUE when
  * the overview starts hiding and to %FALSE when it is hidden or shown.
  */
 void
@@ -3800,7 +3801,7 @@ shell_window_manager_get_overview_animating (ShellWindowManager *self)
  * @self: a #ShellWindowManager
  * @animating: whether the overview is animating
  *
- * Sets #ShellWindowManager:overview-animating. overview.js sets it whenever
+ * Sets #ShellWindowManager:overview-animating. overview.c sets it whenever
  * it changes `_animationInProgress`.
  */
 void
@@ -4275,7 +4276,7 @@ shell_window_manager_class_init (ShellWindowManagerClass *klass)
    * ShellWindowManager:overview-visible:
    *
    * Whether the overview is visible, including while it is animating in or
-   * out (`Main.overview.visible`). main.js keeps it in sync: it sets it to
+   * out (`Main.overview.visible`). The overview keeps it in sync: it sets it to
    * %TRUE when the overview emits `showing` and to %FALSE when it emits
    * `hidden`.
    */
@@ -4289,7 +4290,7 @@ shell_window_manager_class_init (ShellWindowManagerClass *klass)
   /**
    * ShellWindowManager:overview-closing:
    *
-   * Whether the overview is animating out (`Main.overview.closing`). main.js
+   * Whether the overview is animating out (`Main.overview.closing`). The overview
    * sets it to %TRUE when the overview emits `hiding` and back to %FALSE
    * when it emits `showing`, `hidden` or `shown`. The window animations
    * only wait for an overview which is visible and not closing.
@@ -4305,7 +4306,7 @@ shell_window_manager_class_init (ShellWindowManagerClass *klass)
    * ShellWindowManager:overview-animating:
    *
    * Whether the overview is animating in or out
-   * (`Main.overview.animationInProgress`). overview.js keeps it in sync.
+   * (`Main.overview.animation_in_progress`). overview.c keeps it in sync.
    * The workspaces of the overview read it to know whether to animate a
    * change of their layout.
    */
@@ -4370,8 +4371,8 @@ shell_window_manager_class_init (ShellWindowManagerClass *klass)
    *
    * Emitted when the drag of an icon of the application grid, the dash or
    * the search results starts (`Main.overview.beginItemDrag ()`). The
-   * application views and the dash listen to it; main.js hands it on to the
-   * overview, which is still JS.
+   * application views and the dash listen to it; the overview hands it on
+   * (overview.c).
    */
   signals[ITEM_DRAG_BEGIN] =
     g_signal_new ("item-drag-begin",

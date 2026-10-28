@@ -5,7 +5,7 @@
  *
  * The controller listens to the entry, shows the #ShellSearchResultsView
  * while there are search terms and moves the key focus between the entry and
- * the results. It does not know the overview (still JS): the overview tells
+ * the results. It does not know the overview (overview.c): the overview tells
  * it with shell_search_controller_prepare_to_enter_overview (),
  * shell_search_controller_prepare_to_leave_overview (),
  * shell_search_controller_overview_showing () and

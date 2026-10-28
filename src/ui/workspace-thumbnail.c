@@ -25,7 +25,7 @@
  *    shell_thumbnails_box_drag_begin () and its siblings, and the drags of
  *    the windows of the thumbnails are told to the overview by the
  *    #ShellThumbnailsBox::window-drag-begin family of signals (see
- *    overviewControls.js).
+ *    shell_controls_connect_thumbnails_box ()).
  *  - The JS inspected the drag source with `source.metaWindow`,
  *    `source.app`, `source.animateLaunchAtPos ()` and
  *    `source.shellWorkspaceLaunch ()`. The window that is dragged is the
@@ -3841,7 +3841,7 @@ shell_thumbnails_box_class_init (ShellThumbnailsBoxClass *klass)
    * @window: the window whose clone starts being dragged
    *
    * Emitted when the clone of a window in a thumbnail starts being dragged.
-   * overviewControls.js connects it to `Main.overview.beginWindowDrag ()`.
+   * shell_controls_connect_thumbnails_box () connects it to the overview.
    * The handler must not return a value.
    */
   box_signals[BOX_WINDOW_DRAG_BEGIN] =

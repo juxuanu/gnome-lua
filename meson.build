@@ -108,6 +108,8 @@ gweather_dep = dependency('gweather4', version: gweather_req)
 geoclue_dep = dependency('libgeoclue-2.0', version: geoclue_req)
 # ui/status/system.c: UpDeviceState
 upower_dep = dependency('upower-glib')
+# gdm/fido2-token-manager.c: the hidraw devices of the security keys
+gudev_dep = dependency('gudev-1.0')
 # ui/status/bluetooth.c: BluetoothClient. libgnome-bluetooth does not install
 # its headers (the JS used the typelib), the few declarations it needs are in
 # the C file

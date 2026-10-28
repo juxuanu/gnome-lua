@@ -8,11 +8,12 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as AuthList from './authList.js';
-import * as Batch from './batch.js';
 import {logErrorUnlessCancelled} from '../misc/errorUtils.js';
 import * as Params from '../misc/params.js';
-import * as UserVerifier from './userVerifier.js';
 import * as WebLogin from './webLogin.js';
+
+Gio._promisify(Shell.GdmUserVerifier.prototype,
+    'handle_pending_messages_async', 'handle_pending_messages_finish');
 
 const TimerChildIface = Shell.dbus_load_interface_xml('org.freedesktop.MalcontentTimer1.Child');
 const TimerChildProxy = Gio.DBusProxy.makeProxyWrapper(TimerChildIface);
@@ -176,15 +177,56 @@ export const AuthPrompt = GObject.registerClass({
         this._userVerifier = this._createUserVerifier(this._gdmClient, {reauthenticationOnly});
 
         this._userVerifier.connectObject(
-            'ask-question', (_, args) => this._onAskQuestion(args),
-            'show-message', (_, args) => this._onShowMessage(args),
-            'show-choice-list', (_, args) => this._onShowChoiceList(args),
-            'show-button', (_, args) => this._onShowButton(args),
-            'mechanisms-changed', (_, args) => this.emit('mechanisms-changed', args),
-            'web-login', (_, args) => this._onWebLogin(args),
-            'verification-failed', (_, args) => this._onVerificationFailed(args),
+            'ask-question', (_, serviceName, question, secret, handler) => {
+                this._onAskQuestion({
+                    serviceName,
+                    question,
+                    secret,
+                    answerHandler: answer => handler.invoke(answer),
+                });
+            },
+            'show-message', (_, message, type, shouldWiggle) =>
+                this._onShowMessage({message, type, shouldWiggle}),
+            'show-choice-list', (_, serviceName, promptMessage, choiceList, handler) => {
+                this._onShowChoiceList({
+                    serviceName,
+                    promptMessage,
+                    choiceList: choiceList?.recursiveUnpack() ?? [],
+                    choiceHandler: handler ? key => handler.invoke(key) : null,
+                });
+            },
+            'show-button', (_, serviceName, label, handler) => {
+                this._onShowButton({
+                    serviceName,
+                    label,
+                    callback: () => handler.invoke(null),
+                });
+            },
+            'mechanisms-changed', (_, mechanisms, selectedMechanism) => {
+                this.emit('mechanisms-changed', {
+                    mechanisms: mechanisms.recursiveUnpack(),
+                    selectedMechanism: selectedMechanism.recursiveUnpack(),
+                });
+            },
+            'web-login', (_, serviceName, message, url, code, doneLabel, doneHandler) => {
+                this._onWebLogin({
+                    serviceName,
+                    message,
+                    url,
+                    code,
+                    buttons: [{
+                        default: true,
+                        needsLoading: true,
+                        label: doneLabel,
+                        action: () => doneHandler.invoke(null),
+                    }],
+                });
+            },
+            'verification-failed', (_, serviceName, canRetry) =>
+                this._onVerificationFailed({serviceName, canRetry}),
             'verification-complete', () => this._onVerificationComplete(),
-            'reset', (_, args) => this._onReset(args),
+            'reset', (_, softReset, reuseEntryText) =>
+                this._onReset({softReset, reuseEntryText}),
             this);
 
         this.connect('destroy', this._onDestroy.bind(this));
@@ -229,7 +271,10 @@ export const AuthPrompt = GObject.registerClass({
     }
 
     _createUserVerifier(gdmClient, params) {
-        return new UserVerifier.ShellUserVerifier(gdmClient, params);
+        return new Shell.GdmUserVerifier({
+            client: gdmClient,
+            reauthentication_only: !!params.reauthenticationOnly,
+        });
     }
 
     _onDestroy() {
@@ -340,7 +385,7 @@ export const AuthPrompt = GObject.registerClass({
 
         [this._textEntry, this._passwordEntry].forEach(entry => {
             entry.clutter_text.connect('text-changed', () => {
-                if (!this._userVerifier.hasPendingMessages)
+                if (!this._userVerifier.has_pending_messages)
                     this._fadeOutMessage();
             });
 
@@ -409,7 +454,7 @@ export const AuthPrompt = GObject.registerClass({
     }
 
     showTimedLoginIndicator(time) {
-        const hold = new Batch.Hold();
+        const hold = new Shell.BatchHold();
 
         this.hideTimedLoginIndicator();
 
@@ -498,7 +543,7 @@ export const AuthPrompt = GObject.registerClass({
         const callback = this._pendingCallback;
         this._pendingCallback = null;
 
-        this._userVerifier.handlePendingMessages()
+        this._userVerifier.handle_pending_messages_async()
             .then(() => callback(...args))
             .catch(logErrorUnlessCancelled);
     }
@@ -549,14 +594,14 @@ export const AuthPrompt = GObject.registerClass({
         this.emit('prompted');
     }
 
-    _onShowMessage({message, type, shouldWiggle, showMessageResolver}) {
+    _onShowMessage({message, type, shouldWiggle}) {
         this.setMessage(message, type);
         this.emit('prompted');
 
         // If we're showing a message and no auth widget is currently visible,
         // show the entry area to allow getting a preemptive answer
         if (message &&
-            type < UserVerifier.MessageType.ERROR &&
+            type < Shell.GdmMessageType.ERROR &&
             !this._entryArea.visible &&
             !this._authList.visible &&
             !this._authButton.visible &&
@@ -565,15 +610,13 @@ export const AuthPrompt = GObject.registerClass({
             this.updateSensitivity({sensitive: true});
         }
 
-        const wigglePromise = shouldWiggle
-            ? new Promise(resolve => {
-                Shell.animation_wiggle_full(this._message,
-                    Shell.WIGGLE_OFFSET, Shell.WIGGLE_DURATION, Shell.WIGGLE_COUNT,
-                    () => resolve());
-            })
-            : Promise.resolve();
-
-        showMessageResolver?.(wigglePromise);
+        // The verifier waits for the wiggle to end before it counts the
+        // time the user needs to read the message
+        if (shouldWiggle) {
+            Shell.animation_wiggle_full(this._message,
+                Shell.WIGGLE_OFFSET, Shell.WIGGLE_DURATION, Shell.WIGGLE_COUNT,
+                () => this._userVerifier?.message_shown());
+        }
     }
 
     _onShowButton({serviceName, label, callback}) {
@@ -640,7 +683,7 @@ export const AuthPrompt = GObject.registerClass({
 
         // Only allow instant retrying with password authentication.
         // The rest of authentications will retry through the reset flow.
-        if (canRetry && this._userVerifier.selectedMechanism?.preemptiveInput) {
+        if (canRetry && this._userVerifier.preemptive_input) {
             this.verificationStatus = AuthPromptStatus.VERIFYING;
             this._entry.text = '';
             this.startPreemptiveInput();
@@ -825,11 +868,9 @@ export const AuthPrompt = GObject.registerClass({
 
     setChoiceList(promptMessage, choiceList) {
         this._authList.clear();
-        this._authListTitle.child.text = promptMessage;
-        for (const key in choiceList) {
-            const content = choiceList[key];
+        this._authListTitle.child.text = promptMessage ?? '';
+        for (const [key, content] of choiceList)
             this._authList.addItem(key, content);
-        }
 
         this._entryArea.hide();
         this._fadeInElement(this._authList);
@@ -861,12 +902,12 @@ export const AuthPrompt = GObject.registerClass({
     }
 
     setMessage(message, type) {
-        if (type === UserVerifier.MessageType.ERROR)
+        if (type === Shell.GdmMessageType.ERROR)
             this._message.add_style_class_name('login-dialog-message-warning');
         else
             this._message.remove_style_class_name('login-dialog-message-warning');
 
-        if (type === UserVerifier.MessageType.HINT)
+        if (type === Shell.GdmMessageType.HINT)
             this._message.add_style_class_name('login-dialog-message-hint');
         else
             this._message.remove_style_class_name('login-dialog-message-hint');
@@ -939,7 +980,8 @@ export const AuthPrompt = GObject.registerClass({
 
         const oldPromptStep = this.promptStep;
         this.promptStep = 0;
-        if (!this._userVerifier.selectMechanism(mechanism))
+        if (!this._userVerifier.select_mechanism(
+            mechanism?.serviceName ?? null, mechanism?.role ?? null))
             this.promptStep = oldPromptStep;
 
         return true;
@@ -982,7 +1024,7 @@ export const AuthPrompt = GObject.registerClass({
             if (oldStatus === AuthPromptStatus.VERIFICATION_CANCELLED)
                 return;
             resetType = ResetType.PROVIDE_USERNAME;
-        } else if (!this._userVerifier.needsUsername()) {
+        } else if (!this._userVerifier.needs_username()) {
             // We don't need to know the username if the user preempted the login screen
             // with a smartcard or with preauthenticated oVirt credentials
             resetType = ResetType.DONT_PROVIDE_USERNAME;
@@ -1041,13 +1083,12 @@ export const AuthPrompt = GObject.registerClass({
         if (!this._preemptiveInput)
             this.updateSensitivity({sensitive: false});
 
-        this._userVerifier.begin(params.userName, params.hold).catch(
-            logErrorUnlessCancelled);
+        this._userVerifier.begin(params.userName, params.hold);
         this.verificationStatus = AuthPromptStatus.VERIFYING;
     }
 
     finish(onComplete) {
-        if (!this._userVerifier.hasPendingMessages) {
+        if (!this._userVerifier.has_pending_messages) {
             this._userVerifier.clear();
             onComplete();
             return;
@@ -1061,7 +1102,7 @@ export const AuthPrompt = GObject.registerClass({
     }
 
     _handleCancel() {
-        if (this._userVerifier.cancelRequested()) {
+        if (this._userVerifier.cancel_requested()) {
             // We substract 2 because on cancel we'll receive a new prompt signal
             // which increments promptStep, so that ends with a result of going
             // back one step.
@@ -1086,7 +1127,7 @@ export const AuthPrompt = GObject.registerClass({
 
         if (this.verificationStatus === AuthPromptStatus.VERIFICATION_IN_PROGRESS) {
             this._cancelledRetries++;
-            if (this._cancelledRetries > this._userVerifier.allowedFailures)
+            if (this._cancelledRetries > this._userVerifier.allowed_failures)
                 this.verificationStatus = AuthPromptStatus.VERIFICATION_FAILED;
         } else {
             this.verificationStatus = AuthPromptStatus.VERIFICATION_CANCELLED;

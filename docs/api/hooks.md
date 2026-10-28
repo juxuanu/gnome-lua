@@ -20,10 +20,10 @@ Every new hook point gets a row here in the same commit that declares it.
 | `panel.indicator-added` | no | `name:s box:s owner:s` | `add_to_panel_box ()` in `src/ui/panel.c`, once per indicator when it is first registered in the status area: the indicators of the shell when the session mode first lists them (`owner` empty), the others through `shell_panel_add_to_status_area_with_owner ()`. Not repeated when a session mode change moves an indicator | 1.0 (M2) |
 | `panel.menu-opened` | no | `name:s box:s` | the `open-state-changed` handler (`menu_open_state_changed_cb ()`) that `src/ui/panel.c` installs on the menu of every indicator from `indicator_menu_set_cb ()` (the former `Panel._onMenuSet`), when the menu opens | 1.0 (M2) |
 | `monitors.changed` | no | `count:i primary:i` | `ShellLayoutManager::monitors-changed` (`src/ui/layout.c`) | 1.0 (M2) |
-| `overview.showing` | yes | `reason:s target:s` | `Overview.show()` (`js/ui/overview.js`) | 1.0 (M3) |
-| `overview.shown` | no | `target:s` | `Overview._showDone()` | 1.0 (M3) |
-| `overview.hiding` | yes | `reason:s` | `Overview.hide()` | 1.0 (M3) |
-| `overview.hidden` | no | (empty) | `Overview._hideDone()` | 1.0 (M3) |
+| `overview.showing` | yes | `reason:s target:s` | `shell_overview_show_for_reason ()` in `src/ui/overview.c` (`Overview.show()`) for the "before" phase, and `change_shown_state ()` for the "after" phase, together with the `showing` signal; a swipe gesture asks in its `begin` handler | 1.0 (M3) |
+| `overview.shown` | no | `target:s` | `change_shown_state ()` in `src/ui/overview.c` (`Overview._showDone()`), together with the `shown` signal | 1.0 (M3) |
+| `overview.hiding` | yes | `reason:s` | `shell_overview_hide_for_reason ()` in `src/ui/overview.c` (`Overview.hide()`) for the "before" phase, and `change_shown_state ()` for the "after" phase, together with the `hiding` signal. A gesture that ends by hiding the overview does not ask | 1.0 (M3) |
+| `overview.hidden` | no | (empty) | `change_shown_state ()` in `src/ui/overview.c` (`Overview._hideDone()`), together with the `hidden` signal | 1.0 (M3) |
 | `window.mapped` | no | W | `WindowManager._mapWindowDone` (`js/ui/window-manager.c`) | 1.0 (M3) |
 | `window.unmapped` | no | W | `WindowManager._destroyWindow`: the window is gone (not emitted on minimize) | 1.0 (M3) |
 | `window.focused` | no | W + `previous-window-id:t` | `notify::focus-window` of `Meta.Display` | 1.0 (M3) |
@@ -51,7 +51,7 @@ The three `1.0` rows at the top are declared today
 (`src/ui/panel.c`), and the two `osk.*` rows by `shell_osk_manager_class_init ()`
 (`src/ui/keyboard.c`), and `search.query` by `shell_search_results_view_class_init ()`
 (`src/ui/search.c`), and the three `notification.*` rows by `shell_notification_class_init ()` and
-`shell_message_tray_class_init ()` (`src/ui/message-tray.c`), and `screenshot.taken` by `shell_screenshot_ui_class_init ()` (`src/ui/screenshot-ui.c`), and `dash.item-added` by `shell_dash_class_init ()` (`src/ui/dash.c`), so they exist once those classes are loaded, before any extension. Every other row is **reserved**: the name,
+`shell_message_tray_class_init ()` (`src/ui/message-tray.c`), and `screenshot.taken` by `shell_screenshot_ui_class_init ()` (`src/ui/screenshot-ui.c`), and `dash.item-added` by `shell_dash_class_init ()` (`src/ui/dash.c`), and the four `overview.*` rows by `shell_overview_class_init ()` (`src/ui/overview.c`), so they exist once those classes are loaded, before any extension. Every other row is **reserved**: the name,
 cancellability and payload are the contract, but the hook is declared by the
 code that owns it when that module is ported (milestone in the last column).
 `shell.hooks.list()` lists only declared hooks, so extensions feature-detect
@@ -98,7 +98,7 @@ an unknown value like `other`.
 
 | Key | Values |
 |---|---|
-| `overview.showing` `reason` | `hot-corner` (`layout.c` hot corner, handled in `main.js`), `activities-button` (`panel.js`), `overlay-key`, `keybinding`, `gesture`, `drag`, `dbus` (`shell-dbus.c`, via `main.js`), `other` |
+| `overview.showing` `reason` | `hot-corner` (`layout.c` hot corner, handled in `overview.c`), `activities-button` (`panelItems.js`), `overlay-key`, `keybinding`, `gesture`, `drag`, `dbus` (`shell-dbus.c`, via `main.js`), `other` |
 | `overview.hiding` `reason` | the values above, plus `escape`, `window-activated` (`Main.activateWindow`), `app-launched`, `search`, `session` (session mode change or lock) |
 | `target` | `window-picker`, `app-grid` |
 

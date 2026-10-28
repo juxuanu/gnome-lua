@@ -14,7 +14,7 @@
  *    `AppDisplay`, which are still JS.
  *  - `Main.overview.connect ('showing' / 'hiding')` is
  *    shell_search_controller_overview_showing () and
- *    shell_search_controller_overview_hiding (), which overviewControls.js
+ *    shell_search_controller_overview_hiding (), which overview-controls.c
  *    calls from the overview signals; `Main.overview.hide ()` and
  *    `Main.overview.toggle ()` are the ::overview-hide-requested and
  *    ::overview-toggle-requested signals.

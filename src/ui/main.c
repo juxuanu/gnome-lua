@@ -28,6 +28,9 @@ enum
   PROP_OSD_WINDOW_MANAGER,
   PROP_PANEL,
   PROP_MESSAGE_TRAY,
+  PROP_WINDOW_MANAGER,
+  PROP_INPUT_METHOD,
+  PROP_KEYBOARD,
 
   N_PROPS
 };
@@ -77,6 +80,9 @@ struct _ShellMain
   ShellOsdWindowManager *osd_window_manager;
   ShellPanel *panel;              /* weak */
   ShellMessageTray *message_tray; /* weak */
+  ShellWindowManager *window_manager; /* weak */
+  ShellInputMethod *input_method; /* weak */
+  ShellOskManager *keyboard;      /* weak */
   MetaCompositor *compositor;     /* weak; same reason as @stage */
   ClutterStage *stage;            /* weak; set on the first push_modal so that
                                    * pops during shell teardown (after ShellGlobal
@@ -217,6 +223,18 @@ shell_main_get_property (GObject    *object,
       g_value_set_object (value, self->message_tray);
       break;
 
+    case PROP_WINDOW_MANAGER:
+      g_value_set_object (value, self->window_manager);
+      break;
+
+    case PROP_INPUT_METHOD:
+      g_value_set_object (value, self->input_method);
+      break;
+
+    case PROP_KEYBOARD:
+      g_value_set_object (value, self->keyboard);
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -257,6 +275,18 @@ shell_main_set_property (GObject      *object,
       shell_main_set_message_tray (self, g_value_get_object (value));
       break;
 
+    case PROP_WINDOW_MANAGER:
+      shell_main_set_window_manager (self, g_value_get_object (value));
+      break;
+
+    case PROP_INPUT_METHOD:
+      shell_main_set_input_method (self, g_value_get_object (value));
+      break;
+
+    case PROP_KEYBOARD:
+      shell_main_set_keyboard (self, g_value_get_object (value));
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -272,6 +302,9 @@ shell_main_dispose (GObject *object)
   g_clear_weak_pointer (&self->compositor);
   g_clear_weak_pointer (&self->panel);
   g_clear_weak_pointer (&self->message_tray);
+  g_clear_weak_pointer (&self->window_manager);
+  g_clear_weak_pointer (&self->input_method);
+  g_clear_weak_pointer (&self->keyboard);
   g_clear_pointer (&self->modal_stack, g_ptr_array_unref);
   g_clear_object (&self->session_mode);
   g_clear_object (&self->layout_manager);
@@ -384,6 +417,48 @@ shell_main_class_init (ShellMainClass *klass)
   props[PROP_MESSAGE_TRAY] =
     g_param_spec_object ("message-tray", NULL, NULL,
                          SHELL_TYPE_MESSAGE_TRAY,
+                         G_PARAM_READWRITE |
+                         G_PARAM_EXPLICIT_NOTIFY |
+                         G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellMain:window-manager:
+   *
+   * The window manager of the shell (`Main.wm`). main.js sets it right after
+   * creating it, so that the input source manager can add its key bindings.
+   * Held weakly.
+   */
+  props[PROP_WINDOW_MANAGER] =
+    g_param_spec_object ("window-manager", NULL, NULL,
+                         SHELL_TYPE_WINDOW_MANAGER,
+                         G_PARAM_READWRITE |
+                         G_PARAM_EXPLICIT_NOTIFY |
+                         G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellMain:input-method:
+   *
+   * The input method of the compositor (`Main.inputMethod`). main.js sets it
+   * right after creating it, so that the input source manager can tell it
+   * whether there is an input source. Held weakly.
+   */
+  props[PROP_INPUT_METHOD] =
+    g_param_spec_object ("input-method", NULL, NULL,
+                         SHELL_TYPE_INPUT_METHOD,
+                         G_PARAM_READWRITE |
+                         G_PARAM_EXPLICIT_NOTIFY |
+                         G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellMain:keyboard:
+   *
+   * The on-screen keyboard manager (`Main.keyboard`). main.js sets it right
+   * after creating it, so that the IBus candidate popup can feed the
+   * suggestions of the keyboard. Held weakly.
+   */
+  props[PROP_KEYBOARD] =
+    g_param_spec_object ("keyboard", NULL, NULL,
+                         SHELL_TYPE_OSK_MANAGER,
                          G_PARAM_READWRITE |
                          G_PARAM_EXPLICIT_NOTIFY |
                          G_PARAM_STATIC_STRINGS);
@@ -906,6 +981,123 @@ shell_main_set_message_tray (ShellMain        *self,
     g_set_weak_pointer (&self->message_tray, message_tray);
 
   g_object_notify_by_pspec (G_OBJECT (self), props[PROP_MESSAGE_TRAY]);
+}
+
+/**
+ * shell_main_get_window_manager:
+ * @self: a #ShellMain
+ *
+ * Returns: (transfer none) (nullable): the window manager, once main.js has
+ *   created it
+ */
+ShellWindowManager *
+shell_main_get_window_manager (ShellMain *self)
+{
+  g_return_val_if_fail (SHELL_IS_MAIN (self), NULL);
+
+  return self->window_manager;
+}
+
+/**
+ * shell_main_set_window_manager:
+ * @self: a #ShellMain
+ * @window_manager: (nullable): the window manager of the shell
+ *
+ * Sets #ShellMain:window-manager.
+ */
+void
+shell_main_set_window_manager (ShellMain          *self,
+                               ShellWindowManager *window_manager)
+{
+  g_return_if_fail (SHELL_IS_MAIN (self));
+  g_return_if_fail (window_manager == NULL || SHELL_IS_WINDOW_MANAGER (window_manager));
+
+  if (self->window_manager == window_manager)
+    return;
+
+  g_clear_weak_pointer (&self->window_manager);
+  if (window_manager != NULL)
+    g_set_weak_pointer (&self->window_manager, window_manager);
+
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_WINDOW_MANAGER]);
+}
+
+/**
+ * shell_main_get_input_method:
+ * @self: a #ShellMain
+ *
+ * Returns: (transfer none) (nullable): the input method, once main.js has
+ *   created it
+ */
+ShellInputMethod *
+shell_main_get_input_method (ShellMain *self)
+{
+  g_return_val_if_fail (SHELL_IS_MAIN (self), NULL);
+
+  return self->input_method;
+}
+
+/**
+ * shell_main_set_input_method:
+ * @self: a #ShellMain
+ * @input_method: (nullable): the input method of the compositor
+ *
+ * Sets #ShellMain:input-method.
+ */
+void
+shell_main_set_input_method (ShellMain        *self,
+                             ShellInputMethod *input_method)
+{
+  g_return_if_fail (SHELL_IS_MAIN (self));
+  g_return_if_fail (input_method == NULL || SHELL_IS_INPUT_METHOD (input_method));
+
+  if (self->input_method == input_method)
+    return;
+
+  g_clear_weak_pointer (&self->input_method);
+  if (input_method != NULL)
+    g_set_weak_pointer (&self->input_method, input_method);
+
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_INPUT_METHOD]);
+}
+
+/**
+ * shell_main_get_keyboard:
+ * @self: a #ShellMain
+ *
+ * Returns: (transfer none) (nullable): the on-screen keyboard manager, once
+ *   main.js has created it
+ */
+ShellOskManager *
+shell_main_get_keyboard (ShellMain *self)
+{
+  g_return_val_if_fail (SHELL_IS_MAIN (self), NULL);
+
+  return self->keyboard;
+}
+
+/**
+ * shell_main_set_keyboard:
+ * @self: a #ShellMain
+ * @keyboard: (nullable): the on-screen keyboard manager of the shell
+ *
+ * Sets #ShellMain:keyboard.
+ */
+void
+shell_main_set_keyboard (ShellMain       *self,
+                         ShellOskManager *keyboard)
+{
+  g_return_if_fail (SHELL_IS_MAIN (self));
+  g_return_if_fail (keyboard == NULL || SHELL_IS_OSK_MANAGER (keyboard));
+
+  if (self->keyboard == keyboard)
+    return;
+
+  g_clear_weak_pointer (&self->keyboard);
+  if (keyboard != NULL)
+    g_set_weak_pointer (&self->keyboard, keyboard);
+
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_KEYBOARD]);
 }
 
 /**

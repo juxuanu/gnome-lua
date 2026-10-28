@@ -5,8 +5,8 @@
  * workspace, and the drag and drop that moves windows between workspaces
  * and creates new ones). Port of js/ui/workspaceThumbnail.js.
  *
- * #ShellThumbnailsBox is created by overviewControls.js (the primary monitor)
- * and workspacesView.js (the other monitors). The parts of the shell it needs
+ * #ShellThumbnailsBox is created by overview-controls.c (the primary monitor)
+ * and workspaces-view.c (the other monitors). The parts of the shell it needs
  * and that are still JS are reached through the properties and signals
  * documented on the type, which the consumers keep in sync.
  *

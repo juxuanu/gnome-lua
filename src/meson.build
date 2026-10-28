@@ -149,6 +149,8 @@ libshell_public_headers = [
   'ui/layout.h',
   'ui/swipe-tracker.h',
   'ui/keyboard.h',
+  'ui/ibus-candidate-popup.h',
+  'ui/kbd-a11y-dialog.h',
   'ui/background-menu.h',
   'ui/app-favorites.h',
   'ui/close-dialog.h',
@@ -186,6 +188,16 @@ libshell_public_headers = [
   'ui/workspace-thumbnail.h',
   'ui/app-display.h',
   'ui/dash.h',
+  'ui/overview.h',
+  'ui/overview-controls.h',
+  'ui/workspaces-view.h',
+  'gdm/batch.h',
+  'gdm/credential-manager.h',
+  'gdm/realmd.h',
+  'gdm/settings.h',
+  'gdm/smartcard-manager.h',
+  'gdm/user-verifier.h',
+  'gdm/util.h',
   'shell-camera-monitor.h',
   'shell-edge-drag-gesture.h',
   'shell-global.h',
@@ -203,6 +215,8 @@ libshell_public_headers = [
   'misc/parental-controls-manager.h',
   'misc/weather.h',
   'misc/brightness-manager.h',
+  'misc/break-manager.h',
+  'misc/time-limits-manager.h',
   'misc/introspect.h',
   'misc/dbus-utils.h',
   'misc/date-utils.h',
@@ -216,6 +230,8 @@ libshell_public_headers = [
   'ui/status/camera.h',
   'ui/status/dark-mode.h',
   'ui/status/do-not-disturb.h',
+  'ui/status/dwell-click.h',
+  'ui/status/keyboard.h',
   'ui/status/location.h',
   'ui/status/night-light.h',
   'ui/status/power-profiles.h',
@@ -264,6 +280,11 @@ libshell_private_headers = [
   'shell-app-system-private.h',
   'shell-global-private.h',
   'shell-wm-private.h',
+  'gdm/auth-services.h',
+  'gdm/auth-services-legacy.h',
+  'gdm/auth-services-sssd-switchable.h',
+  'gdm/fido2-token-manager.h',
+  'gdm/fingerprint-manager.h',
   'ui/deferred-work.h'
 ]
 
@@ -315,6 +336,8 @@ libshell_sources = [
   'ui/layout.c',
   'ui/swipe-tracker.c',
   'ui/keyboard.c',
+  'ui/ibus-candidate-popup.c',
+  'ui/kbd-a11y-dialog.c',
   'ui/background-menu.c',
   'ui/app-favorites.c',
   'ui/close-dialog.c',
@@ -352,6 +375,15 @@ libshell_sources = [
   'ui/workspace-thumbnail.c',
   'ui/app-display.c',
   'ui/dash.c',
+  'ui/overview.c',
+  'ui/overview-controls.c',
+  'ui/workspaces-view.c',
+  'gdm/batch.c',
+  'gdm/credential-manager.c',
+  'gdm/realmd.c',
+  'gdm/smartcard-manager.c',
+  'gdm/user-verifier.c',
+  'gdm/util.c',
   'shell-camera-monitor.c',
   'misc/gnome-session.c',
   'misc/ibus-manager.c',
@@ -365,6 +397,8 @@ libshell_sources = [
   'misc/parental-controls-manager.c',
   'misc/weather.c',
   'misc/brightness-manager.c',
+  'misc/break-manager.c',
+  'misc/time-limits-manager.c',
   'misc/introspect.c',
   'misc/dbus-utils.c',
   'misc/date-utils.c',
@@ -378,6 +412,8 @@ libshell_sources = [
   'ui/status/camera.c',
   'ui/status/dark-mode.c',
   'ui/status/do-not-disturb.c',
+  'ui/status/dwell-click.c',
+  'ui/status/keyboard.c',
   'ui/status/location.c',
   'ui/status/night-light.c',
   'ui/status/power-profiles.c',
@@ -431,6 +467,11 @@ endif
 
 libshell_private_sources = [
   'shell-app-cache.c',
+  'gdm/auth-services.c',
+  'gdm/auth-services-legacy.c',
+  'gdm/auth-services-sssd-switchable.c',
+  'gdm/fido2-token-manager.c',
+  'gdm/fingerprint-manager.c',
   'ui/deferred-work.c',
 ]
 
@@ -629,6 +670,41 @@ dbus_generated += gnome.gdbus_codegen('background-monitor-dbus',
   namespace: 'Shell'
 )
 
+# The proxies of gdm/credential-manager.c (types ShellOvirtCredentials and
+# ShellVmwareCredentials), gdm/realmd.c (ShellRealmdProvider, ShellRealmdService
+# and ShellRealmdRealm) and gdm/fingerprint-manager.c (ShellFprintManager and
+# ShellFprintDevice)
+dbus_generated += gnome.gdbus_codegen('ovirt-dbus',
+  sources: '../data/dbus-interfaces/org.ovirt.vdsm.Credentials.xml',
+  interface_prefix: 'org.ovirt.vdsm.',
+  namespace: 'ShellOvirt'
+)
+
+dbus_generated += gnome.gdbus_codegen('vmware-dbus',
+  sources: '../data/dbus-interfaces/org.vmware.viewagent.Credentials.xml',
+  interface_prefix: 'org.vmware.viewagent.',
+  namespace: 'ShellVmware'
+)
+
+dbus_generated += gnome.gdbus_codegen('realmd-dbus',
+  sources: [
+    '../data/dbus-interfaces/org.freedesktop.realmd.Provider.xml',
+    '../data/dbus-interfaces/org.freedesktop.realmd.Service.xml',
+    '../data/dbus-interfaces/org.freedesktop.realmd.Realm.xml',
+  ],
+  interface_prefix: 'org.freedesktop.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('fprint-dbus',
+  sources: [
+    '../data/dbus-interfaces/net.reactivated.Fprint.Manager.xml',
+    '../data/dbus-interfaces/net.reactivated.Fprint.Device.xml',
+  ],
+  interface_prefix: 'net.reactivated.',
+  namespace: 'Shell'
+)
+
 dbus_generated += gnome.gdbus_codegen('bolt-dbus',
   sources: [
     '../data/dbus-interfaces/org.freedesktop.bolt1.Manager.xml',
@@ -694,6 +770,13 @@ dbus_generated += gnome.gdbus_codegen('upower-device-dbus',
   namespace: 'Shell'
 )
 
+# The proxy of misc/time-limits-manager.c (type ShellMalcontentTimer1Child)
+dbus_generated += gnome.gdbus_codegen('malcontent-timer-dbus',
+  sources: '../data/dbus-interfaces/org.freedesktop.MalcontentTimer1.Child.xml',
+  interface_prefix: 'org.freedesktop.',
+  namespace: 'Shell'
+)
+
 # The proxy of ui/status/bluetooth.c (type ShellBluetoothRfkill). It has a
 # namespace of its own: ui/status/rfkill.c has the same interface.
 if have_bluetooth
@@ -737,7 +820,7 @@ endif
 
 libshell = library('shell-' + mutter_api_version,
   sources: libshell_gir_sources + libshell_no_gir_sources,
-  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, gnome_qr_dep, glycin_dep, ibus_dep, json_glib_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep, gweather_dep, geoclue_dep, malcontent_dep, rsvg_dep, libgvc_dep, upower_dep] + (have_bluetooth ? [bluetooth_dep] : []),
+  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, gnome_qr_dep, glycin_dep, ibus_dep, json_glib_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep, gweather_dep, geoclue_dep, malcontent_dep, rsvg_dep, libgvc_dep, upower_dep, gudev_dep] + (have_bluetooth ? [bluetooth_dep] : []),
   include_directories: [conf_inc, include_directories('tray')],
   c_args: gnome_shell_cflags,
   link_with: libshell_link_with,
@@ -759,6 +842,7 @@ libshell_gir_includes = [
   'Clutter-@0@'.format(mutter_api_version),
   'Meta-@0@'.format(mutter_api_version),
   'Gcr-4',
+  'Gdm-1.0',
   'GioUnix-2.0',
   'GnomeDesktop-4.0',
   'IBus-1.0',

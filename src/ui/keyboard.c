@@ -15,13 +15,14 @@
  * Differences from the JS module, other than the renames listed in
  * docs/PORT_STATUS.md:
  *
- *  - js/ui/status/keyboard.js is still JS and its InputSourceManager is a
- *    plain EventEmitter. It pushes the list of input sources and the current
- *    input source with shell_osk_manager_set_input_sources () and
- *    shell_osk_manager_set_current_input_source (), which the controller
- *    reads where it read `InputSourceManager.currentSource`, and the language
- *    menu asks for a switch with #ShellOskManager::activate-input-source.
- *    With no current input source the layout group is "us" (the JS threw).
+ *  - The input source manager (ui/status/keyboard.c, #ShellInputSourceManager)
+ *    is read directly: the controller reads the current input source where
+ *    the JS read `InputSourceManager.currentSource`, the language menu lists
+ *    its input sources and activates the one the user picks, and the
+ *    keyboard follows its ::sources-changed and ::current-source-changed
+ *    signals (connected when the keyboard is first created, as the manager
+ *    was). With no current input source the layout group is "us" (the JS
+ *    threw).
  *  - `Keyboard._shouldShowEmoji ()` read `this._purpose`, which was never
  *    assigned, so the emoji key was never shown. The purpose of the
  *    controller is used, as the code intends.
@@ -66,6 +67,7 @@
 #include "ui/main.h"
 #include "ui/page-indicators.h"
 #include "ui/popup-menu.h"
+#include "ui/status/keyboard.h"
 #include "ui/swipe-tracker.h"
 
 #define KEYBOARD_ANIMATION_TIME 150
@@ -2326,8 +2328,6 @@ static GParamSpec *manager_props[MANAGER_N_PROPS] = { NULL, };
 enum
 {
   MANAGER_VISIBILITY_CHANGED,
-  MANAGER_INPUT_SOURCES_REQUESTED,
-  MANAGER_ACTIVATE_INPUT_SOURCE,
   MANAGER_LAST_SIGNAL
 };
 
@@ -2349,13 +2349,8 @@ struct _ShellOskManager
   ShellOsk *keyboard;
   gboolean shutting_down;
 
-  /* What the input source manager pushed */
-  GStrv source_names;
-  int current_source_index;
-  char *current_source_id;
-  char *current_source_xkb_id;
-  gboolean current_source_is_ibus;
-  IBusPropList *current_source_properties;
+  /* Set when the keyboard is first created */
+  ShellInputSourceManager *input_source_manager;
 };
 
 G_DEFINE_FINAL_TYPE (ShellOskManager, shell_osk_manager, G_TYPE_OBJECT)
@@ -2404,19 +2399,25 @@ static const char *
 controller_get_current_group (ShellOskController *self)
 {
   ShellOskManager *manager = self->manager;
+  ShellInputSource *source = NULL;
+  IBusPropList *properties;
 
-  if (manager == NULL || manager->current_source_xkb_id == NULL)
+  if (manager != NULL && manager->input_source_manager != NULL)
+    source = shell_input_source_manager_get_current_source (manager->input_source_manager);
+
+  if (source == NULL || shell_input_source_get_xkb_id (source) == NULL)
     return "us";
 
   /* Special case for Korean, if Hangul mode is disabled, use the 'us' keymap */
-  if (g_strcmp0 (manager->current_source_id, "hangul") == 0 &&
-      manager->current_source_properties != NULL)
+  properties = shell_input_source_get_properties (source);
+  if (g_strcmp0 (shell_input_source_get_id (source), "hangul") == 0 &&
+      properties != NULL)
     {
       IBusProperty *prop;
       guint i;
 
       for (i = 0;
-           (prop = ibus_prop_list_get (manager->current_source_properties, i)) != NULL;
+           (prop = ibus_prop_list_get (properties, i)) != NULL;
            ++i)
         {
           if (g_strcmp0 (ibus_property_get_key (prop), "InputMode") == 0 &&
@@ -2426,7 +2427,7 @@ controller_get_current_group (ShellOskController *self)
         }
     }
 
-  return manager->current_source_xkb_id;
+  return shell_input_source_get_xkb_id (source);
 }
 
 static void
@@ -2563,7 +2564,8 @@ controller_commit (ShellOskController *self,
   g_autoptr (GArray) keyvals = controller_get_keyvals_from_string (str);
   gboolean has_modifiers = modifiers != NULL && modifiers->len > 0;
   ShellInputMethod *input_method = self->input_method;
-  gboolean ibus_source = self->manager != NULL && self->manager->current_source_is_ibus;
+  ShellInputSource *current_source = NULL;
+  gboolean ibus_source;
   CommitOp *op;
   guint i;
 
@@ -2573,6 +2575,12 @@ controller_commit (ShellOskController *self,
         done_destroy (done_data);
       return;
     }
+
+  if (self->manager != NULL && self->manager->input_source_manager != NULL)
+    current_source = shell_input_source_manager_get_current_source (self->manager->input_source_manager);
+  ibus_source = current_source != NULL &&
+                g_strcmp0 (shell_input_source_get_source_type (current_source),
+                           SHELL_INPUT_SOURCE_TYPE_IBUS) == 0;
 
   /* If there is no IM focus (e.g. with X11 clients), or modifiers
    * are in use, send raw key events.
@@ -3066,9 +3074,6 @@ struct _ShellOsk
 
 G_DEFINE_FINAL_TYPE (ShellOsk, shell_osk, ST_TYPE_BOX_LAYOUT)
 
-static void osk_manager_request_activate_input_source (ShellOskManager *manager,
-                                                       int              position);
-
 static void osk_set_cursor_location (ShellOsk   *self,
                                      MetaWindow *window,
                                      double      x,
@@ -3395,28 +3400,19 @@ osk_update_level_from_hints (ShellOsk *self,
 
 /* ---- language menu --------------------------------------------------- */
 
-typedef struct
-{
-  GWeakRef manager;
-  int position;
-} LanguageItemData;
-
-static void
-language_item_data_free (LanguageItemData *data)
-{
-  g_weak_ref_clear (&data->manager);
-  g_free (data);
-}
-
+/* The position is the index of the input source in the list of the input
+ * source manager */
 static void
 language_item_activate_cb (const ClutterEvent *event,
                            gpointer            user_data)
 {
-  LanguageItemData *data = user_data;
-  g_autoptr (ShellOskManager) manager = g_weak_ref_get (&data->manager);
+  GPtrArray *sources = shell_input_source_manager_get_input_sources (shell_input_source_manager_get_default ());
+  int position = GPOINTER_TO_INT (user_data);
 
-  if (manager != NULL)
-    osk_manager_request_activate_input_source (manager, data->position);
+  if (position >= 0 && (guint) position < sources->len)
+    shell_input_source_manager_activate_input_source (shell_input_source_manager_get_default (),
+                                                      g_ptr_array_index (sources, position),
+                                                      TRUE);
 }
 
 static void
@@ -3427,7 +3423,15 @@ osk_popup_language_menu (ShellOsk     *self,
   ShellPopupBaseMenuItem *item;
   ShellLayoutManager *layout_manager;
   ShellOskManager *manager = self->manager;
-  int i;
+  GPtrArray *sources = NULL;
+  ShellInputSource *current_source = NULL;
+  guint i;
+
+  if (manager != NULL && manager->input_source_manager != NULL)
+    {
+      sources = shell_input_source_manager_get_input_sources (manager->input_source_manager);
+      current_source = shell_input_source_manager_get_current_source (manager->input_source_manager);
+    }
 
   if (self->language_popup != NULL)
     {
@@ -3438,20 +3442,16 @@ osk_popup_language_menu (ShellOsk     *self,
   self->language_popup = no_grab_popup_new (key_actor, ST_SIDE_BOTTOM);
   base = SHELL_POPUP_MENU_BASE (self->language_popup);
 
-  for (i = 0; manager != NULL && manager->source_names != NULL && manager->source_names[i] != NULL; i++)
+  for (i = 0; sources != NULL && i < sources->len; i++)
     {
-      LanguageItemData *data = g_new0 (LanguageItemData, 1);
+      ShellInputSource *source = g_ptr_array_index (sources, i);
 
-      g_weak_ref_init (&data->manager, manager);
-      data->position = i;
-
-      item = shell_popup_menu_base_add_action (base, manager->source_names[i],
+      item = shell_popup_menu_base_add_action (base, shell_input_source_get_display_name (source),
                                                language_item_activate_cb,
-                                               data,
-                                               (GDestroyNotify) language_item_data_free);
+                                               GINT_TO_POINTER (i), NULL);
       st_widget_set_can_focus (ST_WIDGET (item), FALSE);
       shell_popup_base_menu_item_set_ornament (item,
-                                               i == manager->current_source_index
+                                               source == current_source
                                                ? SHELL_ORNAMENT_DOT
                                                : SHELL_ORNAMENT_NO_DOT);
     }
@@ -4841,13 +4841,6 @@ osk_new (ShellOskManager *manager)
 /* ShellOskManager                                                           */
 /* ------------------------------------------------------------------------ */
 
-static void
-osk_manager_request_activate_input_source (ShellOskManager *manager,
-                                           int              position)
-{
-  g_signal_emit (manager, manager_signals[MANAGER_ACTIVATE_INPUT_SOURCE], 0, position);
-}
-
 static gboolean
 manager_last_device_is_touchscreen (ShellOskManager *self)
 {
@@ -4872,6 +4865,37 @@ manager_osk_visibility_changed_cb (ShellOsk        *osk,
 }
 
 static void
+manager_input_sources_changed_cb (ShellInputSourceManager *input_source_manager,
+                                  ShellOskManager         *self)
+{
+  if (self->keyboard != NULL && self->keyboard->controller != NULL)
+    controller_notify_group_changed (self->keyboard->controller);
+}
+
+static void
+manager_current_source_changed_cb (ShellInputSourceManager *input_source_manager,
+                                   ShellInputSource        *old_source,
+                                   ShellOskManager         *self)
+{
+  if (self->keyboard != NULL && self->keyboard->controller != NULL)
+    controller_notify_group_changed (self->keyboard->controller);
+}
+
+/* The input source manager is created when the keyboard is first created */
+static void
+manager_attach_input_sources (ShellOskManager *self)
+{
+  if (self->input_source_manager != NULL)
+    return;
+
+  self->input_source_manager = shell_input_source_manager_get_default ();
+  g_signal_connect_object (self->input_source_manager, "sources-changed",
+                           G_CALLBACK (manager_input_sources_changed_cb), self, 0);
+  g_signal_connect_object (self->input_source_manager, "current-source-changed",
+                           G_CALLBACK (manager_current_source_changed_cb), self, 0);
+}
+
+static void
 manager_sync_enabled (ShellOskManager *self)
 {
   gboolean enable_keyboard =
@@ -4886,8 +4910,7 @@ manager_sync_enabled (ShellOskManager *self)
 
   if (enabled && self->keyboard == NULL)
     {
-      /* The input source manager pushes its state in response */
-      g_signal_emit (self, manager_signals[MANAGER_INPUT_SOURCES_REQUESTED], 0);
+      manager_attach_input_sources (self);
 
       self->keyboard = g_object_ref_sink (osk_new (self));
       g_signal_connect_object (self->keyboard, "visibility-changed",
@@ -5058,21 +5081,12 @@ manager_dispose (GObject *object)
   g_clear_weak_pointer (&self->backend);
   g_clear_weak_pointer (&self->layout_manager);
   g_clear_object (&self->input_method);
-  g_clear_object (&self->current_source_properties);
+
+  if (self->input_source_manager != NULL)
+    g_signal_handlers_disconnect_by_data (self->input_source_manager, self);
+  self->input_source_manager = NULL;
 
   G_OBJECT_CLASS (shell_osk_manager_parent_class)->dispose (object);
-}
-
-static void
-manager_finalize (GObject *object)
-{
-  ShellOskManager *self = SHELL_OSK_MANAGER (object);
-
-  g_clear_pointer (&self->source_names, g_strfreev);
-  g_clear_pointer (&self->current_source_id, g_free);
-  g_clear_pointer (&self->current_source_xkb_id, g_free);
-
-  G_OBJECT_CLASS (shell_osk_manager_parent_class)->finalize (object);
 }
 
 static void
@@ -5129,7 +5143,6 @@ shell_osk_manager_class_init (ShellOskManagerClass *klass)
 
   object_class->constructed = manager_constructed;
   object_class->dispose = manager_dispose;
-  object_class->finalize = manager_finalize;
   object_class->get_property = manager_get_property;
   object_class->set_property = manager_set_property;
 
@@ -5185,39 +5198,6 @@ shell_osk_manager_class_init (ShellOskManagerClass *klass)
                   0, NULL, NULL, NULL,
                   G_TYPE_NONE, 0);
 
-  /**
-   * ShellOskManager::input-sources-requested:
-   * @self: the #ShellOskManager
-   *
-   * Emitted before the keyboard is created. The handler has to give the
-   * input sources with shell_osk_manager_set_input_sources () and
-   * shell_osk_manager_set_current_input_source () if it has any.
-   */
-  manager_signals[MANAGER_INPUT_SOURCES_REQUESTED] =
-    g_signal_new ("input-sources-requested",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0, NULL, NULL, NULL,
-                  G_TYPE_NONE, 0);
-
-  /**
-   * ShellOskManager::activate-input-source:
-   * @self: the #ShellOskManager
-   * @position: the position of the input source in the list given to
-   *   shell_osk_manager_set_input_sources ()
-   *
-   * Emitted when the user chooses an input source in the language menu of
-   * the keyboard. The handler has to activate the input source
-   * interactively.
-   */
-  manager_signals[MANAGER_ACTIVATE_INPUT_SOURCE] =
-    g_signal_new ("activate-input-source",
-                  G_TYPE_FROM_CLASS (klass),
-                  G_SIGNAL_RUN_LAST,
-                  0, NULL, NULL, NULL,
-                  G_TYPE_NONE, 1,
-                  G_TYPE_INT);
-
   /* Lua extensions (gnome-lua): the hook points of the on-screen keyboard */
   registry = shell_hook_registry_get_default ();
   shell_hook_registry_declare (registry, "osk.shown",
@@ -5231,7 +5211,6 @@ shell_osk_manager_class_init (ShellOskManagerClass *klass)
 static void
 shell_osk_manager_init (ShellOskManager *self)
 {
-  self->current_source_index = -1;
 }
 
 /**
@@ -5378,68 +5357,4 @@ shell_osk_manager_set_suggestions_visible (ShellOskManager *self,
 
   if (self->keyboard != NULL)
     osk_set_suggestions_visible (self->keyboard, visible);
-}
-
-/**
- * shell_osk_manager_set_input_sources:
- * @self: a #ShellOskManager
- * @display_names: (array zero-terminated=1) (element-type utf8): the names of
- *   the input sources, in the order they are listed in the language menu
- * @current_index: the position in @display_names of the current input
- *   source, or -1 if it is none of them
- *
- * Tells the keyboard which input sources there are (`sources-changed` of the
- * input source manager). The layout is built again.
- */
-void
-shell_osk_manager_set_input_sources (ShellOskManager    *self,
-                                     const char * const *display_names,
-                                     int                 current_index)
-{
-  g_return_if_fail (SHELL_IS_OSK_MANAGER (self));
-
-  g_strfreev (self->source_names);
-  self->source_names = g_strdupv ((char **) display_names);
-  self->current_source_index = current_index;
-
-  if (self->keyboard != NULL && self->keyboard->controller != NULL)
-    controller_notify_group_changed (self->keyboard->controller);
-}
-
-/**
- * shell_osk_manager_set_current_input_source:
- * @self: a #ShellOskManager
- * @current_index: the position of the input source in the list given to
- *   shell_osk_manager_set_input_sources (), or -1
- * @id: (nullable): the id of the input source, %NULL if there is none
- * @xkb_id: (nullable): the id of the XKB layout of the input source
- * @is_ibus: whether the input source is an IBus engine
- * @properties: (nullable): the properties of the IBus engine, if it has
- *   registered any
- *
- * Tells the keyboard which input source is current
- * (`current-source-changed` of the input source manager). The layout is
- * built again.
- */
-void
-shell_osk_manager_set_current_input_source (ShellOskManager *self,
-                                            int              current_index,
-                                            const char      *id,
-                                            const char      *xkb_id,
-                                            gboolean         is_ibus,
-                                            IBusPropList    *properties)
-{
-  g_return_if_fail (SHELL_IS_OSK_MANAGER (self));
-  g_return_if_fail (properties == NULL || IBUS_IS_PROP_LIST (properties));
-
-  self->current_source_index = current_index;
-  g_free (self->current_source_id);
-  self->current_source_id = g_strdup (id);
-  g_free (self->current_source_xkb_id);
-  self->current_source_xkb_id = g_strdup (xkb_id);
-  self->current_source_is_ibus = is_ibus;
-  g_set_object (&self->current_source_properties, properties);
-
-  if (self->keyboard != NULL && self->keyboard->controller != NULL)
-    controller_notify_group_changed (self->keyboard->controller);
 }

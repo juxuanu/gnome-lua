@@ -5,23 +5,17 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as BreakManager from '../misc/breakManager.js';
 import * as Config from '../misc/config.js';
 import * as Components from './components.js';
 import * as ExtensionSystem from './extensionSystem.js';
 import * as ExtensionDownloader from './extensionDownloader.js';
 import * as ExtensionUtils from '../misc/extensionUtils.js';
-import * as InputSourceManager from './status/keyboard.js';
-import * as Overview from './overview.js';
 import * as PanelItems from './panelItems.js';
 import * as LookingGlass from './lookingGlass.js';
 import * as ScreenShield from './screenShield.js';
 import {LoginDialog} from '../gdm/loginDialog.js';
 import {UnlockDialog} from './unlockDialog.js';
-import * as TimeLimitsManager from '../misc/timeLimitsManager.js';
-import * as KbdA11yDialog from './kbdA11yDialog.js';
 import {formatError} from '../misc/errorUtils.js';
-import {ControlsState} from './overviewControls.js';
 import * as Util from '../misc/util.js';
 
 const WELCOME_DIALOG_LAST_SHOWN_VERSION = 'welcome-dialog-last-shown-version';
@@ -86,6 +80,7 @@ let _iconResource = null;
 
 Gio._promisify(Gio.File.prototype, 'delete_async');
 Gio._promisify(Gio.File.prototype, 'touch_async');
+Gio._promisify(Shell.TimeLimitsManager.prototype, 'shutdown_async', 'shutdown_finish');
 
 let _remoteAccessInhibited = false;
 
@@ -301,18 +296,18 @@ function _createShellDBusServices() {
         shellDBusService.complete_eval(invocation, success, returnValue);
     });
     shellDBusService.connect('focus-search-requested',
-        () => overview.focusSearch());
+        () => overview.focus_search());
     shellDBusService.connect('focus-app-requested',
-        (_service, id) => overview.selectApp(id));
+        (_service, id) => overview.select_app(id));
     shellDBusService.connect('show-applications-requested',
-        () => overview.show(ControlsState.APP_GRID));
+        () => overview.show_for_reason(Shell.ControlsState.APP_GRID, 'dbus'));
     shellDBusService.connect('allow-keybinding-requested',
         (_service, name, modeFlags) => wm.allow_keybinding(name, modeFlags));
     shellDBusService.connect('overview-active-requested', (_service, active) => {
         if (active)
-            overview.show();
+            overview.show_for_reason(Shell.ControlsState.WINDOW_PICKER, 'dbus');
         else
-            overview.hide();
+            overview.hide_for_reason('dbus');
     });
 
     const syncOverviewActive = () => {
@@ -387,22 +382,6 @@ async function _initializeUI() {
     layoutManager.connect('background-added', (_layoutManager, bgActor) => {
         Shell.BackgroundMenu.add_to(bgActor, layoutManager);
     });
-    layoutManager.connect('hot-corner-activated', (_layoutManager, _monitorIndex, inFullscreen) => {
-        if (!overview || (inFullscreen && !overview.visible))
-            return false;
-
-        if (!overview.shouldToggleByCornerOrButton())
-            return false;
-
-        overview.toggle();
-        return overview.animationInProgress;
-    });
-    layoutManager.connect('startup-animation-requested', () => {
-        overview.runStartupAnimation()
-            .catch(logError)
-            .finally(() => layoutManager.startup_animation_finished());
-        return true;
-    });
 
     // The signal is emitted from C (modal dialogs, the screenshot UI) and from JS:
     // forward it both ways, once
@@ -449,10 +428,20 @@ async function _initializeUI() {
     osdWindowManager = new Shell.OsdWindowManager({ui_group: uiGroup});
     _shellMain.osd_window_manager = osdWindowManager;
     osdMonitorLabeler = new Shell.OsdMonitorLabeler({ui_group: uiGroup});
-    overview = new Overview.Overview();
-    kbdA11yDialog = new KbdA11yDialog.KbdA11yDialog();
+    kbdA11yDialog = new Shell.KbdA11yDialog();
     wm = new Shell.WindowManager({ctrl_alt_tab_manager: ctrlAltTabManager});
+    _shellMain.window_manager = wm;
     _connectWindowManager();
+    // The overview connects itself to the window manager, the layout manager,
+    // the XDND handler and the session mode, and keeps the state of the
+    // window manager and the panel in sync
+    overview = new Shell.Overview({
+        window_manager: wm,
+        layout_manager: layoutManager,
+        xdnd_handler: xdndHandler,
+        ctrl_alt_tab_manager: ctrlAltTabManager,
+        session_mode: sessionMode,
+    });
     magnifier = new Shell.Magnifier();
     locatePointer = new Shell.LocatePointer({ui_group: uiGroup});
 
@@ -460,6 +449,7 @@ async function _initializeUI() {
         screenShield = new ScreenShield.ScreenShield();
 
     inputMethod = new Shell.InputMethod();
+    _shellMain.input_method = inputMethod;
     global.stage.context.get_backend().set_input_method(inputMethod);
     global.connect('shutdown',
         () => global.stage.context.get_backend().set_input_method(null));
@@ -480,7 +470,7 @@ async function _initializeUI() {
     panel = _createPanel();
     _shellMain.panel = panel;
     keyboard = new Shell.OskManager({input_method: inputMethod});
-    InputSourceManager.connectOsk(keyboard);
+    _shellMain.keyboard = keyboard;
     notificationDaemon = new Shell.NotificationDaemon({message_tray: messageTray});
     // What the notification sources did on top of activating an application
     notificationDaemon.connect('app-opened', () => {
@@ -498,18 +488,26 @@ async function _initializeUI() {
     introspectService = new Shell.IntrospectService();
 
     // Set up the global default break reminder manager and its D-Bus interface
-    breakManager = new BreakManager.BreakManager();
-    timeLimitsManager = new TimeLimitsManager.TimeLimitsManager();
+    breakManager = new Shell.BreakManager();
+    timeLimitsManager = new Shell.TimeLimitsManager();
     screenTimeDBus = new Shell.ScreenTimeService({manager: breakManager});
-    breakManagerDispatcher = new BreakManager.BreakDispatcher(breakManager);
-    timeLimitsDispatcher = new TimeLimitsManager.TimeLimitsDispatcher(timeLimitsManager);
+    breakManagerDispatcher = new Shell.BreakDispatcher({
+        manager: breakManager,
+        layout_manager: layoutManager,
+        message_tray: messageTray,
+    });
+    timeLimitsDispatcher = new Shell.TimeLimitsDispatcher({
+        manager: timeLimitsManager,
+        layout_manager: layoutManager,
+        message_tray: messageTray,
+    });
 
     global.connect('shutdown', () => {
         // Block shutdown until the session history file has been written
         const loop = new GLib.MainLoop(null, false);
         const source = GLib.idle_source_new();
         source.set_callback(() => {
-            timeLimitsManager.shutdown()
+            timeLimitsManager.shutdown_async(null)
                 .catch(e => console.warn(`Failed to stop time limits manager: ${e.message}`))
                 .finally(() => loop.quit());
             return GLib.SOURCE_REMOVE;
@@ -519,7 +517,6 @@ async function _initializeUI() {
     });
 
     layoutManager.begin_startup();
-    overview.init();
     _connectAppFavorites();
 
     pointerA11yTimeout = new Shell.PointerA11yTimeout({ui_group: uiGroup});
@@ -624,15 +621,12 @@ async function _initializeUI() {
 
 /**
  * Wires up the window manager, which lives in C, to the JS-only parts of the
- * shell: it asks the overview to hide, and for a screenshot of a window, and
- * it follows the state of the overview.
+ * shell: it asks for a screenshot of a window. (The overview connects to the
+ * window manager itself.)
  *
  * @private
  */
 function _connectWindowManager() {
-    wm.connect('overview-hide-requested', () => {
-        overview.hide();
-    });
     wm.connect('screenshot-requested', (_wm, texture) => {
         Shell.Screenshot.capture_screenshot_async(
             texture, null, 1, null, 0, 0, 1, Shell.ScreenshotKind.WINDOW,
@@ -644,29 +638,13 @@ function _connectWindowManager() {
                 }
             });
     });
-
-    // Handlers must not return a value: a true one stops the JS emission
-    overview.connect('showing', () => {
-        wm.overview_closing = false;
-        wm.overview_visible = true;
-    });
-    overview.connect('shown', () => {
-        wm.overview_closing = false;
-    });
-    overview.connect('hiding', () => {
-        wm.overview_closing = true;
-    });
-    overview.connect('hidden', () => {
-        wm.overview_closing = false;
-        wm.overview_visible = false;
-    });
 }
 
 /**
  * Creates the top bar. It lives in C; the indicators of the shell are JS
  * classes (panelItems.js) that it asks for through its create-indicator
- * signal, and the parts of the shell it needs but cannot reach (the overview,
- * the message tray, the Ctrl+Alt+Tab popup) are wired up here.
+ * signal, and the parts of the shell it needs but cannot reach (the message
+ * tray, the Ctrl+Alt+Tab popup) are wired up here.
  *
  * @returns {Shell.Panel} the new panel
  */
@@ -679,17 +657,6 @@ function _createPanel() {
     ctrlAltTabManager.add_group_full(newPanel,
         _('Top Bar'), 'shell-focus-top-bar-symbolic',
         Shell.CtrlAltTabSortGroup.TOP, null, null);
-
-    overview.connectObject(
-        // A handler returning true stops the JS signal emission, so
-        // never return the assigned value here
-        'showing', () => {
-            newPanel.overview_visible = true;
-        },
-        'hiding', () => {
-            newPanel.overview_visible = false;
-        },
-        newPanel);
 
     // Banners are aligned with the date menu, and hidden while a menu is
     // open in the same box of the top bar

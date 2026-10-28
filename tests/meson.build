@@ -33,7 +33,6 @@ unit_testenv.append('GI_TYPELIB_PATH', st_typelib_path, separator: ':')
 
 unit_tests = {
   'asyncMutex': {},
-  'breakManager': {},
   'errorUtils': {},
   'extensionUtils': {},
   'fileUtils': {
@@ -49,11 +48,6 @@ unit_tests = {
   'markup': {},
   'params': {},
   'signalTracker': {},
-  'timeLimitsManager': {
-    # The time limits tests hard-code UTC to keep the code brief, so must be
-    # run in UTC
-    'env': { 'TZ': 'UTC' },
-  },
   'url': {},
   'versionCompare': {},
 }
@@ -79,12 +73,48 @@ foreach test, extra_args : unit_tests
     workdir: meson.current_source_dir())
 endforeach
 
+# GTest programs: they link libshell and drive the classes with an injected
+# environment (clock, idle monitor, settings, logind, ...), so they need
+# neither a session bus nor a display
+c_unit_tests = {
+  'break-manager': {},
+  'time-limits-manager': {
+    # The time limits tests hard-code UTC to keep the code brief, so must be
+    # run in UTC
+    'env': { 'TZ': 'UTC' },
+  },
+}
+
+foreach test, extra_args : c_unit_tests
+  c_test_exe = executable('test-@0@'.format(test), 'unit/test-@0@.c'.format(test),
+    c_args: gnome_shell_cflags,
+    dependencies: gnome_shell_deps + [libshell_dep, libst_dep, mutter_dep, json_glib_dep],
+    include_directories: [conf_inc, include_directories('../src')],
+    build_rpath: mutter_typelibdir,
+  )
+
+  c_test_env = environment()
+  foreach var, value : extra_args.get('env', {})
+    c_test_env.set(var, value)
+  endforeach
+
+  test(test, c_test_exe,
+    args: ['--tap'],
+    suite: 'unit',
+    env: c_test_env,
+    protocol: 'tap',
+    workdir: meson.current_source_dir())
+endforeach
+
 shell_tests = [
   {
     'name': 'minimal',
   },
   {
     'name': 'basic',
+  },
+  {
+    'name': 'overview',
   },
   {
     'name': 'closeWithActiveWindows',

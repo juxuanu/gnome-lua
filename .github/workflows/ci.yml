@@ -67,7 +67,7 @@ jobs:
       # Headers the JS->C port links that the mutter CI image does not carry
       # (the JS used these libraries through their typelibs only).
       - name: Install extra build dependencies
-        run: dnf install -y --setopt=install_weak_deps=False accountsservice-devel gdm-devel ibus-devel libgweather-devel geoclue2-devel libnma-gtk4-devel malcontent-devel gnome-bluetooth-libs-devel upower-devel
+        run: dnf install -y --setopt=install_weak_deps=False accountsservice-devel gdm-devel ibus-devel libgweather-devel geoclue2-devel libnma-gtk4-devel malcontent-devel gnome-bluetooth-libs-devel upower-devel libgudev-devel
 
       # Replaces .gitlab-ci/checkout-mutter.sh. That script picks a mutter
       # branch from CI_* variables (MR source/target branch, tag, ...) and

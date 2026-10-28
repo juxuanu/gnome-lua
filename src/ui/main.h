@@ -10,11 +10,14 @@
 #include <clutter/clutter.h>
 
 #include "shell-action-modes.h"
+#include "misc/input-method.h"
+#include "ui/keyboard.h"
 #include "ui/layout.h"
 #include "ui/message-tray.h"
 #include "ui/osd-window.h"
 #include "ui/panel.h"
 #include "ui/session-mode.h"
+#include "ui/window-manager.h"
 
 G_BEGIN_DECLS
 
@@ -55,6 +58,18 @@ void             shell_main_set_panel            (ShellMain       *self,
 ShellMessageTray *shell_main_get_message_tray    (ShellMain        *self);
 void             shell_main_set_message_tray     (ShellMain        *self,
                                                   ShellMessageTray *message_tray);
+
+ShellWindowManager *shell_main_get_window_manager (ShellMain          *self);
+void             shell_main_set_window_manager   (ShellMain          *self,
+                                                  ShellWindowManager *window_manager);
+
+ShellInputMethod *shell_main_get_input_method    (ShellMain        *self);
+void             shell_main_set_input_method     (ShellMain        *self,
+                                                  ShellInputMethod *input_method);
+
+ShellOskManager *shell_main_get_keyboard         (ShellMain       *self);
+void             shell_main_set_keyboard         (ShellMain       *self,
+                                                  ShellOskManager *keyboard);
 
 void             shell_main_system_modal_opened  (ShellMain       *self);
 void             shell_main_emit_settings_app_activating (ShellMain *self);

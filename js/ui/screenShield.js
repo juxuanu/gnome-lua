@@ -9,10 +9,7 @@ import St from 'gi://St';
 
 import * as Signals from '../misc/signals.js';
 
-import * as OVirt from '../gdm/oVirt.js';
 import * as Main from './main.js';
-import * as Overview from './overview.js';
-import * as SmartcardManager from '../gdm/smartcardManager.js';
 
 
 const SCREENSAVER_SCHEMA = 'org.gnome.desktop.screensaver';
@@ -102,15 +99,17 @@ export class ScreenShield extends Signals.EventEmitter {
         this.connect('lock-screen-shown',
             () => this._screenSaverDBus.lock_screen_shown());
 
-        this._smartcardManager = SmartcardManager.getSmartcardManager();
+        this._smartcardManager = Shell.SmartcardManager.get_default();
         this._smartcardManager.connect('smartcard-inserted',
             (manager, token) => {
-                if (this._isLocked && token.UsedToLogin)
+                const usedToLogin = token.get_cached_property('UsedToLogin')?.get_boolean();
+                if (this._isLocked && usedToLogin)
                     this._activateDialog();
             });
 
         this._credentialManagers = {};
-        this.addCredentialManager(OVirt.SERVICE_NAME, OVirt.getOVirtCredentialsManager());
+        this.addCredentialManager(Shell.OVIRT_SERVICE_NAME,
+            Shell.OvirtCredentialManager.get_default());
 
         this._loginManager = Shell.LoginManager.get_default();
         this._loginManager.connect('prepare-for-sleep',
@@ -484,7 +483,7 @@ export class ScreenShield extends Signals.EventEmitter {
             this._lockDialogGroup.remove_all_transitions();
             this._lockDialogGroup.ease({
                 ...easeParams,
-                duration: Overview.ANIMATION_TIME,
+                duration: Shell.OVERVIEW_ANIMATION_TIME,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
                 onComplete: () => {
                     this._lockScreenShown({fadeToBlack, animateFade: true});
@@ -545,7 +544,7 @@ export class ScreenShield extends Signals.EventEmitter {
 
     deactivate(animate) {
         // block unlock via logind etc. if locked due to parental controls
-        if (Main.timeLimitsManager.shouldLockSession) {
+        if (Main.timeLimitsManager.should_lock_session) {
             this.lock(false);
             return;
         }
@@ -597,7 +596,7 @@ export class ScreenShield extends Signals.EventEmitter {
 
         this._lockDialogGroup.ease({
             ...easeParams,
-            duration: Overview.ANIMATION_TIME,
+            duration: Shell.OVERVIEW_ANIMATION_TIME,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             onComplete: () => this._completeDeactivate(),
         });

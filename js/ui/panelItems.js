@@ -10,8 +10,6 @@ import * as Config from '../misc/config.js';
 import * as Main from './main.js';
 import * as Util from '../misc/util.js';
 
-import {InputSourceIndicator} from './status/keyboard.js';
-import {DwellClickIndicator} from './status/dwellClick.js';
 
 const BUTTON_DND_ACTIVATION_TIMEOUT = 250;
 
@@ -220,8 +218,8 @@ class ActivitiesButton extends Shell.PanelMenuButton {
 
         this._clickGesture = new Clutter.ClickGesture();
         this._clickGesture.connect('recognize', () => {
-            if (Main.overview.shouldToggleByCornerOrButton())
-                Main.overview.toggle();
+            if (Main.overview.should_toggle_by_corner_or_button())
+                Main.overview.toggle_for_reason('activities-button');
         });
         this.add_action(this._clickGesture);
     }
@@ -245,8 +243,8 @@ class ActivitiesButton extends Shell.PanelMenuButton {
     }
 
     _toggleAction() {
-        if (Main.overview.shouldToggleByCornerOrButton()) {
-            Main.overview.toggle();
+        if (Main.overview.should_toggle_by_corner_or_button()) {
+            Main.overview.toggle_for_reason('activities-button');
             return Clutter.EVENT_STOP;
         }
 
@@ -257,8 +255,8 @@ class ActivitiesButton extends Shell.PanelMenuButton {
         const [x, y] = global.get_pointer();
         const pickedActor = global.stage.get_actor_at_pos(Clutter.PickMode.REACTIVE, x, y);
 
-        if (pickedActor === this && Main.overview.shouldToggleByCornerOrButton())
-            Main.overview.toggle();
+        if (pickedActor === this && Main.overview.should_toggle_by_corner_or_button())
+            Main.overview.toggle_for_reason('activities-button');
 
         GLib.source_remove(this._xdndTimeOut);
         this._xdndTimeOut = 0;
@@ -429,8 +427,8 @@ const PANEL_ITEM_IMPLEMENTATIONS = {
     'quickSettings': QuickSettings,
     'dateMenu': Shell.DateMenuButton,
     'a11y': Shell.ATIndicator,
-    'keyboard': InputSourceIndicator,
-    'dwellClick': DwellClickIndicator,
+    'keyboard': Shell.InputSourceIndicator,
+    'dwellClick': Shell.DwellClickIndicator,
     'screenRecording': Shell.ScreenRecordingIndicator,
     'screenSharing': Shell.ScreenSharingIndicator,
 };
@@ -456,6 +454,8 @@ export function createPanelItem(role) {
         _setupDateMenu(item);
     else if (role === 'screenRecording')
         _setupScreenRecording(item);
+    else if (role === 'keyboard')
+        item.connect('overview-hide-requested', () => Main.overview.hide());
 
     return item;
 }

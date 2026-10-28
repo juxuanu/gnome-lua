@@ -9,13 +9,10 @@
  * actor and its helpers (keys, the emoji panel, the focus tracker and the
  * controller which sends the key events) are private to keyboard.c.
  *
- * The input source manager (js/ui/status/keyboard.js) is still JS and is not
- * a GObject, so it cannot be connected to from C. It pushes its state with
- * shell_osk_manager_set_input_sources () and
- * shell_osk_manager_set_current_input_source (), and the manager asks for it
- * with #ShellOskManager::input-sources-requested before it first creates the
- * keyboard. The language menu of the keyboard asks for a switch of input
- * source with #ShellOskManager::activate-input-source.
+ * The keyboard reads the input sources straight from the input source
+ * manager (ui/status/keyboard.h): the layout of the current input source, the
+ * input sources of its language menu, and whether the current one is an IBus
+ * engine. The manager is created when the keyboard is first created.
  *
  * Hooks declared here: "osk.shown" and "osk.hidden" (docs/api/hooks.md).
  *
@@ -26,7 +23,6 @@
 
 #include <clutter/clutter.h>
 #include <gio/gio.h>
-#include <ibus.h>
 
 #include "misc/input-method.h"
 
@@ -62,15 +58,5 @@ void             shell_osk_manager_add_suggestion        (ShellOskManager       
 void             shell_osk_manager_reset_suggestions     (ShellOskManager        *self);
 void             shell_osk_manager_set_suggestions_visible (ShellOskManager      *self,
                                                             gboolean              visible);
-
-void             shell_osk_manager_set_input_sources     (ShellOskManager        *self,
-                                                          const char * const     *display_names,
-                                                          int                     current_index);
-void             shell_osk_manager_set_current_input_source (ShellOskManager     *self,
-                                                             int                  current_index,
-                                                             const char          *id,
-                                                             const char          *xkb_id,
-                                                             gboolean             is_ibus,
-                                                             IBusPropList        *properties);
 
 G_END_DECLS

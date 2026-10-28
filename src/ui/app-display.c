@@ -16,11 +16,10 @@
  *    `endItemDrag ()` are its `item-drag-begin`, `item-drag-cancelled` and
  *    `item-drag-end` signals, which the views and the dash listen to
  *    themselves (they used to connect to the overview while they were
- *    mapped, and still do). overviewControls.js hands the signals to the
- *    overview.
+ *    mapped, and still do). The overview (overview.c) hands the signals on.
  *  - `Main.overview.dash.iconSize`, the size of the drag actor of an
  *    application, is the `drag-icon-size` property of the item. The views
- *    and the search provider have the property too, and overviewControls.js
+ *    and the search provider have the property too, and overview-controls.c
  *    binds it to the `icon-size` of the dash.
  *  - `Main.initializeDeferredWork ()` is shell_deferred_work_new ()
  *    (deferred-work.h).

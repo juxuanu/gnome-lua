@@ -29,13 +29,8 @@ import St from 'gi://St';
 
 import * as AuthMenuButton from './authMenuButton.js';
 import * as AuthPrompt from './authPrompt.js';
-import * as Batch from './batch.js';
 import {ConflictingSessionDialog} from './conflictingSessionDialog.js';
-import * as GdmUtil from './util.js';
-import * as Settings from './settings.js';
 import * as Main from '../ui/main.js';
-import * as Realmd from './realmd.js';
-import {MessageType} from './userVerifier.js';
 
 const _FADE_ANIMATION_TIME = 250;
 const _SCROLL_ANIMATION_TIME = 500;
@@ -129,7 +124,7 @@ export const UserListItem = GObject.registerClass({
     }
 
     showTimedLoginIndicator(time) {
-        const hold = new Batch.Hold();
+        const hold = new Shell.BatchHold();
 
         this.hideTimedLoginIndicator();
 
@@ -394,25 +389,25 @@ export const LoginDialog = GObject.registerClass({
         } catch {
         }
 
-        this._settings = new Gio.Settings({schema_id: Settings.LOGIN_SCREEN_SCHEMA});
+        this._settings = new Gio.Settings({schema_id: Shell.GDM_LOGIN_SCREEN_SCHEMA});
 
-        this._settings.connect(`changed::${Settings.BANNER_MESSAGE_KEY}`,
+        this._settings.connect(`changed::${Shell.GDM_BANNER_MESSAGE_KEY}`,
             () => this._updateBanner().catch(logError));
-        this._settings.connect(`changed::${Settings.BANNER_MESSAGE_TEXT_KEY}`,
+        this._settings.connect(`changed::${Shell.GDM_BANNER_MESSAGE_TEXT_KEY}`,
             () => this._updateBanner().catch(logError));
-        this._settings.connect(`changed::${Settings.BANNER_MESSAGE_SOURCE_KEY}`,
+        this._settings.connect(`changed::${Shell.GDM_BANNER_MESSAGE_SOURCE_KEY}`,
             () => {
                 if (this._updateBannerMessageFile())
                     this._updateBanner().catch(logError);
             });
-        this._settings.connect(`changed::${Settings.BANNER_MESSAGE_PATH_KEY}`,
+        this._settings.connect(`changed::${Shell.GDM_BANNER_MESSAGE_PATH_KEY}`,
             () => {
                 if (this._updateBannerMessageFile())
                     this._updateBanner().catch(logError);
             });
-        this._settings.connect(`changed::${Settings.DISABLE_USER_LIST_KEY}`,
+        this._settings.connect(`changed::${Shell.GDM_DISABLE_USER_LIST_KEY}`,
             this._updateDisableUserList.bind(this));
-        this._settings.connect(`changed::${Settings.LOGO_KEY}`,
+        this._settings.connect(`changed::${Shell.GDM_LOGO_KEY}`,
             this._updateLogo.bind(this));
 
         this._textureCache = St.TextureCache.get_default();
@@ -515,7 +510,7 @@ export const LoginDialog = GObject.registerClass({
         this._disableUserList = undefined;
         this._userListLoaded = false;
 
-        this._realmManager = new Realmd.Manager();
+        this._realmManager = new Shell.RealmdManager();
         this._realmManager.connectObject('login-format-changed',
             this._showRealmLoginHint.bind(this), this);
 
@@ -816,7 +811,7 @@ export const LoginDialog = GObject.registerClass({
     }
 
     _updateDisableUserList() {
-        let disableUserList = this._settings.get_boolean(Settings.DISABLE_USER_LIST_KEY);
+        let disableUserList = this._settings.get_boolean(Shell.GDM_DISABLE_USER_LIST_KEY);
 
         // Disable user list when there are no users.
         if (this._userListLoaded && this._userList.numItems() === 0)
@@ -848,8 +843,8 @@ export const LoginDialog = GObject.registerClass({
     }
 
     _updateBannerMessageFile() {
-        const path = this._settings.get_string(Settings.BANNER_MESSAGE_SOURCE_KEY) === 'file'
-            ? this._settings.get_string(Settings.BANNER_MESSAGE_PATH_KEY)
+        const path = this._settings.get_string(Shell.GDM_BANNER_MESSAGE_SOURCE_KEY) === 'file'
+            ? this._settings.get_string(Shell.GDM_BANNER_MESSAGE_PATH_KEY)
             : null;
         const file = path
             ? Gio.File.new_for_path(path)
@@ -876,7 +871,7 @@ export const LoginDialog = GObject.registerClass({
     }
 
     async _getBannerText() {
-        const enabled = this._settings.get_boolean(Settings.BANNER_MESSAGE_KEY);
+        const enabled = this._settings.get_boolean(Shell.GDM_BANNER_MESSAGE_KEY);
         if (!enabled)
             return null;
 
@@ -890,7 +885,7 @@ export const LoginDialog = GObject.registerClass({
             }
         }
 
-        return this._settings.get_string(Settings.BANNER_MESSAGE_TEXT_KEY);
+        return this._settings.get_string(Shell.GDM_BANNER_MESSAGE_TEXT_KEY);
     }
 
     async _updateBanner() {
@@ -936,7 +931,7 @@ export const LoginDialog = GObject.registerClass({
     }
 
     _updateLogo() {
-        const path = this._settings.get_string(Settings.LOGO_KEY);
+        const path = this._settings.get_string(Shell.GDM_LOGO_KEY);
 
         this._logoFile = path ? Gio.file_new_for_path(path) : null;
         this._updateLogoTexture(this._textureCache, this._logoFile);
@@ -1073,7 +1068,7 @@ export const LoginDialog = GObject.registerClass({
         // Translators: this message is shown below the username entry field
         // to clue the user in on how to login to the local network realm
         this._authPrompt.setMessage(_('(e.g., user or %s)').format(hint),
-            MessageType.HINT);
+            Shell.GdmMessageType.HINT);
     }
 
     _askForUsernameAndBeginVerification() {
@@ -1081,7 +1076,7 @@ export const LoginDialog = GObject.registerClass({
         this._authPrompt.updateEntry(false);
         this._authPrompt.setQuestion(_('Username'));
 
-        this._showRealmLoginHint(this._realmManager.loginFormat);
+        this._showRealmLoginHint(this._realmManager.login_format);
 
         if (this._nextSignalId)
             this._authPrompt.disconnect(this._nextSignalId);
@@ -1260,7 +1255,7 @@ export const LoginDialog = GObject.registerClass({
         if (item)
             return null;
 
-        const hold = new Batch.Hold();
+        const hold = new Shell.BatchHold();
         const signalId = this._userList.connect('item-added',
             () => {
                 item = this._userList.getItemFromUserName(userName);
@@ -1275,7 +1270,7 @@ export const LoginDialog = GObject.registerClass({
     }
 
     _blockTimedLoginUntilIdle() {
-        const hold = new Batch.Hold();
+        const hold = new Shell.BatchHold();
 
         this._timedLoginIdleTimeOutId = GLib.timeout_add_seconds_once(GLib.PRIORITY_DEFAULT, _TIMED_LOGIN_IDLE_THRESHOLD,
             () => {
@@ -1373,7 +1368,9 @@ export const LoginDialog = GObject.registerClass({
             },
         ];
 
-        this._timedLoginBatch = new Batch.ConsecutiveBatch(this, tasks);
+        // The tasks are functions that return a hold to wait for, or nothing
+        this._timedLoginBatch = Shell.ConsecutiveBatch.new(
+            tasks.map(task => Shell.BatchTask.new(() => task() ?? null)));
 
         return this._timedLoginBatch.run();
     }
@@ -1412,7 +1409,7 @@ export const LoginDialog = GObject.registerClass({
     _hideUserList() {
         this._setUserListExpanded(false);
         if (this._userSelectionBox.visible)
-            GdmUtil.cloneAndFadeOutActor(this._userSelectionBox);
+            Shell.gdm_clone_and_fade_out_actor(this._userSelectionBox);
     }
 
     _hideUserListAskForUsernameAndBeginVerification() {
@@ -1440,7 +1437,7 @@ export const LoginDialog = GObject.registerClass({
         this._authPrompt.setUser(item.user);
 
         const userName = item.user.get_user_name();
-        const hold = new Batch.Hold();
+        const hold = new Shell.BatchHold();
 
         this._authPrompt.begin({userName, hold});
         return hold;
@@ -1456,8 +1453,8 @@ export const LoginDialog = GObject.registerClass({
         if (this._conflictingSessionNotification)
             this._conflictingSessionNotification.destroy();
 
-        const batch = new Batch.ConcurrentBatch(this, [
-            GdmUtil.cloneAndFadeOutActor(this._userSelectionBox),
+        const batch = Shell.ConcurrentBatch.new([
+            Shell.gdm_clone_and_fade_out_actor(this._userSelectionBox),
             this._beginVerificationForItem(activatedItem),
         ]);
         batch.run();

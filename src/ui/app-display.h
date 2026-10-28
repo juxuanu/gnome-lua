@@ -16,19 +16,18 @@
  *  - #ShellBaseAppView (`BaseAppView`, derivable, abstract): the paged view.
  *  - #ShellAppDisplay (`AppDisplay`): the application grid.
  *  - #ShellAppSearchProvider (`AppSearchProvider`): the applications provider
- *    of the search, which overviewControls.js hands to the search controller.
+ *    of the search, which overview-controls.c hands to the search controller.
  *
  * `AppGrid`, `FolderGrid`, the layout of the page indicators and
  * `SystemActionIcon` are private to the C file.
  *
- * The overview and the other parts of the shell that are still JS are reached
- * through the #ShellWindowManager that every object gets with its
- * `window-manager` property: `Main.overview.visible`, `closing` and
- * `animationInProgress` are its `overview-visible`, `overview-closing` and
+ * The overview is reached through the #ShellWindowManager that every object
+ * gets with its `window-manager` property: `Main.overview.visible`, `closing`
+ * and `animationInProgress` are its `overview-visible`, `overview-closing` and
  * `overview-animating` properties and `Main.overview.hide ()` is its
  * `overview-hide-requested` signal. The drags of the items are told through
  * its `item-drag-begin`, `item-drag-cancelled` and `item-drag-end` signals
- * (see window-manager.h), which main.js hands to the overview.
+ * (see window-manager.h), which the overview hands on.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */

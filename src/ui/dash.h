@@ -22,7 +22,7 @@
  * drags of the items it listens to itself (#ShellWindowManager::item-drag-begin
  * and its siblings), the drags of windows are told with
  * shell_dash_window_drag_begin () and shell_dash_window_drag_end (), which
- * overviewControls.js calls from the overview signals.
+ * overview-controls.c calls from the overview signals.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
