@@ -51,6 +51,12 @@ OPTIONS
 
   List possible modes and exit
 
+``--lua-extension-path``\ =\ *PATH*
+
+  Colon-separated list of additional directories to search for Lua
+  extensions, before the standard ones. Equivalent to setting the
+  SHELL_LUA_EXTENSION_PATH environment variable.
+
 ``--version``
 
   Print version and exit

@@ -1,4 +1,5 @@
 import GLib from 'gi://GLib';
+import ShellLua from 'gi://ShellLua';
 import * as Signals from '../misc/signals.js';
 
 import * as FileUtils from '../misc/fileUtils.js';
@@ -205,5 +206,11 @@ export class SessionMode extends Signals.EventEmitter {
         }
 
         this.emit('updated');
+
+        // Lua extensions (gnome-lua): emits the "session.mode-changed" hook
+        ShellLua.HookRegistry.get_default().emit_after('session.mode-changed',
+            new GLib.Variant('a{sv}', {
+                mode: new GLib.Variant('s', this.currentMode),
+            }));
     }
 }

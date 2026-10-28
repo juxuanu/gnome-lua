@@ -336,6 +336,99 @@ class Result extends St.BoxLayout {
     }
 });
 
+// Lua extensions (gnome-lua)
+// Index of the "Lua" page in the notebook, used for scrolling to the bottom
+const LUA_TAB_INDEX = 1;
+
+// A REPL against the privileged Lua state (ShellLuaInspector), laid out
+// like the JS Evaluator page
+const LuaConsole = GObject.registerClass(
+class LuaConsole extends St.BoxLayout {
+    _init(lookingGlass) {
+        super._init({
+            // Same name as the Evaluator page so that it gets the same style
+            name: 'LookingGlassEvaluator',
+            orientation: Clutter.Orientation.VERTICAL,
+        });
+
+        this._lookingGlass = lookingGlass;
+        this._maxItems = 150;
+
+        this._resultsArea = new St.BoxLayout({
+            style_class: 'evaluator-results',
+            orientation: Clutter.Orientation.VERTICAL,
+            y_expand: true,
+        });
+        this.add_child(this._resultsArea);
+
+        this._entryArea = new St.BoxLayout({
+            name: 'EntryArea',
+            y_align: Clutter.ActorAlign.END,
+        });
+        this.add_child(this._entryArea);
+
+        const label = new St.Label({text: CHEVRON});
+        this._entryArea.add_child(label);
+
+        this._entry = new St.Entry({
+            input_purpose: Clutter.InputContentPurpose.TERMINAL,
+            can_focus: true,
+            x_expand: true,
+        });
+        ShellEntry.addContextMenu(this._entry);
+        this._entryArea.add_child(this._entry);
+
+        // In-memory only: Lua input is not mixed into the JS history
+        this._history = new History.HistoryManager({
+            entry: this._entry.clutter_text,
+        });
+
+        this._entry.clutter_text.connect('activate', (o, _e) => {
+            // Ensure we don't get newlines in the command
+            this._evaluate(o.get_text().replaceAll('\n', ' '));
+            return true;
+        });
+    }
+
+    _evaluate(command) {
+        command = this._history.addItem(command); // trims command
+        if (!command)
+            return;
+
+        let output;
+        let failed = false;
+        try {
+            output = global.get_lua_inspector().eval(command);
+        } catch (e) {
+            output = e.message;
+            failed = true;
+        }
+
+        this._pushResult(command, output ?? '', failed);
+        this._entry.text = '';
+    }
+
+    _pushResult(command, output, failed) {
+        const result = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL});
+
+        const cmdTxt = new St.Label({text: CHEVRON + command});
+        cmdTxt.clutter_text.ellipsize = Pango.EllipsizeMode.END;
+        result.add_child(cmdTxt);
+
+        const resultTxt = new St.Label({text: failed ? `<error> ${output}` : output});
+        resultTxt.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        resultTxt.clutter_text.line_wrap = true;
+        result.add_child(resultTxt);
+
+        this._resultsArea.add_child(result);
+        if (this._resultsArea.get_n_children() > this._maxItems)
+            this._resultsArea.get_first_child().destroy();
+
+        // Scroll to bottom
+        this._lookingGlass._notebook.scrollToBottom(LUA_TAB_INDEX);
+    }
+});
+
 const WindowList = GObject.registerClass({
 }, class WindowList extends St.BoxLayout {
     _init(lookingGlass) {
@@ -766,6 +859,15 @@ const Extensions = GObject.registerClass({
 
         Main.extensionManager.connect('extension-loaded',
             this._loadExtension.bind(this));
+
+        // Lua extensions (gnome-lua)
+        this._luaDisplays = [];
+        this._syncLuaExtensions();
+        const luaManager = global.get_lua_extension_manager();
+        luaManager.connect('extension-state-changed',
+            () => this._syncLuaExtensions());
+        luaManager.connect('extensions-loaded',
+            () => this._syncLuaExtensions());
     }
 
     _loadExtension(o, uuid) {
@@ -773,8 +875,12 @@ const Extensions = GObject.registerClass({
         // There can be cases where we create dummy extension metadata
         // that's not really a proper extension. Don't bother with these.
         if (!extension.metadata.name)
-            return;
+            return null;
 
+        return this._addExtensionDisplay(extension);
+    }
+
+    _addExtensionDisplay(extension) {
         const extensionDisplay = this._createExtensionDisplay(extension);
         if (this._numExtensions === 0)
             this._extensionsList.remove_child(this._noExtensions);
@@ -784,6 +890,58 @@ const Extensions = GObject.registerClass({
         const pos = [...this._extensionsList].findIndex(
             dsp => dsp._extension.metadata.name.localeCompare(name) > 0);
         this._extensionsList.insert_child_at_index(extensionDisplay, pos);
+        return extensionDisplay;
+    }
+
+    // Lua extensions (gnome-lua)
+    // Wraps a ShellLuaExtension in the shape of a JS extension object, so
+    // that the rows are created by the same code
+    _wrapLuaExtension(luaExtension) {
+        const metadata = luaExtension.get_metadata();
+        const getString = member => {
+            return metadata && metadata.has_member(member)
+                ? metadata.get_string_member(member)
+                : null;
+        };
+        const uuid = luaExtension.get_uuid();
+        const error = luaExtension.get_error();
+
+        return {
+            uuid,
+            dir: luaExtension.get_dir(),
+            // ShellLuaExtensionState has the same values as ExtensionState
+            state: luaExtension.get_state(),
+            errors: error ? [error] : [],
+            metadata: {
+                name: `${getString('name') ?? uuid} (Lua)`,
+                description: getString('description'),
+                url: getString('url'),
+            },
+        };
+    }
+
+    _syncLuaExtensions() {
+        // Rebuild all Lua rows, the state labels are not live
+        for (const display of this._luaDisplays) {
+            display.destroy();
+            this._numExtensions--;
+        }
+        this._luaDisplays = [];
+        if (this._numExtensions === 0 && !this._noExtensions.get_parent())
+            this._extensionsList.add_child(this._noExtensions);
+
+        let luaExtensions;
+        try {
+            luaExtensions = global.get_lua_extension_manager().list();
+        } catch (e) {
+            logError(e, 'Failed to list Lua extensions');
+            return;
+        }
+
+        for (const luaExtension of luaExtensions) {
+            const wrapped = this._wrapLuaExtension(luaExtension);
+            this._luaDisplays.push(this._addExtensionDisplay(wrapped));
+        }
     }
 
     _onViewSource(actor) {
@@ -1521,6 +1679,10 @@ export class LookingGlass extends St.BoxLayout {
         });
         ShellEntry.addContextMenu(this._entry);
         this._entryArea.add_child(this._entry);
+
+        // Lua extensions (gnome-lua)
+        this._luaConsole = new LuaConsole(this);
+        notebook.appendPage('Lua', this._luaConsole);
 
         this._windowList = new WindowList(this);
         notebook.appendPage('Windows', this._windowList);

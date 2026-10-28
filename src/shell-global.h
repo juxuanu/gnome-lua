@@ -14,6 +14,10 @@ G_BEGIN_DECLS
 #include "shell-app-usage.h"
 #include "shell-wm.h"
 
+/* Lua extensions (gnome-lua) */
+#include "shell-lua-extension.h"
+#include "shell-lua-inspector.h"
+
 #define SHELL_TYPE_GLOBAL (shell_global_get_type ())
 G_DECLARE_FINAL_TYPE (ShellGlobal, shell_global, SHELL, GLOBAL, GObject)
 
@@ -29,6 +33,11 @@ guint32               shell_global_get_current_time          (ShellGlobal *globa
 MetaWorkspaceManager *shell_global_get_workspace_manager     (ShellGlobal *global);
 ShellWM              *shell_global_get_window_manager        (ShellGlobal *global);
 StFocusManager       *shell_global_get_focus_manager         (ShellGlobal *global);
+
+/* Lua extensions (gnome-lua) */
+ShellLuaExtensionManager *shell_global_get_lua_extension_manager (ShellGlobal *global);
+ShellLuaInspector        *shell_global_get_lua_inspector         (ShellGlobal *global);
+void                      shell_global_notify_startup_complete   (ShellGlobal *global);
 
 int shell_global_get_screen_width  (ShellGlobal *global);
 int shell_global_get_screen_height (ShellGlobal *global);
@@ -61,9 +70,16 @@ typedef struct {
   guint gjs_function;
   guint gjs_closure;
 
+  /* Lua extensions (gnome-lua): live lua_States and their total heap */
+  guint lua_states;
+  guint lua_bytes;
+
   /* 32 bit to avoid js conversion problems with 64 bit */
   guint  last_gc_seconds_ago;
 } ShellMemoryInfo;
+
+void shell_global_get_memory_info (ShellGlobal     *global,
+                                   ShellMemoryInfo *info);
 
 /* Run-at-leisure API */
 void shell_global_begin_work     (ShellGlobal          *global);

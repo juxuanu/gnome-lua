@@ -30,7 +30,7 @@ char *shell_lua_inspector_eval (ShellLuaInspector  *self,
 void  shell_lua_inspector_reset (ShellLuaInspector *self);
 
 /* Read-only snapshot for the Looking Glass "Extensions"/"Memory" views:
- * a(sstuu) of (uuid, state-name, lua-bytes, error-count) per live state
+ * a(sstu) of (uuid, state-name, lua-bytes, error-count) per live state
  * plus the inspector itself. (transfer full) */
 GVariant *shell_lua_inspector_get_states (ShellLuaInspector *self);
 

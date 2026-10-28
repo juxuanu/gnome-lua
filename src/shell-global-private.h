@@ -21,3 +21,7 @@ ShellAppCache * shell_global_get_app_cache (ShellGlobal *global);
 void _shell_global_locate_pointer (ShellGlobal  *global);
 
 void _shell_global_notify_shutdown (ShellGlobal *global);
+
+/* Lua extensions (gnome-lua): disable every Lua extension and drop the
+ * inspector. Idempotent; must run before the GjsContext is destroyed. */
+void _shell_global_shutdown_lua (ShellGlobal *global);

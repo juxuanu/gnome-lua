@@ -14,6 +14,9 @@
 #include <sys/resource.h>
 #endif
 #include <locale.h>
+#if defined (HAVE_MALLINFO) || defined (HAVE_MALLINFO2)
+#include <malloc.h>
+#endif
 
 #include <gio/gio.h>
 #include <girepository/girepository.h>
@@ -40,6 +43,10 @@
 
 #include "shell-enum-types.h"
 #include "shell-global-private.h"
+#include "shell-hooks.h"
+#include "shell-lua.h"
+#include "shell-lua-extension.h"
+#include "shell-lua-inspector.h"
 #include "shell-perf-log.h"
 #include "shell-window-tracker.h"
 #include "shell-app-usage.h"
@@ -63,6 +70,12 @@ struct _ShellGlobal {
   char *session_mode;
 
   GjsContext *js_context;
+
+  /* Lua extensions (gnome-lua): created lazily, see
+   * shell_global_get_lua_extension_manager() */
+  ShellLuaExtensionManager *lua_extension_manager;
+  ShellLuaInspector *lua_inspector;
+
   MetaPlugin *plugin;
   ShellWM *wm;
   GSettings *settings;
@@ -456,6 +469,9 @@ shell_global_finalize (GObject *object)
 {
   ShellGlobal *global = SHELL_GLOBAL (object);
 
+  /* Lua extensions (gnome-lua): normally already done at shutdown */
+  _shell_global_shutdown_lua (global);
+
   g_clear_object (&global->js_context);
   g_object_unref (global->settings);
 
@@ -628,6 +644,21 @@ shell_global_class_init (ShellGlobalClass *klass)
   g_object_class_install_properties (gobject_class, N_PROPS, props);
 }
 
+/* Lua extensions (gnome-lua): the hook points the shell itself emits.
+ * More are declared by the code that owns them as it is ported to C. */
+static void
+shell_global_declare_hooks (void)
+{
+  ShellHookRegistry *registry = shell_hook_registry_get_default ();
+
+  shell_hook_registry_declare (registry, "shell.started", "", FALSE,
+                               "The shell finished startup");
+  shell_hook_registry_declare (registry, "shell.shutting-down", "", FALSE,
+                               "The shell is shutting down");
+  shell_hook_registry_declare (registry, "session.mode-changed", "mode:s", FALSE,
+                               "The session mode changed (e.g. user, unlock-dialog, gdm)");
+}
+
 /*
  * _shell_global_init: (skip)
  * @first_property_name: the name of the first property
@@ -657,6 +688,7 @@ _shell_global_init (const char *first_property_name,
                                                   argument_list));
   va_end (argument_list);
 
+  shell_global_declare_hooks ();
 }
 
 /**
@@ -684,6 +716,10 @@ shell_global_get (void)
 void
 _shell_global_destroy_gjs_context (ShellGlobal *self)
 {
+  /* Lua extensions (gnome-lua): tear them down before the JS context goes
+   * away, they may own objects JS code still knows about. */
+  _shell_global_shutdown_lua (self);
+
   g_clear_object (&self->js_context);
 }
 
@@ -1662,7 +1698,148 @@ _shell_global_locate_pointer (ShellGlobal *global)
 void
 _shell_global_notify_shutdown (ShellGlobal *global)
 {
+  /* Lua extensions (gnome-lua): let them react while the shell is intact */
+  shell_hook_registry_emit_after (shell_hook_registry_get_default (),
+                                  "shell.shutting-down", NULL);
+
   g_signal_emit (global, shell_global_signals[SHUTDOWN], 0);
+}
+
+/**
+ * shell_global_notify_startup_complete:
+ * @global: a #ShellGlobal
+ *
+ * Called by Main.js once the layout manager finished the startup animation.
+ * Emits the "shell.started" hook for Lua extensions.
+ */
+void
+shell_global_notify_startup_complete (ShellGlobal *global)
+{
+  g_return_if_fail (SHELL_IS_GLOBAL (global));
+
+  shell_hook_registry_emit_after (shell_hook_registry_get_default (),
+                                  "shell.started", NULL);
+}
+
+/**
+ * shell_global_get_lua_extension_manager:
+ * @global: a #ShellGlobal
+ *
+ * Gets the manager of Lua extensions, creating it on first use.
+ *
+ * Return value: (transfer none): the #ShellLuaExtensionManager
+ */
+ShellLuaExtensionManager *
+shell_global_get_lua_extension_manager (ShellGlobal *global)
+{
+  g_return_val_if_fail (SHELL_IS_GLOBAL (global), NULL);
+
+  if (!global->lua_extension_manager)
+    global->lua_extension_manager =
+      g_object_ref (shell_lua_extension_manager_get_default ());
+
+  return global->lua_extension_manager;
+}
+
+/**
+ * shell_global_get_lua_inspector:
+ * @global: a #ShellGlobal
+ *
+ * Gets the privileged Lua state used by Looking Glass, creating it on first
+ * use.
+ *
+ * Return value: (transfer none): the #ShellLuaInspector
+ */
+ShellLuaInspector *
+shell_global_get_lua_inspector (ShellGlobal *global)
+{
+  g_return_val_if_fail (SHELL_IS_GLOBAL (global), NULL);
+
+  if (!global->lua_inspector)
+    global->lua_inspector =
+      g_object_ref (shell_lua_inspector_get_default ());
+
+  return global->lua_inspector;
+}
+
+/**
+ * _shell_global_shutdown_lua: (skip)
+ * @global: a #ShellGlobal
+ *
+ * Disables every Lua extension and drops the manager and inspector held by
+ * @global. Safe to call more than once. Nothing is created if Lua was never
+ * used.
+ */
+void
+_shell_global_shutdown_lua (ShellGlobal *global)
+{
+  if (global->lua_extension_manager)
+    {
+      GList *extensions, *l;
+
+      extensions = shell_lua_extension_manager_list (global->lua_extension_manager);
+      /* Disable in reverse order of discovery, like the JS ExtensionManager */
+      extensions = g_list_reverse (extensions);
+      for (l = extensions; l; l = l->next)
+        {
+          ShellLuaExtension *extension = l->data;
+          g_autoptr (GError) error = NULL;
+
+          if (shell_lua_extension_get_state (extension) != SHELL_LUA_EXTENSION_STATE_ACTIVE)
+            continue;
+
+          if (!shell_lua_extension_manager_disable (global->lua_extension_manager,
+                                                    shell_lua_extension_get_uuid (extension),
+                                                    &error))
+            g_warning ("Failed to disable Lua extension %s: %s",
+                       shell_lua_extension_get_uuid (extension),
+                       error->message);
+        }
+      g_list_free (extensions);
+    }
+
+  g_clear_object (&global->lua_extension_manager);
+  g_clear_object (&global->lua_inspector);
+}
+
+/**
+ * shell_global_get_memory_info:
+ * @global: a #ShellGlobal
+ * @info: (out caller-allocates): the #ShellMemoryInfo to fill
+ *
+ * Fills @info with memory statistics. The gjs_* fields are not collected by
+ * this function (they are left zero); the lua_* fields report all live Lua
+ * states.
+ */
+void
+shell_global_get_memory_info (ShellGlobal     *global,
+                              ShellMemoryInfo *info)
+{
+  gsize lua_bytes;
+
+  g_return_if_fail (SHELL_IS_GLOBAL (global));
+  g_return_if_fail (info != NULL);
+
+  memset (info, 0, sizeof (ShellMemoryInfo));
+
+#ifdef HAVE_MALLINFO2
+  {
+    struct mallinfo2 mi = mallinfo2 ();
+
+    info->glibc_uordblks = (guint) MIN (mi.uordblks, (gsize) G_MAXUINT);
+  }
+#elif defined (HAVE_MALLINFO)
+  {
+    struct mallinfo mi = mallinfo ();
+
+    info->glibc_uordblks = (guint) MAX (mi.uordblks, 0);
+  }
+#endif
+
+  /* Lua extensions (gnome-lua) */
+  info->lua_states = shell_lua_get_state_count ();
+  lua_bytes = shell_lua_get_total_memory ();
+  info->lua_bytes = (guint) MIN (lua_bytes, (gsize) G_MAXUINT);
 }
 
 /**

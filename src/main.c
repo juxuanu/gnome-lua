@@ -27,6 +27,7 @@
 
 #include "shell-global.h"
 #include "shell-global-private.h"
+#include "shell-lua.h"
 #include "shell-perf-log.h"
 #include "st.h"
 
@@ -42,6 +43,7 @@ static char *session_mode = NULL;
 static int caught_signal = 0;
 static gboolean force_animations = FALSE;
 static char *script_path = NULL;
+static char *lua_extension_path = NULL;
 
 #define DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER 1
 #define DBUS_REQUEST_NAME_REPLY_ALREADY_OWNER 4
@@ -447,6 +449,9 @@ dump_gjs_stack_on_signal_handler (int signo)
   sigaction (SIGALRM, &sa, NULL);
 
   alarm (5);
+  /* Lua extensions (gnome-lua): does not allocate; prints nothing if no Lua
+   * code is running */
+  shell_lua_dump_stack ();
   gjs_dumpstack ();
   alarm (0);
 
@@ -545,6 +550,12 @@ GOptionEntry gnome_shell_options[] = {
     "",
     NULL
   },
+  {
+    "lua-extension-path", 0, 0, G_OPTION_ARG_FILENAME,
+    &lua_extension_path,
+    N_("Additional directories to search for Lua extensions"),
+    "PATH"
+  },
   { NULL }
 };
 
@@ -577,6 +588,39 @@ init_signal_handlers (MetaContext *context)
 
   g_unix_signal_add (SIGINT, on_sigterm, context);
   g_unix_signal_add (SIGTERM, on_sigterm, context);
+}
+
+/* Lua extensions (gnome-lua): the extension manager reads
+ * SHELL_LUA_EXTENSION_PATH (a list of directories, searched before the
+ * standard ones) when it is created, so this must run before any JS does.
+ * Relative entries are resolved against the directory we were started in. */
+static void
+setup_lua_extension_path (const char *cwd)
+{
+  g_autoptr (GString) resolved = NULL;
+  g_auto (GStrv) entries = NULL;
+  int i;
+
+  if (lua_extension_path == NULL || *lua_extension_path == '\0')
+    return;
+
+  entries = g_strsplit (lua_extension_path, G_SEARCHPATH_SEPARATOR_S, -1);
+  resolved = g_string_new (NULL);
+  for (i = 0; entries[i]; i++)
+    {
+      g_autofree char *entry = NULL;
+
+      if (*entries[i] == '\0')
+        continue;
+
+      entry = g_canonicalize_filename (entries[i], cwd);
+      if (resolved->len > 0)
+        g_string_append (resolved, G_SEARCHPATH_SEPARATOR_S);
+      g_string_append (resolved, entry);
+    }
+
+  if (resolved->len > 0)
+    g_setenv ("SHELL_LUA_EXTENSION_PATH", resolved->str, TRUE);
 }
 
 static void
@@ -631,6 +675,7 @@ main (int argc, char **argv)
 
   init_signal_handlers (context);
   cwd = g_get_current_dir ();
+  setup_lua_extension_path (cwd);
   change_to_home_directory ();
 
   if (session_mode == NULL)
@@ -721,6 +766,11 @@ main (int argc, char **argv)
 
   g_message ("Shutting down GNOME Shell");
   _shell_global_notify_shutdown (shell_global_get ());
+
+  /* Lua extensions (gnome-lua): disable them while the JS context is alive */
+  g_debug ("Tearing down Lua extensions");
+  _shell_global_shutdown_lua (shell_global_get ());
+
   shell_profiler_shutdown ();
 
   g_debug ("Tearing down the gjs context");

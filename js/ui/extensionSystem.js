@@ -600,7 +600,43 @@ export class ExtensionManager extends Signals.EventEmitter {
 
         this._enabledExtensions = newEnabledExtensions;
 
+        // Lua extensions (gnome-lua)
+        this._syncLuaExtensions();
+
         this._enableExtensionMutex.release();
+    }
+
+    // Lua extensions (gnome-lua)
+    // Lua extensions run in the same session modes as JS extensions that do
+    // not declare "session-modes" in their metadata ("user", and modes that
+    // inherit from it such as "unlock-dialog"). In other modes, e.g. the
+    // login screen, they are all disabled.
+    _luaExtensionsAllowed() {
+        const {currentMode, parentMode} = Main.sessionMode;
+        return currentMode === 'user' || parentMode === 'user';
+    }
+
+    _syncLuaExtensions() {
+        try {
+            const luaManager = global.get_lua_extension_manager();
+            if (this._luaExtensionsAllowed()) {
+                luaManager.scan();
+                luaManager.sync();
+            } else {
+                for (const ext of luaManager.list()) {
+                    if (ext.get_state() !== ExtensionState.ACTIVE)
+                        continue;
+                    try {
+                        luaManager.disable(ext.get_uuid());
+                    } catch (e) {
+                        logError(e, `Failed to disable Lua extension ${ext.get_uuid()}`);
+                    }
+                }
+            }
+        } catch (e) {
+            // A broken Lua runtime must never take the JS extensions down
+            logError(e, 'Failed to update Lua extensions');
+        }
     }
 
     _onSettingsWritableChanged() {

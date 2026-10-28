@@ -342,6 +342,9 @@ async function _initializeUI() {
         if (actionMode === Shell.ActionMode.NONE)
             actionMode = Shell.ActionMode.NORMAL;
 
+        // Lua extensions (gnome-lua): emits the "shell.started" hook
+        global.notify_startup_complete();
+
         if (screenShield)
             screenShield.lockIfWasLocked();
 
