@@ -27,14 +27,10 @@ js/portalHelper/main.js
 js/ui/accessDialog.js
 js/ui/appDisplay.js
 js/ui/audioDeviceSelection.js
-js/ui/calendar.js
-js/ui/components/automountManager.js
-js/ui/components/autorunManager.js
 js/ui/components/keyring.js
 js/ui/components/networkAgent.js
 js/ui/components/polkitAgent.js
 js/ui/dash.js
-js/ui/dateMenu.js
 js/ui/endSessionDialog.js
 js/ui/extensionDownloader.js
 js/ui/extensionSystem.js
@@ -42,7 +38,6 @@ js/ui/kbdA11yDialog.js
 js/ui/lookingGlass.js
 js/ui/main.js
 js/ui/mpris.js
-js/ui/notificationDaemon.js
 js/ui/osdWindow.js
 js/ui/overviewControls.js
 js/ui/overview.js
@@ -71,7 +66,6 @@ js/ui/status/thunderbolt.js
 js/ui/status/volume.js
 js/ui/unlockDialog.js
 js/ui/welcomeDialog.js
-js/ui/windowAttentionHandler.js
 src/calendar-server/reminder-watcher.c
 src/main.c
 src/misc/brightness-manager.c
@@ -86,8 +80,12 @@ src/shell-util.c
 src/st/st-icon-theme.c
 src/ui/app-menu.c
 src/ui/background-menu.c
+src/ui/calendar.c
 src/ui/close-dialog.c
+src/ui/components/automount-manager.c
+src/ui/components/autorun-manager.c
 src/ui/ctrl-alt-tab.c
+src/ui/date-menu.c
 src/ui/inhibit-shortcuts-dialog.c
 src/ui/keyboard.c
 src/ui/message-list.c
@@ -99,6 +97,7 @@ src/ui/search-controller.c
 src/ui/search.c
 src/ui/shell-entry.c
 src/ui/switch-monitor.c
+src/ui/window-attention-handler.c
 src/ui/window-manager.c
 src/ui/window-menu.c
 subprojects/extensions-tool/src/command-create.c

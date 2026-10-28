@@ -27,6 +27,7 @@ enum
   PROP_LAYOUT_MANAGER,
   PROP_OSD_WINDOW_MANAGER,
   PROP_PANEL,
+  PROP_MESSAGE_TRAY,
 
   N_PROPS
 };
@@ -75,6 +76,7 @@ struct _ShellMain
   ShellLayoutManager *layout_manager;
   ShellOsdWindowManager *osd_window_manager;
   ShellPanel *panel;              /* weak */
+  ShellMessageTray *message_tray; /* weak */
   MetaCompositor *compositor;     /* weak; same reason as @stage */
   ClutterStage *stage;            /* weak; set on the first push_modal so that
                                    * pops during shell teardown (after ShellGlobal
@@ -211,6 +213,10 @@ shell_main_get_property (GObject    *object,
       g_value_set_object (value, self->panel);
       break;
 
+    case PROP_MESSAGE_TRAY:
+      g_value_set_object (value, self->message_tray);
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -247,6 +253,10 @@ shell_main_set_property (GObject      *object,
       shell_main_set_panel (self, g_value_get_object (value));
       break;
 
+    case PROP_MESSAGE_TRAY:
+      shell_main_set_message_tray (self, g_value_get_object (value));
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -261,6 +271,7 @@ shell_main_dispose (GObject *object)
   g_clear_weak_pointer (&self->stage);
   g_clear_weak_pointer (&self->compositor);
   g_clear_weak_pointer (&self->panel);
+  g_clear_weak_pointer (&self->message_tray);
   g_clear_pointer (&self->modal_stack, g_ptr_array_unref);
   g_clear_object (&self->session_mode);
   g_clear_object (&self->layout_manager);
@@ -359,6 +370,20 @@ shell_main_class_init (ShellMainClass *klass)
   props[PROP_PANEL] =
     g_param_spec_object ("panel", NULL, NULL,
                          SHELL_TYPE_PANEL,
+                         G_PARAM_READWRITE |
+                         G_PARAM_EXPLICIT_NOTIFY |
+                         G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellMain:message-tray:
+   *
+   * The message tray of the shell (`Main.messageTray`). main.js sets it right
+   * after creating it, so that the date menu can show its notifications.
+   * Held weakly: the tray is owned by the stage.
+   */
+  props[PROP_MESSAGE_TRAY] =
+    g_param_spec_object ("message-tray", NULL, NULL,
+                         SHELL_TYPE_MESSAGE_TRAY,
                          G_PARAM_READWRITE |
                          G_PARAM_EXPLICIT_NOTIFY |
                          G_PARAM_STATIC_STRINGS);
@@ -842,6 +867,45 @@ shell_main_set_panel (ShellMain  *self,
     g_set_weak_pointer (&self->panel, panel);
 
   g_object_notify_by_pspec (G_OBJECT (self), props[PROP_PANEL]);
+}
+
+/**
+ * shell_main_get_message_tray:
+ * @self: a #ShellMain
+ *
+ * Returns: (transfer none) (nullable): the message tray, once main.js has
+ *   created it
+ */
+ShellMessageTray *
+shell_main_get_message_tray (ShellMain *self)
+{
+  g_return_val_if_fail (SHELL_IS_MAIN (self), NULL);
+
+  return self->message_tray;
+}
+
+/**
+ * shell_main_set_message_tray:
+ * @self: a #ShellMain
+ * @message_tray: (nullable): the message tray of the shell
+ *
+ * Sets #ShellMain:message-tray.
+ */
+void
+shell_main_set_message_tray (ShellMain        *self,
+                             ShellMessageTray *message_tray)
+{
+  g_return_if_fail (SHELL_IS_MAIN (self));
+  g_return_if_fail (message_tray == NULL || SHELL_IS_MESSAGE_TRAY (message_tray));
+
+  if (self->message_tray == message_tray)
+    return;
+
+  g_clear_weak_pointer (&self->message_tray);
+  if (message_tray != NULL)
+    g_set_weak_pointer (&self->message_tray, message_tray);
+
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_MESSAGE_TRAY]);
 }
 
 /**

@@ -115,6 +115,10 @@ libshell_public_headers = [
   'shell-blur-effect.h',
   'ui/background.h',
   'ui/message-tray.h',
+  'ui/notification-daemon.h',
+  'ui/window-attention-handler.h',
+  'ui/components/automount-manager.h',
+  'ui/components/autorun-manager.h',
   'ui/message-list.h',
   'misc/text-utils.h',
   'ui/bar-level.h',
@@ -149,6 +153,8 @@ libshell_public_headers = [
   'ui/window-menu.h',
   'ui/panel-menu.h',
   'ui/panel.h',
+  'ui/calendar.h',
+  'ui/date-menu.h',
   'ui/quick-settings.h',
   'ui/switcher-popup.h',
   'ui/ctrl-alt-tab.h',
@@ -236,6 +242,10 @@ libshell_sources = [
   'shell-blur-effect.c',
   'ui/background.c',
   'ui/message-tray.c',
+  'ui/notification-daemon.c',
+  'ui/window-attention-handler.c',
+  'ui/components/automount-manager.c',
+  'ui/components/autorun-manager.c',
   'ui/message-list.c',
   'misc/text-utils.c',
   'ui/bar-level.c',
@@ -270,6 +280,8 @@ libshell_sources = [
   'ui/window-menu.c',
   'ui/panel-menu.c',
   'ui/panel.c',
+  'ui/calendar.c',
+  'ui/date-menu.c',
   'ui/quick-settings.c',
   'ui/switcher-popup.c',
   'ui/ctrl-alt-tab.c',
@@ -412,6 +424,20 @@ dbus_generated += gnome.gdbus_codegen('weather-integration-dbus',
   namespace: 'Shell'
 )
 
+# The proxies of ui/calendar.c (type name ShellCalendarServer) and of
+# ui/date-menu.c (type name ShellClocksIntegration)
+dbus_generated += gnome.gdbus_codegen('calendar-server-dbus',
+  sources: '../data/dbus-interfaces/org.gnome.Shell.CalendarServer.xml',
+  interface_prefix: 'org.gnome.Shell.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('clocks-integration-dbus',
+  sources: '../data/dbus-interfaces/org.gnome.Shell.ClocksIntegration.xml',
+  interface_prefix: 'org.gnome.Shell.',
+  namespace: 'Shell'
+)
+
 dbus_generated += gnome.gdbus_codegen('introspect-dbus',
   sources: '../data/dbus-interfaces/org.gnome.Shell.Introspect.xml',
   interface_prefix: 'org.gnome.Shell.',
@@ -448,6 +474,24 @@ dbus_generated += gnome.gdbus_codegen('shell-dbus-generated',
   ],
   interface_prefix: 'org.gnome.',
   namespace: 'ShellDBus'
+)
+
+# The skeletons of ui/notification-daemon.c (types ShellFreedesktopNotifications
+# and ShellGtkNotifications)
+dbus_generated += gnome.gdbus_codegen('notifications-dbus',
+  sources: [
+    '../data/dbus-interfaces/org.freedesktop.Notifications.xml',
+    '../data/dbus-interfaces/org.gtk.Notifications.xml',
+  ],
+  interface_prefix: 'org.',
+  namespace: 'Shell'
+)
+
+# The proxy of ui/components/autorun-manager.c (type ShellHotplugSniffer)
+dbus_generated += gnome.gdbus_codegen('hotplug-sniffer-dbus',
+  sources: '../data/dbus-interfaces/org.gnome.Shell.HotplugSniffer.xml',
+  interface_prefix: 'org.gnome.Shell.',
+  namespace: 'Shell'
 )
 
 if have_networkmanager

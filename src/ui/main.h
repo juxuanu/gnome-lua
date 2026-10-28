@@ -11,6 +11,7 @@
 
 #include "shell-action-modes.h"
 #include "ui/layout.h"
+#include "ui/message-tray.h"
 #include "ui/osd-window.h"
 #include "ui/panel.h"
 #include "ui/session-mode.h"
@@ -50,6 +51,10 @@ void             shell_main_set_osd_window_manager (ShellMain             *self,
 ShellPanel      *shell_main_get_panel            (ShellMain       *self);
 void             shell_main_set_panel            (ShellMain       *self,
                                                   ShellPanel      *panel);
+
+ShellMessageTray *shell_main_get_message_tray    (ShellMain        *self);
+void             shell_main_set_message_tray     (ShellMain        *self,
+                                                  ShellMessageTray *message_tray);
 
 void             shell_main_system_modal_opened  (ShellMain       *self);
 void             shell_main_emit_settings_app_activating (ShellMain *self);

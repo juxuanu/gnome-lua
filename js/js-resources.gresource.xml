@@ -43,9 +43,7 @@
     <file>ui/accessDialog.js</file>
     <file>ui/appDisplay.js</file>
     <file>ui/audioDeviceSelection.js</file>
-    <file>ui/calendar.js</file>
     <file>ui/dash.js</file>
-    <file>ui/dateMenu.js</file>
     <file>ui/endSessionDialog.js</file>
     <file>ui/environment.js</file>
     <file>ui/extensionDownloader.js</file>
@@ -57,7 +55,6 @@
     <file>ui/lookingGlass.js</file>
     <file>ui/main.js</file>
     <file>ui/mpris.js</file>
-    <file>ui/notificationDaemon.js</file>
     <file>ui/overview.js</file>
     <file>ui/overviewControls.js</file>
     <file>ui/panelItems.js</file>
@@ -69,12 +66,9 @@
     <file>ui/unlockDialog.js</file>
     <file>ui/userWidget.js</file>
     <file>ui/welcomeDialog.js</file>
-    <file>ui/windowAttentionHandler.js</file>
     <file>ui/workspacesView.js</file>
 
     <file>ui/components.js</file>
-    <file>ui/components/automountManager.js</file>
-    <file>ui/components/autorunManager.js</file>
     <file>ui/components/keyring.js</file>
     <file>ui/components/networkAgent.js</file>
     <file>ui/components/polkitAgent.js</file>

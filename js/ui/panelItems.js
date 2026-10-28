@@ -26,7 +26,7 @@ import * as ThunderboltStatus from './status/thunderbolt.js';
 import * as AutoRotateStatus from './status/autoRotate.js';
 import * as BackgroundAppsStatus from './status/backgroundApps.js';
 
-import {DateMenuButton} from './dateMenu.js';
+import {MediaMessage, MprisSource} from './mpris.js';
 import {ATIndicator} from './status/accessibility.js';
 import {InputSourceIndicator} from './status/keyboard.js';
 import {DwellClickIndicator} from './status/dwellClick.js';
@@ -441,7 +441,7 @@ class QuickSettings extends Shell.PanelMenuButton {
 const PANEL_ITEM_IMPLEMENTATIONS = {
     'activities': ActivitiesButton,
     'quickSettings': QuickSettings,
-    'dateMenu': DateMenuButton,
+    'dateMenu': Shell.DateMenuButton,
     'a11y': ATIndicator,
     'keyboard': InputSourceIndicator,
     'dwellClick': DwellClickIndicator,
@@ -464,5 +464,50 @@ export function createPanelItem(role) {
         return null;
 
     const constructor = PANEL_ITEM_IMPLEMENTATIONS[role];
-    return new constructor();
+    const item = new constructor();
+
+    if (role === 'dateMenu')
+        _setupDateMenu(item);
+
+    return item;
+}
+
+/**
+ * The date menu is C (Shell.DateMenuButton), the parts of the shell it needs
+ * and that are still JS are connected here: the overview, which it asks to
+ * hide when it launches an application, and the MPRIS players, whose media
+ * messages (js/ui/mpris.js) are added to the message view of the menu.
+ *
+ * @param {Shell.DateMenuButton} dateMenu - the new date menu
+ */
+function _setupDateMenu(dateMenu) {
+    dateMenu.connect('overview-hide-requested', () => Main.overview.hide());
+
+    const messageView = dateMenu.get_message_view();
+    if (!messageView)
+        return;
+
+    const playerToMessage = new Map();
+    const addPlayer = player => {
+        const message = new MediaMessage(player);
+        playerToMessage.set(player, message);
+        messageView.add_media_message(message);
+    };
+    const removePlayer = player => {
+        const message = playerToMessage.get(player);
+        messageView.remove_media_message(message);
+        playerToMessage.delete(player);
+    };
+
+    const mediaSource = new MprisSource();
+    mediaSource.connectObject(
+        'player-added', (_, player) => addPlayer(player),
+        'player-removed', (_, player) => removePlayer(player),
+        dateMenu);
+
+    mediaSource.players.forEach(addPlayer);
+
+    // The source and its messages live as long as the menu
+    dateMenu._mediaSource = mediaSource;
+    dateMenu._playerToMessage = playerToMessage;
 }

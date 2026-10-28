@@ -19,8 +19,6 @@ import * as Overview from './overview.js';
 import * as PanelItems from './panelItems.js';
 import * as WelcomeDialog from './welcomeDialog.js';
 import * as LookingGlass from './lookingGlass.js';
-import * as NotificationDaemon from './notificationDaemon.js';
-import * as WindowAttentionHandler from './windowAttentionHandler.js';
 import * as Screenshot from './screenshot.js';
 import * as ScreenShield from './screenShield.js';
 import {LoginDialog} from '../gdm/loginDialog.js';
@@ -481,13 +479,24 @@ async function _initializeUI() {
     brightnessDBus = new Shell.BrightnessService({manager: brightnessManager});
 
     messageTray = new Shell.MessageTray();
+    _shellMain.message_tray = messageTray;
     _connectMessageTray();
     panel = _createPanel();
     _shellMain.panel = panel;
     keyboard = new Shell.OskManager({input_method: inputMethod});
     InputSourceManager.connectOsk(keyboard);
-    notificationDaemon = new NotificationDaemon.NotificationDaemon();
-    windowAttentionHandler = new WindowAttentionHandler.WindowAttentionHandler();
+    notificationDaemon = new Shell.NotificationDaemon({message_tray: messageTray});
+    // What the notification sources did on top of activating an application
+    notificationDaemon.connect('app-opened', () => {
+        overview.hide();
+        panel.close_calendar();
+    });
+    windowAttentionHandler = new Shell.WindowAttentionHandler({message_tray: messageTray});
+    // What Main.activateWindow() does on top of activating the window
+    windowAttentionHandler.connect('window-activated', () => {
+        overview.hide();
+        panel.close_calendar();
+    });
     componentManager = new Components.ComponentManager();
 
     introspectService = new Shell.IntrospectService();
