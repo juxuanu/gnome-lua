@@ -1135,13 +1135,6 @@ G_DEFINE_FINAL_TYPE (ShellWorkspaceAnimationController,
                      G_TYPE_OBJECT)
 
 static void
-switch_data_free (SwitchData *switch_data)
-{
-  g_clear_pointer (&switch_data->monitors, g_ptr_array_unref);
-  g_free (switch_data);
-}
-
-static void
 controller_prepare_workspace_switch (ShellWorkspaceAnimationController *self,
                                      const int                         *workspace_indices,
                                      guint                              n_workspace_indices)
