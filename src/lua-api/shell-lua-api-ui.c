@@ -153,6 +153,34 @@ check_string_arg (lua_State  *L,
   return lua_tostring (L, idx);
 }
 
+/* The numeric counterparts: the error names the field, and a string is never
+ * coerced to a number. */
+static lua_Number
+check_number_arg (lua_State  *L,
+                  int         idx,
+                  const char *what)
+{
+  if (lua_type (L, idx) != LUA_TNUMBER)
+    luaL_error (L, "%s must be a number, got %s", what, luaL_typename (L, idx));
+  return lua_tonumber (L, idx);
+}
+
+static lua_Integer
+check_integer_arg (lua_State  *L,
+                   int         idx,
+                   const char *what)
+{
+  int isint;
+  lua_Integer value;
+
+  if (lua_type (L, idx) != LUA_TNUMBER)
+    luaL_error (L, "%s must be an integer, got %s", what, luaL_typename (L, idx));
+  value = lua_tointegerx (L, idx, &isint);
+  if (!isint)
+    luaL_error (L, "%s must be an integer, got a number with a fraction", what);
+  return value;
+}
+
 /* ------------------------------------------------------------------------ */
 /* shell.Widget                                                              */
 /* ------------------------------------------------------------------------ */
@@ -260,7 +288,7 @@ static int
 l_widget_add_style_class (lua_State *L)
 {
   ClutterActor *actor = shell_lua_api_ui_check_widget (L, 1);
-  const char *name = luaL_checkstring (L, 2);
+  const char *name = (luaL_checktype (L, 2, LUA_TSTRING), lua_tostring (L, 2));
 
   if (name[0] == '\0' || strchr (name, ' ') != NULL)
     return luaL_argerror (L, 2, "a class name is a non-empty word");
@@ -272,7 +300,7 @@ static int
 l_widget_remove_style_class (lua_State *L)
 {
   ClutterActor *actor = shell_lua_api_ui_check_widget (L, 1);
-  const char *name = luaL_checkstring (L, 2);
+  const char *name = (luaL_checktype (L, 2, LUA_TSTRING), lua_tostring (L, 2));
   g_autofree char *own = shell_lua_api_ui_extension_class (L);
 
   /* The shell's own class stays. */
@@ -285,7 +313,7 @@ static int
 l_widget_has_style_class (lua_State *L)
 {
   ClutterActor *actor = shell_lua_api_ui_check_widget (L, 1);
-  const char *name = luaL_checkstring (L, 2);
+  const char *name = (luaL_checktype (L, 2, LUA_TSTRING), lua_tostring (L, 2));
 
   lua_pushboolean (L, st_widget_has_style_class_name (ST_WIDGET (actor), name));
   return 1;
@@ -670,7 +698,7 @@ box_add (lua_State    *L,
 
   if (index_idx != 0 && !lua_isnoneornil (L, index_idx))
     {
-      index = luaL_checkinteger (L, index_idx);
+      index = check_integer_arg (L, index_idx, "index");
       if (index < 1)
         luaL_error (L, "index must be at least 1");
       if (index > INT_MAX)
@@ -858,7 +886,7 @@ static int
 l_label_set_markup (lua_State *L)
 {
   StLabel *label = ST_LABEL (shell_lua_handle_check (L, 1, "shell.Label"));
-  const char *markup = luaL_checkstring (L, 2);
+  const char *markup = (luaL_checktype (L, 2, LUA_TSTRING), lua_tostring (L, 2));
   GError *error = NULL;
 
   if (!pango_parse_markup (markup, -1, 0, NULL, NULL, NULL, &error))
@@ -1054,7 +1082,7 @@ icon_set_size (lua_State *L,
 
   if (!lua_isnil (L, idx))
     {
-      size = luaL_checkinteger (L, idx);
+      size = check_integer_arg (L, idx, "icon_size");
       if (size < 1 || size > 1024)
         luaL_error (L, "icon_size must be between 1 and 1024");
     }
@@ -1255,7 +1283,7 @@ slider_set_value (lua_State *L,
                   GObject   *object,
                   int        idx)
 {
-  lua_Number value = luaL_checknumber (L, idx);
+  lua_Number value = check_number_arg (L, idx, "value");
 
   if (!(value >= 0.0 && value <= 1.0))
     luaL_error (L, "value must be between 0.0 and 1.0");
@@ -1292,7 +1320,7 @@ spacer_set_dimension (lua_State  *L,
                       const char *quark,
                       gboolean    is_width)
 {
-  lua_Integer value = luaL_checkinteger (L, idx);
+  lua_Integer value = check_integer_arg (L, idx, is_width ? "width" : "height");
 
   if (value < -1 || value > 100000)
     luaL_error (L, "%s must be -1 (natural) or between 0 and 100000", is_width ? "width" : "height");
@@ -1489,7 +1517,13 @@ new_actor (lua_State        *L,
   if (kind == &kind_box)
     return g_object_new (ST_TYPE_BOX_LAYOUT, NULL);
   if (kind == &kind_label)
-    return g_object_new (ST_TYPE_LABEL, NULL);
+    {
+      /* St.Label ellipsizes at the end by default; ui.md says "none". */
+      ClutterActor *label = g_object_new (ST_TYPE_LABEL, NULL);
+
+      clutter_text_set_ellipsize (st_label_get_clutter_text (ST_LABEL (label)), PANGO_ELLIPSIZE_NONE);
+      return label;
+    }
   if (kind == &kind_icon)
     return g_object_new (ST_TYPE_ICON, NULL);
   if (kind == &kind_button)
@@ -1629,6 +1663,9 @@ widget_new (lua_State        *L,
   shell_lua_check_owned_capacity (L);
 
   actor = new_actor (L, kind, 1);
+  /* An unparented Clutter actor starts hidden; ui.md: `visible` defaults to
+   * true (a widget still appears only once it is placed). */
+  clutter_actor_show (actor);
   object = G_OBJECT (actor);
   set_kind (object, kind->type_name);
   shell_lua_own_object (L, object, &actor_ops);
