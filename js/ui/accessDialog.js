@@ -6,7 +6,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as ModalDialog from './modalDialog.js';
 
 import {DBusSenderChecker} from '../misc/util.js';
 import {loadInterfaceXML} from '../misc/fileUtils.js';
@@ -27,9 +26,9 @@ const ALLOWED_SENDERS = [
 ];
 
 const AccessDialog = GObject.registerClass(
-class AccessDialog extends ModalDialog.ModalDialog {
+class AccessDialog extends Shell.ModalDialog {
     _init(invocation, handle, title, description, body, options) {
-        super._init({styleClass: 'access-dialog'});
+        super._init({dialog_style_class: 'access-dialog'});
 
         this._invocation = invocation;
         this._handle = handle;
@@ -51,7 +50,7 @@ class AccessDialog extends ModalDialog.ModalDialog {
         const choices = options['choices'] || [];
 
         const content = new Shell.MessageDialogContent({title, description});
-        this.contentLayout.add_child(content);
+        this.content_layout.add_child(content);
 
         this._choices = new Map();
 
@@ -78,19 +77,14 @@ class AccessDialog extends ModalDialog.ModalDialog {
             content.add_child(bodyLabel);
         }
 
-        this.addButton({
-            label: denyLabel,
-            action: () => this._sendResponse(DialogResponse.CANCEL),
-            key: Clutter.KEY_Escape,
-        });
-        this.addButton({
-            label: grantLabel,
-            action: () => this._sendResponse(DialogResponse.OK),
-        });
+        this.add_button(denyLabel, Clutter.KEY_Escape, false,
+            () => this._sendResponse(DialogResponse.CANCEL));
+        this.add_button(grantLabel, 0, false,
+            () => this._sendResponse(DialogResponse.OK));
     }
 
-    open() {
-        if (!super.open())
+    vfunc_open() {
+        if (!super.vfunc_open())
             return false;
 
         const connection = this._invocation.get_connection();

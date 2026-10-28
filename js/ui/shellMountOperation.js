@@ -7,7 +7,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as MessageTray from './messageTray.js';
-import * as ModalDialog from './modalDialog.js';
 import * as Params from '../misc/params.js';
 import * as ShellEntry from './shellEntry.js';
 
@@ -22,7 +21,18 @@ const REMEMBER_MOUNT_PASSWORD_KEY = 'remember-mount-password';
 /* ------ Common Utils ------- */
 
 /**
- * @param {ModalDialog.ModalDialog} dialog
+ * @param {Shell.ModalDialog} dialog
+ * @param {object[]} buttons - the buttons as {label, action, key, default}
+ **/
+function _setButtons(dialog, buttons) {
+    dialog.clear_buttons();
+
+    for (const {label, action, key, default: isDefault} of buttons)
+        dialog.add_button(label, key ?? 0, !!isDefault, action);
+}
+
+/**
+ * @param {Shell.ModalDialog} dialog
  * @param {string[]} oldChoices
  * @param {string[]} choices
  **/
@@ -42,7 +52,7 @@ function _setButtonsForChoices(dialog, oldChoices, choices) {
     }
 
     if (buttonsChanged)
-        dialog.setButtons(buttons);
+        _setButtons(dialog, buttons);
 }
 
 /**
@@ -225,7 +235,7 @@ export class ShellMountOperation {
     }
 }
 
-class ShellMountQuestionDialog extends ModalDialog.ModalDialog {
+class ShellMountQuestionDialog extends Shell.ModalDialog {
     static [GObject.signals] = {
         'response': {param_types: [GObject.TYPE_INT]},
     };
@@ -245,12 +255,12 @@ class ShellMountQuestionDialog extends ModalDialog.ModalDialog {
     }
 
     _init() {
-        super._init({styleClass: 'mount-question-dialog'});
+        super._init({dialog_style_class: 'mount-question-dialog'});
 
         this._oldChoices = [];
 
         this._content = new Shell.MessageDialogContent();
-        this.contentLayout.add_child(this._content);
+        this.content_layout.add_child(this._content);
     }
 
     update(message, choices) {
@@ -273,12 +283,12 @@ const ShellMountPasswordDialog = GObject.registerClass({
             ],
         },
     },
-}, class ShellMountPasswordDialog extends ModalDialog.ModalDialog {
+}, class ShellMountPasswordDialog extends Shell.ModalDialog {
     _init(message, flags) {
         const strings = message.split('\n');
         const title = strings.shift() || null;
         const description = strings.shift() || null;
-        super._init({styleClass: 'prompt-dialog'});
+        super._init({dialog_style_class: 'prompt-dialog'});
 
         const disksApp = Shell.AppSystem.get_default().lookup_app('org.gnome.DiskUtility.desktop');
 
@@ -346,7 +356,7 @@ const ShellMountPasswordDialog = GObject.registerClass({
             x_expand: true,
         });
         this._passwordEntry.clutter_text.connect('activate', this._onEntryActivate.bind(this));
-        this.setInitialKeyFocus(this._passwordEntry);
+        this.set_initial_key_focus(this._passwordEntry);
         ShellEntry.addContextMenu(this._passwordEntry);
 
         this._workSpinner = new Shell.Spinner({
@@ -389,7 +399,7 @@ const ShellMountPasswordDialog = GObject.registerClass({
             this._rememberChoice = null;
         }
 
-        this.contentLayout.add_child(content);
+        this.content_layout.add_child(content);
 
         this._defaultButtons = [{
             label: _('Cancel'),
@@ -419,7 +429,7 @@ const ShellMountPasswordDialog = GObject.registerClass({
             });
         }
 
-        this.setButtons(this._defaultButtons);
+        _setButtons(this, this._defaultButtons);
     }
 
     reaskPassword() {
@@ -478,11 +488,12 @@ const ShellMountPasswordDialog = GObject.registerClass({
         this._rememberChoice.reactive = !useKeyfiles;
         this._rememberChoice.can_focus = !useKeyfiles;
         this._keyfilesLabel.visible = useKeyfiles;
-        this.setButtons(useKeyfiles ? this._usesKeyfilesButtons : this._defaultButtons);
+        _setButtons(this,
+            useKeyfiles ? this._usesKeyfilesButtons : this._defaultButtons);
     }
 });
 
-class ShellProcessesDialog extends ModalDialog.ModalDialog {
+class ShellProcessesDialog extends Shell.ModalDialog {
     static [GObject.signals] = {
         'response': {param_types: [GObject.TYPE_INT]},
     };
@@ -502,16 +513,16 @@ class ShellProcessesDialog extends ModalDialog.ModalDialog {
     }
 
     _init() {
-        super._init({styleClass: 'processes-dialog'});
+        super._init({dialog_style_class: 'processes-dialog'});
 
         this._oldChoices = [];
 
         this._content = new Shell.MessageDialogContent();
-        this.contentLayout.add_child(this._content);
+        this.content_layout.add_child(this._content);
 
         this._applicationSection = new Shell.ListSection();
         this._applicationSection.hide();
-        this.contentLayout.add_child(this._applicationSection);
+        this.content_layout.add_child(this._applicationSection);
     }
 
     _setAppsForPids(pids) {

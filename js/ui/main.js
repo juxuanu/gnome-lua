@@ -238,8 +238,27 @@ async function _initializeUI() {
 
     // Setup the stage hierarchy early
     layoutManager = new Layout.LayoutManager();
-    layoutManager.connect('system-modal-opened',
-        () => _shellMain.system_modal_opened());
+    // The signal is emitted from JS (screenshot) and from C (modal dialogs):
+    // forward it both ways, once
+    let forwardingSystemModalOpened = false;
+    layoutManager.connect('system-modal-opened', () => {
+        if (forwardingSystemModalOpened)
+            return;
+        forwardingSystemModalOpened = true;
+        _shellMain.system_modal_opened();
+        forwardingSystemModalOpened = false;
+    });
+    _shellMain.connect('system-modal-opened', () => {
+        if (forwardingSystemModalOpened)
+            return;
+        forwardingSystemModalOpened = true;
+        layoutManager.emit('system-modal-opened');
+        forwardingSystemModalOpened = false;
+    });
+
+    // The modal dialogs live in C: they are added to the layout manager's
+    // modal dialog group
+    Shell.ModalDialog.set_default_container(layoutManager.modalDialogGroup);
 
     // Various parts of the codebase still refer to Main.uiGroup
     // instead of using the layoutManager. This keeps that code

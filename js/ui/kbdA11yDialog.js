@@ -4,7 +4,6 @@ import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 
-import * as ModalDialog from './modalDialog.js';
 
 const KEYBOARD_A11Y_SCHEMA    = 'org.gnome.desktop.a11y.keyboard';
 const KEY_STICKY_KEYS_ENABLED = 'stickykeys-enable';
@@ -23,7 +22,7 @@ class KbdA11yDialog extends GObject.Object {
     }
 
     _showKbdA11yDialog(seat, newFlags, whatChanged) {
-        const dialog = new ModalDialog.ModalDialog();
+        const dialog = new Shell.ModalDialog();
         let title, description;
         let key, enabled;
 
@@ -51,27 +50,25 @@ class KbdA11yDialog extends GObject.Object {
         }
 
         const content = new Shell.MessageDialogContent({title, description});
-        dialog.contentLayout.add_child(content);
+        dialog.content_layout.add_child(content);
 
-        dialog.addButton({
-            label: enabled ? _('Leave On') : _('Turn On'),
-            action: () => {
+        dialog.add_button(
+            enabled ? _('Leave On') : _('Turn On'),
+            !enabled ? Clutter.KEY_Escape : 0,
+            enabled,
+            () => {
                 this._a11ySettings.set_boolean(key, true);
                 dialog.close();
-            },
-            default: enabled,
-            key: !enabled ? Clutter.KEY_Escape : null,
-        });
+            });
 
-        dialog.addButton({
-            label: enabled ? _('Turn Off') : _('Leave Off'),
-            action: () => {
+        dialog.add_button(
+            enabled ? _('Turn Off') : _('Leave Off'),
+            enabled ? Clutter.KEY_Escape : 0,
+            !enabled,
+            () => {
                 this._a11ySettings.set_boolean(key, false);
                 dialog.close();
-            },
-            default: !enabled,
-            key: enabled ? Clutter.KEY_Escape : null,
-        });
+            });
 
         dialog.open();
     }

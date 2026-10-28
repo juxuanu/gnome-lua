@@ -11,7 +11,6 @@ import St from 'gi://St';
 import * as AltTab from './altTab.js';
 import * as AppFavorites from './appFavorites.js';
 import * as InhibitShortcutsDialog from './inhibitShortcutsDialog.js';
-import * as ModalDialog from './modalDialog.js';
 import * as WindowMenu from './windowMenu.js';
 import * as PadOsd from './padOsd.js';
 import * as CloseDialog from './closeDialog.js';
@@ -44,7 +43,7 @@ Gio._promisify(Shell, 'util_start_systemd_unit');
 Gio._promisify(Shell, 'util_stop_systemd_unit');
 
 const DisplayChangeDialog = GObject.registerClass(
-class DisplayChangeDialog extends ModalDialog.ModalDialog {
+class DisplayChangeDialog extends Shell.ModalDialog {
     _init(wm) {
         super._init();
 
@@ -58,33 +57,27 @@ class DisplayChangeDialog extends ModalDialog.ModalDialog {
         const description = this._formatCountDown();
 
         this._content = new Shell.MessageDialogContent({title, description});
-        this.contentLayout.add_child(this._content);
+        this.content_layout.add_child(this._content);
 
         /* Translators: this and the following message should be limited in length,
            to avoid ellipsizing the labels.
         */
-        this._cancelButton = this.addButton({
-            label: _('Revert Settings'),
-            action: this._onFailure.bind(this),
-            key: Clutter.KEY_Escape,
-        });
-        this._okButton = this.addButton({
-            label: _('Keep Changes'),
-            action: this._onSuccess.bind(this),
-            default: true,
-        });
+        this._cancelButton = this.add_button(_('Revert Settings'),
+            Clutter.KEY_Escape, false, this._onFailure.bind(this));
+        this._okButton = this.add_button(_('Keep Changes'), 0, true,
+            this._onSuccess.bind(this));
 
         this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ONE_SECOND, this._tick.bind(this));
         GLib.Source.set_name_by_id(this._timeoutId, '[gnome-shell] this._tick');
     }
 
-    close(timestamp) {
+    vfunc_close() {
         if (this._timeoutId > 0) {
             GLib.source_remove(this._timeoutId);
             this._timeoutId = 0;
         }
 
-        super.close(timestamp);
+        super.vfunc_close();
     }
 
     _formatCountDown() {

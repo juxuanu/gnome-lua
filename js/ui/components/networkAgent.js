@@ -11,7 +11,6 @@ import * as Signals from '../../misc/signals.js';
 
 import * as Main from '../main.js';
 import * as MessageTray from '../messageTray.js';
-import * as ModalDialog from '../modalDialog.js';
 import * as ShellEntry from '../shellEntry.js';
 
 Gio._promisify(Shell.NetworkAgent.prototype, 'init_async');
@@ -20,9 +19,9 @@ Gio._promisify(Shell.NetworkAgent.prototype, 'search_vpn_plugin');
 const VPN_UI_GROUP = 'VPN Plugin UI';
 
 const NetworkSecretDialog = GObject.registerClass(
-class NetworkSecretDialog extends ModalDialog.ModalDialog {
+class NetworkSecretDialog extends Shell.ModalDialog {
     _init(agent, requestId, connection, settingName, hints, flags, contentOverride) {
-        super._init({styleClass: 'prompt-dialog'});
+        super._init({dialog_style_class: 'prompt-dialog'});
 
         this._agent = agent;
         this._requestId = requestId;
@@ -67,7 +66,7 @@ class NetworkSecretDialog extends ModalDialog.ModalDialog {
 
             if (reactive) {
                 if (!initialFocusSet) {
-                    this.setInitialKeyFocus(secret.entry);
+                    this.set_initial_key_focus(secret.entry);
                     initialFocusSet = true;
                 }
 
@@ -101,19 +100,12 @@ class NetworkSecretDialog extends ModalDialog.ModalDialog {
             contentBox.add_child(descriptionLabel);
         }
 
-        this.contentLayout.add_child(contentBox);
+        this.content_layout.add_child(contentBox);
 
-        this._okButton = {
-            label: _('Connect'),
-            action: this._onOk.bind(this),
-            default: true,
-        };
-
-        this.setButtons([{
-            label: _('Cancel'),
-            action: this.cancel.bind(this),
-            key: Clutter.KEY_Escape,
-        }, this._okButton]);
+        this.add_button(_('Cancel'), Clutter.KEY_Escape, false,
+            this.cancel.bind(this));
+        this._okButton = this.add_button(_('Connect'), 0, true,
+            this._onOk.bind(this));
 
         this._updateOkButton();
     }
@@ -125,8 +117,8 @@ class NetworkSecretDialog extends ModalDialog.ModalDialog {
             valid &&= secret.valid;
         }
 
-        this._okButton.button.reactive = valid;
-        this._okButton.button.can_focus = valid;
+        this._okButton.reactive = valid;
+        this._okButton.can_focus = valid;
     }
 
     _onOk() {

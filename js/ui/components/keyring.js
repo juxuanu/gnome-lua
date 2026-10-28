@@ -6,14 +6,13 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as ModalDialog from '../modalDialog.js';
 import * as ShellEntry from '../shellEntry.js';
 import {wiggle} from '../../misc/animationUtils.js';
 
 const KeyringDialog = GObject.registerClass(
-class KeyringDialog extends ModalDialog.ModalDialog {
+class KeyringDialog extends Shell.ModalDialog {
     _init() {
-        super._init({styleClass: 'prompt-dialog'});
+        super._init({dialog_style_class: 'prompt-dialog'});
 
         this.prompt = new Shell.KeyringPrompt();
         this.prompt.connect('show-password', this._onShowPassword.bind(this));
@@ -94,18 +93,12 @@ class KeyringDialog extends ModalDialog.ModalDialog {
             'visible', GObject.BindingFlags.SYNC_CREATE);
         content.add_child(this._choice);
 
-        this.contentLayout.add_child(content);
+        this.content_layout.add_child(content);
 
-        this._cancelButton = this.addButton({
-            label: '',
-            action: this._onCancelButton.bind(this),
-            key: Clutter.KEY_Escape,
-        });
-        this._continueButton = this.addButton({
-            label: '',
-            action: this._onContinueButton.bind(this),
-            default: true,
-        });
+        this._cancelButton = this.add_button('', Clutter.KEY_Escape, false,
+            this._onCancelButton.bind(this));
+        this._continueButton = this.add_button('', 0, true,
+            this._onContinueButton.bind(this));
 
         this.prompt.bind_property('cancel-label', this._cancelButton, 'label', GObject.BindingFlags.SYNC_CREATE);
         this.prompt.bind_property('continue-label', this._continueButton, 'label', GObject.BindingFlags.SYNC_CREATE);

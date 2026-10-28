@@ -22,7 +22,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {ModalDialog} from '../ui/modalDialog.js';
 
 const SPINNER_SIZE = 32;
 const DIM_BRIGHTNESS = 0.7;
@@ -30,7 +29,7 @@ const DIM_BRIGHTNESS_NAME = 'conflicting-session-dialog-dim';
 const SPINNER_DELAY = 3000;
 const SPINNER_ANIMATION_TIME = 200;
 
-export class ConflictingSessionDialog extends ModalDialog {
+export class ConflictingSessionDialog extends Shell.ModalDialog {
     static [GObject.signals] = {
         'cancel': {},
         'force-stop': {},
@@ -86,23 +85,17 @@ export class ConflictingSessionDialog extends ModalDialog {
         textLayout.add_child(title);
         textLayout.add_child(banner);
         textLayout.add_child(warningBanner);
-        this.contentLayout.add_child(textLayout);
+        this.content_layout.add_child(textLayout);
 
         this._createSpinner();
 
-        this._cancelButton = this.addButton({
-            label: _('Cancel'),
-            action: () => this.emit('cancel'),
-            key: Clutter.KEY_Escape,
-            default: true,
-        });
+        this._cancelButton = this.add_button(
+            _('Cancel'), Clutter.KEY_Escape, true,
+            () => this.emit('cancel'));
 
-        this._forceStopButton = this.addButton({
-            label: _('Force Stop'),
-            action: () => {
-                this._startSpinning();
-                this.emit('force-stop');
-            },
+        this._forceStopButton = this.add_button(_('Force Stop'), 0, false, () => {
+            this._startSpinning();
+            this.emit('force-stop');
         });
     }
 
@@ -111,23 +104,23 @@ export class ConflictingSessionDialog extends ModalDialog {
             name: DIM_BRIGHTNESS_NAME,
             enabled: false,
         });
-        this.dialogLayout.add_effect(this._dimEffect);
+        this.dialog_layout.add_effect(this._dimEffect);
 
         this._spinner = new Shell.Spinner({spinner_size: SPINNER_SIZE, hide_on_stop: true});
         this._spinner.add_constraint(new Clutter.BindConstraint({
-            source: this.dialogLayout,
+            source: this.dialog_layout,
             coordinate: Clutter.BindCoordinate.POSITION,
         }));
         this._spinner.add_constraint(new Clutter.AlignConstraint({
-            source: this.dialogLayout,
+            source: this.dialog_layout,
             align_axis: Clutter.AlignAxis.BOTH,
             factor: 0.5,
         }));
-        this.backgroundStack.add_child(this._spinner);
+        this.background_stack.add_child(this._spinner);
     }
 
     _startSpinning() {
-        this.popModal();
+        this.pop_modal();
 
         this._cancelButton.reactive = false;
         this._cancelButton.can_focus = false;

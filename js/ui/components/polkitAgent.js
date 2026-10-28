@@ -9,7 +9,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from '../main.js';
-import * as ModalDialog from '../modalDialog.js';
 import * as ShellEntry from '../shellEntry.js';
 import * as UserWidget from '../userWidget.js';
 import {wiggle} from '../../misc/animationUtils.js';
@@ -26,9 +25,9 @@ const DELAYED_RESET_TIMEOUT = 200;
 
 const AuthenticationDialog = GObject.registerClass({
     Signals: {'done': {param_types: [GObject.TYPE_BOOLEAN]}},
-}, class AuthenticationDialog extends ModalDialog.ModalDialog {
+}, class AuthenticationDialog extends Shell.ModalDialog {
     _init(actionId, description, cookie, userNames) {
-        super._init({styleClass: 'prompt-dialog'});
+        super._init({dialog_style_class: 'prompt-dialog'});
 
         this.actionId = actionId;
         this.message = description;
@@ -43,7 +42,7 @@ const AuthenticationDialog = GObject.registerClass({
         const title = _('Authentication Required');
 
         const headerContent = new Shell.MessageDialogContent({title, description});
-        this.contentLayout.add_child(headerContent);
+        this.content_layout.add_child(headerContent);
 
         const bodyContent = new Shell.MessageDialogContent();
 
@@ -139,16 +138,10 @@ const AuthenticationDialog = GObject.registerClass({
         passwordBox.add_child(warningBox);
         bodyContent.add_child(passwordBox);
 
-        this._cancelButton = this.addButton({
-            label: _('Cancel'),
-            action: this.cancel.bind(this),
-            key: Clutter.KEY_Escape,
-        });
-        this._okButton = this.addButton({
-            label: _('Authenticate'),
-            action: this._onAuthenticateButtonPressed.bind(this),
-            reactive: false,
-        });
+        this._cancelButton = this.add_button(_('Cancel'), Clutter.KEY_Escape,
+            false, this.cancel.bind(this));
+        this._okButton = this.add_button(_('Authenticate'), 0, false,
+            this._onAuthenticateButtonPressed.bind(this));
         this._okButton.bind_property('reactive',
             this._okButton, 'can-focus',
             GObject.BindingFlags.SYNC_CREATE);
@@ -157,7 +150,7 @@ const AuthenticationDialog = GObject.registerClass({
             this._okButton.reactive = text.get_text().length > 0;
         });
 
-        this.contentLayout.add_child(bodyContent);
+        this.content_layout.add_child(bodyContent);
 
         this._doneEmitted = false;
 
@@ -332,7 +325,7 @@ const AuthenticationDialog = GObject.registerClass({
         const resetDialog = () => {
             this._sessionRequestTimeoutId = 0;
 
-            if (this.state !== ModalDialog.State.OPENED)
+            if (this.state !== Shell.ModalDialogState.OPENED)
                 return;
 
             this._passwordEntry.hide();
@@ -383,11 +376,11 @@ const AuthenticationDialog = GObject.registerClass({
         }
     }
 
-    close(timestamp) {
+    vfunc_close() {
         // Ensure cleanup if the dialog was never shown
-        if (this.state === ModalDialog.State.CLOSED)
+        if (this.state === Shell.ModalDialogState.CLOSED)
             this._onDialogClosed();
-        super.close(timestamp);
+        super.vfunc_close();
     }
 
     cancel() {

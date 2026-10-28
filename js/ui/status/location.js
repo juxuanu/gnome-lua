@@ -5,7 +5,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as ModalDialog from '../modalDialog.js';
 import {SystemIndicator} from '../quickSettings.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
@@ -325,9 +324,9 @@ class AppAuthorizer {
 
 export const GeolocationDialog = GObject.registerClass({
     Signals: {'response': {param_types: [GObject.TYPE_UINT]}},
-}, class GeolocationDialog extends ModalDialog.ModalDialog {
+}, class GeolocationDialog extends Shell.ModalDialog {
     _init(name, reason, reqAccuracyLevel) {
-        super._init({styleClass: 'geolocation-dialog'});
+        super._init({dialog_style_class: 'geolocation-dialog'});
         this.reqAccuracyLevel = reqAccuracyLevel;
 
         const content = new Shell.MessageDialogContent({
@@ -348,19 +347,14 @@ export const GeolocationDialog = GObject.registerClass({
         });
         content.add_child(infoLabel);
 
-        this.contentLayout.add_child(content);
+        this.content_layout.add_child(content);
 
-        const button = this.addButton({
-            label: _('Deny Access'),
-            action: this._onDenyClicked.bind(this),
-            key: Clutter.KEY_Escape,
-        });
-        this.addButton({
-            label: _('Grant Access'),
-            action: this._onGrantClicked.bind(this),
-        });
+        const button = this.add_button(_('Deny Access'), Clutter.KEY_Escape,
+            false, this._onDenyClicked.bind(this));
+        this.add_button(_('Grant Access'), 0, false,
+            this._onGrantClicked.bind(this));
 
-        this.setInitialKeyFocus(button);
+        this.set_initial_key_focus(button);
     }
 
     _onGrantClicked() {

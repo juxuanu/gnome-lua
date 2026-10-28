@@ -26,7 +26,6 @@ import St from 'gi://St';
 import UPower from 'gi://UPowerGlib';
 
 import * as Main from './main.js';
-import * as ModalDialog from './modalDialog.js';
 import * as UserWidget from './userWidget.js';
 
 import {ModalDialogErrors, ModalDialogError} from '../misc/dbusErrors.js';
@@ -199,11 +198,11 @@ function _setCheckBoxLabel(checkBox, text) {
 }
 
 export const EndSessionDialog = GObject.registerClass(
-class EndSessionDialog extends ModalDialog.ModalDialog {
+class EndSessionDialog extends Shell.ModalDialog {
     _init() {
         super._init({
-            styleClass: 'end-session-dialog',
-            destroyOnClose: false,
+            dialog_style_class: 'end-session-dialog',
+            destroy_on_close: false,
         });
 
         this._loginManager = Shell.LoginManager.get_default();
@@ -259,17 +258,17 @@ class EndSessionDialog extends ModalDialog.ModalDialog {
         this._batteryWarning.clutter_text.line_wrap = true;
         this._messageDialogContent.add_child(this._batteryWarning);
 
-        this.contentLayout.add_child(this._messageDialogContent);
+        this.content_layout.add_child(this._messageDialogContent);
 
         this._applicationSection = new Shell.ListSection({
             title: _('Some applications are busy or have unsaved work'),
         });
-        this.contentLayout.add_child(this._applicationSection);
+        this.content_layout.add_child(this._applicationSection);
 
         this._sessionSection = new Shell.ListSection({
             title: _('Other users are logged in'),
         });
-        this.contentLayout.add_child(this._sessionSection);
+        this.content_layout.add_child(this._sessionSection);
 
         this._dbusImpl = Gio.DBusExportedObject.wrapJSObject(EndSessionDialogIface, this);
         this._dbusImpl.export(Gio.DBus.session, '/org/gnome/SessionManager/EndSessionDialog');
@@ -337,7 +336,7 @@ class EndSessionDialog extends ModalDialog.ModalDialog {
     }
 
     _sync() {
-        const open = this.state === ModalDialog.State.OPENING || this.state === ModalDialog.State.OPENED;
+        const open = this.state === Shell.ModalDialogState.OPENING || this.state === Shell.ModalDialogState.OPENED;
         if (!open)
             return;
 
@@ -393,42 +392,34 @@ class EndSessionDialog extends ModalDialog.ModalDialog {
     }
 
     _updateButtons() {
-        this.clearButtons();
+        this.clear_buttons();
 
-        this.addButton({
-            action: this.cancel.bind(this),
-            label: _('Cancel'),
-            key: Clutter.KEY_Escape,
-        });
+        this.add_button(_('Cancel'), Clutter.KEY_Escape, false,
+            this.cancel.bind(this));
 
         const dialogContent = DialogContent[this._type];
         for (let i = 0; i < dialogContent.confirmButtons.length; i++) {
             const signal = dialogContent.confirmButtons[i].signal;
             const label = dialogContent.confirmButtons[i].label;
-            const button = this.addButton({
-                action: () => {
-                    const signalId = this.connect('closed', () => {
-                        this.disconnect(signalId);
-                        this._confirm(signal).catch(logError);
-                    });
-                    this.close(true);
-                },
-                label,
+            const button = this.add_button(label, 0, false, () => {
+                const signalId = this.connect('closed', () => {
+                    this.disconnect(signalId);
+                    this._confirm(signal).catch(logError);
+                });
+                this._closeSilently();
             });
 
             // Add Alt "Boot Options" option to the Reboot button
             if (this._canRebootToBootLoaderMenu && signal === 'ConfirmedReboot') {
                 this._rebootButton = button;
-                this._rebootButtonAlt = this.addButton({
-                    action: () => {
-                        this.close(true);
+                this._rebootButtonAlt = this.add_button(
+                    C_('button', 'Boot Options'), 0, false, () => {
+                        this._closeSilently();
                         const signalId = this.connect('closed', () => {
                             this.disconnect(signalId);
                             this._confirmRebootToBootLoaderMenu();
                         });
-                    },
-                    label: C_('button', 'Boot Options'),
-                });
+                    });
                 this._rebootButtonAlt.visible = false;
                 this._altCapture.enabled = true;
             }
@@ -444,11 +435,21 @@ class EndSessionDialog extends ModalDialog.ModalDialog {
         this._rebootButtonAlt = null;
     }
 
-    close(skipSignal) {
-        super.close();
+    vfunc_close() {
+        const skipSignal = this._skipClosedSignal;
+        this._skipClosedSignal = false;
+
+        super.vfunc_close();
 
         if (!skipSignal)
             this._dbusImpl.emit_signal('Closed', null);
+    }
+
+    // Close the dialog without telling the caller of the D-Bus API, as the
+    // dialog is dismissed by its answer
+    _closeSilently() {
+        this._skipClosedSignal = true;
+        this.close();
     }
 
     cancel() {
@@ -493,7 +494,7 @@ class EndSessionDialog extends ModalDialog.ModalDialog {
             await this._setPostUpdateAction(OFFLINE_UPDATE_ACTION_REBOOT);
         }
 
-        this._fadeOutDialog();
+        this.fade_out_dialog();
         this._stopTimer();
         this._stopAltCapture();
         this._dbusImpl.emit_signal(signal, null);

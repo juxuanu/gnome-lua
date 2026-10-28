@@ -10,7 +10,6 @@ import * as Config from '../misc/config.js';
 import * as ExtensionUtils from '../misc/extensionUtils.js';
 import * as FileUtils from '../misc/fileUtils.js';
 import * as Main from './main.js';
-import * as ModalDialog from './modalDialog.js';
 
 import {ExtensionErrors, ExtensionError} from '../misc/dbusErrors.js';
 
@@ -296,30 +295,25 @@ class EnableError extends Error {
 }
 
 const InstallExtensionDialog = GObject.registerClass(
-class InstallExtensionDialog extends ModalDialog.ModalDialog {
+class InstallExtensionDialog extends Shell.ModalDialog {
     _init(uuid, info, invocation) {
-        super._init({styleClass: 'extension-dialog'});
+        super._init({dialog_style_class: 'extension-dialog'});
 
         this._uuid = uuid;
         this._info = info;
         this._invocation = invocation;
 
-        this.setButtons([{
-            label: _('Cancel'),
-            action: this._onCancelButtonPressed.bind(this),
-            key: Clutter.KEY_Escape,
-        }, {
-            label: _('Install'),
-            action: this._onInstallButtonPressed.bind(this),
-            default: true,
-        }]);
+        this.add_button(_('Cancel'), Clutter.KEY_Escape, false,
+            this._onCancelButtonPressed.bind(this));
+        this.add_button(_('Install'), 0, true,
+            this._onInstallButtonPressed.bind(this));
 
         const content = new Shell.MessageDialogContent({
             title: _('Install Extension'),
             description: _('Download and install “%s” from extensions.gnome.org?').format(info.name),
         });
 
-        this.contentLayout.add_child(content);
+        this.content_layout.add_child(content);
     }
 
     _onCancelButtonPressed() {

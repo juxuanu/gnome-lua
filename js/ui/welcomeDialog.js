@@ -6,7 +6,6 @@ import St from 'gi://St';
 
 import * as Config from '../misc/config.js';
 import * as Main from './main.js';
-import * as ModalDialog from './modalDialog.js';
 
 /** @enum {number} */
 const DialogResponse = {
@@ -15,9 +14,9 @@ const DialogResponse = {
 };
 
 export const WelcomeDialog = GObject.registerClass(
-class WelcomeDialog extends ModalDialog.ModalDialog {
+class WelcomeDialog extends Shell.ModalDialog {
     _init() {
-        super._init({styleClass: 'welcome-dialog'});
+        super._init({dialog_style_class: 'welcome-dialog'});
 
         const appSystem = Shell.AppSystem.get_default();
         this._tourAppInfo = appSystem.lookup_app('org.gnome.Tour.desktop');
@@ -25,11 +24,11 @@ class WelcomeDialog extends ModalDialog.ModalDialog {
         this._buildLayout();
     }
 
-    open() {
+    vfunc_open() {
         if (!this._tourAppInfo)
             return false;
 
-        return super.open();
+        return super.vfunc_open();
     }
 
     _getOSName() {
@@ -54,17 +53,12 @@ class WelcomeDialog extends ModalDialog.ModalDialog {
         const icon = new St.Widget({style_class: 'welcome-dialog-image'});
         content.insert_child_at_index(icon, 0);
 
-        this.contentLayout.add_child(content);
+        this.content_layout.add_child(content);
 
-        this.addButton({
-            label: _('Skip'),
-            action: () => this._sendResponse(DialogResponse.SKIP),
-            key: Clutter.KEY_Escape,
-        });
-        this.addButton({
-            label: _('Take Tour'),
-            action: () => this._sendResponse(DialogResponse.TAKE_TOUR),
-        });
+        this.add_button(_('Skip'), Clutter.KEY_Escape, false,
+            () => this._sendResponse(DialogResponse.SKIP));
+        this.add_button(_('Take Tour'), 0, false,
+            () => this._sendResponse(DialogResponse.TAKE_TOUR));
     }
 
     _sendResponse(response) {

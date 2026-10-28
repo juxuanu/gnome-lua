@@ -5,7 +5,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as ModalDialog from './modalDialog.js';
 
 const APP_ALLOWLIST = ['org.gnome.Settings.desktop'];
 const APP_PERMISSIONS_TABLE = 'gnome';
@@ -25,7 +24,7 @@ export const InhibitShortcutsDialog = GObject.registerClass({
         super._init();
         this._window = window;
 
-        this._dialog = new ModalDialog.ModalDialog();
+        this._dialog = new Shell.ModalDialog();
         this._buildLayout();
     }
 
@@ -85,24 +84,16 @@ export const InhibitShortcutsDialog = GObject.registerClass({
             content.add_child(restoreLabel);
         }
 
-        this._dialog.contentLayout.add_child(content);
+        this._dialog.content_layout.add_child(content);
 
-        this._dialog.addButton({
-            label: _('Deny'),
-            action: () => {
-                this._saveToPermissionStore(DENIED);
-                this._emitResponse(DialogResponse.DENY);
-            },
-            key: Clutter.KEY_Escape,
+        this._dialog.add_button(_('Deny'), Clutter.KEY_Escape, false, () => {
+            this._saveToPermissionStore(DENIED);
+            this._emitResponse(DialogResponse.DENY);
         });
 
-        this._dialog.addButton({
-            label: _('Allow'),
-            action: () => {
-                this._saveToPermissionStore(GRANTED);
-                this._emitResponse(DialogResponse.ALLOW);
-            },
-            default: true,
+        this._dialog.add_button(_('Allow'), 0, true, () => {
+            this._saveToPermissionStore(GRANTED);
+            this._emitResponse(DialogResponse.ALLOW);
         });
     }
 

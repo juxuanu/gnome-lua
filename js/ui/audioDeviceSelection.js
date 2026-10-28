@@ -6,7 +6,6 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as ModalDialog from './modalDialog.js';
 
 import * as Main from './main.js';
 import {emitSignalToDestination} from '../misc/dbusUtils.js';
@@ -22,9 +21,9 @@ const AudioDeviceSelectionIface = loadInterfaceXML('org.gnome.Shell.AudioDeviceS
 
 const AudioDeviceSelectionDialog = GObject.registerClass({
     Signals: {'device-selected': {param_types: [GObject.TYPE_UINT]}},
-}, class AudioDeviceSelectionDialog extends ModalDialog.ModalDialog {
+}, class AudioDeviceSelectionDialog extends Shell.ModalDialog {
     _init(devices) {
-        super._init({styleClass: 'audio-device-selection-dialog'});
+        super._init({dialog_style_class: 'audio-device-selection-dialog'});
 
         this._deviceItems = {};
 
@@ -53,19 +52,14 @@ const AudioDeviceSelectionDialog = GObject.registerClass({
         });
         content.add_child(this._selectionBox);
 
-        this.contentLayout.add_child(content);
+        this.content_layout.add_child(content);
 
-        this.addButton({
-            action: () => this.close(),
-            label: _('Cancel'),
-            key: Clutter.KEY_Escape,
-        });
+        this.add_button(_('Cancel'), Clutter.KEY_Escape, false,
+            () => this.close());
 
         if (Main.sessionMode.allow_settings) {
-            this.addButton({
-                action: this._openSettings.bind(this),
-                label: _('Sound Settings'),
-            });
+            this.add_button(_('Sound Settings'), 0, false,
+                this._openSettings.bind(this));
         }
     }
 

@@ -6,7 +6,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from './main.js';
-import * as ModalDialog from './modalDialog.js';
 import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as ShellEntry from './shellEntry.js';
 import * as Util from '../misc/util.js';
@@ -20,7 +19,7 @@ const TERMINAL_SCHEMA = 'org.gnome.desktop.default-applications.terminal';
 const EXEC_KEY = 'exec';
 const EXEC_ARG_KEY = 'exec-arg';
 
-export class RunDialog extends ModalDialog.ModalDialog {
+export class RunDialog extends Shell.ModalDialog {
     static {
         GObject.registerClass(this);
 
@@ -37,8 +36,8 @@ export class RunDialog extends ModalDialog.ModalDialog {
 
     _init() {
         super._init({
-            styleClass: 'run-dialog',
-            destroyOnClose: false,
+            dialog_style_class: 'run-dialog',
+            destroy_on_close: false,
         });
 
         this._parentalControlsManager = ParentalControlsManager.getDefault();
@@ -72,7 +71,7 @@ export class RunDialog extends ModalDialog.ModalDialog {
         const title = _('Run a Command');
 
         const content = new Shell.MessageDialogContent({title});
-        this.contentLayout.add_child(content);
+        this.content_layout.add_child(content);
         const [labelActor] = content;
 
         const entry = new St.Entry({
@@ -86,7 +85,7 @@ export class RunDialog extends ModalDialog.ModalDialog {
         this._entryText = entry.clutter_text;
         this._entryText.activatable = false;
         content.add_child(entry);
-        this.setInitialKeyFocus(this._entryText);
+        this.set_initial_key_focus(this._entryText);
 
         const defaultDescriptionText = _('Press ESC to close');
 
@@ -125,11 +124,11 @@ export class RunDialog extends ModalDialog.ModalDialog {
                 }
                 return Clutter.EVENT_STOP;
             } else if ([Clutter.KEY_Return, Clutter.KEY_KP_Enter, Clutter.KEY_ISO_Enter].includes(symbol)) {
-                this.popModal();
+                this.pop_modal();
                 this._run(this._entryText.get_text(),
                     state & Clutter.ModifierType.CONTROL_MASK);
                 if (!this._commandError ||
-                    !this.pushModal())
+                    !this.push_modal())
                     this.close();
                 return Clutter.EVENT_STOP;
             }
@@ -256,7 +255,7 @@ export class RunDialog extends ModalDialog.ModalDialog {
     }
 
 
-    open() {
+    vfunc_open() {
         this._history.last_item();
         this._entryText.set_text('');
         this._commandError = false;
@@ -264,6 +263,6 @@ export class RunDialog extends ModalDialog.ModalDialog {
         if (this._lockdownSettings.get_boolean(DISABLE_COMMAND_LINE_KEY))
             return false;
 
-        return super.open();
+        return super.vfunc_open();
     }
 }
