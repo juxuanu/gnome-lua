@@ -76,6 +76,7 @@ else
 endif
 
 atk_bridge_dep = dependency('atk-bridge-2.0')
+atspi_dep = dependency('atspi-2')
 cairo_dep = dependency('cairo')
 ecal_dep = dependency('libecal-2.0', version: ecal_req)
 eds_dep = dependency('libedataserver-1.2', version: eds_req)
@@ -355,8 +356,10 @@ if get_option('tests')
       'abort_on_error=1',
       'detect_leaks=0',
       'verify_asan_link_order=0',
-      # A fatal GLib critical aborts; print where it came from
+      # A fatal GLib warning breaks (SIGTRAP) or aborts; print where it
+      # came from in either case
       'handle_abort=1',
+      'handle_sigtrap=1',
     ]
     common_test_env.set('ASAN_OPTIONS', ':'.join(asan_options))
     common_test_env.set('LD_PRELOAD', mutter_pkglibdir / 'libasan-preloader.so')
