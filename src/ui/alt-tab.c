@@ -8,7 +8,7 @@
  *
  *  - `Main.activateWindow ()` is done here (switching to the workspace of the
  *    window and activating it). What it does on top of that, hiding the
- *    overview and closing the calendar, is up to the handler windowManager.js
+ *    overview and closing the calendar, is up to the handler window-manager.c
  *    connects to ::window-activated, as for #ShellCtrlAltTabManager.
  *  - The window cyclers (#ShellCyclerPopup) need two more things of
  *    `Main.wm`, which is still JS: ::skip-next-effect is emitted before a

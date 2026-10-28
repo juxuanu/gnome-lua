@@ -13,7 +13,6 @@ import * as Overview from './overview.js';
 import * as Search from './search.js';
 import * as SearchController from './searchController.js';
 import * as Util from '../misc/util.js';
-import * as WindowManager from './windowManager.js';
 import * as WorkspaceThumbnail from './workspaceThumbnail.js';
 import * as WorkspacesView from './workspacesView.js';
 
@@ -24,6 +23,7 @@ const THUMBNAILS_SPACING_ADJUSTMENT_TOP = 0.6;
 const THUMBNAILS_SPACING_ADJUSTMENT_BOTTOM = 0.4;
 
 const A11Y_SCHEMA = 'org.gnome.desktop.a11y.keyboard';
+const SHELL_KEYBINDINGS_SCHEMA = 'org.gnome.shell.keybindings';
 
 export const SIDE_CONTROLS_ANIMATION_TIME = 250;
 
@@ -440,21 +440,21 @@ class ControlsManager extends St.Widget {
                 Main.overview.toggle();
         }, this);
 
-        Main.wm.addKeybinding(
+        Main.wm.add_keybinding(
             'toggle-application-view',
-            new Gio.Settings({schema_id: WindowManager.SHELL_KEYBINDINGS_SCHEMA}),
+            new Gio.Settings({schema_id: SHELL_KEYBINDINGS_SCHEMA}),
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             this._toggleAppsPage.bind(this));
 
-        Main.wm.addKeybinding('shift-overview-up',
-            new Gio.Settings({schema_id: WindowManager.SHELL_KEYBINDINGS_SCHEMA}),
+        Main.wm.add_keybinding('shift-overview-up',
+            new Gio.Settings({schema_id: SHELL_KEYBINDINGS_SCHEMA}),
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             () => this._shiftState(Meta.MotionDirection.UP));
 
-        Main.wm.addKeybinding('shift-overview-down',
-            new Gio.Settings({schema_id: WindowManager.SHELL_KEYBINDINGS_SCHEMA}),
+        Main.wm.add_keybinding('shift-overview-down',
+            new Gio.Settings({schema_id: SHELL_KEYBINDINGS_SCHEMA}),
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             () => this._shiftState(Meta.MotionDirection.DOWN));

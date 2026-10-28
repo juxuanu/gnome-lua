@@ -4,7 +4,7 @@
  * displays, join them, use only the external or only the built-in displays.
  * Port of js/ui/switchMonitor.js.
  *
- * The list of the popup is private to switch-monitor.c. windowManager.js
+ * The list of the popup is private to switch-monitor.c. window-manager.c
  * creates the popup with `new Shell.SwitchMonitorPopup ()` and calls
  * shell_switcher_popup_show_switcher () on it.
  */

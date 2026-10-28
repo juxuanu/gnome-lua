@@ -38,9 +38,7 @@ js/ui/dateMenu.js
 js/ui/endSessionDialog.js
 js/ui/extensionDownloader.js
 js/ui/extensionSystem.js
-js/ui/inhibitShortcutsDialog.js
 js/ui/kbdA11yDialog.js
-js/ui/keyboard.js
 js/ui/lookingGlass.js
 js/ui/main.js
 js/ui/messageList.js
@@ -50,7 +48,6 @@ js/ui/notificationDaemon.js
 js/ui/osdWindow.js
 js/ui/overviewControls.js
 js/ui/overview.js
-js/ui/padOsd.js
 js/ui/panelItems.js
 js/ui/quickSettings.js
 js/ui/screenShield.js
@@ -80,7 +77,6 @@ js/ui/status/volume.js
 js/ui/unlockDialog.js
 js/ui/welcomeDialog.js
 js/ui/windowAttentionHandler.js
-js/ui/windowManager.js
 src/calendar-server/reminder-watcher.c
 src/main.c
 src/misc/brightness-manager.c
@@ -97,9 +93,13 @@ src/ui/app-menu.c
 src/ui/background-menu.c
 src/ui/close-dialog.c
 src/ui/ctrl-alt-tab.c
+src/ui/inhibit-shortcuts-dialog.c
+src/ui/keyboard.c
+src/ui/pad-osd.c
 src/ui/run-dialog.c
 src/ui/shell-entry.c
 src/ui/switch-monitor.c
+src/ui/window-manager.c
 src/ui/window-menu.c
 subprojects/extensions-tool/src/command-create.c
 subprojects/extensions-tool/src/command-disable.c

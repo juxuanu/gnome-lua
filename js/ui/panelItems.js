@@ -261,7 +261,7 @@ class ActivitiesButton extends Shell.PanelMenuButton {
     }
 
     vfunc_scroll_event(event) {
-        return Main.wm.handleWorkspaceScroll(event);
+        return Main.wm.handle_workspace_scroll(event);
     }
 
     _toggleAction() {

@@ -893,7 +893,7 @@ export const ThumbnailsBox = GObject.registerClass({
             [newWorkspaceIndex, this._dropPlaceholderPos] = [this._dropPlaceholderPos, -1];
             this._spliceIndex = newWorkspaceIndex;
 
-            Main.wm.insertWorkspace(newWorkspaceIndex);
+            Main.wm.insert_workspace(newWorkspaceIndex);
 
             if (isWindow) {
                 // Move the window to our monitor first if necessary.
@@ -920,7 +920,7 @@ export const ThumbnailsBox = GObject.registerClass({
                 // Here, we only add a very brief timeout to avoid the _immediate_ removal of the
                 // workspace while we wait for the startup sequence to load.
                 const workspaceManager = global.workspace_manager;
-                Main.wm.keepWorkspaceAlive(workspaceManager.get_workspace_by_index(newWorkspaceIndex),
+                Main.wm.keep_workspace_alive(workspaceManager.get_workspace_by_index(newWorkspaceIndex),
                     WORKSPACE_KEEP_ALIVE_TIME);
             }
 

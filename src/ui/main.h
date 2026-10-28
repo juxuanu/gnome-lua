@@ -12,6 +12,7 @@
 #include "shell-action-modes.h"
 #include "ui/layout.h"
 #include "ui/osd-window.h"
+#include "ui/panel.h"
 #include "ui/session-mode.h"
 
 G_BEGIN_DECLS
@@ -45,6 +46,10 @@ void             shell_main_set_layout_manager   (ShellMain          *self,
 ShellOsdWindowManager *shell_main_get_osd_window_manager (ShellMain             *self);
 void             shell_main_set_osd_window_manager (ShellMain             *self,
                                                     ShellOsdWindowManager *osd_window_manager);
+
+ShellPanel      *shell_main_get_panel            (ShellMain       *self);
+void             shell_main_set_panel            (ShellMain       *self,
+                                                  ShellPanel      *panel);
 
 void             shell_main_system_modal_opened  (ShellMain       *self);
 void             shell_main_emit_settings_app_activating (ShellMain *self);

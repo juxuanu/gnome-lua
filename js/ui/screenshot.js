@@ -1830,7 +1830,7 @@ export class ScreenshotUI extends St.Widget {
             uiModes &
             ~(Shell.ActionMode.LOCK_SCREEN | Shell.ActionMode.UNLOCK_SCREEN);
 
-        Main.wm.addKeybinding(
+        Main.wm.add_keybinding(
             'show-screenshot-ui',
             new Gio.Settings({schema_id: 'org.gnome.shell.keybindings'}),
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
@@ -1838,7 +1838,7 @@ export class ScreenshotUI extends St.Widget {
             showScreenshotUI
         );
 
-        Main.wm.addKeybinding(
+        Main.wm.add_keybinding(
             'show-screen-recording-ui',
             new Gio.Settings({schema_id: 'org.gnome.shell.keybindings'}),
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
@@ -1851,7 +1851,7 @@ export class ScreenshotUI extends St.Widget {
             }
         );
 
-        Main.wm.addKeybinding(
+        Main.wm.add_keybinding(
             'screenshot-window',
             new Gio.Settings({schema_id: 'org.gnome.shell.keybindings'}),
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT | Meta.KeyBindingFlags.PER_WINDOW,
@@ -1869,7 +1869,7 @@ export class ScreenshotUI extends St.Widget {
             }
         );
 
-        Main.wm.addKeybinding(
+        Main.wm.add_keybinding(
             'screenshot',
             new Gio.Settings({schema_id: 'org.gnome.shell.keybindings'}),
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,

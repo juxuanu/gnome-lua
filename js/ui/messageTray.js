@@ -814,7 +814,7 @@ export class MessageTray extends St.Widget {
         Main.xdndHandler.connect('drag-end',
             this._onDragEnd.bind(this));
 
-        Main.wm.addKeybinding('focus-active-notification',
+        Main.wm.add_keybinding('focus-active-notification',
             new Gio.Settings({schema_id: SHELL_KEYBINDINGS_SCHEMA}),
             Meta.KeyBindingFlags.NONE,
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,

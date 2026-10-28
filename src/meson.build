@@ -65,6 +65,7 @@ gnome_shell_deps = [
   gio_unix_dep,
   libxml_dep,
   atk_bridge_dep,
+  atspi_dep,
   gdk_pixbuf_dep,
   gjs_dep,
   mtk_dep,
@@ -125,6 +126,8 @@ libshell_public_headers = [
   'ui/locate-pointer.h',
   'ui/animation.h',
   'ui/pointer-a11y-timeout.h',
+  'ui/focus-caret-tracker.h',
+  'ui/magnifier.h',
   'ui/xdnd-handler.h',
   'ui/dnd.h',
   'ui/main.h',
@@ -136,6 +139,7 @@ libshell_public_headers = [
   'ui/workspace-switcher-popup.h',
   'ui/layout.h',
   'ui/swipe-tracker.h',
+  'ui/keyboard.h',
   'ui/background-menu.h',
   'ui/app-favorites.h',
   'ui/close-dialog.h',
@@ -150,6 +154,10 @@ libshell_public_headers = [
   'ui/shell-entry.h',
   'ui/run-dialog.h',
   'ui/app-menu.h',
+  'ui/pad-osd.h',
+  'ui/inhibit-shortcuts-dialog.h',
+  'ui/window-manager.h',
+  'ui/workspace-animation.h',
   'shell-camera-monitor.h',
   'shell-edge-drag-gesture.h',
   'shell-global.h',
@@ -230,6 +238,8 @@ libshell_sources = [
   'ui/locate-pointer.c',
   'ui/animation.c',
   'ui/pointer-a11y-timeout.c',
+  'ui/focus-caret-tracker.c',
+  'ui/magnifier.c',
   'ui/xdnd-handler.c',
   'ui/dnd.c',
   'ui/main.c',
@@ -241,6 +251,7 @@ libshell_sources = [
   'ui/workspace-switcher-popup.c',
   'ui/layout.c',
   'ui/swipe-tracker.c',
+  'ui/keyboard.c',
   'ui/background-menu.c',
   'ui/app-favorites.c',
   'ui/close-dialog.c',
@@ -255,6 +266,10 @@ libshell_sources = [
   'ui/shell-entry.c',
   'ui/run-dialog.c',
   'ui/app-menu.c',
+  'ui/pad-osd.c',
+  'ui/inhibit-shortcuts-dialog.c',
+  'ui/window-manager.c',
+  'ui/workspace-animation.c',
   'shell-camera-monitor.c',
   'misc/gnome-session.c',
   'misc/ibus-manager.c',
@@ -385,6 +400,13 @@ dbus_generated += gnome.gdbus_codegen('introspect-dbus',
   namespace: 'Shell'
 )
 
+# The skeleton of ui/pad-osd.c (type name ShellWacomPadOsd)
+dbus_generated += gnome.gdbus_codegen('pad-osd-dbus',
+  sources: '../data/dbus-interfaces/org.gnome.Shell.PadOsd.xml',
+  interface_prefix: 'org.gnome.Shell.',
+  namespace: 'Shell'
+)
+
 # The skeletons of ui/shell-dbus.c (type names ShellDBusShell,
 # ShellDBusShellExtensions, ShellDBusScreenSaver, ...)
 dbus_generated += gnome.gdbus_codegen('shell-dbus-generated',
@@ -422,7 +444,7 @@ endif
 
 libshell = library('shell-' + mutter_api_version,
   sources: libshell_gir_sources + libshell_no_gir_sources,
-  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, glycin_dep, ibus_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep, gweather_dep, geoclue_dep, malcontent_dep],
+  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, glycin_dep, ibus_dep, json_glib_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep, gweather_dep, geoclue_dep, malcontent_dep, rsvg_dep],
   include_directories: [conf_inc, include_directories('tray')],
   c_args: gnome_shell_cflags,
   link_with: libshell_link_with,
@@ -439,6 +461,7 @@ libshell_dep = declare_dependency(
 )
 
 libshell_gir_includes = [
+  'Atspi-2.0',
   'Clutter-@0@'.format(mutter_api_version),
   'Meta-@0@'.format(mutter_api_version),
   'Gcr-4',

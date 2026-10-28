@@ -13,8 +13,9 @@ export const ANIMATION_TIME = 250;
 
 import * as Main from './main.js';
 import * as OverviewControls from './overviewControls.js';
-import * as WindowManager from './windowManager.js';
 import * as WorkspaceThumbnail from './workspaceThumbnail.js';
+
+const SHELL_KEYBINDINGS_SCHEMA = 'org.gnome.shell.keybindings';
 
 const DND_WINDOW_SWITCH_TIMEOUT = 750;
 
@@ -210,9 +211,9 @@ export class Overview extends Signals.EventEmitter {
         Main.layoutManager.connect('monitors-changed', this._relayout.bind(this));
         this._relayout();
 
-        Main.wm.addKeybinding(
+        Main.wm.add_keybinding(
             'toggle-overview',
-            new Gio.Settings({schema_id: WindowManager.SHELL_KEYBINDINGS_SCHEMA}),
+            new Gio.Settings({schema_id: SHELL_KEYBINDINGS_SCHEMA}),
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT,
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             this.toggle.bind(this));

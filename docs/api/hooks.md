@@ -24,14 +24,14 @@ Every new hook point gets a row here in the same commit that declares it.
 | `overview.shown` | no | `target:s` | `Overview._showDone()` | 1.0 (M3) |
 | `overview.hiding` | yes | `reason:s` | `Overview.hide()` | 1.0 (M3) |
 | `overview.hidden` | no | (empty) | `Overview._hideDone()` | 1.0 (M3) |
-| `window.mapped` | no | W | `WindowManager._mapWindowDone` (`js/ui/windowManager.js`) | 1.0 (M3) |
+| `window.mapped` | no | W | `WindowManager._mapWindowDone` (`js/ui/window-manager.c`) | 1.0 (M3) |
 | `window.unmapped` | no | W | `WindowManager._destroyWindow`: the window is gone (not emitted on minimize) | 1.0 (M3) |
 | `window.focused` | no | W + `previous-window-id:t` | `notify::focus-window` of `Meta.Display` | 1.0 (M3) |
 | `window.minimized` | no | W | `WindowManager._minimizeWindow` | 1.0 (M3) |
 | `window.unminimized` | no | W | `WindowManager._unminimizeWindow` | 1.0 (M3) |
 | `window.title-changed` | no | W + `old-title:s` | `notify::title` of `Meta.Window` | 1.0 (M3) |
 | `window.workspace-changed` | no | W + `from:i to:i` | `Meta.Window::workspace-changed` | 1.0 (M3) |
-| `window.monitor-changed` | no | W + `from:i to:i` | `window-entered-monitor` (`windowManager.js`) | 1.0 (M3) |
+| `window.monitor-changed` | no | W + `from:i to:i` | `window-entered-monitor` (`window-manager.c`) | 1.0 (M3) |
 | `window.state-changed` | no | W + `maximized:b fullscreen:b changed:as` | `notify::maximized-*`, `notify::fullscreen` of `Meta.Window` | 1.0 (M3) |
 | `workspace.switched` | no | `from:i to:i` | `WindowManager._switchWorkspace` | 1.0 (M3) |
 | `workspace.added` | no | `index:i` | `WorkspaceManager::workspace-added` | 1.0 (M3) |
@@ -43,12 +43,13 @@ Every new hook point gets a row here in the same commit that declares it.
 | `notification.shown` | no | N | `MessageTray._showNotification` | 1.0 (M4) |
 | `notification.activated` | no | N | `Notification.activate` | 1.0 (M4) |
 | `screenshot.taken` | no | `kind:s clipboard:b` + `file:s` when saved | `_storeScreenshot` (`js/ui/screenshot.js`) | 1.0 (M4) |
-| `osk.shown` | no | `monitor:i` | `Keyboard.open` (`js/ui/keyboard.js`) | 1.0 (M4) |
-| `osk.hidden` | no | (empty) | `Keyboard.close` | 1.0 (M4) |
+| `osk.shown` | no | `monitor:i` | `osk_animate_show ()` in `src/ui/keyboard.c`, when the keyboard starts to slide in (`monitor` is the 1-based monitor it is on) | 1.0 (M4) |
+| `osk.hidden` | no | (empty) | `osk_animate_hide ()` in `src/ui/keyboard.c`, when a shown keyboard starts to slide out | 1.0 (M4) |
 
 The three `1.0` rows at the top are declared today
 (`shell_global_declare_hooks()`), and the two `panel.*` rows by `shell_panel_class_init ()`
-(`src/ui/panel.c`), so they exist once the panel class is loaded, before any extension. Every other row is **reserved**: the name,
+(`src/ui/panel.c`), and the two `osk.*` rows by `shell_osk_manager_class_init ()`
+(`src/ui/keyboard.c`), so they exist once those classes are loaded, before any extension. Every other row is **reserved**: the name,
 cancellability and payload are the contract, but the hook is declared by the
 code that owns it when that module is ported (milestone in the last column).
 `shell.hooks.list()` lists only declared hooks, so extensions feature-detect

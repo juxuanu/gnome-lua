@@ -1,7 +1,6 @@
 import Gio from 'gi://Gio';
 import GioUnix from 'gi://GioUnix';
 import GLib from 'gi://GLib';
-import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
@@ -15,10 +14,9 @@ import * as EndSessionDialog from './endSessionDialog.js';
 import * as ExtensionSystem from './extensionSystem.js';
 import * as ExtensionDownloader from './extensionDownloader.js';
 import * as ExtensionUtils from '../misc/extensionUtils.js';
-import * as Keyboard from './keyboard.js';
+import * as InputSourceManager from './status/keyboard.js';
 import * as MessageTray from './messageTray.js';
 import * as Overview from './overview.js';
-import * as PadOsd from './padOsd.js';
 import * as PanelItems from './panelItems.js';
 import * as WelcomeDialog from './welcomeDialog.js';
 import * as LookingGlass from './lookingGlass.js';
@@ -30,8 +28,6 @@ import {LoginDialog} from '../gdm/loginDialog.js';
 import {UnlockDialog} from './unlockDialog.js';
 import * as ShellMountOperation from './shellMountOperation.js';
 import * as TimeLimitsManager from '../misc/timeLimitsManager.js';
-import * as WindowManager from './windowManager.js';
-import * as Magnifier from './magnifier.js';
 import * as KbdA11yDialog from './kbdA11yDialog.js';
 import {formatError} from '../misc/errorUtils.js';
 import {ControlsState} from './overviewControls.js';
@@ -96,8 +92,6 @@ let _cssStylesheet = null;
 let _themeResource = null;
 let _oskResource = null;
 let _iconResource = null;
-let _workspacesAdjustment = null;
-let _workspaceAdjustmentRegistry = null;
 
 Gio._promisify(Gio.File.prototype, 'delete_async');
 Gio._promisify(Gio.File.prototype, 'touch_async');
@@ -108,12 +102,12 @@ function _sessionUpdated() {
     if (sessionMode.is_primary)
         _loadDefaultStylesheet();
 
-    wm.allowKeybinding('overlay-key',
+    wm.allow_keybinding('overlay-key',
         Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW);
 
-    wm.allowKeybinding('locate-pointer-key', Shell.ActionMode.ALL);
+    wm.allow_keybinding('locate-pointer-key', Shell.ActionMode.ALL);
 
-    wm.setCustomKeybindingHandler('panel-run-dialog',
+    wm.set_custom_keybinding_handler('panel-run-dialog',
         Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
         sessionMode.has_run_dialog ? openRunDialog : null);
 
@@ -286,7 +280,7 @@ function _createShellDBusServices() {
     shellDBusService.connect('show-applications-requested',
         () => overview.show(ControlsState.APP_GRID));
     shellDBusService.connect('allow-keybinding-requested',
-        (_service, name, modeFlags) => wm.allowKeybinding(name, modeFlags));
+        (_service, name, modeFlags) => wm.allow_keybinding(name, modeFlags));
     shellDBusService.connect('overview-active-requested', (_service, active) => {
         if (active)
             overview.show();
@@ -355,7 +349,6 @@ async function _initializeUI() {
     _loadIcons();
     _loadOskLayouts();
     _loadDefaultStylesheet();
-    _loadWorkspacesAdjustment();
 
     new AnimationsSettings();
 
@@ -411,7 +404,7 @@ async function _initializeUI() {
     // working until it's updated.
     uiGroup = layoutManager.ui_group;
 
-    padOsdService = new PadOsd.PadOsdService();
+    padOsdService = new Shell.PadOsdService();
     xdndHandler = new Shell.XdndHandler({
         ui_group: uiGroup,
         session_locked: sessionMode.is_locked,
@@ -431,8 +424,9 @@ async function _initializeUI() {
     osdMonitorLabeler = new Shell.OsdMonitorLabeler({ui_group: uiGroup});
     overview = new Overview.Overview();
     kbdA11yDialog = new KbdA11yDialog.KbdA11yDialog();
-    wm = new WindowManager.WindowManager();
-    magnifier = new Magnifier.Magnifier();
+    wm = new Shell.WindowManager({ctrl_alt_tab_manager: ctrlAltTabManager});
+    _connectWindowManager();
+    magnifier = new Shell.Magnifier();
     locatePointer = new Shell.LocatePointer({ui_group: uiGroup});
 
     if (Shell.LoginManager.can_lock())
@@ -447,7 +441,7 @@ async function _initializeUI() {
 
     brightnessManager = new Shell.BrightnessManager();
     for (const name of Shell.BrightnessManager.get_keybinding_names())
-        wm.allowKeybinding(name, Shell.ActionMode.ALL);
+        wm.allow_keybinding(name, Shell.ActionMode.ALL);
     brightnessManager.connect('osd-requested', (_manager, icon, levels) => {
         osdWindowManager.show(icon, null, levels);
     });
@@ -455,7 +449,9 @@ async function _initializeUI() {
 
     messageTray = new MessageTray.MessageTray();
     panel = _createPanel();
-    keyboard = new Keyboard.KeyboardManager();
+    _shellMain.panel = panel;
+    keyboard = new Shell.OskManager({input_method: inputMethod});
+    InputSourceManager.connectOsk(keyboard);
     notificationDaemon = new NotificationDaemon.NotificationDaemon();
     windowAttentionHandler = new WindowAttentionHandler.WindowAttentionHandler();
     componentManager = new Components.ComponentManager();
@@ -584,6 +580,42 @@ async function _initializeUI() {
             const perfOutput = GLib.getenv('SHELL_PERF_OUTPUT');
             Scripting.runPerfScript(perfModule, perfOutput);
         }
+    });
+}
+
+/**
+ * Wires up the window manager, which lives in C, to the JS-only parts of the
+ * shell: it asks the overview to hide, and for a screenshot of a window, and
+ * it follows the state of the overview.
+ *
+ * @private
+ */
+function _connectWindowManager() {
+    wm.connect('overview-hide-requested', () => {
+        overview.hide();
+    });
+    wm.connect('screenshot-requested', async (_wm, texture) => {
+        try {
+            await Screenshot.captureScreenshot(texture, null, 1, null);
+        } catch (e) {
+            logError(e, 'Error capturing screenshot');
+        }
+    });
+
+    // Handlers must not return a value: a true one stops the JS emission
+    overview.connect('showing', () => {
+        wm.overview_closing = false;
+        wm.overview_visible = true;
+    });
+    overview.connect('shown', () => {
+        wm.overview_closing = false;
+    });
+    overview.connect('hiding', () => {
+        wm.overview_closing = true;
+    });
+    overview.connect('hidden', () => {
+        wm.overview_closing = false;
+        wm.overview_visible = false;
     });
 }
 
@@ -748,65 +780,11 @@ function _loadDefaultStylesheet() {
     loadTheme();
 }
 
-class AdjustmentRegistry {
-    #count = 0;
-    #adjustments = new Map();
-    #registry = new FinalizationRegistry(key => {
-        this.#adjustments.delete(key);
-    });
-
-    register(adj) {
-        const key = this.#count++;
-        this.#adjustments.set(key, new WeakRef(adj));
-        this.#registry.register(adj, key);
-    }
-
-    forEach(callback) {
-        this.#adjustments.forEach((ref, key) => {
-            const adj = ref.deref();
-            if (adj)
-                callback(adj);
-            else
-                this.#adjustments.delete(key);
-        });
-    }
-}
-
-function _loadWorkspacesAdjustment() {
-    const {workspaceManager} = global;
-    const activeWorkspaceIndex = workspaceManager.get_active_workspace_index();
-
-    _workspacesAdjustment = new St.Adjustment({
-        value: activeWorkspaceIndex,
-        lower: 0,
-        page_increment: 1,
-        page_size: 1,
-        step_increment: 0,
-        upper: workspaceManager.n_workspaces,
-    });
-
-    workspaceManager.bind_property('n-workspaces',
-        _workspacesAdjustment, 'upper',
-        GObject.BindingFlags.SYNC_CREATE);
-
-    _workspacesAdjustment.connect('notify::upper', () => {
-        const newActiveIndex = workspaceManager.get_active_workspace_index();
-
-        // A workspace might have been inserted or removed before the active
-        // one, causing the adjustment to go out of sync, so update the value
-        _workspaceAdjustmentRegistry.forEach(c => c.remove_transition('value'));
-        _workspacesAdjustment.remove_transition('value');
-        _workspacesAdjustment.value = newActiveIndex;
-    });
-
-    _workspaceAdjustmentRegistry = new AdjustmentRegistry();
-}
-
 /**
  * Creates an adjustment that has its lower, upper, and value
  * properties set for the number of available workspaces. Consumers
  * of the returned adjustment must only change the 'value' property,
- * and only that.
+ * and only that. The master adjustment lives in the window manager.
  *
  * @param {Clutter.Actor} actor
  *
@@ -814,23 +792,7 @@ function _loadWorkspacesAdjustment() {
  * current workspaces layout
  */
 export function createWorkspacesAdjustment(actor) {
-    const adjustment = new St.Adjustment({actor});
-
-    const properties = [
-        ['lower', GObject.BindingFlags.SYNC_CREATE],
-        ['page-increment', GObject.BindingFlags.SYNC_CREATE],
-        ['page-size', GObject.BindingFlags.SYNC_CREATE],
-        ['step-increment', GObject.BindingFlags.SYNC_CREATE],
-        ['upper', GObject.BindingFlags.SYNC_CREATE],
-        ['value', GObject.BindingFlags.SYNC_CREATE | GObject.BindingFlags.BIDIRECTIONAL],
-    ];
-
-    for (const [propName, flags] of properties)
-        _workspacesAdjustment.bind_property(propName, adjustment, propName, flags);
-
-    _workspaceAdjustmentRegistry.register(adjustment);
-
-    return adjustment;
+    return wm.create_workspaces_adjustment(actor);
 }
 
 /**

@@ -289,14 +289,14 @@ class IbusCandidatePopup extends Shell.BoxPointer {
             for (let i = 0; (indexLabel = lookupTable.get_label(i)); ++i)
                 indexes.push(indexLabel.get_text());
 
-            Main.keyboard.resetSuggestions();
-            Main.keyboard.setSuggestionsVisible(visible);
+            Main.keyboard.reset_suggestions();
+            Main.keyboard.set_suggestions_visible(visible);
 
             const candidates = [];
             for (let i = startIndex; i < endIndex; ++i) {
                 candidates.push(lookupTable.get_candidate(i).get_text());
 
-                Main.keyboard.addSuggestion(lookupTable.get_candidate(i).get_text(), () => {
+                Main.keyboard.add_suggestion(lookupTable.get_candidate(i).get_text(), () => {
                     const index = i;
                     this._panelService.candidate_clicked(index, 1, 0);
                 });
@@ -310,18 +310,18 @@ class IbusCandidatePopup extends Shell.BoxPointer {
             this._candidateArea.updateButtons(lookupTable.is_round(), page, nPages);
         });
         panelService.connect('show-lookup-table', () => {
-            Main.keyboard.setSuggestionsVisible(true);
+            Main.keyboard.set_suggestions_visible(true);
             this._candidateArea.show();
             this._updateVisibility();
         });
         panelService.connect('hide-lookup-table', () => {
-            Main.keyboard.setSuggestionsVisible(false);
+            Main.keyboard.set_suggestions_visible(false);
             this._candidateArea.hide();
             this._updateVisibility();
         });
         panelService.connect('focus-out', () => {
             this.close(Shell.PopupAnimation.NONE, null);
-            Main.keyboard.resetSuggestions();
+            Main.keyboard.reset_suggestions();
         });
     }
 

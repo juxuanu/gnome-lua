@@ -5,7 +5,7 @@
  * the window switcher, and the window and group cyclers that have no popup,
  * only a highlight on the window. Port of js/ui/altTab.js.
  *
- * The four popups are subclasses of #ShellSwitcherPopup. windowManager.js
+ * The four popups are subclasses of #ShellSwitcherPopup. window-manager.c
  * creates one for the key binding that was pressed, connects the signals
  * below and calls shell_switcher_popup_show_switcher () on it. The lists and
  * the items of the popups are private to alt-tab.c.

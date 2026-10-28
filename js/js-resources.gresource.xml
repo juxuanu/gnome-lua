@@ -50,15 +50,11 @@
     <file>ui/environment.js</file>
     <file>ui/extensionDownloader.js</file>
     <file>ui/extensionSystem.js</file>
-    <file>ui/focusCaretTracker.js</file>
     <file>ui/ibusCandidatePopup.js</file>
-    <file>ui/inhibitShortcutsDialog.js</file>
     <file>ui/init.js</file>
     <file>ui/kbdA11yDialog.js</file>
-    <file>ui/keyboard.js</file>
     <file>ui/listModes.js</file>
     <file>ui/lookingGlass.js</file>
-    <file>ui/magnifier.js</file>
     <file>ui/main.js</file>
     <file>ui/messageList.js</file>
     <file>ui/messageTray.js</file>
@@ -66,7 +62,6 @@
     <file>ui/notificationDaemon.js</file>
     <file>ui/overview.js</file>
     <file>ui/overviewControls.js</file>
-    <file>ui/padOsd.js</file>
     <file>ui/panelItems.js</file>
     <file>ui/quickSettings.js</file>
     <file>ui/qrCode.js</file>
@@ -81,10 +76,8 @@
     <file>ui/userWidget.js</file>
     <file>ui/welcomeDialog.js</file>
     <file>ui/windowAttentionHandler.js</file>
-    <file>ui/windowManager.js</file>
     <file>ui/windowPreview.js</file>
     <file>ui/workspace.js</file>
-    <file>ui/workspaceAnimation.js</file>
     <file>ui/workspacesView.js</file>
     <file>ui/workspaceThumbnail.js</file>
 

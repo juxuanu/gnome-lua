@@ -26,6 +26,7 @@ enum
   PROP_SESSION_MODE,
   PROP_LAYOUT_MANAGER,
   PROP_OSD_WINDOW_MANAGER,
+  PROP_PANEL,
 
   N_PROPS
 };
@@ -73,6 +74,7 @@ struct _ShellMain
   ShellSessionMode *session_mode;
   ShellLayoutManager *layout_manager;
   ShellOsdWindowManager *osd_window_manager;
+  ShellPanel *panel;              /* weak */
   MetaCompositor *compositor;     /* weak; same reason as @stage */
   ClutterStage *stage;            /* weak; set on the first push_modal so that
                                    * pops during shell teardown (after ShellGlobal
@@ -205,6 +207,10 @@ shell_main_get_property (GObject    *object,
       g_value_set_object (value, self->osd_window_manager);
       break;
 
+    case PROP_PANEL:
+      g_value_set_object (value, self->panel);
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -237,6 +243,10 @@ shell_main_set_property (GObject      *object,
       shell_main_set_osd_window_manager (self, g_value_get_object (value));
       break;
 
+    case PROP_PANEL:
+      shell_main_set_panel (self, g_value_get_object (value));
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -250,6 +260,7 @@ shell_main_dispose (GObject *object)
 
   g_clear_weak_pointer (&self->stage);
   g_clear_weak_pointer (&self->compositor);
+  g_clear_weak_pointer (&self->panel);
   g_clear_pointer (&self->modal_stack, g_ptr_array_unref);
   g_clear_object (&self->session_mode);
   g_clear_object (&self->layout_manager);
@@ -333,6 +344,21 @@ shell_main_class_init (ShellMainClass *klass)
   props[PROP_OSD_WINDOW_MANAGER] =
     g_param_spec_object ("osd-window-manager", NULL, NULL,
                          SHELL_TYPE_OSD_WINDOW_MANAGER,
+                         G_PARAM_READWRITE |
+                         G_PARAM_EXPLICIT_NOTIFY |
+                         G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellMain:panel:
+   *
+   * The top bar of the shell (`Main.panel`). main.js sets it right after
+   * creating it, so that the window manager can toggle and close the
+   * calendar and the quick settings and read the height of the bar. Held
+   * weakly: the panel is owned by the stage.
+   */
+  props[PROP_PANEL] =
+    g_param_spec_object ("panel", NULL, NULL,
+                         SHELL_TYPE_PANEL,
                          G_PARAM_READWRITE |
                          G_PARAM_EXPLICIT_NOTIFY |
                          G_PARAM_STATIC_STRINGS);
@@ -777,6 +803,45 @@ shell_main_set_osd_window_manager (ShellMain             *self,
 
   if (g_set_object (&self->osd_window_manager, osd_window_manager))
     g_object_notify_by_pspec (G_OBJECT (self), props[PROP_OSD_WINDOW_MANAGER]);
+}
+
+/**
+ * shell_main_get_panel:
+ * @self: a #ShellMain
+ *
+ * Returns: (transfer none) (nullable): the top bar, once main.js has created
+ *   it
+ */
+ShellPanel *
+shell_main_get_panel (ShellMain *self)
+{
+  g_return_val_if_fail (SHELL_IS_MAIN (self), NULL);
+
+  return self->panel;
+}
+
+/**
+ * shell_main_set_panel:
+ * @self: a #ShellMain
+ * @panel: (nullable): the top bar of the shell
+ *
+ * Sets #ShellMain:panel.
+ */
+void
+shell_main_set_panel (ShellMain  *self,
+                      ShellPanel *panel)
+{
+  g_return_if_fail (SHELL_IS_MAIN (self));
+  g_return_if_fail (panel == NULL || SHELL_IS_PANEL (panel));
+
+  if (self->panel == panel)
+    return;
+
+  g_clear_weak_pointer (&self->panel);
+  if (panel != NULL)
+    g_set_weak_pointer (&self->panel, panel);
+
+  g_object_notify_by_pspec (G_OBJECT (self), props[PROP_PANEL]);
 }
 
 /**

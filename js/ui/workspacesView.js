@@ -829,7 +829,7 @@ export class WorkspacesDisplay extends St.Widget {
             _ => {
                 const ws = global.workspace_manager.get_workspace_by_index(0);
                 if (ws)
-                    Main.wm.actionMoveWorkspace(ws);
+                    Main.wm.action_move_workspace(ws);
             });
         bindingPool.install_closure(
             'last', Clutter.KEY_End, 0,
@@ -838,7 +838,7 @@ export class WorkspacesDisplay extends St.Widget {
                 const which = workspaceManager.n_workspaces - 1;
                 const ws = workspaceManager.get_workspace_by_index(which);
                 if (ws)
-                    Main.wm.actionMoveWorkspace(ws);
+                    Main.wm.action_move_workspace(ws);
             });
     }
 
@@ -1120,7 +1120,7 @@ export class WorkspacesDisplay extends St.Widget {
             this._getMonitorIndexForEvent(event) !== this._primaryIndex)
             return Clutter.EVENT_PROPAGATE;
 
-        return Main.wm.handleWorkspaceScroll(event);
+        return Main.wm.handle_workspace_scroll(event);
     }
 
     _moveToWorkspace(which) {
@@ -1134,7 +1134,7 @@ export class WorkspacesDisplay extends St.Widget {
         const {workspaceManager} = global;
         const ws = workspaceManager.get_active_workspace().get_neighbor(which);
         if (ws)
-            Main.wm.actionMoveWorkspace(ws);
+            Main.wm.action_move_workspace(ws);
 
         return Clutter.EVENT_STOP;
     }

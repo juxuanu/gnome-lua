@@ -348,13 +348,13 @@ export class InputSourceManager extends Signals.EventEmitter {
         this._mruSources = [];
         this._mruSourcesBackup = null;
         this._keybindingAction =
-            Main.wm.addKeybinding('switch-input-source',
+            Main.wm.add_keybinding('switch-input-source',
                 new Gio.Settings({schema_id: 'org.gnome.desktop.wm.keybindings'}),
                 Meta.KeyBindingFlags.NONE,
                 Shell.ActionMode.ALL,
                 this._switchInputSource.bind(this));
         this._keybindingActionBackward =
-            Main.wm.addKeybinding('switch-input-source-backward',
+            Main.wm.add_keybinding('switch-input-source-backward',
                 new Gio.Settings({schema_id: 'org.gnome.desktop.wm.keybindings'}),
                 Meta.KeyBindingFlags.IS_REVERSED,
                 Shell.ActionMode.ALL,
@@ -840,6 +840,63 @@ export function getInputSourceManager() {
     if (_inputSourceManager == null)
         _inputSourceManager = new InputSourceManager();
     return _inputSourceManager;
+}
+
+/**
+ * The InputSourceManager is not a GObject, so the on-screen keyboard (C,
+ * Shell.OskManager) cannot connect to it: this pushes the input sources and
+ * the current input source to the keyboard whenever they change, and
+ * activates the input source the user picks in its language menu.
+ *
+ * The manager is created, as the keyboard did, when the keyboard is first
+ * created.
+ *
+ * @param {Shell.OskManager} osk - the on-screen keyboard manager
+ */
+export function connectOsk(osk) {
+    let attached = false;
+
+    const sourcesOf = manager => Object.values(manager.inputSources);
+
+    const pushSources = manager => {
+        const sources = sourcesOf(manager);
+        osk.set_input_sources(sources.map(s => s.displayName),
+            sources.indexOf(manager.currentSource));
+    };
+
+    const pushCurrentSource = manager => {
+        const source = manager.currentSource;
+        osk.set_current_input_source(
+            sourcesOf(manager).indexOf(source),
+            source?.id ?? null,
+            source?.xkbId ?? null,
+            source?.type === INPUT_SOURCE_TYPE_IBUS,
+            source?.properties ?? null);
+    };
+
+    const attach = () => {
+        if (attached)
+            return;
+        attached = true;
+
+        const manager = getInputSourceManager();
+        manager.connect('sources-changed', () => pushSources(manager));
+        manager.connect('current-source-changed', () => pushCurrentSource(manager));
+        pushSources(manager);
+        pushCurrentSource(manager);
+    };
+
+    osk.connect('input-sources-requested', attach);
+    osk.connect('activate-input-source', (_osk, position) => {
+        const manager = getInputSourceManager();
+        const source = sourcesOf(manager)[position];
+        if (source)
+            manager.activateInputSource(source, true);
+    });
+
+    // The keyboard was already created if the setting enables it
+    if (osk.keyboard_actor)
+        attach();
 }
 
 const InputSourceIndicatorContainer = GObject.registerClass(

@@ -10,7 +10,8 @@
  *  - "Take Screenshot" cannot call js/ui/screenshot.js (M4). The window is
  *    painted here and the texture is handed to the JS through the
  *    #ShellWindowMenuManager::screenshot-requested signal, which
- *    windowManager.js connects to Screenshot.captureScreenshot ().
+ *    window-manager.c forwards as #ShellWindowManager::screenshot-requested
+ *    and main.js connects to Screenshot.captureScreenshot ().
  *  - `Main.layoutManager` and `Main.sessionMode` are read from #ShellMain.
  *  - A window menu type other than %META_WINDOW_MENU_WM logs a warning
  *    instead of throwing.
@@ -695,7 +696,7 @@ shell_window_menu_manager_class_init (ShellWindowMenuManagerClass *klass)
    * @self: the #ShellWindowMenuManager
    * @texture: the texture with the contents of the window
    *
-   * Emitted when "Take Screenshot" is activated in a window menu. windowManager.js
+   * Emitted when "Take Screenshot" is activated in a window menu. window-manager.c
    * passes the texture to `Screenshot.captureScreenshot ()`, which is still JS.
    */
   manager_signals[MANAGER_SCREENSHOT_REQUESTED] =
