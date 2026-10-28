@@ -14,7 +14,6 @@ import * as ExtensionUtils from '../misc/extensionUtils.js';
 import * as InputSourceManager from './status/keyboard.js';
 import * as Overview from './overview.js';
 import * as PanelItems from './panelItems.js';
-import * as WelcomeDialog from './welcomeDialog.js';
 import * as LookingGlass from './lookingGlass.js';
 import * as ScreenShield from './screenShield.js';
 import {LoginDialog} from '../gdm/loginDialog.js';
@@ -1029,8 +1028,12 @@ export function openRunDialog() {
 }
 
 export function openWelcomeDialog() {
-    if (welcomeDialog === null)
-        welcomeDialog = new WelcomeDialog.WelcomeDialog();
+    if (welcomeDialog === null) {
+        welcomeDialog = new Shell.WelcomeDialog();
+        welcomeDialog.connect('overview-hide-requested', () => {
+            overview.hide();
+        });
+    }
 
     welcomeDialog.open();
 }

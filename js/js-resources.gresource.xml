@@ -52,16 +52,12 @@
     <file>ui/overview.js</file>
     <file>ui/overviewControls.js</file>
     <file>ui/panelItems.js</file>
-    <file>ui/qrCode.js</file>
     <file>ui/screenShield.js</file>
     <file>ui/scripting.js</file>
     <file>ui/unlockDialog.js</file>
-    <file>ui/welcomeDialog.js</file>
     <file>ui/workspacesView.js</file>
 
     <file>ui/components.js</file>
-    <file>ui/components/keyring.js</file>
-    <file>ui/components/polkitAgent.js</file>
 
     <file>ui/status/dwellClick.js</file>
     <file>ui/status/keyboard.js</file>

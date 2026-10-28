@@ -7,6 +7,8 @@ const NATIVE_COMPONENTS = {
     automountManager: () => new Shell.AutomountManager(),
     autorunManager: () => new Shell.AutorunManager({message_tray: Main.messageTray}),
     networkAgent: () => new Shell.NetworkAgentComponent(),
+    keyring: () => new Shell.KeyringComponent(),
+    polkitAgent: () => new Shell.PolkitAgentComponent(),
 };
 
 export class ComponentManager {

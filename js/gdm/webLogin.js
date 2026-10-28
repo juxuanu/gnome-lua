@@ -6,7 +6,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Params from '../misc/params.js';
-import {QrCode} from '../ui/qrCode.js';
 
 const QR_CODE_SIZE = 150;
 const WEB_LOGIN_SPINNER_SIZE = 35;
@@ -76,7 +75,7 @@ export class WebLoginPrompt extends St.BoxLayout {
         });
         this.add_child(this._urlTitleLabel);
 
-        this._qrCode = new QrCode({
+        this._qrCode = new Shell.QrCode({
             width: qrCodeSize,
             height: qrCodeSize,
             xAlign: Clutter.ActorAlign.CENTER,

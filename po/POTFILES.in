@@ -24,8 +24,6 @@ js/misc/breakManager.js
 js/misc/timeLimitsManager.js
 js/misc/util.js
 js/portalHelper/main.js
-js/ui/components/keyring.js
-js/ui/components/polkitAgent.js
 js/ui/extensionDownloader.js
 js/ui/extensionSystem.js
 js/ui/kbdA11yDialog.js
@@ -39,7 +37,6 @@ js/ui/screenShield.js
 js/ui/status/dwellClick.js
 js/ui/status/keyboard.js
 js/ui/unlockDialog.js
-js/ui/welcomeDialog.js
 src/calendar-server/reminder-watcher.c
 src/main.c
 src/misc/brightness-manager.c
@@ -62,6 +59,7 @@ src/ui/close-dialog.c
 src/ui/components/automount-manager.c
 src/ui/components/autorun-manager.c
 src/ui/components/network-agent.c
+src/ui/components/polkit-agent.c
 src/ui/ctrl-alt-tab.c
 src/ui/dash.c
 src/ui/date-menu.c
@@ -96,6 +94,7 @@ src/ui/status/system.c
 src/ui/status/thunderbolt.c
 src/ui/status/volume.c
 src/ui/switch-monitor.c
+src/ui/welcome-dialog.c
 src/ui/window-attention-handler.c
 src/ui/window-manager.c
 src/ui/window-menu.c

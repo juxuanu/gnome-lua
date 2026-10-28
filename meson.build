@@ -96,6 +96,8 @@ polkit_dep = dependency('polkit-agent-1', version: polkit_req)
 schemas_dep = dependency('gsettings-desktop-schemas', version: schemas_req)
 gnome_desktop_dep = dependency('gnome-desktop-4', version: gnome_desktop_req)
 gnome_bg_dep = dependency('gnome-bg-4', version: gnome_desktop_req)
+# ui/qr-code.c: GnomeQR (libgnome-qr), part of the gnome-desktop sources
+gnome_qr_dep = dependency('gnome-qr-4', version: gnome_desktop_req)
 pango_dep = dependency('pango', version: pango_req)
 json_glib_dep = dependency('json-glib-1.0', version: json_glib_req)
 rsvg_dep = dependency('librsvg-2.0', version: rsvg_req)
