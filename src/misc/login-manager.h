@@ -14,9 +14,6 @@
 
 G_BEGIN_DECLS
 
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (ShellLogin1Manager, g_object_unref)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (ShellLogin1Session, g_object_unref)
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (ShellLogin1User, g_object_unref)
 
 #define SHELL_TYPE_LOGIN_MANAGER (shell_login_manager_get_type ())
 G_DECLARE_FINAL_TYPE (ShellLoginManager, shell_login_manager,

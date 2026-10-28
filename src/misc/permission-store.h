@@ -14,7 +14,6 @@
 
 G_BEGIN_DECLS
 
-G_DEFINE_AUTOPTR_CLEANUP_FUNC (ShellPortalPermissionStore, g_object_unref)
 
 void                        shell_permission_store_new        (GCancellable        *cancellable,
                                                                GAsyncReadyCallback  callback,
