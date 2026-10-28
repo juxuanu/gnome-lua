@@ -12,6 +12,18 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | M5 | 46 | 14475 |
 | total | 174 | 84575 |
 
+Progress (`ported` and `dropped` rows; regenerate with `build-aux/port-progress.py` before committing a port, do not edit by hand):
+
+<!-- PROGRESS -->
+| Milestone | modules done | % | JS lines done | % |
+|---|---:|---:|---:|---:|
+| M2 | 48/57 | 84% | 15638/20795 | 75.2% |
+| M3 | 23/26 | 88% | 17256/19967 | 86.4% |
+| M4 | 35/45 | 78% | 24421/29338 | 83.2% |
+| M5 | 6/46 | 13% | 1743/14475 | 12.0% |
+| **total** | 112/174 | 64% | 59058/84575 | 69.8% |
+<!-- /PROGRESS -->
+
 ## M2
 
 | Upstream module | JS lines | Status | Notes |
