@@ -10,10 +10,7 @@ import * as AppDisplay from './appDisplay.js';
 import * as Dash from './dash.js';
 import * as Main from './main.js';
 import * as Overview from './overview.js';
-import * as Search from './search.js';
-import * as SearchController from './searchController.js';
 import * as Util from '../misc/util.js';
-import * as WorkspaceThumbnail from './workspaceThumbnail.js';
 import * as WorkspacesView from './workspacesView.js';
 
 export const SMALL_WORKSPACE_RATIO = 0.15;
@@ -26,6 +23,33 @@ const A11Y_SCHEMA = 'org.gnome.desktop.a11y.keyboard';
 const SHELL_KEYBINDINGS_SCHEMA = 'org.gnome.shell.keybindings';
 
 export const SIDE_CONTROLS_ANIMATION_TIME = 250;
+
+/**
+ * Keeps a thumbnails box in step with the overview: the drags of items and
+ * windows tell the box where a workspace could be dropped, and the drags of
+ * the windows of its thumbnails tell the overview. (The box follows the
+ * visibility of the overview through Main.wm.)
+ *
+ * @param {Shell.ThumbnailsBox} thumbnailsBox - the box to connect
+ */
+export function connectThumbnailsBox(thumbnailsBox) {
+    // These handlers must not return a value
+    thumbnailsBox.connect('window-drag-begin',
+        (_box, window) => Main.overview.beginWindowDrag(window));
+    thumbnailsBox.connect('window-drag-cancelled',
+        (_box, window) => Main.overview.cancelledWindowDrag(window));
+    thumbnailsBox.connect('window-drag-end',
+        (_box, window) => Main.overview.endWindowDrag(window));
+
+    Main.overview.connectObject(
+        'item-drag-begin', () => thumbnailsBox.drag_begin(),
+        'item-drag-end', () => thumbnailsBox.drag_end(),
+        'item-drag-cancelled', () => thumbnailsBox.drag_cancelled(),
+        'window-drag-begin', () => thumbnailsBox.drag_begin(),
+        'window-drag-end', () => thumbnailsBox.drag_end(),
+        'window-drag-cancelled', () => thumbnailsBox.drag_cancelled(),
+        thumbnailsBox);
+}
 
 /** @enum {number} */
 export const ControlsState = {
@@ -183,12 +207,12 @@ class ControlsManagerLayout extends Clutter.LayoutManager {
         // Workspace Thumbnails
         let thumbnailsHeight = 0;
         if (this._workspacesThumbnails.visible) {
-            const {expandFraction} = this._workspacesThumbnails;
+            const {expand_fraction: expandFraction} = this._workspacesThumbnails;
             [thumbnailsHeight] =
                 this._workspacesThumbnails.get_preferred_height(width);
             thumbnailsHeight = Math.min(
                 thumbnailsHeight * expandFraction,
-                height * this._workspacesThumbnails.maxThumbnailScale);
+                height * this._workspacesThumbnails.max_thumbnail_scale);
             childBox.set_origin(0, startY + searchHeight + Math.round(spacing * THUMBNAILS_SPACING_ADJUSTMENT_TOP));
             childBox.set_size(width, thumbnailsHeight);
             this._workspacesThumbnails.allocate(childBox);
@@ -321,7 +345,7 @@ class ControlsManager extends St.Widget {
 
         this._ignoreShowAppsButtonToggle = false;
 
-        this._searchEntry = new Search.SearchEntry({
+        this._searchEntry = new Shell.SearchEntry({
             style_class: 'search-entry',
             /* Translators: this is the text displayed
                in the search entry when no search is
@@ -345,16 +369,31 @@ class ControlsManager extends St.Widget {
         this._stateAdjustment.connectObject('notify::value',
             () => this._update(), this);
 
-        this._searchController = new SearchController.SearchController(
-            this._searchEntry,
-            this.dash.showAppsButton);
-        this._searchController.connectObject('notify::search-active',
-            () => this._onSearchChanged(), this);
+        this._searchController = new Shell.SearchController({
+            search_entry: this._searchEntry,
+            show_apps_button: this.dash.showAppsButton,
+            ctrl_alt_tab_manager: Main.ctrlAltTabManager,
+            application_provider: new AppDisplay.AppSearchProvider(),
+        });
+        this._searchController.connectObject(
+            'notify::search-active', () => this._onSearchChanged(),
+            'overview-hide-requested', () => Main.overview.hide(),
+            'overview-toggle-requested', () => Main.overview.toggle(),
+            this);
+        Main.overview.connectObject(
+            'showing', () => this._searchController.overview_showing(),
+            'hiding', () => this._searchController.overview_hiding(),
+            this);
 
-        Main.layoutManager.connectObject('monitors-changed', () =>
-            this._thumbnailsBox.setMonitorIndex(Main.layoutManager.primary_index), this);
-        this._thumbnailsBox = new WorkspaceThumbnail.ThumbnailsBox(
-            this._workspaceAdjustment, Main.layoutManager.primary_index);
+        Main.layoutManager.connectObject('monitors-changed', () => {
+            this._thumbnailsBox.monitor_index = Main.layoutManager.primary_index;
+        }, this);
+        this._thumbnailsBox = new Shell.ThumbnailsBox({
+            scroll_adjustment: this._workspaceAdjustment,
+            monitor_index: Main.layoutManager.primary_index,
+            window_manager: Main.wm,
+        });
+        connectThumbnailsBox(this._thumbnailsBox);
         this._thumbnailsBox.connectObject('notify::should-show', () => {
             this._thumbnailsBox.show();
             this._thumbnailsBox.ease_property('expand-fraction',
@@ -540,7 +579,7 @@ class ControlsManager extends St.Widget {
     }
 
     _updateThumbnailsBox(animate = false) {
-        const {shouldShow} = this._thumbnailsBox;
+        const {should_show: shouldShow} = this._thumbnailsBox;
         const {searchActive} = this._searchController;
         const [opacity, scale, translationY] = this._getThumbnailsBoxParams();
 
@@ -548,7 +587,7 @@ class ControlsManager extends St.Widget {
         if (thumbnailsBoxVisible) {
             this._thumbnailsBox.opacity = 0;
             this._thumbnailsBox.visible = thumbnailsBoxVisible;
-            this._thumbnailsBox.expandFraction = 1.0;
+            this._thumbnailsBox.expand_fraction = 1.0;
         }
 
         const params = {
@@ -558,7 +597,7 @@ class ControlsManager extends St.Widget {
             onComplete: () => {
                 this._thumbnailsBox.visible = thumbnailsBoxVisible;
                 if (!thumbnailsBoxVisible)
-                    this._thumbnailsBox.expandFraction = 0.0;
+                    this._thumbnailsBox.expand_fraction = 0.0;
             },
         };
 
@@ -704,12 +743,12 @@ class ControlsManager extends St.Widget {
     }
 
     prepareToEnterOverview() {
-        this._searchController.prepareToEnterOverview();
+        this._searchController.prepare_to_enter_overview();
         this._workspacesDisplay.prepareToEnterOverview();
     }
 
     prepareToLeaveOverview() {
-        this._searchController.prepareToLeaveOverview();
+        this._searchController.prepare_to_leave_overview();
         this._workspacesDisplay.prepareToLeaveOverview();
     }
 

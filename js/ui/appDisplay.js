@@ -9,8 +9,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Search from './search.js';
-
 import * as Main from './main.js';
 
 import * as Config from '../misc/config.js';
@@ -1720,31 +1718,56 @@ export class AppDisplay extends BaseAppView {
     }
 }
 
-export class AppSearchProvider {
-    constructor() {
+export const AppSearchProvider = GObject.registerClass({
+    Implements: [Shell.SearchProvider],
+    Properties: {
+        'id': GObject.ParamSpec.override('id', Shell.SearchProvider),
+        'app-info': GObject.ParamSpec.override('app-info', Shell.SearchProvider),
+        'can-launch-search': GObject.ParamSpec.override(
+            'can-launch-search', Shell.SearchProvider),
+        'is-remote-provider': GObject.ParamSpec.override(
+            'is-remote-provider', Shell.SearchProvider),
+        'max-results': GObject.ParamSpec.override('max-results', Shell.SearchProvider),
+    },
+}, class AppSearchProvider extends GObject.Object {
+    _init() {
+        super._init();
+
         this._appSys = Shell.AppSystem.get_default();
-        this.id = 'applications';
-        this.isRemoteProvider = false;
-        this.canLaunchSearch = false;
-        this.maxResults = 6;
-
         this._systemActions = Shell.SystemActions.get_default();
-
         this._parentalControlsManager = Shell.ParentalControlsManager.get_default();
     }
 
-    getResultMetas(apps) {
+    get id() {
+        return 'applications';
+    }
+
+    get app_info() {
+        return null;
+    }
+
+    get can_launch_search() {
+        return false;
+    }
+
+    get is_remote_provider() {
+        return false;
+    }
+
+    get max_results() {
+        return 6;
+    }
+
+    vfunc_get_result_metas(ids, cancellable, request) {
         const {scaleFactor} = St.ThemeContext.get_for_stage(global.stage);
         const metas = [];
-        for (const id of apps) {
+        for (const id of ids) {
             if (id.endsWith('.desktop')) {
                 const app = this._appSys.lookup_app(id);
 
-                metas.push({
-                    id: app.get_id(),
-                    name: app.get_name(),
-                    createIcon: size => app.create_icon_texture(size),
-                });
+                const meta = Shell.SearchResultMeta.new(app.get_id(), app.get_name());
+                meta.set_create_icon_func(size => app.create_icon_texture(size));
+                metas.push(meta);
             } else {
                 const name = this._systemActions.get_name(id);
                 const iconName = this._systemActions.get_icon_name(id);
@@ -1756,29 +1779,26 @@ export class AppSearchProvider {
                     style_class: 'system-action-icon',
                 });
 
-                metas.push({id, name, createIcon});
+                const meta = Shell.SearchResultMeta.new(id, name);
+                meta.set_create_icon_func(createIcon);
+                metas.push(meta);
             }
         }
 
-        return new Promise(resolve => resolve(metas));
+        request.return_metas(metas);
     }
 
-    filterResults(results, maxNumber) {
-        return results.slice(0, maxNumber);
-    }
-
-    getInitialResultSet(terms, cancellable) {
+    vfunc_get_initial_result_set(terms, cancellable, request) {
         // Defer until the parental controls manager is initialised, so the
         // results can be filtered correctly.
         if (!this._parentalControlsManager.initialized) {
-            return new Promise(resolve => {
-                const initializedId = this._parentalControlsManager.connect('app-filter-changed', async () => {
-                    if (this._parentalControlsManager.initialized) {
-                        this._parentalControlsManager.disconnect(initializedId);
-                        resolve(await this.getInitialResultSet(terms, cancellable));
-                    }
-                });
+            const initializedId = this._parentalControlsManager.connect('app-filter-changed', () => {
+                if (this._parentalControlsManager.initialized) {
+                    this._parentalControlsManager.disconnect(initializedId);
+                    this.vfunc_get_initial_result_set(terms, cancellable, request);
+                }
             });
+            return;
         }
 
         const query = terms.join(' ');
@@ -1796,23 +1816,23 @@ export class AppSearchProvider {
         });
 
         results = results.concat(this._systemActions.get_matching_actions(terms));
-        return new Promise(resolve => resolve(results));
+        request.return_results(results);
     }
 
-    getSubsearchResultSet(previousResults, terms, cancellable) {
-        return this.getInitialResultSet(terms, cancellable);
+    vfunc_get_subsearch_result_set(previousResults, terms, cancellable, request) {
+        this.vfunc_get_initial_result_set(terms, cancellable, request);
     }
 
-    createResultObject(resultMeta) {
+    vfunc_create_result_object(resultMeta) {
         if (resultMeta.id.endsWith('.desktop')) {
-            return new AppIcon(this._appSys.lookup_app(resultMeta['id']), {
+            return new AppIcon(this._appSys.lookup_app(resultMeta.id), {
                 expandTitleOnHover: false,
             });
         } else {
-            return new SystemActionIcon(this, resultMeta);
+            return new SystemActionIcon({provider: this, meta_info: resultMeta});
         }
     }
-}
+});
 
 export const AppViewItem = GObject.registerClass({
     Implements: [Shell.DragTarget],
@@ -3055,6 +3075,16 @@ export const AppIcon = GObject.registerClass({
         return this.app.create_icon_texture(Main.overview.dash.iconSize);
     }
 
+    // Read by the workspaces, which accept the drop of an app to open a
+    // new window of it
+    vfunc_get_app() {
+        return this.app;
+    }
+
+    vfunc_animate_launch_at_pos(x, y) {
+        this.animateLaunchAtPos(x, y);
+    }
+
     // Returns the original actor that should align with the actor
     // we show as the item is being dragged.
     vfunc_get_drag_actor_source() {
@@ -3128,9 +3158,9 @@ export const AppIcon = GObject.registerClass({
 });
 
 const SystemActionIcon = GObject.registerClass(
-class SystemActionIcon extends Search.GridSearchResult {
-    activate() {
-        Shell.SystemActions.get_default().activate_action(this.metaInfo['id']);
+class SystemActionIcon extends Shell.GridSearchResult {
+    vfunc_activate() {
+        Shell.SystemActions.get_default().activate_action(this.meta_info.id);
         Main.overview.hide();
     }
 });

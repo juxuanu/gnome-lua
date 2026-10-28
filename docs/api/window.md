@@ -36,7 +36,7 @@ cannot map.
 
 | Function | Returns |
 |---|---|
-| `shell.windows.list()` | sequence of `shell.Window`, most recently focused first (the Alt-Tab order). Includes minimized windows and windows on any workspace/monitor; excludes `skip_taskbar` windows (docks, desktop, the shell's own chrome), as the overview does (`workspace.js` `_isOverviewWindow`) |
+| `shell.windows.list()` | sequence of `shell.Window`, most recently focused first (the Alt-Tab order). Includes minimized windows and windows on any workspace/monitor; excludes `skip_taskbar` windows (docks, desktop, the shell's own chrome), as the overview does (`src/ui/workspace.c` `is_overview_window`) |
 | `shell.windows.focused()` | the focused `shell.Window`, or nil |
 | `shell.windows.get(id)` | the `shell.Window` with that id, or nil (also nil for windows `list()` would exclude) |
 

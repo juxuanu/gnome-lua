@@ -92,7 +92,6 @@ struct _ShellBaseIconClass
 
 /**
  * ShellBaseIconCreateIconFunc:
- * @icon: the #ShellBaseIcon
  * @size: the size of the icon in logical pixels
  * @user_data: (closure): the data given to
  *   shell_base_icon_set_create_icon_func ()
@@ -101,9 +100,8 @@ struct _ShellBaseIconClass
  *
  * Returns: (transfer full): the icon actor
  */
-typedef ClutterActor * (* ShellBaseIconCreateIconFunc) (ShellBaseIcon *icon,
-                                                       int            size,
-                                                       gpointer       user_data);
+typedef ClutterActor * (* ShellBaseIconCreateIconFunc) (int      size,
+                                                       gpointer user_data);
 
 ClutterActor *shell_base_icon_create_icon          (ShellBaseIcon *self,
                                                     int            size);

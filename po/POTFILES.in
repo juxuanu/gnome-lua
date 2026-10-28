@@ -52,8 +52,6 @@ js/ui/panelItems.js
 js/ui/quickSettings.js
 js/ui/screenShield.js
 js/ui/screenshot.js
-js/ui/search.js
-js/ui/searchController.js
 js/ui/shellMountOperation.js
 js/ui/status/accessibility.js
 js/ui/status/autoRotate.js
@@ -97,6 +95,8 @@ src/ui/inhibit-shortcuts-dialog.c
 src/ui/keyboard.c
 src/ui/pad-osd.c
 src/ui/run-dialog.c
+src/ui/search-controller.c
+src/ui/search.c
 src/ui/shell-entry.c
 src/ui/switch-monitor.c
 src/ui/window-manager.c

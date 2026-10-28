@@ -36,7 +36,7 @@ Every new hook point gets a row here in the same commit that declares it.
 | `workspace.switched` | no | `from:i to:i` | `WindowManager._switchWorkspace` | 1.0 (M3) |
 | `workspace.added` | no | `index:i` | `WorkspaceManager::workspace-added` | 1.0 (M3) |
 | `workspace.removed` | no | `index:i` | `WorkspaceManager::workspace-removed` | 1.0 (M3) |
-| `search.query` | no | `query:s terms:as` | `SearchController._onTextChanged` (`js/ui/searchController.js`); needs capability `search` | 1.0 (M3) |
+| `search.query` | no | `query:s terms:as` | `view_do_search ()` in `src/ui/search.c` (`ShellSearchResultsView`), when the search starts after the debounce of 150 ms or is forced by activating the default result (`query` is the terms joined by spaces); needs capability `search` | 1.0 (M3) |
 | `dash.item-added` | no | `kind:s owner:s index:i` + `app-id:s` for apps | `Dash._redisplay` and `shell.dash` | 1.0 (M3) |
 | `quick-settings.opened` | no | (empty) | `open-state-changed` of `QuickSettingsMenu` (`js/ui/quickSettings.js`) | 1.0 (M4) |
 | `notification.showing` | yes | N | `MessageTray._onNotificationRequestBanner` (`js/ui/messageTray.js`) | 1.0 (M4) |
@@ -49,7 +49,8 @@ Every new hook point gets a row here in the same commit that declares it.
 The three `1.0` rows at the top are declared today
 (`shell_global_declare_hooks()`), and the two `panel.*` rows by `shell_panel_class_init ()`
 (`src/ui/panel.c`), and the two `osk.*` rows by `shell_osk_manager_class_init ()`
-(`src/ui/keyboard.c`), so they exist once those classes are loaded, before any extension. Every other row is **reserved**: the name,
+(`src/ui/keyboard.c`), and `search.query` by `shell_search_results_view_class_init ()`
+(`src/ui/search.c`), so they exist once those classes are loaded, before any extension. Every other row is **reserved**: the name,
 cancellability and payload are the contract, but the hook is declared by the
 code that owns it when that module is ported (milestone in the last column).
 `shell.hooks.list()` lists only declared hooks, so extensions feature-detect

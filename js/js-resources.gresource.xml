@@ -65,21 +65,15 @@
     <file>ui/panelItems.js</file>
     <file>ui/quickSettings.js</file>
     <file>ui/qrCode.js</file>
-    <file>ui/remoteSearch.js</file>
     <file>ui/screenShield.js</file>
     <file>ui/screenshot.js</file>
     <file>ui/scripting.js</file>
-    <file>ui/search.js</file>
-    <file>ui/searchController.js</file>
     <file>ui/shellMountOperation.js</file>
     <file>ui/unlockDialog.js</file>
     <file>ui/userWidget.js</file>
     <file>ui/welcomeDialog.js</file>
     <file>ui/windowAttentionHandler.js</file>
-    <file>ui/windowPreview.js</file>
-    <file>ui/workspace.js</file>
     <file>ui/workspacesView.js</file>
-    <file>ui/workspaceThumbnail.js</file>
 
     <file>ui/components.js</file>
     <file>ui/components/automountManager.js</file>

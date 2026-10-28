@@ -10,8 +10,6 @@ import St from 'gi://St';
 import * as Main from './main.js';
 import * as OverviewControls from './overviewControls.js';
 import * as Util from '../misc/util.js';
-import * as Workspace from './workspace.js';
-import {ThumbnailsBox} from './workspaceThumbnail.js';
 
 const WORKSPACE_SWITCH_TIME = 250;
 
@@ -23,6 +21,36 @@ const WORKSPACE_MAX_SPACING = 80;
 const WORKSPACE_INACTIVE_SCALE = 0.94;
 
 const SECONDARY_WORKSPACE_SCALE = 0.80;
+
+// Creates the window picker of a workspace and connects it to the parts of the
+// overview that are still JS
+function createWorkspace(metaWorkspace, monitorIndex, overviewAdjustment) {
+    const workspace = new Shell.Workspace({
+        meta_workspace: metaWorkspace,
+        monitor_index: monitorIndex,
+        overview_adjustment: overviewAdjustment,
+        window_manager: Main.wm,
+    });
+
+    workspace.connect('overview-hide-requested', () => {
+        Main.overview.hide();
+    });
+    workspace.connect('window-activated', () => {
+        Main.overview.hide();
+        Main.panel.close_calendar();
+    });
+    workspace.connect('window-drag-begin', (_workspace, window) => {
+        Main.overview.beginWindowDrag(window);
+    });
+    workspace.connect('window-drag-cancelled', (_workspace, window) => {
+        Main.overview.cancelledWindowDrag(window);
+    });
+    workspace.connect('window-drag-end', (_workspace, window) => {
+        Main.overview.endWindowDrag(window);
+    });
+
+    return workspace;
+}
 
 const WorkspacesViewBase = GObject.registerClass({
     GTypeFlags: GObject.TypeFlags.ABSTRACT,
@@ -114,7 +142,7 @@ class WorkspacesView extends WorkspacesViewBase {
             'notify::n-workspaces', this._updateWorkspaces.bind(this),
             'workspaces-reordered', () => {
                 this._workspaces.sort((a, b) => {
-                    return a.metaWorkspace.index() - b.metaWorkspace.index();
+                    return a.meta_workspace.index() - b.meta_workspace.index();
                 });
                 this._workspaces.forEach(
                     (ws, i) => this.set_child_at_index(ws, i));
@@ -253,7 +281,7 @@ class WorkspacesView extends WorkspacesViewBase {
 
         // Fade and scale inactive workspaces
         this._workspaces.forEach((w, index) => {
-            w.stateAdjustment.value = workspaceMode;
+            w.state_adjustment.value = workspaceMode;
 
             const distanceToCurrentWorkspace = Math.abs(adj.value - index);
 
@@ -394,12 +422,12 @@ class WorkspacesView extends WorkspacesViewBase {
 
     prepareToLeaveOverview() {
         for (let w = 0; w < this._workspaces.length; w++)
-            this._workspaces[w].prepareToLeaveOverview();
+            this._workspaces[w].prepare_to_leave_overview();
     }
 
-    syncStacking(stackIndices) {
+    syncStacking(stackSequences) {
         for (let i = 0; i < this._workspaces.length; i++)
-            this._workspaces[i].syncStacking(stackIndices);
+            this._workspaces[i].sync_stacking(stackSequences);
     }
 
     _scrollToActive() {
@@ -451,7 +479,7 @@ class WorkspacesView extends WorkspacesViewBase {
             let workspace;
 
             if (j >= this._workspaces.length) { /* added */
-                workspace = new Workspace.Workspace(
+                workspace = createWorkspace(
                     metaWorkspace,
                     this._monitorIndex,
                     this._overviewAdjustment);
@@ -460,7 +488,7 @@ class WorkspacesView extends WorkspacesViewBase {
             } else  {
                 workspace = this._workspaces[j];
 
-                if (workspace.metaWorkspace !== metaWorkspace) { /* removed */
+                if (workspace.meta_workspace !== metaWorkspace) { /* removed */
                     workspace.destroy();
                     this._workspaces.splice(j, 1);
                 } /* else kept */
@@ -526,7 +554,7 @@ class WorkspacesView extends WorkspacesViewBase {
                 current = this._workspaces.length - 1;
             }
 
-            const metaWorkspace = this._workspaces[current].metaWorkspace;
+            const metaWorkspace = this._workspaces[current].meta_workspace;
             metaWorkspace.activate(global.get_current_time());
         }
 
@@ -540,7 +568,7 @@ class ExtraWorkspaceView extends WorkspacesViewBase {
     _init(monitorIndex, overviewAdjustment) {
         super._init(monitorIndex, overviewAdjustment);
         this._workspace =
-            new Workspace.Workspace(null, monitorIndex, overviewAdjustment);
+            createWorkspace(null, monitorIndex, overviewAdjustment);
         this.add_child(this._workspace);
     }
 
@@ -551,7 +579,7 @@ class ExtraWorkspaceView extends WorkspacesViewBase {
             OverviewControls.ControlsState.HIDDEN,
             OverviewControls.ControlsState.WINDOW_PICKER);
 
-        this._workspace.stateAdjustment.value = progress;
+        this._workspace.state_adjustment.value = progress;
     }
 
     vfunc_allocate(box) {
@@ -571,11 +599,11 @@ class ExtraWorkspaceView extends WorkspacesViewBase {
     }
 
     prepareToLeaveOverview() {
-        this._workspace.prepareToLeaveOverview();
+        this._workspace.prepare_to_leave_overview();
     }
 
-    syncStacking(stackIndices) {
-        this._workspace.syncStacking(stackIndices);
+    syncStacking(stackSequences) {
+        this._workspace.sync_stacking(stackSequences);
     }
 
     startTouchGesture() {
@@ -605,8 +633,12 @@ class SecondaryMonitorDisplay extends St.Widget {
 
         this.connect('destroy', () => this._onDestroy());
 
-        this._thumbnails = new ThumbnailsBox(
-            this._scrollAdjustment, monitorIndex);
+        this._thumbnails = new Shell.ThumbnailsBox({
+            scroll_adjustment: this._scrollAdjustment,
+            monitor_index: monitorIndex,
+            window_manager: Main.wm,
+        });
+        OverviewControls.connectThumbnailsBox(this._thumbnails);
         this.add_child(this._thumbnails);
 
         this._thumbnails.connect('notify::should-show',
@@ -651,11 +683,11 @@ class SecondaryMonitorDisplay extends St.Widget {
             return 0;
 
         const [width, height] = box.get_size();
-        const {expandFraction} = this._thumbnails;
+        const {expand_fraction: expandFraction} = this._thumbnails;
         const [thumbnailsHeight] = this._thumbnails.get_preferred_height(width);
         return Math.min(
             thumbnailsHeight * expandFraction,
-            height * this._thumbnails.maxThumbnailScale);
+            height * this._thumbnails.max_thumbnail_scale);
     }
 
     _getWorkspacesBoxForState(state, box, padding, thumbnailsHeight, spacing) {
@@ -689,7 +721,7 @@ class SecondaryMonitorDisplay extends St.Widget {
         const themeNode = this.get_theme_node();
         const contentBox = themeNode.get_content_box(box);
         const [width, height] = contentBox.get_size();
-        const {expandFraction} = this._thumbnails;
+        const {expand_fraction: expandFraction} = this._thumbnails;
         const spacing = themeNode.get_length('spacing') * expandFraction;
         const padding =
             Math.round((1 - SECONDARY_WORKSPACE_SCALE) * height / 2);
@@ -799,8 +831,8 @@ class SecondaryMonitorDisplay extends St.Widget {
         this._workspacesView.prepareToLeaveOverview();
     }
 
-    syncStacking(stackIndices) {
-        this._workspacesView.syncStacking(stackIndices);
+    syncStacking(stackSequences) {
+        this._workspacesView.syncStacking(stackSequences);
     }
 
     startTouchGesture() {
@@ -1100,13 +1132,19 @@ export class WorkspacesDisplay extends St.Widget {
     activeWorkspaceHasMaximizedWindows() {
         const primaryView = this._getPrimaryView();
         return primaryView
-            ? primaryView.getActiveWorkspace().hasMaximizedWindows()
+            ? primaryView.getActiveWorkspace().has_maximized_windows()
             : false;
     }
 
     _onRestacked(overview, stackIndices) {
+        // The stacking indices are keyed by the stable sequence of the
+        // windows; the workspaces want the sequences in stacking order
+        const stackSequences = Object.entries(stackIndices)
+            .sort(([, a], [, b]) => a - b)
+            .map(([sequence]) => Number(sequence));
+
         for (let i = 0; i < this._workspacesViews.length; i++)
-            this._workspacesViews[i].syncStacking(stackIndices);
+            this._workspacesViews[i].syncStacking(stackSequences);
     }
 
     _onScrollEvent(actor, event) {

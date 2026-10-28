@@ -242,7 +242,7 @@ real_create_icon (ShellBaseIcon *self,
   ShellBaseIconPrivate *priv = shell_base_icon_get_instance_private (self);
 
   if (priv->create_icon_func != NULL)
-    return priv->create_icon_func (self, size, priv->create_icon_data);
+    return priv->create_icon_func (size, priv->create_icon_data);
 
   g_warning ("createIcon in %s is not implemented", G_OBJECT_TYPE_NAME (self));
   return NULL;

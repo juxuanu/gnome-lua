@@ -1,9 +1,9 @@
 // Test cases for SearchResult description match highlighter
 
 import Pango from 'gi://Pango';
+import Shell from 'gi://Shell';
 
 import 'resource:///org/gnome/shell/ui/environment.js';
-import {Highlighter} from 'resource:///org/gnome/shell/misc/util.js';
 
 describe('Highlighter', () => {
     const tests = [
@@ -123,7 +123,7 @@ describe('Highlighter', () => {
         const {terms, input, output: expected} = test;
 
         it(`highlights ${JSON.stringify(terms)} in "${input}"`, () => {
-            const highlighter = new Highlighter(terms);
+            const highlighter = Shell.Highlighter.new(terms);
             const output = highlighter.highlight(input);
 
             expect(output).toEqual(expected);

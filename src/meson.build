@@ -154,10 +154,16 @@ libshell_public_headers = [
   'ui/shell-entry.h',
   'ui/run-dialog.h',
   'ui/app-menu.h',
+  'ui/search.h',
+  'ui/remote-search.h',
+  'ui/search-controller.h',
   'ui/pad-osd.h',
   'ui/inhibit-shortcuts-dialog.h',
   'ui/window-manager.h',
   'ui/workspace-animation.h',
+  'ui/window-preview.h',
+  'ui/workspace.h',
+  'ui/workspace-thumbnail.h',
   'shell-camera-monitor.h',
   'shell-edge-drag-gesture.h',
   'shell-global.h',
@@ -186,7 +192,6 @@ libshell_public_headers = [
   'shell-stack.h',
   'shell-time-change-source.h',
   'shell-util.h',
-  'shell-window-preview.h',
   'shell-window-preview-layout.h',
   'shell-window-tracker.h',
   'shell-wm.h',
@@ -266,10 +271,16 @@ libshell_sources = [
   'ui/shell-entry.c',
   'ui/run-dialog.c',
   'ui/app-menu.c',
+  'ui/search.c',
+  'ui/remote-search.c',
+  'ui/search-controller.c',
   'ui/pad-osd.c',
   'ui/inhibit-shortcuts-dialog.c',
   'ui/window-manager.c',
   'ui/workspace-animation.c',
+  'ui/window-preview.c',
+  'ui/workspace.c',
+  'ui/workspace-thumbnail.c',
   'shell-camera-monitor.c',
   'misc/gnome-session.c',
   'misc/ibus-manager.c',
@@ -303,7 +314,6 @@ libshell_sources = [
   'shell-stack.c',
   'shell-time-change-source.c',
   'shell-util.c',
-  'shell-window-preview.c',
   'shell-window-preview-layout.c',
   'shell-window-tracker.c',
   'shell-wm.c',
@@ -405,6 +415,17 @@ dbus_generated += gnome.gdbus_codegen('pad-osd-dbus',
   sources: '../data/dbus-interfaces/org.gnome.Shell.PadOsd.xml',
   interface_prefix: 'org.gnome.Shell.',
   namespace: 'Shell'
+)
+
+# The proxies of ui/remote-search.c (type names ShellDBusSearchProvider and
+# ShellDBusSearchProvider2)
+dbus_generated += gnome.gdbus_codegen('search-provider-dbus',
+  sources: [
+    '../data/dbus-interfaces/org.gnome.ShellSearchProvider.xml',
+    '../data/dbus-interfaces/org.gnome.ShellSearchProvider2.xml',
+  ],
+  interface_prefix: 'org.gnome.Shell.',
+  namespace: 'ShellDBus'
 )
 
 # The skeletons of ui/shell-dbus.c (type names ShellDBusShell,

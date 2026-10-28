@@ -54,7 +54,7 @@ $window_close_button_color: transparentize(lighten($system_bg_color, 7%), .02);
 }
 
 .workspace-background {
-  // keep in sync with BACKGROUND_CORNER_RADIUS_PIXELS in workspace.js
+  // keep in sync with BACKGROUND_CORNER_RADIUS_PIXELS in src/ui/workspace.c
   border-radius: 30px;
   background-color: $invisible_occluded_bg_color;
   box-shadow: 0 4px 16px 4px $shadow_color;

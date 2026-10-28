@@ -13,7 +13,6 @@ export const ANIMATION_TIME = 250;
 
 import * as Main from './main.js';
 import * as OverviewControls from './overviewControls.js';
-import * as WorkspaceThumbnail from './workspaceThumbnail.js';
 
 const SHELL_KEYBINDINGS_SCHEMA = 'org.gnome.shell.keybindings';
 
@@ -126,6 +125,18 @@ export class Overview extends Signals.EventEmitter {
 
     get animationInProgress() {
         return this._animationInProgress;
+    }
+
+    // The workspaces (Shell.Workspace) read the state of the animation from
+    // the window manager
+    get _animationInProgress() {
+        return this._animating ?? false;
+    }
+
+    set _animationInProgress(value) {
+        this._animating = value;
+        if (Main.wm)
+            Main.wm.overview_animating = value;
     }
 
     get visible() {
@@ -290,15 +301,14 @@ export class Overview extends Signals.EventEmitter {
     }
 
     _onDragMotion(dragEvent) {
-        const targetIsWindow = dragEvent.target_actor &&
-                             dragEvent.target_actor._delegate &&
-                             dragEvent.target_actor._delegate.metaWindow &&
-                             !(dragEvent.target_actor._delegate instanceof WorkspaceThumbnail.WindowClone);
+        const hoveredWindow =
+            dragEvent.target_actor instanceof Shell.WindowPreview
+                ? dragEvent.target_actor.meta_window : null;
+        const targetIsWindow = hoveredWindow !== null;
 
         this._windowSwitchTimestamp = global.get_current_time();
 
-        if (targetIsWindow &&
-            dragEvent.target_actor._delegate.metaWindow === this._lastHoveredWindow)
+        if (targetIsWindow && hoveredWindow === this._lastHoveredWindow)
             return Shell.DragMotionResult.CONTINUE;
 
         this._lastHoveredWindow = null;
@@ -306,13 +316,13 @@ export class Overview extends Signals.EventEmitter {
         this._resetWindowSwitchTimeout();
 
         if (targetIsWindow) {
-            this._lastHoveredWindow = dragEvent.target_actor._delegate.metaWindow;
+            this._lastHoveredWindow = hoveredWindow;
             this._windowSwitchTimeoutId = GLib.timeout_add_once(
                 GLib.PRIORITY_DEFAULT,
                 DND_WINDOW_SWITCH_TIMEOUT,
                 () => {
                     this._windowSwitchTimeoutId = 0;
-                    Main.activateWindow(dragEvent.target_actor._delegate.metaWindow,
+                    Main.activateWindow(hoveredWindow,
                         this._windowSwitchTimestamp);
                     this.hide();
                     this._lastHoveredWindow = null;

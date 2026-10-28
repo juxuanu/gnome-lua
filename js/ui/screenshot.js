@@ -10,8 +10,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from './main.js';
-import * as MessageTray from './messageTray.js';
-import * as Workspace from './workspace.js';
 
 Gio._promisify(Shell.GrabHelper.prototype, 'grab_async', 'grab_finish');
 Gio._promisify(Shell.Screenshot.prototype, 'pick_color');
@@ -32,10 +30,10 @@ const ScreencastProxy = Gio.DBusProxy.makeProxyWrapper(ScreencastIface);
 let screenshotNotificationSource = null;
 function getScreenshotNotificationSource() {
     if (!screenshotNotificationSource) {
-        screenshotNotificationSource = new MessageTray.Source({
+        screenshotNotificationSource = new Shell.Source({
             // Translators: notification source name for screenshots and recordings.
             title: _('Screen Capture'),
-            iconName: 'screenshooter-symbolic',
+            icon_name: 'screenshooter-symbolic',
         });
 
         screenshotNotificationSource.connect('destroy', () => {
@@ -881,71 +879,6 @@ const UIAreaSelector = GObject.registerClass({
     }
 });
 
-const UIWindowSelectorLayout = GObject.registerClass(
-class UIWindowSelectorLayout extends Workspace.WorkspaceLayout {
-    _init(monitorIndex) {
-        super._init(null, monitorIndex, null);
-    }
-
-    vfunc_set_container(container) {
-        this._container = container;
-        this._syncWorkareaTracking();
-    }
-
-    vfunc_allocate(container, box) {
-        const containerBox = container.allocation;
-        const containerAllocationChanged =
-            this._lastBox === null || !this._lastBox.equal(containerBox);
-        this._lastBox = containerBox.copy();
-
-        let layoutChanged = false;
-        if (this._layout === null) {
-            this._layout = this._createBestLayout(this._workarea);
-            layoutChanged = true;
-        }
-
-        if (layoutChanged || containerAllocationChanged)
-            this._windowSlots = this._getWindowSlots(box.copy());
-
-        const childBox = new Clutter.ActorBox();
-
-        const nSlots = this._windowSlots.length;
-        for (let i = 0; i < nSlots; i++) {
-            const [x, y, width, height, child] = this._windowSlots[i];
-
-            childBox.set_origin(x, y);
-            childBox.set_size(width, height);
-
-            child.allocate(childBox);
-        }
-    }
-
-    addWindow(window) {
-        if (this._sortedWindows.includes(window))
-            return;
-
-        this._sortedWindows.push(window);
-
-        this._container.add_child(window);
-
-        this._layout = null;
-        this.layout_changed();
-    }
-
-    reset() {
-        for (const window of this._sortedWindows)
-            window.destroy();
-
-        this._sortedWindows = [];
-        this._windowSlots = [];
-        this._layout = null;
-    }
-
-    get windows() {
-        return this._sortedWindows;
-    }
-});
-
 const UIWindowSelectorWindowContent = GObject.registerClass(
 class UIWindowSelectorWindowContent extends Clutter.Actor {
     constructor(actor) {
@@ -1168,7 +1101,7 @@ class UIWindowSelector extends St.Widget {
 
         this._monitorIndex = monitorIndex;
 
-        this._layoutManager = new UIWindowSelectorLayout(monitorIndex);
+        this._layoutManager = new Shell.WindowSlotLayout({monitor_index: monitorIndex});
 
         // Window screenshots
         this._container = new St.Widget({
@@ -1210,7 +1143,7 @@ class UIWindowSelector extends St.Widget {
                 widget.toggle_mode = false;
             }
 
-            this._layoutManager.addWindow(widget);
+            this._layoutManager.add_window(widget, widget.boundingBox);
         }
     }
 
@@ -1219,7 +1152,7 @@ class UIWindowSelector extends St.Widget {
     }
 
     windows() {
-        return this._layoutManager.windows;
+        return this._layoutManager.get_windows();
     }
 });
 
@@ -2517,19 +2450,19 @@ export class ScreenshotUI extends St.Widget {
 
     _showNotification(title) {
         const source = getScreenshotNotificationSource();
-        const notification = new MessageTray.Notification({
+        const notification = new Shell.Notification({
             source,
             title,
             // Translators: notification body when a screencast was recorded.
             body: this._screencastPath ? _('Click here to view the video') : '',
-            isTransient: true,
+            is_transient: true,
         });
 
         if (this._screencastPath) {
             const file = Gio.file_new_for_path(this._screencastPath);
 
             // Translators: button on the screencast notification.
-            notification.addAction(_('Show in Files'), () => {
+            notification.add_action(_('Show in Files'), () => {
                 const app =
                     Gio.app_info_get_default_for_type('inode/directory', false);
 
@@ -2554,7 +2487,7 @@ export class ScreenshotUI extends St.Widget {
             Main.panel.close_calendar();
         }
 
-        source.addNotification(notification);
+        source.add_notification(notification);
     }
 
     get screencast_in_progress() {
@@ -2739,7 +2672,7 @@ function _storeScreenshot(bytes, pixbuf) {
 
     // Show a notification.
     const source = getScreenshotNotificationSource();
-    const notification = new MessageTray.Notification({
+    const notification = new Shell.Notification({
         source,
         // Translators: notification title.
         title: _('Screenshot Captured'),
@@ -2747,12 +2680,12 @@ function _storeScreenshot(bytes, pixbuf) {
         body: _('You can paste the image from the clipboard'),
         datetime: time,
         gicon: content,
-        isTransient: true,
+        is_transient: true,
     });
 
     if (!disableSaveToDisk) {
         // Translators: button on the screenshot notification.
-        notification.addAction(_('Show in Files'), () => {
+        notification.add_action(_('Show in Files'), () => {
             const app =
                 Gio.app_info_get_default_for_type('inode/directory', false);
 
@@ -2777,7 +2710,7 @@ function _storeScreenshot(bytes, pixbuf) {
         });
     }
 
-    source.addNotification(notification);
+    source.add_notification(notification);
 
     return file;
 }
