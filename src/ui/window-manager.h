@@ -24,6 +24,7 @@
 #include <gio/gio.h>
 #include <meta/display.h>
 #include <meta/keybindings.h>
+#include <meta/meta-window-actor.h>
 #include <meta/meta-inhibit-shortcuts-dialog.h>
 #include <meta/window.h>
 #include <meta/workspace.h>
@@ -163,6 +164,9 @@ void     shell_window_manager_set_overview_visible        (ShellWindowManager *s
 gboolean shell_window_manager_get_overview_closing        (ShellWindowManager *self);
 void     shell_window_manager_set_overview_closing        (ShellWindowManager *self,
                                                            gboolean            closing);
+gboolean shell_window_manager_get_overview_animating      (ShellWindowManager *self);
+void     shell_window_manager_set_overview_animating      (ShellWindowManager *self,
+                                                           gboolean            animating);
 
 ShellCtrlAltTabManager *shell_window_manager_get_ctrl_alt_tab_manager (ShellWindowManager *self);
 void     shell_window_manager_set_ctrl_alt_tab_manager    (ShellWindowManager     *self,

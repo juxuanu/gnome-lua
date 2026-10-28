@@ -657,11 +657,26 @@ shell_drag_source_real_get_drag_actor_source (ShellDragSource *source)
   return NULL;
 }
 
+static ShellApp *
+shell_drag_source_real_get_app (ShellDragSource *source)
+{
+  return NULL;
+}
+
+static void
+shell_drag_source_real_animate_launch_at_pos (ShellDragSource *source,
+                                              float            x,
+                                              float            y)
+{
+}
+
 static void
 shell_drag_source_default_init (ShellDragSourceInterface *iface)
 {
   iface->get_drag_actor = shell_drag_source_real_get_drag_actor;
   iface->get_drag_actor_source = shell_drag_source_real_get_drag_actor_source;
+  iface->get_app = shell_drag_source_real_get_app;
+  iface->animate_launch_at_pos = shell_drag_source_real_animate_launch_at_pos;
 }
 
 /**
@@ -702,6 +717,44 @@ shell_drag_source_get_drag_actor_source (ShellDragSource *source)
   g_return_val_if_fail (SHELL_IS_DRAG_SOURCE (source), NULL);
 
   return SHELL_DRAG_SOURCE_GET_IFACE (source)->get_drag_actor_source (source);
+}
+
+/**
+ * shell_drag_source_get_app:
+ * @source: a #ShellDragSource
+ *
+ * The application the dragged item stands for, if it is an application
+ * launcher (`source.app` of the duck-typed JS protocol). The workspaces of the
+ * overview accept such a drop to open a new window of the application.
+ *
+ * Returns: (transfer none) (nullable): the application, or %NULL
+ */
+ShellApp *
+shell_drag_source_get_app (ShellDragSource *source)
+{
+  g_return_val_if_fail (SHELL_IS_DRAG_SOURCE (source), NULL);
+
+  return SHELL_DRAG_SOURCE_GET_IFACE (source)->get_app (source);
+}
+
+/**
+ * shell_drag_source_animate_launch_at_pos:
+ * @source: a #ShellDragSource
+ * @x: the X position of the drag actor in the stage
+ * @y: the Y position of the drag actor in the stage
+ *
+ * Called after an application launcher was dropped to launch a new window
+ * of its application, to animate the launch from the position of the drop
+ * (`source.animateLaunchAtPos ()`). The default implementation does nothing.
+ */
+void
+shell_drag_source_animate_launch_at_pos (ShellDragSource *source,
+                                         float            x,
+                                         float            y)
+{
+  g_return_if_fail (SHELL_IS_DRAG_SOURCE (source));
+
+  SHELL_DRAG_SOURCE_GET_IFACE (source)->animate_launch_at_pos (source, x, y);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -2062,10 +2115,13 @@ shell_draggable_constructed (GObject *object)
 
   g_return_if_fail (CLUTTER_IS_ACTOR (self->actor));
 
-  self->dnd_gesture = g_object_new (st_dnd_start_gesture_get_type (),
-                                    "manual-mode", self->manual_mode,
-                                    "timeout-threshold", self->timeout_threshold,
-                                    NULL);
+  /* Hold our own reference: the actor sinks the floating one when the
+   * action is added and drops it when the actor is finalized, which can
+   * happen before the draggable is disposed */
+  self->dnd_gesture = g_object_ref_sink (g_object_new (st_dnd_start_gesture_get_type (),
+                                                       "manual-mode", self->manual_mode,
+                                                       "timeout-threshold", self->timeout_threshold,
+                                                       NULL));
   g_signal_connect_object (self->dnd_gesture, "recognize",
                            G_CALLBACK (gesture_recognized_cb), self, 0);
 
