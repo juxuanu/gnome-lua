@@ -83,34 +83,42 @@ What the JS layer actually does, which the C port has to absorb:
  │   ├─ loads metadata.json               named hook points emitted by src/ui/*.c
  │   ├─ one lua_State per extension        (before / after / around, cancellable)
  │   ├─ sandbox + watchdog + teardown
- │   └─ shell.* API  (src/lua/api-*.c)  ←─ opaque userdata handles, no GI
+ │   └─ shell.* API  (subprojects/shell-lua + src/lua-api)  ←─ opaque userdata handles, no GI
  │
  └─ Lua 5.5 (vendored subproject)
       extension.lua ─ sandboxed _ENV ─ shell.panel / shell.quick_settings /
                                        shell.dash / shell.hooks / shell.ui / …
 ```
 
-`src/lua/` layout:
+The runtime lives in `subprojects/shell-lua/`, an in-tree Meson subproject
+(the same pattern the repo uses for `gvc`). It depends only on GLib, GIO,
+json-glib and the vendored Lua, so it builds and runs its tests standalone on
+any distro, and exposes a small `ShellLua-1` GIR so the *remaining JS* can emit
+hooks and drive the Looking Glass Lua tab during the port.
 
 ```
-src/lua/shell-lua.[ch]        lua_State lifecycle, template state, resource loader,
-                              pcall wrapper + traceback, watchdog, memory accounting
-src/lua/shell-lua-handle.[ch] GObject <-> userdata registry (weak table keyed by
-                              pointer; handle invalidated on ::destroy / dispose)
-src/lua/api-core.c            shell.log, shell.timer, shell.settings, shell.gettext
-src/lua/api-ui.c              shell.ui.* widget constructors (box, label, icon,
-                              button, entry, slider, switch, spacer) + layout props
-src/lua/api-panel.c           shell.panel.add_indicator / status area / positions
-src/lua/api-menu.c            shell.menu.* (items, submenus, separators, toggles)
-src/lua/api-quick-settings.c  shell.quick_settings.add_toggle / add_menu_toggle / add_slider
-src/lua/api-dash.c            shell.dash.add_button / insert_at
-src/lua/api-hooks.c           shell.hooks.on / off, hook payload marshalling
-src/lua/api-notify.c          shell.notify, notification sources/actions
-src/lua/api-dbus.c            capability-gated: proxies to named interfaces,
-                              own-name, exported methods with GVariant<->Lua mapping
-src/lua/api-window.c          read-mostly window/workspace/monitor model, focus/activate
-src/lua/api-prefs.c           prefs schema validation (shared with the prefs service)
+subprojects/lua.wrap                       wrap-redirect to the nested wrap below
+subprojects/shell-lua/subprojects/lua.wrap vendored Lua 5.5.1 + packagefiles meson.build
+subprojects/shell-lua/src/
+  shell-lua.[ch]              ShellLuaState: lua_State lifecycle, sandbox _ENV, require()
+                              over GFile roots, pcall + traceback, watchdog, memory limit
+  shell-lua-api.c             API module registry, option-table helpers, call_ref
+  shell-lua-handle.[ch]       GObject <-> userdata, weak, curated methods/properties
+  shell-lua-variant.[ch]      GVariant <-> Lua (docs/api/variant.md)
+  shell-hooks.[ch]            ShellHookRegistry: declare / connect / emit_before / emit_after
+  shell-lua-extension*.[ch]   ShellLuaExtension (context, ownership, error policy) + manager
+  shell-lua-inspector.[ch]    privileged state for Looking Glass and tests
+  shell-lua-api-core.c        shell.log, shell.timer, shell.settings, shell.gettext, shell.extension
+  shell-lua-api-hooks.c       shell.hooks
+  (M7) shell-lua-api-ui.c, -panel.c, -menu.c, -quick-settings.c, -dash.c,
+       -notify.c, -dbus.c, -window.c, -prefs.c
+subprojects/shell-lua/tests/  GTest programs, run by `meson test` standalone and in-tree
+subprojects/shell-lua/examples/hello/
 ```
+
+The M7 modules that touch St/Clutter/Meta cannot live in the subproject (it
+must stay GLib-only); they go in `src/lua-api/` inside libshell and register
+themselves through the same `shell_lua_api_register()` mechanism.
 
 ## 4. Milestones
 
@@ -132,7 +140,7 @@ in parallel across people once M1's conventions exist.
 
 ### M1 — Lua embedding (effort 1)
 * Vendor Lua 5.5.1 as a Meson wrap; build as a static library into `libshell`.
-* `src/lua/shell-lua.c`: template state, per-extension state cloning
+* `subprojects/shell-lua/src/shell-lua.c`: template state, per-extension state cloning
   (`lua_newstate` + preload of the sandboxed stdlib), `require` searcher limited
   to the extension's own directory and to `resource:///org/gnome/shell/lua/`,
   pcall/traceback wrapper, instruction + time watchdog, memory accounting
@@ -144,8 +152,8 @@ in parallel across people once M1's conventions exist.
 * `ShellHookRegistry`: `shell_hooks_emit(name, GVariant *payload)` returning a
   verdict; before/after/around semantics; listeners ordered by registration.
 * Looking Glass gains a Lua REPL tab (the JS one stays until M4 ports Looking Glass).
-* Tests: `tests/lua/` unit tests driven by `gnome-shell-test-tool`, including
-  sandbox escape attempts, watchdog, teardown.
+* Tests: `subprojects/shell-lua/tests/` GTest programs (no mutter needed),
+  including sandbox escape attempts, watchdog, teardown.
 * Exit: a sample extension (`examples/hello/`) loads, logs, times, and is torn down
   cleanly, with GJS still running everything else.
 
@@ -214,7 +222,7 @@ portal helper.
 ### M7 — Extension API v1 (effort 2.5; design starts during M2)
 * `docs/api/` is written *before* code: every `shell.*` function with its
   signature, errors, ownership rules, and the hook catalogue with payload schemas.
-* Implement `src/lua/api-*.c` per §3; conformance tests in `tests/api/` (one Lua
+* Implement the `shell-lua-api-*.c` modules per §3; conformance tests in `tests/api/` (one Lua
   file per API area, run headless).
 * Prefs schema + Adw renderer in the extensions D-Bus service.
 * Reference extensions in `examples/`: top-bar indicator with menu, quick-settings
@@ -307,16 +315,16 @@ Design rules for the surface:
 
 ```
 docs/PLAN.md, PORT_STATUS.md, PERF.md, api/, MIGRATING_FROM_JS.md
-src/            C core (unchanged layout) + src/ui/, src/gdm/, src/misc/, src/lua/
-subprojects/    lua.wrap (+ existing gvc, shew, …)
+src/            C core (unchanged layout) + src/ui/, src/gdm/, src/misc/, src/lua-api/ (M7)
+subprojects/    shell-lua/ (runtime, GLib-only, standalone-testable), lua.wrap, existing gvc, shew, …
 js/             shrinks to zero by M6
 examples/       reference Lua extensions
-tests/shell, tests/unit (C), tests/lua, tests/api
+tests/shell, tests/unit (C), subprojects/shell-lua/tests, tests/api
 ```
 
 ## 9. Immediate next steps
 
 1. Confirm the interpretation at the top of this document.
 2. M0: import gnome-shell 51.1 history into this repo and get CI green.
-3. M1: land `src/lua/` with the sandboxed state, watchdog and `examples/hello`.
+3. M1: land `subprojects/shell-lua/` with the sandboxed state, watchdog and `examples/hello`.
 4. Start `docs/api/` with the hook catalogue, since M2–M5 must emit the hooks.
