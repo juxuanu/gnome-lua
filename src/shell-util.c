@@ -1120,8 +1120,8 @@ lower_bound (GPtrArray   *array,
 }
 
 /**
- * shell_util_insert_sorted:
- * @array: (element-type gpointer): an array sorted according to @cmp
+ * shell_util_insert_sorted: (skip)
+ * @array: an array sorted according to @cmp
  * @val: a value to insert
  * @cmp: (scope call): the sorting function, called with an element of @array
  *   first and @val second
