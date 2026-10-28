@@ -105,7 +105,9 @@ jobs:
           mkdir -m 700 "$XDG_RUNTIME_DIR"
           mkdir -p -m 1777 /tmp/.X11-unix
           # Start with a fresh build dir to ensure test dependencies are correct
-          meson setup "$BUILD_DIR" -Dman=false -Dgtk_doc=false
+          # ASan makes a teardown crash print a stack trace in testlog.txt
+          meson setup "$BUILD_DIR" -Dman=false -Dgtk_doc=false \
+            -Db_sanitize=address -Db_lundef=false
           dbus-run-session -- meson test -C "$BUILD_DIR" --timeout-multiplier 5
 
       - name: Upload test logs

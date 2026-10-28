@@ -355,6 +355,8 @@ if get_option('tests')
       'abort_on_error=1',
       'detect_leaks=0',
       'verify_asan_link_order=0',
+      # A fatal GLib critical aborts; print where it came from
+      'handle_abort=1',
     ]
     common_test_env.set('ASAN_OPTIONS', ':'.join(asan_options))
     common_test_env.set('LD_PRELOAD', mutter_pkglibdir / 'libasan-preloader.so')
