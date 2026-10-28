@@ -1,0 +1,8 @@
+{
+  "uuid": "hooks-search@test",
+  "name": "API conformance: hooks, search",
+  "description": "Fixture of tests/api/hooks.lua: the search capability gates search.query",
+  "shell-api": "1",
+  "capabilities": ["search"],
+  "version": 1
+}

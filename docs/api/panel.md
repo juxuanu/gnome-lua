@@ -20,6 +20,16 @@ Not in v1:
 - A non-`St` panel child, or a button that is both a menu opener and an action
   button (pick one, see `on_click`).
 
+## Status
+
+**M7, implemented.** `src/lua-api/shell-lua-api-panel.c` (the module and the
+handle type) over `ShellPanelMenuButton` (`src/ui/panel-menu.c`); the placement
+is `shell_panel_add_extension_indicator ()` in `src/ui/panel.c` with the
+ordering helpers of `src/ui/extension-order.c`. Conformance test:
+`tests/api/panel.lua` with the fixture `tests/api/fixtures/panel@test`.
+Differences from the text below are marked **(as built)** where they occur;
+there is no other.
+
 ## `shell.panel.add_indicator{...}` -> `shell.Indicator`
 
 | Field | Type | Default | Notes |
@@ -33,7 +43,7 @@ Not in v1:
 | `icon_name`, `icon_file` | string | | shorthand for `ui.icon{ style_class = "system-status-icon", ... }` |
 | `text` | string | | shorthand for `ui.label{ text = ..., y_align = "center" }` |
 | `menu` | boolean | `true` unless `on_click` | `true` creates the popup menu and the click gesture (`dontCreateMenu = false`) |
-| `on_click` | function(self, button) | nil | makes the indicator a plain button; mutually exclusive with `menu = true` (raises). Primary button only (`button == 1`) |
+| `on_click` | function(self, button) | nil | makes the indicator a plain button; mutually exclusive with `menu = true` (raises). Primary button only (`button == 1`); a touch counts as the primary button. **(as built)** recognized when the button is released, like any button, where the menu opens on press |
 | `visible` | boolean | `true` | |
 
 Raises if `name` is taken, either by a built-in role (`activities`,
@@ -67,7 +77,8 @@ open, hovering another indicator switches menus (`Panel._onMenuSet` ->
 | `alive` | boolean | ro | |
 
 Methods: `ind:destroy()` (destroys child and menu, frees the status area
-name); `ind:on_click(fn)` (only for `on_click` indicators; otherwise raises).
+name); `ind:on_click(fn)` (only for indicators without a menu, that is with
+`on_click` or `menu = false`; otherwise raises **(as built)**).
 Menu open/close events are on the menu (`ind.menu:on_open_state_changed(fn)`).
 
 ## Placement
@@ -86,7 +97,13 @@ README.md. Consequences:
   `Panel._updateBox` re-appends built-ins on every session-mode update and an
   absolute index would shift; the slot model makes that invisible.
 - On a session-mode change the shell re-applies extension placement from the
-  recorded `(position, edge, index)` tuples.
+  recorded `(position, edge, index)` tuples. **(as built)** The panel keeps
+  the extension indicators as a list grouped by extension and ordered by the
+  position of the extension in `enabled-extensions` (the `index` is the place
+  among the extension's own items in that slot, applied when the indicator is
+  added); the boxes are laid out again, built-ins in the order they already
+  have between the two groups, at the end of every session-mode update and
+  whenever `enabled-extensions` changes.
 - Each panel box is created even if empty (centre may have only `dateMenu`).
 
 Hook `panel.indicator-added` fires for every indicator, built-in or not

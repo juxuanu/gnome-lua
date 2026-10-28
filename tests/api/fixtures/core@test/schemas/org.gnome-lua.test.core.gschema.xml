@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome-lua.test.core" path="/org/gnome-lua/test/core/">
+    <key name="flag" type="b">
+      <default>false</default>
+    </key>
+    <key name="count" type="i">
+      <range min="0" max="10"/>
+      <default>3</default>
+    </key>
+    <key name="big" type="x">
+      <default>0</default>
+    </key>
+    <key name="ratio" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.5</default>
+    </key>
+    <key name="name" type="s">
+      <default>"x"</default>
+    </key>
+    <key name="mode" type="s">
+      <choices>
+        <choice value="a"/>
+        <choice value="b"/>
+        <choice value="c"/>
+      </choices>
+      <default>"a"</default>
+    </key>
+    <key name="names" type="as">
+      <default>[]</default>
+    </key>
+    <key name="pair" type="(si)">
+      <default>("x", 1)</default>
+    </key>
+    <key name="dict" type="a{sv}">
+      <default>{}</default>
+    </key>
+  </schema>
+</schemalist>

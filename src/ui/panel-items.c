@@ -47,6 +47,7 @@
 #include "ui/date-menu.h"
 #include "ui/dnd.h"
 #include "ui/environment.h"
+#include "ui/extension-order.h"
 #include "ui/main.h"
 #include "ui/overview.h"
 #include "ui/panel-items.h"
@@ -858,6 +859,10 @@ struct _ShellQuickSettingsButton
 
   ShellSystemIndicator *brightness;        /* weak, the first non-privacy indicator */
   ShellSystemIndicator *background_apps;   /* weak */
+
+  GPtrArray *ext_items;                    /* ExtensionEntry: the items of extensions in the grid */
+  GPtrArray *ext_indicators;               /* ExtensionEntry: the icons of extensions */
+  gboolean tracks_enabled_extensions;
 };
 
 G_DEFINE_FINAL_TYPE (ShellQuickSettingsButton, shell_quick_settings_button,
@@ -1051,6 +1056,9 @@ shell_quick_settings_button_dispose (GObject *object)
   g_clear_weak_pointer (&self->brightness);
   g_clear_weak_pointer (&self->background_apps);
 
+  g_clear_pointer (&self->ext_items, g_ptr_array_unref);
+  g_clear_pointer (&self->ext_indicators, g_ptr_array_unref);
+
   G_OBJECT_CLASS (shell_quick_settings_button_parent_class)->dispose (object);
 }
 
@@ -1127,6 +1135,388 @@ shell_panel_items_add_external_indicator (ShellPanel           *panel,
   quick_settings_button_add_items_before (self, indicator, sibling, col_span);
 
   return TRUE;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Items and icons of extensions                                            */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * The items (toggles and sliders) and the status icons that extensions add
+ * to the quick settings button (docs/api/quick-settings.md). Both lists are
+ * kept grouped by owner and ordered by the rank of the owner in
+ * `enabled-extensions` (ui/extension-order.h), the items of one owner in the
+ * order they were asked for. The items sit between the built-in toggles and
+ * the background apps section, the icons between the privacy icons and the
+ * first other icon of the shell, so the built-in items never mix with them.
+ */
+
+typedef struct
+{
+  char *owner;
+  ClutterActor *actor; /* the entry goes when the actor is destroyed */
+} ExtensionEntry;
+
+static void
+extension_entry_free (gpointer data)
+{
+  ExtensionEntry *entry = data;
+
+  g_free (entry->owner);
+  g_free (entry);
+}
+
+static const char *
+extension_entry_get_owner (gpointer data)
+{
+  return ((ExtensionEntry *) data)->owner;
+}
+
+static gboolean
+extension_entry_in_slot (gpointer entry,
+                         gpointer slot_data)
+{
+  return TRUE;
+}
+
+static ShellQuickSettingsButton *
+get_quick_settings_button (ShellPanel *panel)
+{
+  ShellPanelButtonBox *box;
+
+  box = shell_panel_get_status_area_indicator (panel, "quickSettings");
+  return SHELL_IS_QUICK_SETTINGS_BUTTON (box) ? SHELL_QUICK_SETTINGS_BUTTON (box) : NULL;
+}
+
+/* The child of the grid the items of the extensions go before: the end of
+ * the background apps section, or NULL for the end of the grid */
+static ClutterActor *
+quick_settings_button_get_items_anchor (ShellQuickSettingsButton *self)
+{
+  if (self->background_apps != NULL)
+    {
+      GPtrArray *background_items =
+        shell_system_indicator_get_quick_settings_items (self->background_apps);
+
+      if (background_items->len > 0)
+        return g_ptr_array_index (background_items, background_items->len - 1);
+    }
+
+  return NULL;
+}
+
+/* Puts the actors of @entries in the order of the array, each before the
+ * next one and the last before @anchor. Only the children out of place move. */
+static void
+relayout_extension_entries (ClutterActor *parent,
+                            GPtrArray    *entries,
+                            ClutterActor *anchor)
+{
+  guint i;
+
+  if (parent == NULL || entries == NULL)
+    return;
+
+  for (i = entries->len; i > 0; i--)
+    {
+      ExtensionEntry *entry = g_ptr_array_index (entries, i - 1);
+      ClutterActor *sibling = i == entries->len
+        ? anchor
+        : ((ExtensionEntry *) g_ptr_array_index (entries, i))->actor;
+
+      if (clutter_actor_get_parent (entry->actor) != parent)
+        continue;
+
+      if (clutter_actor_get_next_sibling (entry->actor) != sibling)
+        clutter_actor_set_child_below_sibling (parent, entry->actor, sibling);
+    }
+}
+
+static void
+quick_settings_button_relayout_extensions (ShellQuickSettingsButton *self)
+{
+  ShellQuickSettingsMenu *menu = quick_settings_button_get_menu (self);
+
+  relayout_extension_entries (shell_quick_settings_menu_get_grid (menu),
+                              self->ext_items,
+                              quick_settings_button_get_items_anchor (self));
+  relayout_extension_entries (CLUTTER_ACTOR (self->indicators),
+                              self->ext_indicators,
+                              self->brightness != NULL ? CLUTTER_ACTOR (self->brightness) : NULL);
+}
+
+static void
+extension_enabled_extensions_changed_cb (GSettings                *settings,
+                                         const char               *key,
+                                         ShellQuickSettingsButton *self)
+{
+  if (self->ext_items != NULL)
+    shell_extension_order_sort (self->ext_items, extension_entry_get_owner);
+  if (self->ext_indicators != NULL)
+    shell_extension_order_sort (self->ext_indicators, extension_entry_get_owner);
+
+  quick_settings_button_relayout_extensions (self);
+}
+
+static void
+extension_actor_destroy_cb (ClutterActor             *actor,
+                            ShellQuickSettingsButton *self)
+{
+  GPtrArray *lists[2] = { self->ext_items, self->ext_indicators };
+  guint i, j;
+
+  for (i = 0; i < G_N_ELEMENTS (lists); i++)
+    {
+      if (lists[i] == NULL)
+        continue;
+
+      for (j = 0; j < lists[i]->len; j++)
+        {
+          ExtensionEntry *entry = g_ptr_array_index (lists[i], j);
+
+          if (entry->actor == actor)
+            {
+              g_ptr_array_remove_index (lists[i], j);
+              return;
+            }
+        }
+    }
+}
+
+static void
+quick_settings_button_prepare_extensions (ShellQuickSettingsButton *self)
+{
+  if (self->ext_items == NULL)
+    self->ext_items = g_ptr_array_new_with_free_func (extension_entry_free);
+  if (self->ext_indicators == NULL)
+    self->ext_indicators = g_ptr_array_new_with_free_func (extension_entry_free);
+
+  if (!self->tracks_enabled_extensions)
+    {
+      self->tracks_enabled_extensions = TRUE;
+      g_signal_connect_object (shell_global_get_settings (shell_global_get ()),
+                               "changed::enabled-extensions",
+                               G_CALLBACK (extension_enabled_extensions_changed_cb),
+                               self, 0);
+    }
+}
+
+/* Registers @actor in @entries at the place the rules of @owner and @index
+ * give, and returns the actor it has to be inserted before */
+static ClutterActor *
+quick_settings_button_register_extension_actor (ShellQuickSettingsButton *self,
+                                                GPtrArray                *entries,
+                                                ClutterActor             *actor,
+                                                const char               *owner,
+                                                int                       index,
+                                                ClutterActor             *anchor)
+{
+  ExtensionEntry *entry = g_new0 (ExtensionEntry, 1);
+  ClutterActor *sibling = anchor;
+  guint position;
+
+  position = shell_extension_order_insert_position (entries,
+                                                    extension_entry_get_owner,
+                                                    extension_entry_in_slot, NULL,
+                                                    owner, index);
+  position = MIN (position, entries->len);
+
+  if (position < entries->len)
+    sibling = ((ExtensionEntry *) g_ptr_array_index (entries, position))->actor;
+
+  entry->owner = g_strdup (owner);
+  entry->actor = actor;
+  g_ptr_array_insert (entries, position, entry);
+  g_signal_connect_object (actor, "destroy",
+                           G_CALLBACK (extension_actor_destroy_cb), self, 0);
+
+  return sibling;
+}
+
+/**
+ * shell_panel_items_get_quick_settings_menu:
+ * @panel: the top bar
+ *
+ * Returns: (transfer none) (nullable): the quick settings menu of the top bar,
+ *   or %NULL if the panel has no quick settings button (the session mode
+ *   does not list it)
+ */
+ShellQuickSettingsMenu *
+shell_panel_items_get_quick_settings_menu (ShellPanel *panel)
+{
+  ShellQuickSettingsButton *self;
+
+  g_return_val_if_fail (SHELL_IS_PANEL (panel), NULL);
+
+  self = get_quick_settings_button (panel);
+  return self != NULL ? quick_settings_button_get_menu (self) : NULL;
+}
+
+/**
+ * shell_panel_items_add_extension_item:
+ * @panel: the top bar
+ * @item: (transfer none): a toggle, menu toggle or slider that has no parent
+ * @col_span: the number of columns it spans
+ * @owner: the uuid of the extension that adds it
+ * @index: the 1-based position among the items of @owner, or 0 or less to go
+ *   after the last one; values past the end clamp
+ * @error: return location for a #GError
+ *
+ * Adds the item of an extension to the grid of the quick settings menu: after
+ * the items of the shell and before the background apps, among the items of
+ * the extensions ordered by the position of their extension in
+ * `enabled-extensions` and then by @index. The item leaves its place when it
+ * is destroyed.
+ *
+ * Returns: %FALSE with %G_IO_ERROR_NOT_FOUND if the panel has no quick
+ *   settings button
+ */
+gboolean
+shell_panel_items_add_extension_item (ShellPanel   *panel,
+                                      ClutterActor *item,
+                                      int           col_span,
+                                      const char   *owner,
+                                      int           index,
+                                      GError      **error)
+{
+  ShellQuickSettingsButton *self;
+  ClutterActor *sibling;
+
+  g_return_val_if_fail (SHELL_IS_PANEL (panel), FALSE);
+  g_return_val_if_fail (CLUTTER_IS_ACTOR (item), FALSE);
+  g_return_val_if_fail (clutter_actor_get_parent (item) == NULL, FALSE);
+  g_return_val_if_fail (owner != NULL && owner[0] != '\0', FALSE);
+
+  self = get_quick_settings_button (panel);
+  if (self == NULL)
+    {
+      g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+                           "The top bar has no quick settings menu in this session mode");
+      return FALSE;
+    }
+
+  quick_settings_button_prepare_extensions (self);
+  sibling = quick_settings_button_register_extension_actor (self, self->ext_items,
+                                                            item, owner, index,
+                                                            quick_settings_button_get_items_anchor (self));
+  shell_quick_settings_menu_insert_item_before (quick_settings_button_get_menu (self),
+                                                item, sibling,
+                                                CLAMP (col_span, 1, N_QUICK_SETTINGS_COLUMNS));
+  return TRUE;
+}
+
+/**
+ * shell_panel_items_add_extension_indicator:
+ * @panel: the top bar
+ * @icon: (transfer none): a status icon that has no parent
+ * @owner: the uuid of the extension that adds it
+ * @index: the 1-based position among the icons of @owner, or 0 or less to go
+ *   after the last one; values past the end clamp
+ * @error: return location for a #GError
+ *
+ * Adds the status icon of an extension to the system area of the top bar,
+ * after the privacy icons and before the first other icon of the shell, among
+ * the icons of the extensions ordered like the items of
+ * shell_panel_items_add_extension_item (). The icon leaves its place when it
+ * is destroyed.
+ *
+ * Returns: %FALSE with %G_IO_ERROR_NOT_FOUND if the panel has no quick
+ *   settings button
+ */
+gboolean
+shell_panel_items_add_extension_indicator (ShellPanel   *panel,
+                                           ClutterActor *icon,
+                                           const char   *owner,
+                                           int           index,
+                                           GError      **error)
+{
+  ShellQuickSettingsButton *self;
+  ClutterActor *sibling;
+
+  g_return_val_if_fail (SHELL_IS_PANEL (panel), FALSE);
+  g_return_val_if_fail (CLUTTER_IS_ACTOR (icon), FALSE);
+  g_return_val_if_fail (clutter_actor_get_parent (icon) == NULL, FALSE);
+  g_return_val_if_fail (owner != NULL && owner[0] != '\0', FALSE);
+
+  self = get_quick_settings_button (panel);
+  if (self == NULL || self->indicators == NULL)
+    {
+      g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+                           "The top bar has no quick settings menu in this session mode");
+      return FALSE;
+    }
+
+  quick_settings_button_prepare_extensions (self);
+  sibling = quick_settings_button_register_extension_actor (self, self->ext_indicators,
+                                                            icon, owner, index,
+                                                            self->brightness != NULL
+                                                              ? CLUTTER_ACTOR (self->brightness)
+                                                              : NULL);
+  clutter_actor_insert_child_below (CLUTTER_ACTOR (self->indicators), icon, sibling);
+  return TRUE;
+}
+
+/**
+ * shell_panel_items_get_extension_index:
+ * @panel: the top bar
+ * @actor: an item or an icon added by an extension
+ *
+ * Returns: the 1-based position of @actor among the items (or icons) of its
+ *   owner, or 0 if it is not one added by an extension
+ */
+int
+shell_panel_items_get_extension_index (ShellPanel   *panel,
+                                       ClutterActor *actor)
+{
+  ShellQuickSettingsButton *self;
+  GPtrArray *lists[2];
+  guint i, j;
+
+  g_return_val_if_fail (SHELL_IS_PANEL (panel), 0);
+
+  self = get_quick_settings_button (panel);
+  if (self == NULL)
+    return 0;
+
+  lists[0] = self->ext_items;
+  lists[1] = self->ext_indicators;
+
+  for (i = 0; i < G_N_ELEMENTS (lists); i++)
+    {
+      const char *owner = NULL;
+      int position = 0;
+
+      if (lists[i] == NULL)
+        continue;
+
+      for (j = 0; j < lists[i]->len; j++)
+        {
+          ExtensionEntry *entry = g_ptr_array_index (lists[i], j);
+
+          if (entry->actor == actor)
+            {
+              owner = entry->owner;
+              break;
+            }
+        }
+
+      if (owner == NULL)
+        continue;
+
+      for (j = 0; j < lists[i]->len; j++)
+        {
+          ExtensionEntry *entry = g_ptr_array_index (lists[i], j);
+
+          if (strcmp (entry->owner, owner) != 0)
+            continue;
+
+          position++;
+          if (entry->actor == actor)
+            return position;
+        }
+    }
+
+  return 0;
 }
 
 /* ------------------------------------------------------------------------ */

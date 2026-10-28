@@ -41,6 +41,7 @@
 #include <meta/meta-later.h>
 
 #include "shell-app-system.h"
+#include "shell-enum-types.h"
 #include "shell-global.h"
 #include "shell-hooks.h"
 #include "ui/app-favorites.h"
@@ -48,8 +49,10 @@
 #include "ui/dash.h"
 #include "ui/deferred-work.h"
 #include "ui/environment.h"
+#include "ui/extension-order.h"
 #include "ui/layout.h"
 #include "ui/main.h"
+#include "ui/overview.h"
 
 #define DASH_ITEM_LABEL_SHOW_TIME 150
 #define DASH_ITEM_LABEL_HIDE_TIME 100
@@ -1033,6 +1036,558 @@ shell_show_apps_icon_new (void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* ShellDashButton                                                           */
+/* ------------------------------------------------------------------------ */
+
+enum
+{
+  BUTTON_PROP_0,
+  BUTTON_PROP_LABEL_TEXT,
+  BUTTON_PROP_ICON_NAME,
+  BUTTON_PROP_ICON_FILE,
+  BUTTON_PROP_CHECKED,
+  BUTTON_PROP_HIDE_OVERVIEW,
+  BUTTON_PROP_SENSITIVE,
+  BUTTON_PROP_EDGE,
+  BUTTON_PROP_INDEX,
+  BUTTON_PROP_OWNER,
+  BUTTON_N_PROPS
+};
+
+static GParamSpec *button_props[BUTTON_N_PROPS] = { NULL, };
+
+enum
+{
+  BUTTON_CLICKED,
+  BUTTON_LAST_SIGNAL
+};
+
+static guint button_signals[BUTTON_LAST_SIGNAL] = { 0, };
+
+struct _ShellDashButton
+{
+  ShellDashItemContainer parent;
+
+  StButton *button; /* weak */
+  ShellBaseIcon *icon; /* weak */
+
+  char *icon_name;
+  char *icon_file;
+  gboolean hide_overview;
+
+  /* Set by the dash when the button is added to it */
+  char *owner;
+  ShellDashEdge edge;
+};
+
+G_DEFINE_FINAL_TYPE (ShellDashButton, shell_dash_button, SHELL_TYPE_DASH_ITEM_CONTAINER)
+
+static ShellDash *find_dash (ClutterActor *actor);
+static int        dash_get_extension_button_index (ShellDash       *dash,
+                                                   ShellDashButton *button);
+
+/**
+ * shell_dash_button_get_icon_name:
+ * @self: a #ShellDashButton
+ *
+ * Returns: (transfer none) (nullable): the themed name of the icon, or %NULL
+ *   if the icon is a file
+ */
+const char *
+shell_dash_button_get_icon_name (ShellDashButton *self)
+{
+  g_return_val_if_fail (SHELL_IS_DASH_BUTTON (self), NULL);
+
+  return self->icon_name;
+}
+
+/**
+ * shell_dash_button_get_icon_file:
+ * @self: a #ShellDashButton
+ *
+ * Returns: (transfer none) (nullable): the path of the file of the icon, or
+ *   %NULL if the icon is a themed one
+ */
+const char *
+shell_dash_button_get_icon_file (ShellDashButton *self)
+{
+  g_return_val_if_fail (SHELL_IS_DASH_BUTTON (self), NULL);
+
+  return self->icon_file;
+}
+
+/**
+ * shell_dash_button_get_icon:
+ * @self: a #ShellDashButton
+ *
+ * Returns: (transfer none) (nullable): the icon the button shows
+ */
+ShellBaseIcon *
+shell_dash_button_get_icon (ShellDashButton *self)
+{
+  g_return_val_if_fail (SHELL_IS_DASH_BUTTON (self), NULL);
+
+  return self->icon;
+}
+
+/**
+ * shell_dash_button_set_icon_name:
+ * @self: a #ShellDashButton
+ * @icon_name: (nullable): the themed name of the icon
+ *
+ * Sets the icon of the button, which replaces a file set with
+ * shell_dash_button_set_icon_file ().
+ */
+void
+shell_dash_button_set_icon_name (ShellDashButton *self,
+                                 const char      *icon_name)
+{
+  g_return_if_fail (SHELL_IS_DASH_BUTTON (self));
+
+  if (g_strcmp0 (self->icon_name, icon_name) == 0 && self->icon_file == NULL)
+    return;
+
+  g_free (self->icon_name);
+  g_free (self->icon_file);
+  self->icon_name = g_strdup (icon_name);
+  self->icon_file = NULL;
+
+  if (self->icon != NULL)
+    shell_base_icon_update (self->icon);
+
+  g_object_freeze_notify (G_OBJECT (self));
+  g_object_notify_by_pspec (G_OBJECT (self), button_props[BUTTON_PROP_ICON_NAME]);
+  g_object_notify_by_pspec (G_OBJECT (self), button_props[BUTTON_PROP_ICON_FILE]);
+  g_object_thaw_notify (G_OBJECT (self));
+}
+
+/**
+ * shell_dash_button_set_icon_file:
+ * @self: a #ShellDashButton
+ * @icon_file: (nullable) (type filename): the path of the file of the icon
+ *
+ * Sets the icon of the button to a file, which replaces a themed icon set
+ * with shell_dash_button_set_icon_name ().
+ */
+void
+shell_dash_button_set_icon_file (ShellDashButton *self,
+                                 const char      *icon_file)
+{
+  g_return_if_fail (SHELL_IS_DASH_BUTTON (self));
+
+  if (g_strcmp0 (self->icon_file, icon_file) == 0 && self->icon_name == NULL)
+    return;
+
+  g_free (self->icon_name);
+  g_free (self->icon_file);
+  self->icon_name = NULL;
+  self->icon_file = g_strdup (icon_file);
+
+  if (self->icon != NULL)
+    shell_base_icon_update (self->icon);
+
+  g_object_freeze_notify (G_OBJECT (self));
+  g_object_notify_by_pspec (G_OBJECT (self), button_props[BUTTON_PROP_ICON_NAME]);
+  g_object_notify_by_pspec (G_OBJECT (self), button_props[BUTTON_PROP_ICON_FILE]);
+  g_object_thaw_notify (G_OBJECT (self));
+}
+
+static ClutterActor *
+dash_button_create_icon_cb (int      size,
+                            gpointer user_data)
+{
+  ShellDashButton *self = user_data;
+  ClutterActor *icon = g_object_new (ST_TYPE_ICON,
+                                     "icon-size", size,
+                                     "style-class", "show-apps-icon",
+                                     "track-hover", TRUE,
+                                     NULL);
+
+  if (self->icon_file != NULL)
+    {
+      g_autoptr (GFile) file = g_file_new_for_path (self->icon_file);
+      g_autoptr (GIcon) gicon = g_file_icon_new (file);
+
+      st_icon_set_gicon (ST_ICON (icon), gicon);
+    }
+  else
+    {
+      st_icon_set_icon_name (ST_ICON (icon),
+                             self->icon_name != NULL ? self->icon_name : "image-missing");
+    }
+
+  return icon;
+}
+
+static void
+dash_button_clicked_cb (StButton        *button,
+                        int              clicked_button,
+                        ShellDashButton *self)
+{
+  gboolean hide_overview;
+
+  /* Enter and Space report button 0; the API only knows the primary button */
+  g_object_ref (self);
+  hide_overview = self->hide_overview;
+
+  g_signal_emit (self, button_signals[BUTTON_CLICKED], 0, 1);
+
+  if (hide_overview)
+    {
+      ShellOverview *overview = shell_main_get_overview (shell_main_get_default ());
+
+      if (overview != NULL)
+        shell_overview_hide_for_reason (overview, "other");
+    }
+
+  g_object_unref (self);
+}
+
+static void
+shell_dash_button_set_property (GObject      *object,
+                                guint         prop_id,
+                                const GValue *value,
+                                GParamSpec   *pspec)
+{
+  ShellDashButton *self = SHELL_DASH_BUTTON (object);
+
+  switch (prop_id)
+    {
+    case BUTTON_PROP_LABEL_TEXT:
+      shell_dash_item_container_set_label_text (SHELL_DASH_ITEM_CONTAINER (self),
+                                                g_value_get_string (value));
+      g_object_notify_by_pspec (object, pspec);
+      break;
+
+    case BUTTON_PROP_ICON_NAME:
+      shell_dash_button_set_icon_name (self, g_value_get_string (value));
+      break;
+
+    case BUTTON_PROP_ICON_FILE:
+      shell_dash_button_set_icon_file (self, g_value_get_string (value));
+      break;
+
+    case BUTTON_PROP_CHECKED:
+      if (self->button != NULL && st_button_get_checked (self->button) != g_value_get_boolean (value))
+        {
+          st_button_set_checked (self->button, g_value_get_boolean (value));
+          g_object_notify_by_pspec (object, pspec);
+        }
+      break;
+
+    case BUTTON_PROP_HIDE_OVERVIEW:
+      if (self->hide_overview != g_value_get_boolean (value))
+        {
+          self->hide_overview = g_value_get_boolean (value);
+          g_object_notify_by_pspec (object, pspec);
+        }
+      break;
+
+    case BUTTON_PROP_SENSITIVE:
+      if (self->button != NULL)
+        {
+          gboolean sensitive = g_value_get_boolean (value);
+
+          if (clutter_actor_get_reactive (CLUTTER_ACTOR (self->button)) != sensitive)
+            {
+              clutter_actor_set_reactive (CLUTTER_ACTOR (self->button), sensitive);
+              st_widget_set_can_focus (ST_WIDGET (self->button), sensitive);
+              st_widget_set_track_hover (ST_WIDGET (self->button), sensitive);
+              g_object_notify_by_pspec (object, pspec);
+            }
+        }
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+    }
+}
+
+static void
+shell_dash_button_get_property (GObject    *object,
+                                guint       prop_id,
+                                GValue     *value,
+                                GParamSpec *pspec)
+{
+  ShellDashButton *self = SHELL_DASH_BUTTON (object);
+
+  switch (prop_id)
+    {
+    case BUTTON_PROP_LABEL_TEXT:
+      g_value_set_string (value,
+                          shell_dash_item_container_get_label_text (SHELL_DASH_ITEM_CONTAINER (self)));
+      break;
+
+    case BUTTON_PROP_ICON_NAME:
+      g_value_set_string (value, self->icon_name);
+      break;
+
+    case BUTTON_PROP_ICON_FILE:
+      g_value_set_string (value, self->icon_file);
+      break;
+
+    case BUTTON_PROP_CHECKED:
+      g_value_set_boolean (value, self->button != NULL && st_button_get_checked (self->button));
+      break;
+
+    case BUTTON_PROP_HIDE_OVERVIEW:
+      g_value_set_boolean (value, self->hide_overview);
+      break;
+
+    case BUTTON_PROP_SENSITIVE:
+      g_value_set_boolean (value, self->button != NULL &&
+                                  clutter_actor_get_reactive (CLUTTER_ACTOR (self->button)));
+      break;
+
+    case BUTTON_PROP_EDGE:
+      g_value_set_enum (value, self->edge);
+      break;
+
+    case BUTTON_PROP_INDEX:
+      {
+        ShellDash *dash = find_dash (CLUTTER_ACTOR (self));
+
+        g_value_set_int (value, dash != NULL ? dash_get_extension_button_index (dash, self) : 0);
+      }
+      break;
+
+    case BUTTON_PROP_OWNER:
+      g_value_set_string (value, self->owner);
+      break;
+
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+    }
+}
+
+static void
+shell_dash_button_constructed (GObject *object)
+{
+  ShellDashButton *self = SHELL_DASH_BUTTON (object);
+  ClutterActor *button;
+  ShellBaseIcon *icon;
+
+  G_OBJECT_CLASS (shell_dash_button_parent_class)->constructed (object);
+
+  button = g_object_new (ST_TYPE_BUTTON,
+                         "style-class", "show-apps",
+                         "track-hover", TRUE,
+                         "can-focus", TRUE,
+                         "button-mask", ST_BUTTON_PRIMARY,
+                         NULL);
+  g_set_weak_pointer (&self->button, ST_BUTTON (button));
+
+  icon = g_object_new (SHELL_TYPE_BASE_ICON,
+                       "set-size-manually", TRUE,
+                       "show-label", FALSE,
+                       NULL);
+  g_set_weak_pointer (&self->icon, icon);
+  shell_base_icon_set_create_icon_func (icon, dash_button_create_icon_cb, self, NULL);
+  clutter_actor_set_y_align (CLUTTER_ACTOR (icon), CLUTTER_ACTOR_ALIGN_CENTER);
+  st_bin_set_child (ST_BIN (button), CLUTTER_ACTOR (icon));
+
+  g_signal_connect_object (button, "clicked", G_CALLBACK (dash_button_clicked_cb), self, 0);
+
+  shell_dash_item_container_set_child (SHELL_DASH_ITEM_CONTAINER (self), button);
+}
+
+static void
+shell_dash_button_dispose (GObject *object)
+{
+  ShellDashButton *self = SHELL_DASH_BUTTON (object);
+
+  /* The icon function reads this object */
+  if (self->icon != NULL)
+    shell_base_icon_set_create_icon_func (self->icon, NULL, NULL, NULL);
+
+  G_OBJECT_CLASS (shell_dash_button_parent_class)->dispose (object);
+
+  g_clear_weak_pointer (&self->button);
+  g_clear_weak_pointer (&self->icon);
+}
+
+static void
+shell_dash_button_finalize (GObject *object)
+{
+  ShellDashButton *self = SHELL_DASH_BUTTON (object);
+
+  g_free (self->icon_name);
+  g_free (self->icon_file);
+  g_free (self->owner);
+
+  G_OBJECT_CLASS (shell_dash_button_parent_class)->finalize (object);
+}
+
+static void
+shell_dash_button_class_init (ShellDashButtonClass *klass)
+{
+  GObjectClass *object_class = G_OBJECT_CLASS (klass);
+
+  object_class->constructed = shell_dash_button_constructed;
+  object_class->dispose = shell_dash_button_dispose;
+  object_class->finalize = shell_dash_button_finalize;
+  object_class->set_property = shell_dash_button_set_property;
+  object_class->get_property = shell_dash_button_get_property;
+
+  /**
+   * ShellDashButton:label-text:
+   *
+   * The text of the label shown on hover, which is also the accessible name
+   * of the button.
+   */
+  button_props[BUTTON_PROP_LABEL_TEXT] =
+    g_param_spec_string ("label-text", NULL, NULL,
+                         "",
+                         G_PARAM_READWRITE |
+                         G_PARAM_EXPLICIT_NOTIFY |
+                         G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellDashButton:icon-name:
+   *
+   * The themed name of the icon, %NULL if the icon is a file.
+   */
+  button_props[BUTTON_PROP_ICON_NAME] =
+    g_param_spec_string ("icon-name", NULL, NULL,
+                         NULL,
+                         G_PARAM_READWRITE |
+                         G_PARAM_EXPLICIT_NOTIFY |
+                         G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellDashButton:icon-file:
+   *
+   * The path of the file of the icon, %NULL if the icon is a themed one.
+   */
+  button_props[BUTTON_PROP_ICON_FILE] =
+    g_param_spec_string ("icon-file", NULL, NULL,
+                         NULL,
+                         G_PARAM_READWRITE |
+                         G_PARAM_EXPLICIT_NOTIFY |
+                         G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellDashButton:checked:
+   *
+   * Whether the button has the `checked` pseudo class. Nothing toggles it
+   * but the owner of the button.
+   */
+  button_props[BUTTON_PROP_CHECKED] =
+    g_param_spec_boolean ("checked", NULL, NULL,
+                          FALSE,
+                          G_PARAM_READWRITE |
+                          G_PARAM_EXPLICIT_NOTIFY |
+                          G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellDashButton:hide-overview:
+   *
+   * Whether the overview is hidden after #ShellDashButton::clicked.
+   */
+  button_props[BUTTON_PROP_HIDE_OVERVIEW] =
+    g_param_spec_boolean ("hide-overview", NULL, NULL,
+                          TRUE,
+                          G_PARAM_READWRITE |
+                          G_PARAM_EXPLICIT_NOTIFY |
+                          G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellDashButton:sensitive:
+   *
+   * Whether the button is reactive, focusable and tracks the hover.
+   */
+  button_props[BUTTON_PROP_SENSITIVE] =
+    g_param_spec_boolean ("sensitive", NULL, NULL,
+                          TRUE,
+                          G_PARAM_READWRITE |
+                          G_PARAM_EXPLICIT_NOTIFY |
+                          G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellDashButton:edge:
+   *
+   * The group of the dash the button was added to.
+   */
+  button_props[BUTTON_PROP_EDGE] =
+    g_param_spec_enum ("edge", NULL, NULL,
+                       SHELL_TYPE_DASH_EDGE,
+                       SHELL_DASH_EDGE_END,
+                       G_PARAM_READABLE |
+                       G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellDashButton:index:
+   *
+   * The 1-based position among the buttons of the same owner in the same
+   * group of the dash, 0 if the button is not in a dash.
+   */
+  button_props[BUTTON_PROP_INDEX] =
+    g_param_spec_int ("index", NULL, NULL,
+                      0, G_MAXINT, 0,
+                      G_PARAM_READABLE |
+                      G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellDashButton:owner:
+   *
+   * The uuid of the extension the button was added by, %NULL if it was not
+   * added to a dash.
+   */
+  button_props[BUTTON_PROP_OWNER] =
+    g_param_spec_string ("owner", NULL, NULL,
+                         NULL,
+                         G_PARAM_READABLE |
+                         G_PARAM_STATIC_STRINGS);
+
+  g_object_class_install_properties (object_class, BUTTON_N_PROPS, button_props);
+
+  /**
+   * ShellDashButton::clicked:
+   * @self: the #ShellDashButton
+   * @button: the pointer button, always 1
+   *
+   * Emitted when the user clicks the button with the primary button or
+   * activates it with the keyboard. The overview is hidden afterwards if
+   * #ShellDashButton:hide-overview is set.
+   */
+  button_signals[BUTTON_CLICKED] =
+    g_signal_new ("clicked",
+                  G_TYPE_FROM_CLASS (klass),
+                  G_SIGNAL_RUN_LAST,
+                  0, NULL, NULL, NULL,
+                  G_TYPE_NONE, 1,
+                  G_TYPE_INT);
+}
+
+static void
+shell_dash_button_init (ShellDashButton *self)
+{
+  self->hide_overview = TRUE;
+  self->edge = SHELL_DASH_EDGE_END;
+}
+
+/**
+ * shell_dash_button_new:
+ * @label: the text of the label shown on hover
+ *
+ * Creates a button for the dash. It does not show until it is added with
+ * shell_dash_add_extension_button ().
+ *
+ * Returns: (transfer floating): a new #ShellDashButton
+ */
+ShellDashButton *
+shell_dash_button_new (const char *label)
+{
+  ShellDashButton *self = g_object_new (SHELL_TYPE_DASH_BUTTON, NULL);
+
+  shell_dash_item_container_set_label_text (SHELL_DASH_ITEM_CONTAINER (self), label);
+
+  return self;
+}
+
+/* ------------------------------------------------------------------------ */
 /* ShellDashIconsLayout (private, DashIconsLayout)                           */
 /* ------------------------------------------------------------------------ */
 
@@ -1192,6 +1747,30 @@ enum
 
 static guint dash_signals[DASH_LAST_SIGNAL] = { 0, };
 
+/* A button added by an extension. The button is not referenced: the item is
+ * removed when the button is destroyed. */
+typedef struct
+{
+  char *owner;
+  ShellDashButton *button;
+  ShellDashEdge edge;
+} DashExtItem;
+
+static void
+dash_ext_item_free (gpointer data)
+{
+  DashExtItem *item = data;
+
+  g_free (item->owner);
+  g_free (item);
+}
+
+static const char *
+dash_ext_item_get_owner (gpointer data)
+{
+  return ((DashExtItem *) data)->owner;
+}
+
 struct _ShellDash
 {
   StWidget parent;
@@ -1220,6 +1799,8 @@ struct _ShellDash
 
   ShellDeferredWork *work;
   ShellAppSystem *app_system;
+
+  GPtrArray *ext_items; /* DashExtItem, grouped by owner, ordered by the rank of the owners */
 
   gboolean drag_cancelled;
   guint drag_monitor;
@@ -1326,6 +1907,9 @@ dash_icon_of (ShellDash    *self,
   if (container == CLUTTER_ACTOR (self->show_apps_icon))
     return shell_show_apps_icon_get_icon (self->show_apps_icon);
 
+  if (SHELL_IS_DASH_BUTTON (container))
+    return shell_dash_button_get_icon (SHELL_DASH_BUTTON (container));
+
   child = shell_dash_item_container_get_child (SHELL_DASH_ITEM_CONTAINER (container));
   if (SHELL_IS_APP_VIEW_ITEM (child))
     return shell_app_view_item_get_icon (SHELL_APP_VIEW_ITEM (child));
@@ -1387,6 +1971,7 @@ dash_clear_drag_placeholder (ShellDash *self)
     }
 
   self->drag_placeholder_pos = -1;
+  self->ext_items = g_ptr_array_new_with_free_func (dash_ext_item_free);
 }
 
 static void
@@ -1813,6 +2398,19 @@ dash_adjust_icon_size (ShellDash *self)
       g_ptr_array_add (icon_children, actor);
     }
 
+  /* The buttons of the extensions are icons of the dash as well */
+  for (i = 0; i < self->ext_items->len; i++)
+    {
+      DashExtItem *item = g_ptr_array_index (self->ext_items, i);
+
+      if (item->button == NULL ||
+          !clutter_actor_is_visible (CLUTTER_ACTOR (item->button)) ||
+          shell_dash_item_container_get_animating_out (SHELL_DASH_ITEM_CONTAINER (item->button)))
+        continue;
+
+      g_ptr_array_add (icon_children, item->button);
+    }
+
   g_ptr_array_add (icon_children, self->show_apps_icon);
 
   if (self->max_width == -1 || self->max_height == -1)
@@ -1933,8 +2531,10 @@ typedef struct
 } AddedItem;
 
 static void
-emit_item_added_hook (ShellApp *app,
-                      int       index)
+emit_item_added_hook (const char *kind,
+                      const char *owner,
+                      int         index,
+                      const char *app_id)
 {
   ShellHookRegistry *registry = shell_hook_registry_get_default ();
   GVariantBuilder builder;
@@ -1943,12 +2543,368 @@ emit_item_added_hook (ShellApp *app,
     return;
 
   g_variant_builder_init (&builder, G_VARIANT_TYPE_VARDICT);
-  g_variant_builder_add (&builder, "{sv}", "kind", g_variant_new_string ("app"));
-  g_variant_builder_add (&builder, "{sv}", "owner", g_variant_new_string (""));
+  g_variant_builder_add (&builder, "{sv}", "kind", g_variant_new_string (kind));
+  g_variant_builder_add (&builder, "{sv}", "owner", g_variant_new_string (owner));
   g_variant_builder_add (&builder, "{sv}", "index", g_variant_new_int32 (index));
-  g_variant_builder_add (&builder, "{sv}", "app-id", g_variant_new_string (shell_app_get_id (app)));
+  if (app_id != NULL)
+    g_variant_builder_add (&builder, "{sv}", "app-id", g_variant_new_string (app_id));
 
   shell_hook_registry_emit_after (registry, "dash.item-added", g_variant_builder_end (&builder));
+}
+
+/* How many buttons of extensions are before the applications */
+static int
+dash_count_start_buttons (ShellDash *self)
+{
+  int count = 0;
+  guint i;
+
+  for (i = 0; i < self->ext_items->len; i++)
+    {
+      DashExtItem *item = g_ptr_array_index (self->ext_items, i);
+
+      if (item->edge == SHELL_DASH_EDGE_START && item->button != NULL)
+        count++;
+    }
+
+  return count;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Buttons of extensions                                                    */
+/* ------------------------------------------------------------------------ */
+
+static DashExtItem *
+dash_find_ext_item (ShellDash       *self,
+                    ShellDashButton *button)
+{
+  guint i;
+
+  if (self->ext_items == NULL)
+    return NULL;
+
+  for (i = 0; i < self->ext_items->len; i++)
+    {
+      DashExtItem *item = g_ptr_array_index (self->ext_items, i);
+
+      if (item->button == button)
+        return item;
+    }
+
+  return NULL;
+}
+
+static void
+dash_append_ext_group (ShellDash      *self,
+                       ShellDashEdge   edge,
+                       GPtrArray      *desired)
+{
+  guint i;
+
+  for (i = 0; i < self->ext_items->len; i++)
+    {
+      DashExtItem *item = g_ptr_array_index (self->ext_items, i);
+
+      if (item->edge != edge || item->button == NULL)
+        continue;
+
+      if (clutter_actor_get_parent (CLUTTER_ACTOR (item->button)) ==
+          CLUTTER_ACTOR (self->dash_container))
+        g_ptr_array_add (desired, item->button);
+    }
+}
+
+/* [buttons at the start] [the box of the applications] [buttons at the end]
+ * [Show Apps]; only the children which are out of place are moved */
+static void
+dash_relayout_extension_buttons (ShellDash *self)
+{
+  g_autoptr (GPtrArray) desired = g_ptr_array_new ();
+  ClutterActor *container, *child;
+  guint i;
+
+  if (self->dash_container == NULL || self->ext_items == NULL)
+    return;
+
+  container = CLUTTER_ACTOR (self->dash_container);
+
+  dash_append_ext_group (self, SHELL_DASH_EDGE_START, desired);
+
+  for (child = clutter_actor_get_first_child (container);
+       child != NULL;
+       child = clutter_actor_get_next_sibling (child))
+    {
+      if (child == CLUTTER_ACTOR (self->show_apps_icon))
+        continue;
+      if (SHELL_IS_DASH_BUTTON (child) && dash_find_ext_item (self, SHELL_DASH_BUTTON (child)) != NULL)
+        continue;
+
+      g_ptr_array_add (desired, child);
+    }
+
+  dash_append_ext_group (self, SHELL_DASH_EDGE_END, desired);
+
+  if (self->show_apps_icon != NULL)
+    g_ptr_array_add (desired, self->show_apps_icon);
+
+  for (i = 0; i < desired->len; i++)
+    {
+      ClutterActor *actor = g_ptr_array_index (desired, i);
+
+      if (clutter_actor_get_child_at_index (container, i) != actor)
+        clutter_actor_set_child_at_index (container, actor, i);
+    }
+}
+
+static gboolean
+dash_ext_item_in_slot (gpointer item_data,
+                       gpointer slot_data)
+{
+  DashExtItem *item = item_data;
+
+  return item->edge == GPOINTER_TO_INT (slot_data);
+}
+
+/* The 1-based position of a button among those of its owner at its edge */
+static int
+dash_get_extension_button_index (ShellDash       *self,
+                                 ShellDashButton *button)
+{
+  DashExtItem *found = dash_find_ext_item (self, button);
+  int position = 0;
+  guint i;
+
+  if (found == NULL)
+    return 0;
+
+  for (i = 0; i < self->ext_items->len; i++)
+    {
+      DashExtItem *item = g_ptr_array_index (self->ext_items, i);
+
+      if (item->edge == found->edge && strcmp (item->owner, found->owner) == 0)
+        position++;
+      if (item == found)
+        return position;
+    }
+
+  return 0;
+}
+
+/* The 1-based position of a button among all the icons of the dash, as the
+ * hook reports it */
+static int
+dash_get_icon_index (ShellDash       *self,
+                     ShellDashButton *button)
+{
+  ClutterActor *child;
+  int position = 0;
+
+  for (child = clutter_actor_get_first_child (CLUTTER_ACTOR (self->dash_container));
+       child != NULL;
+       child = clutter_actor_get_next_sibling (child))
+    {
+      if (child == CLUTTER_ACTOR (button))
+        return position + 1;
+
+      if (child == self->box)
+        {
+          ClutterActor *app_item;
+
+          for (app_item = clutter_actor_get_first_child (self->box);
+               app_item != NULL;
+               app_item = clutter_actor_get_next_sibling (app_item))
+            {
+              if (item_get_app (app_item) != NULL &&
+                  !shell_dash_item_container_get_animating_out (SHELL_DASH_ITEM_CONTAINER (app_item)))
+                position++;
+            }
+        }
+      else if (SHELL_IS_DASH_BUTTON (child) &&
+               !shell_dash_item_container_get_animating_out (SHELL_DASH_ITEM_CONTAINER (child)))
+        {
+          position++;
+        }
+    }
+
+  return position + 1;
+}
+
+static void
+dash_ext_button_destroyed_cb (ClutterActor *actor,
+                              ShellDash    *self)
+{
+  guint i;
+
+  if (self->ext_items == NULL)
+    return;
+
+  for (i = 0; i < self->ext_items->len; i++)
+    {
+      DashExtItem *item = g_ptr_array_index (self->ext_items, i);
+
+      if (item->button == (ShellDashButton *) actor)
+        {
+          g_ptr_array_remove_index (self->ext_items, i);
+          break;
+        }
+    }
+
+  /* The remaining icons may be able to grow back */
+  if (self->dash_container != NULL)
+    dash_queue_redisplay (self);
+}
+
+static void
+dash_ext_button_visible_changed_cb (GObject    *object,
+                                    GParamSpec *pspec,
+                                    ShellDash  *self)
+{
+  /* A hidden button does not count for the size of the icons */
+  dash_queue_redisplay (self);
+}
+
+static void
+dash_enabled_extensions_changed_cb (GSettings  *settings,
+                                    const char *key,
+                                    ShellDash  *self)
+{
+  if (self->ext_items == NULL)
+    return;
+
+  shell_extension_order_sort (self->ext_items, dash_ext_item_get_owner);
+  dash_relayout_extension_buttons (self);
+}
+
+/**
+ * shell_dash_add_extension_button:
+ * @self: a #ShellDash
+ * @button: a button that is not in a dash, which the dash takes over
+ * @owner: the uuid of the extension which adds the button
+ * @edge: the group of the dash to put the button in
+ * @index: the 1-based position among the buttons of @owner in that group, or
+ *   0 or less to go after the last one; values past the end clamp
+ * @error: return location for a #GError
+ *
+ * Adds a button of an extension to the dash. Buttons are not applications:
+ * they live in two groups beside the box of the applications, [buttons at
+ * %SHELL_DASH_EDGE_START] [applications] [buttons at %SHELL_DASH_EDGE_END]
+ * [Show Apps], so they never take part in the favorites or the separator.
+ * Inside a group the buttons of the extensions are ordered by the position of
+ * the extension in the `enabled-extensions` setting, then by @index
+ * (docs/api/README.md, "Placement and ordering"). They count for the size of
+ * the icons. Emits the "dash.item-added" hook.
+ *
+ * The button is destroyed with the dash, or by shell_dash_remove_extension_button ().
+ *
+ * Returns: %TRUE on success, %FALSE with %G_IO_ERROR_FAILED if @owner already
+ *   has #SHELL_DASH_MAX_EXTENSION_BUTTONS buttons
+ */
+gboolean
+shell_dash_add_extension_button (ShellDash       *self,
+                                 ShellDashButton *button,
+                                 const char      *owner,
+                                 ShellDashEdge    edge,
+                                 int              index,
+                                 GError         **error)
+{
+  DashExtItem *item;
+  gboolean animate;
+  guint position;
+  int owned = 0;
+  guint i;
+
+  g_return_val_if_fail (SHELL_IS_DASH (self), FALSE);
+  g_return_val_if_fail (SHELL_IS_DASH_BUTTON (button), FALSE);
+  g_return_val_if_fail (owner != NULL && owner[0] != '\0', FALSE);
+  g_return_val_if_fail (clutter_actor_get_parent (CLUTTER_ACTOR (button)) == NULL, FALSE);
+  g_return_val_if_fail (self->dash_container != NULL, FALSE);
+
+  for (i = 0; i < self->ext_items->len; i++)
+    {
+      DashExtItem *other = g_ptr_array_index (self->ext_items, i);
+
+      if (strcmp (other->owner, owner) == 0)
+        owned++;
+    }
+
+  if (owned >= SHELL_DASH_MAX_EXTENSION_BUTTONS)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "An extension can have at most %d buttons in the dash",
+                   SHELL_DASH_MAX_EXTENSION_BUTTONS);
+      return FALSE;
+    }
+
+  g_free (button->owner);
+  button->owner = g_strdup (owner);
+  button->edge = edge;
+
+  item = g_new0 (DashExtItem, 1);
+  item->owner = g_strdup (owner);
+  item->button = button;
+  item->edge = edge;
+
+  position = shell_extension_order_insert_position (self->ext_items, dash_ext_item_get_owner,
+                                                    dash_ext_item_in_slot, GINT_TO_POINTER (edge),
+                                                    owner, index);
+  g_ptr_array_insert (self->ext_items, MIN (position, self->ext_items->len), item);
+
+  g_signal_connect_object (button, "destroy", G_CALLBACK (dash_ext_button_destroyed_cb), self, 0);
+  g_signal_connect_object (button, "notify::visible",
+                           G_CALLBACK (dash_ext_button_visible_changed_cb), self, 0);
+
+  clutter_actor_add_child (CLUTTER_ACTOR (self->dash_container), CLUTTER_ACTOR (button));
+  dash_relayout_extension_buttons (self);
+
+  dash_hook_up_label (self, SHELL_DASH_ITEM_CONTAINER (button), NULL);
+  shell_base_icon_set_icon_size (shell_dash_button_get_icon (button), self->icon_size, NULL);
+  dash_adjust_icon_size (self);
+
+  animate = self->shown_initially &&
+            is_overview_visible (self->window_manager) &&
+            !is_overview_animating (self->window_manager);
+  shell_dash_item_container_show (SHELL_DASH_ITEM_CONTAINER (button), animate);
+
+  g_object_notify (G_OBJECT (button), "edge");
+  g_object_notify (G_OBJECT (button), "owner");
+
+  emit_item_added_hook ("button", owner, dash_get_icon_index (self, button), NULL);
+
+  return TRUE;
+}
+
+/**
+ * shell_dash_remove_extension_button:
+ * @self: a #ShellDash
+ * @button: a button added with shell_dash_add_extension_button ()
+ *
+ * Removes a button from the dash and destroys it. It fades out like the icon
+ * of an application that goes away when the overview is shown, and is
+ * destroyed at once otherwise. The group no longer counts it.
+ */
+void
+shell_dash_remove_extension_button (ShellDash       *self,
+                                    ShellDashButton *button)
+{
+  DashExtItem *item;
+
+  g_return_if_fail (SHELL_IS_DASH (self));
+  g_return_if_fail (SHELL_IS_DASH_BUTTON (button));
+
+  item = dash_find_ext_item (self, button);
+  if (item == NULL)
+    return;
+
+  g_signal_handlers_disconnect_by_data (button, self);
+  g_ptr_array_remove (self->ext_items, item);
+
+  if (is_overview_visible (self->window_manager) &&
+      !is_overview_animating (self->window_manager))
+    shell_dash_item_container_animate_out_and_destroy (SHELL_DASH_ITEM_CONTAINER (button));
+  else
+    clutter_actor_destroy (CLUTTER_ACTOR (button));
+
+  dash_adjust_icon_size (self);
 }
 
 static gboolean
@@ -2116,7 +3072,8 @@ dash_redisplay (ShellDash *self)
       AddedItem *added = &g_array_index (added_items, AddedItem, i);
 
       shell_dash_item_container_show (added->item, animate);
-      emit_item_added_hook (added->app, added->pos + 1);
+      emit_item_added_hook ("app", "", added->pos + 1 + dash_count_start_buttons (self),
+                            shell_app_get_id (added->app));
     }
 
   /* Update separator */
@@ -2473,6 +3430,10 @@ shell_dash_constructed (GObject *object)
   g_signal_connect_object (app_favorites, "changed",
                            G_CALLBACK (queue_redisplay_cb), self, 0);
 
+  g_signal_connect_object (shell_global_get_settings (shell_global_get ()),
+                           "changed::enabled-extensions",
+                           G_CALLBACK (dash_enabled_extensions_changed_cb), self, 0);
+
   if (self->window_manager != NULL)
     {
       g_signal_connect_object (self->window_manager, "item-drag-begin",
@@ -2515,6 +3476,8 @@ shell_dash_dispose (GObject *object)
   g_clear_object (&self->drag_target);
 
   G_OBJECT_CLASS (shell_dash_parent_class)->dispose (object);
+
+  g_clear_pointer (&self->ext_items, g_ptr_array_unref);
 
   g_clear_weak_pointer (&self->window_manager);
   g_clear_weak_pointer (&self->separator);

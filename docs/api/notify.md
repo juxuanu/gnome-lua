@@ -24,6 +24,17 @@ Not in v1:
   the user can silence them only globally.
 - More than 3 actions (raises); markup in titles.
 
+## Status
+
+**M7, implemented.** `src/lua-api/shell-lua-api-notify.c` (the module and the
+handle types) over `ShellNotification` and `ShellSource`
+(`src/ui/message-tray.c`); `shell_source_get_owner ()` / `_set_owner ()` there
+give the notification hooks their `owner`. The hooks `notification.showing`,
+`.shown` and `.activated` were declared with the port of the message tray.
+Conformance test: `tests/api/notify.lua` with the fixture
+`tests/api/fixtures/notify@test`. Differences from the text below are marked
+**(as built)** where they occur.
+
 ## `shell.notify{...}` -> `shell.Notification`
 
 `shell.notify` is a callable table (like `shell.log`). It posts to the
@@ -37,7 +48,7 @@ destroyed (`source_notification_destroy_cb ()` in `src/ui/message-tray.c`).
 | `title` | string | required | |
 | `body` | string | nil | |
 | `markup` | boolean | false | interpret `body` as Pango markup (`use-body-markup`); invalid markup is shown as plain text |
-| `icon_name` / `icon_file` | string | source icon | at most one |
+| `icon_name` / `icon_file` | string | source icon | at most one. **(as built)** `icon_file` is a path relative to the extension directory, `.svg` or `.png`, as in ui.md |
 | `urgency` | `"low"`, `"normal"`, `"high"` | `"normal"` | `low` never shows a banner, only the list entry; DND (`show-banners` off) suppresses banners of the others |
 | `resident` | boolean | false | stays after activation or an action |
 | `transient` | boolean | false | removed after its banner expires instead of staying in the list (`isTransient`, as `Main.notify`) |
@@ -45,7 +56,11 @@ destroyed (`source_notification_destroy_cb ()` in `src/ui/message-tray.c`).
 | `on_activate` | function(self) | nil | user clicked the notification itself |
 | `on_dismissed` | function(self, reason) | nil | see below |
 
-Argument errors raise; a failed post never returns nil.
+Argument errors raise; a failed post never returns nil. **(as built)** Every
+entry of `actions` needs a `label` and an `on_activate`; `urgency = "critical"`
+raises, for the constructors and for the property. The default source is
+named after the metadata `name` (the uuid if there is none). Where there is no
+message tray (no shell) the call raises `the message tray does not exist`.
 
 ## `shell.Notification`
 
@@ -58,7 +73,8 @@ Argument errors raise; a failed post never returns nil.
 | `acknowledged` | boolean | rw | true = seen; assigning false re-requests a banner |
 | `alive` | boolean | ro | |
 
-Methods: `n:show()` (request the banner again; no-op for `low`),
+Methods: `n:show()` (request the banner again; no-op for `low`; **(as built)**
+it assigns `acknowledged = true` and then `false`, which is what asks the tray),
 `n:destroy()` (withdraw; suppresses `on_dismissed`), `n:on_activate(fn)`,
 `n:on_dismissed(fn)`.
 
@@ -73,7 +89,9 @@ Semantics, from `src/ui/message-tray.c`:
   newer one: `MAX_NOTIFICATIONS_PER_SOURCE`), `"dismissed"` (user closed it, or
   it was destroyed after activation/an action), `"source-closed"` (the shell
   closed the source). It therefore also follows `on_activate` for non-resident
-  notifications.
+  notifications. **(as built)** The handle is valid while `on_dismissed` runs
+  and dead afterwards; a notification the shell replaces (a reason only the
+  notification daemon uses) is `"dismissed"`.
 - Banners queue at most 3 at once; extra ones appear only in the list
   (`MAX_NOTIFICATIONS_IN_QUEUE`).
 
@@ -98,6 +116,11 @@ result), `src:clear()` (destroys non-resident notifications,
 notifications: the shell registers the source with the tray on the first
 `notify` and unregisters it when empty (upstream behaviour) and registers it
 again on the next one. Nothing survives a shell restart or disable.
+**(as built)** A `ShellSource` cannot be used again once it destroyed itself, so
+the handle wraps a private object that holds the title and the icon and
+creates a new `ShellSource` for the next `notify`; `count` is 0 while there is
+none. `title` and `icon_name` written to the handle reach the live source at
+once. A handle is dead after `src:destroy()`.
 
 ## Example
 

@@ -8,6 +8,10 @@ carry the same ids and indices as these handles. Window management itself
 (placement, tiling, keybinding-driven moves, window animations) stays in the
 shell.
 
+Status: implemented (M7) by `src/lua-api/shell-lua-api-window.c`; the hooks by
+`src/lua-api/shell-window-hooks.c` (hooks.md); conformance test
+`tests/api/window.lua` with the fixture `tests/api/fixtures/window@test`.
+
 Not in v1:
 - Geometry: reading `frame_rect`, moving, resizing, maximizing, fullscreening,
   pinning, always-on-top, shading, `stick`: an extension that arranges windows
@@ -30,7 +34,7 @@ Workspace and monitor numbers are **1-based** (README rule 3). The values
 Mutter (`Meta.Window.get_id()`), unique and stable for the window's lifetime
 and never reused in a session. `app_id` is the desktop file id as the window
 tracker reports it (`org.gnome.Console.desktop`), nil for windows the tracker
-cannot map.
+cannot map or maps to no desktop file (a window-backed app).
 
 ## `shell.windows`
 
@@ -52,7 +56,7 @@ window does.
 | `wm_class` | string | `WM_CLASS` class (X11) or the app id (Wayland), may be empty |
 | `app_id` | string or nil | desktop file id |
 | `workspace` | integer or nil | 1-based; nil when the window is on all workspaces |
-| `monitor` | integer | 1-based, the monitor holding most of the window |
+| `monitor` | integer | 1-based, the monitor holding most of the window (the primary one while it has none yet) |
 | `minimized` | boolean | |
 | `maximized` | boolean | maximized on both axes |
 | `fullscreen` | boolean | |
@@ -62,7 +66,8 @@ window does.
 
 Actions (methods; each returns nothing, raises on misuse, and takes effect on
 the next frame, so properties may still show the old value right after the
-call):
+call; called from a listener of a `window.*` or `workspace.*` hook, an action
+(of `shell.Workspace` too) is deferred to idle, README rule 8):
 
 | Method | Effect |
 |---|---|
@@ -70,7 +75,7 @@ call):
 | `w:minimize()` | minimize (no-op if already) |
 | `w:close()` | polite close request (`Meta.Window.delete`); the app may refuse or ask; an unresponsive app gets the usual "Not responding" dialog |
 | `w:move_to_workspace(n)` | `n` an integer in `1..#shell.workspaces.list()`; does not create workspaces (`change_workspace_by_index(n, append = false)`); raises when out of range |
-| `w:move_to_monitor(n)` | `n` in `1..#shell.monitors.list()`; as in `moveWindowToMonitorAndWorkspace`, entering the primary monitor can change the window's workspace |
+| `w:move_to_monitor(n)` | `n` in `1..#shell.monitors.list()`; as in `moveWindowToMonitorAndWorkspace`, entering the primary monitor can change the window's workspace; a window that is on all workspaces only moves |
 
 ## `shell.workspaces`
 
@@ -108,10 +113,10 @@ struts, `LayoutManager.getWorkAreaForMonitor`).
 
 | Function | Returns |
 |---|---|
-| `shell.apps.launch(app_id)` | `true`, or `nil, message` when the id is unknown or launching failed (environmental failure, README rule 5). Activates a running app's window like clicking its dash icon; does not hide the overview by itself |
-| `shell.apps.running()` | sequence of app ids, most recently used first |
+| `shell.apps.launch(app_id)` | `true`, or `nil, message` when the id is unknown or launching failed (environmental failure, README rule 5). Activates a running app's window like clicking its dash icon (an app that is still starting is left alone: `true`); does not hide the overview by itself |
+| `shell.apps.running()` | sequence of app ids, most recently used first (windows that no desktop file explains have no id and are left out, as they are in `window.app_id`) |
 | `shell.apps.favorites()` | sequence of app ids in dash order (`favorite-apps`) |
-| `shell.apps.info(app_id)` | `{id = , name = , icon_name = , description = }` or nil |
+| `shell.apps.info(app_id)` | `{id = , name = , icon_name = , description = }` or nil; `icon_name` is the first name of a themed icon and absent for an icon that is a file, `description` is absent when the desktop file has none |
 
 ## Which hook carries which id
 

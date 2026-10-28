@@ -20,6 +20,7 @@
 
 #include "ui/panel-menu.h"
 #include "ui/panel.h"
+#include "ui/quick-settings.h"
 
 G_BEGIN_DECLS
 
@@ -28,5 +29,21 @@ ShellPanelButtonBox *shell_panel_item_create (const char *role);
 gboolean             shell_panel_items_add_external_indicator (ShellPanel           *panel,
                                                                ShellSystemIndicator *indicator,
                                                                int                   col_span);
+
+/* The items and status icons of the Lua extensions (docs/api/quick-settings.md) */
+ShellQuickSettingsMenu *shell_panel_items_get_quick_settings_menu (ShellPanel *panel);
+gboolean             shell_panel_items_add_extension_item      (ShellPanel   *panel,
+                                                                ClutterActor *item,
+                                                                int           col_span,
+                                                                const char   *owner,
+                                                                int           index,
+                                                                GError      **error);
+gboolean             shell_panel_items_add_extension_indicator (ShellPanel   *panel,
+                                                                ClutterActor *icon,
+                                                                const char   *owner,
+                                                                int           index,
+                                                                GError      **error);
+int                  shell_panel_items_get_extension_index     (ShellPanel   *panel,
+                                                                ClutterActor *actor);
 
 G_END_DECLS

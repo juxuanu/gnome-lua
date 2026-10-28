@@ -1,0 +1,7 @@
+{
+  "uuid": "quick-settings@test",
+  "name": "API conformance: quick settings",
+  "description": "Fixture of tests/api/quick-settings.lua: shell.quick_settings (docs/api/quick-settings.md)",
+  "shell-api": "1",
+  "version": 1
+}

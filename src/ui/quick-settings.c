@@ -53,6 +53,7 @@
 #include <meta/meta-later.h>
 
 #include "shell-global.h"
+#include "shell-hooks.h"
 #include "ui/environment.h"
 #include "ui/quick-settings.h"
 
@@ -381,6 +382,13 @@ shell_quick_toggle_menu_real_open (ShellPopupMenuBase *base,
   int duration;
   int actor_duration = 0;
   ShellEaseParams params;
+  ClutterActor *source = shell_popup_menu_base_get_source_actor (base);
+
+  /* The menu opens below its item: nothing to open while the item is not
+   * on screen (the quick settings menu is closed or the item hidden), which
+   * is what menu:open () of the extension API reports as false */
+  if (source != NULL && !clutter_actor_is_mapped (source))
+    return FALSE;
 
   if (!parent_class->open (base, animate))
     return FALSE;
@@ -2466,6 +2474,9 @@ shell_quick_menu_toggle_constructed (GObject *object)
   g_object_bind_property (self, "reactive",
                           priv->menu_button, "reactive",
                           G_BINDING_SYNC_CREATE);
+  g_object_bind_property (self, "reactive",
+                          priv->contents, "reactive",
+                          G_BINDING_SYNC_CREATE);
   g_object_bind_property (self, "checked",
                           priv->menu_button, "checked",
                           G_BINDING_SYNC_CREATE);
@@ -2653,6 +2664,7 @@ typedef struct
   StButton *menu_button;   /* weak */
 
   gboolean icon_reactive;
+  gboolean sensitive;
   char *icon_label;
   gboolean menu_enabled;
   char *menu_button_accessible_name;
@@ -2792,11 +2804,62 @@ shell_quick_slider_set_icon_reactive (ShellQuickSlider *self,
   priv->icon_reactive = reactive;
   if (priv->icon_button != NULL)
     {
-      clutter_actor_set_reactive (CLUTTER_ACTOR (priv->icon_button), reactive);
+      clutter_actor_set_reactive (CLUTTER_ACTOR (priv->icon_button),
+                                  reactive && priv->sensitive);
       st_widget_set_can_focus (ST_WIDGET (priv->icon_button), reactive);
     }
 
   g_object_notify_by_pspec (G_OBJECT (self), slider_props[SLIDER_PROP_ICON_REACTIVE]);
+}
+
+/**
+ * shell_quick_slider_get_sensitive:
+ * @self: a #ShellQuickSlider
+ *
+ * Returns: whether the parts of the slider react to the user
+ */
+gboolean
+shell_quick_slider_get_sensitive (ShellQuickSlider *self)
+{
+  ShellQuickSliderPrivate *priv;
+
+  g_return_val_if_fail (SHELL_IS_QUICK_SLIDER (self), FALSE);
+
+  priv = shell_quick_slider_get_instance_private (self);
+  return priv->sensitive;
+}
+
+/**
+ * shell_quick_slider_set_sensitive:
+ * @self: a #ShellQuickSlider
+ * @sensitive: whether the slider, its icon button and its menu button react
+ *   to the user
+ *
+ * The slider itself is never reactive (its parts are), so this is what
+ * `reactive` is for the other items. The icon button also needs
+ * #ShellQuickSlider:icon-reactive.
+ */
+void
+shell_quick_slider_set_sensitive (ShellQuickSlider *self,
+                                  gboolean          sensitive)
+{
+  ShellQuickSliderPrivate *priv;
+
+  g_return_if_fail (SHELL_IS_QUICK_SLIDER (self));
+
+  priv = shell_quick_slider_get_instance_private (self);
+  sensitive = !!sensitive;
+  if (priv->sensitive == sensitive)
+    return;
+
+  priv->sensitive = sensitive;
+  if (priv->slider != NULL)
+    clutter_actor_set_reactive (CLUTTER_ACTOR (priv->slider), sensitive);
+  if (priv->icon_button != NULL)
+    clutter_actor_set_reactive (CLUTTER_ACTOR (priv->icon_button),
+                                sensitive && priv->icon_reactive);
+  if (priv->menu_button != NULL)
+    clutter_actor_set_reactive (CLUTTER_ACTOR (priv->menu_button), sensitive);
 }
 
 /**
@@ -3276,6 +3339,7 @@ shell_quick_slider_init (ShellQuickSlider *self)
 {
   ShellQuickSliderPrivate *priv = shell_quick_slider_get_instance_private (self);
 
+  priv->sensitive = TRUE;
   priv->icon_label = g_strdup ("");
   priv->menu_button_accessible_name = g_strdup (_("Open menu"));
 }
@@ -3403,6 +3467,17 @@ quick_settings_menu_y_notify_cb (GObject                *object,
                                  ShellQuickSettingsMenu *self)
 {
   quick_settings_menu_queue_offset (self, FALSE);
+}
+
+/* Hook "quick-settings.opened" (docs/api/hooks.md) */
+static void
+quick_settings_menu_open_state_changed_cb (ShellQuickSettingsMenu *self,
+                                           gboolean                is_open)
+{
+  ShellHookRegistry *registry = shell_hook_registry_get_default ();
+
+  if (is_open && shell_hook_registry_is_declared (registry, "quick-settings.opened"))
+    shell_hook_registry_emit_after (registry, "quick-settings.opened", NULL);
 }
 
 static void
@@ -3603,6 +3678,8 @@ shell_quick_settings_menu_constructed (GObject *object)
 
   g_signal_connect (self, "menu-closed",
                     G_CALLBACK (quick_settings_menu_closed_cb), NULL);
+  g_signal_connect (self, "open-state-changed",
+                    G_CALLBACK (quick_settings_menu_open_state_changed_cb), NULL);
 
   dim_effect = clutter_brightness_contrast_effect_new ();
   clutter_actor_meta_set_enabled (CLUTTER_ACTOR_META (dim_effect), FALSE);
@@ -3714,6 +3791,11 @@ shell_quick_settings_menu_class_init (ShellQuickSettingsMenuClass *klass)
                       G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, N_QSM_PROPS, qsm_props);
+
+  /* Lua extensions (gnome-lua): the hook point of the menu */
+  shell_hook_registry_declare (shell_hook_registry_get_default (),
+                               "quick-settings.opened", "", FALSE,
+                               "The quick settings menu opened");
 }
 
 static void
@@ -3802,6 +3884,64 @@ shell_quick_settings_menu_insert_item_before (ShellQuickSettingsMenu *self,
 
   clutter_actor_insert_child_below (priv->grid, item, sibling);
   quick_settings_menu_complete_add_item (self, item, col_span);
+}
+
+/**
+ * shell_quick_settings_menu_get_item_col_span:
+ * @self: a #ShellQuickSettingsMenu
+ * @item: a child of the grid
+ *
+ * Returns: the number of columns @item spans, 0 if it is not in the grid
+ */
+int
+shell_quick_settings_menu_get_item_col_span (ShellQuickSettingsMenu *self,
+                                             ClutterActor           *item)
+{
+  ShellQuickSettingsMenuPrivate *priv;
+  g_auto (GValue) value = G_VALUE_INIT;
+
+  g_return_val_if_fail (SHELL_IS_QUICK_SETTINGS_MENU (self), 0);
+  g_return_val_if_fail (CLUTTER_IS_ACTOR (item), 0);
+
+  priv = shell_quick_settings_menu_get_instance_private (self);
+  if (priv->grid == NULL || clutter_actor_get_parent (item) != priv->grid)
+    return 0;
+
+  g_value_init (&value, G_TYPE_INT);
+  clutter_layout_manager_child_get_property (clutter_actor_get_layout_manager (priv->grid),
+                                             priv->grid, item,
+                                             "column-span", &value);
+  return g_value_get_int (&value);
+}
+
+/**
+ * shell_quick_settings_menu_set_item_col_span:
+ * @self: a #ShellQuickSettingsMenu
+ * @item: a child of the grid
+ * @col_span: the number of columns @item takes
+ *
+ * Changes the number of columns of an item of the grid.
+ */
+void
+shell_quick_settings_menu_set_item_col_span (ShellQuickSettingsMenu *self,
+                                             ClutterActor           *item,
+                                             int                     col_span)
+{
+  ShellQuickSettingsMenuPrivate *priv;
+  g_auto (GValue) value = G_VALUE_INIT;
+
+  g_return_if_fail (SHELL_IS_QUICK_SETTINGS_MENU (self));
+  g_return_if_fail (CLUTTER_IS_ACTOR (item));
+
+  priv = shell_quick_settings_menu_get_instance_private (self);
+  if (priv->grid == NULL || clutter_actor_get_parent (item) != priv->grid)
+    return;
+
+  g_value_init (&value, G_TYPE_INT);
+  g_value_set_int (&value, MAX (col_span, 1));
+  clutter_layout_manager_child_set_property (clutter_actor_get_layout_manager (priv->grid),
+                                             priv->grid, item,
+                                             "column-span", &value);
 }
 
 /**

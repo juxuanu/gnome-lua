@@ -35,24 +35,10 @@
 #define TEMPLATE_KEY "Path"
 #define SORT_DATA "desktop-id"
 
-static char *
-get_shell_version (GError **error)
-{
-  g_autoptr (GDBusProxy) proxy = NULL;
-  g_autoptr (GVariant) variant = NULL;
-  g_auto (GStrv) split_version = NULL;
-
-  proxy = get_shell_proxy (error);
-  if (proxy == NULL)
-    return NULL;
-
-  variant = g_dbus_proxy_get_cached_property (proxy, "ShellVersion");
-  if (variant == NULL)
-    return NULL;
-
-  split_version = g_strsplit (g_variant_get_string (variant, NULL), ".", 2);
-  return g_steal_pointer(&split_version[0]);
-}
+/* The "shell-api" of metadata.json (docs/api/README.md): the major version of
+ * the extension API, optionally followed by ".N" for the minor version that
+ * the extension needs */
+#define SHELL_API_VERSION "1"
 
 static GDesktopAppInfo *
 load_app_info_from_resource (const char *uri)
@@ -145,11 +131,6 @@ create_metadata (GFile       *target_dir,
   g_autofree char *desc_escaped = NULL;
   g_autoptr (GFile) target = NULL;
   g_autoptr (GString) json = NULL;
-  g_autofree char *version = NULL;
-
-  version = get_shell_version (error);
-  if (version == NULL)
-    return FALSE;
 
   uuid_escaped = escape_json_string (uuid);
   name_escaped = escape_json_string (name);
@@ -162,14 +143,22 @@ create_metadata (GFile       *target_dir,
   g_string_append_printf (json, "  \"uuid\": \"%s\",\n", uuid_escaped);
 
   if (gettext_domain)
-    g_string_append_printf (json, "  \"gettext-domain\": \"%s\",\n", gettext_domain);
+    {
+      g_autofree char *domain_escaped = escape_json_string (gettext_domain);
+
+      g_string_append_printf (json, "  \"gettext-domain\": \"%s\",\n", domain_escaped);
+    }
 
   if (settings_schema)
-    g_string_append_printf (json, "  \"settings-schema\": \"%s\",\n", settings_schema);
+    {
+      g_autofree char *schema_escaped = escape_json_string (settings_schema);
 
-  g_string_append_printf (json, "  \"shell-version\": [\n");
-  g_string_append_printf (json, "    \"%s\"\n", version);
-  g_string_append_printf (json, "  ]\n}\n");
+      g_string_append_printf (json, "  \"settings-schema\": \"%s\",\n", schema_escaped);
+    }
+
+  /* The version of the extension API the extension is written for, not of
+   * the shell: a Lua extension runs on every shell that has this major */
+  g_string_append (json, "  \"shell-api\": \"" SHELL_API_VERSION "\"\n}\n");
 
   target = g_file_get_child (target_dir, "metadata.json");
   return g_file_replace_contents (target,
@@ -186,6 +175,7 @@ create_metadata (GFile       *target_dir,
 static gboolean
 create_settings_schema (GFile       *target_dir,
                         const char  *settings_schema,
+                        gboolean     sample_key,
                         GError     **error)
 {
   g_autoptr (GFile) schema_dir = NULL;
@@ -204,10 +194,17 @@ create_settings_schema (GFile       *target_dir,
   schema_path = g_strconcat ("/", settings_schema, "/", NULL);
   g_strdelimit (schema_path, ".", '/');
 
+  /* prefs.lua binds every row to a key of the schema: the template of
+   * prefs.lua uses this one */
   xml = g_strdup_printf ("<schemalist>\n"
                          "  <schema id=\"%s\" path=\"%s\">\n"
+                         "%s"
                          "  </schema>\n"
-                         "</schemalist>\n", settings_schema, schema_path);
+                         "</schemalist>\n", settings_schema, schema_path,
+                         sample_key ?
+                         "    <key name=\"enabled\" type=\"b\">\n"
+                         "      <default>true</default>\n"
+                         "    </key>\n" : "");
 
   return g_file_replace_contents (schema,
                                   xml,
@@ -218,6 +215,40 @@ create_settings_schema (GFile       *target_dir,
                                   NULL,
                                   NULL,
                                   error);
+}
+
+/* The schema of the extension when prefs.lua is wanted and the command line
+ * names none: prefs.lua needs keys to bind its rows to. The convention of
+ * the extensions is org.gnome.shell.extensions.<name>, the name being the
+ * part of the UUID before the "@" (every character that a schema id does
+ * not allow replaced by "-") */
+static char *
+default_settings_schema (const char *uuid)
+{
+  g_autofree char *local_part = g_strndup (uuid, strcspn (uuid, "@"));
+  GString *schema = g_string_new ("org.gnome.shell.extensions.");
+  gsize start = schema->len;
+  gsize i;
+
+  for (i = 0; local_part[i] != '\0'; i++)
+    {
+      char c = g_ascii_tolower (local_part[i]);
+
+      if (!g_ascii_isalnum (c))
+        c = '-';
+      /* a segment starts with a letter */
+      if (schema->len == start && !g_ascii_isalpha (c))
+        g_string_append_c (schema, 'x');
+      g_string_append_c (schema, c);
+    }
+
+  while (schema->len > start && schema->str[schema->len - 1] == '-')
+    g_string_truncate (schema, schema->len - 1);
+
+  if (schema->len == start)
+    g_string_append (schema, "extension");
+
+  return g_string_free_and_steal (schema);
 }
 
 static gboolean
@@ -261,9 +292,9 @@ copy_prefs_template (GFile *target_dir, GError **error)
   g_autoptr (GFile) source = NULL;
   g_autofree char *uri = NULL;
 
-  uri = g_strdup ("resource://" TEMPLATES_PATH "/prefs.js");
+  uri = g_strdup ("resource://" TEMPLATES_PATH "/prefs.lua");
   source = g_file_new_for_uri (uri);
-  target = g_file_get_child (target_dir, "prefs.js");
+  target = g_file_get_child (target_dir, "prefs.lua");
 
   if (!g_file_copy (source, target, G_FILE_COPY_TARGET_DEFAULT_PERMS, NULL, NULL, NULL, error))
     return FALSE;
@@ -278,7 +309,7 @@ launch_extension_source (GFile *dir, GError **error)
   g_autoptr (GAppInfo) handler = NULL;
   GList l;
 
-  main_source = g_file_get_child (dir, "extension.js");
+  main_source = g_file_get_child (dir, "extension.lua");
   handler = g_file_query_default_handler (main_source, NULL, NULL);
 
   /* Translators: a file path to an extension directory */
@@ -305,9 +336,16 @@ create_extension (const char *uuid,
 {
   g_autoptr (GFile) dir = NULL;
   g_autoptr (GError) error = NULL;
+  g_autofree char *prefs_schema = NULL;
 
   if (template == NULL)
     template = "plain";
+
+  if (prefs && settings_schema == NULL)
+    {
+      prefs_schema = default_settings_schema (uuid);
+      settings_schema = prefs_schema;
+    }
 
   dir = g_file_new_build_filename (g_get_user_data_dir (),
                                    "gnome-shell",
@@ -327,7 +365,7 @@ create_extension (const char *uuid,
       return FALSE;
     }
 
-  if (settings_schema && !create_settings_schema (dir, settings_schema, &error))
+  if (settings_schema && !create_settings_schema (dir, settings_schema, prefs, &error))
     {
       g_printerr ("%s\n", error->message);
       return FALSE;
@@ -536,7 +574,7 @@ handle_create (int argc, char *argv[], gboolean do_help)
       .description = _("The template to use for the new extension") },
     { .long_name = "prefs",
       .arg = G_OPTION_ARG_NONE, .arg_data = &prefs,
-      .description = _("Include prefs.js template") },
+      .description = _("Include prefs.lua template") },
     { .long_name = "list-templates",
       .arg = G_OPTION_ARG_NONE, .arg_data = &list_templates,
       .flags = G_OPTION_FLAG_HIDDEN },

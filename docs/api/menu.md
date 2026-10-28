@@ -1,5 +1,8 @@
 # `shell.Menu`: popup menus (version 1, draft)
 
+Status: **impl** (`src/lua-api/shell-lua-api-menu.c`; conformance:
+`tests/api/menu.lua`, fixture `tests/api/fixtures/menu@test`).
+
 Scope: the menu attached to a panel indicator (`ind.menu`, panel.md), to a
 quick-settings menu toggle or slider (`toggle.menu`, quick-settings.md), and
 the one-level submenu of a submenu item. A menu is a vertical list of items;

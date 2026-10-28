@@ -47,6 +47,31 @@
  *   test.wait_windows ()          until the windows are mapped and drawn
  *   test.destroy_windows ()       destroys them
  *
+ * Tests of the extension API (tests/api, see tests/api/README.md). The shell
+ * the runner drives has a test-only `shell.test` table in the sandbox of
+ * every extension (report (name, ok [, message]), done ([label])), and the
+ * hook `test.step` (payload `step:s` and what the script adds), which the
+ * script emits with shell.hooks.emit_after () to run a step of a fixture
+ * extension. The script controls and observes the extensions with:
+ *
+ *   test.extension_enable (uuid)  adds the extension to enabled-extensions
+ *                                 (it starts from the main loop: wait for
+ *                                 its state) and forgets its report
+ *   test.extension_disable (uuid) removes it from enabled-extensions
+ *   test.extension_state (uuid)   {state = "active" ..., error = string or
+ *                                 nil, errors = number of Lua errors since
+ *                                 it was enabled}, nil if not installed
+ *   test.extension_report (uuid)  {checks = {{name, ok, message}...},
+ *                                 passed, failed, done = {label = true}}
+ *   test.log_capture (uuid, on)   captures the log of the extension
+ *                                 (domain shell-lua/<uuid>, and the errors
+ *                                 of its callbacks) and makes warnings
+ *                                 non-fatal; with on = false it returns
+ *                                 {{level, message}...}
+ *   test.fingerprint ()           {actors = {type = n}, mapped = {type = n},
+ *                                 listeners = {hook = n}}: what is on the
+ *                                 stage and connected to the hooks
+ *
  * Other functions: test.timeout (ms, fn), test.now (), test.new (type,
  * {property = value ...}) (a GObject, kept alive by the runner),
  * test.new_monitor (width, height, refresh_rate) (a virtual monitor of
@@ -85,6 +110,9 @@
 #include "shell-app-system.h"
 #include "shell-app.h"
 #include "shell-global.h"
+#include "shell-hooks.h"
+#include "shell-lua-api-private.h"
+#include "shell-lua-extension-private.h"
 #include "shell-lua-handle.h"
 #include "shell-lua-inspector.h"
 #include "shell-enum-types.h"
@@ -95,6 +123,7 @@
 #define ST_H_INSIDE 1
 #include "st-enum-types.h"
 #undef ST_H_INSIDE
+#include "ui/extension-system.h"
 #include "ui/layout.h"
 #include "ui/main.h"
 #include "ui/message-tray.h"
@@ -178,6 +207,14 @@ typedef struct
   void *test_library;
   TestMonitorNewFunc monitor_new;
   TestMonitorDestroyFunc monitor_destroy;
+
+  /* Tests of the extension API */
+  GHashTable *reports;  /* uuid -> ExtensionReport */
+  char *capture_uuid;
+  guint capture_handler;       /* shell-lua/<uuid> */
+  guint capture_lib_handler;   /* ShellLua, the messages of the runtime about the extension */
+  GLogLevelFlags capture_fatal;
+  GPtrArray *captured;  /* CapturedLog */
 
   GPtrArray *keep;      /* GObject, strong: what the script created */
   GPtrArray *monitors;  /* TestMonitor */
@@ -1777,9 +1814,42 @@ l_overview_hide (lua_State *L)
   return 0;
 }
 
+/* overview:show_for_reason (reason [, state]): state is "window-picker"
+ * (default) or "app-grid" */
+static int
+l_overview_show_for_reason (lua_State *L)
+{
+  ShellOverview *overview = check_instance (L, 1, SHELL_TYPE_OVERVIEW);
+  const char *reason = luaL_checkstring (L, 2);
+  const char *state = luaL_optstring (L, 3, "window-picker");
+  ShellControlsState controls_state;
+
+  if (g_str_equal (state, "window-picker"))
+    controls_state = SHELL_CONTROLS_STATE_WINDOW_PICKER;
+  else if (g_str_equal (state, "app-grid"))
+    controls_state = SHELL_CONTROLS_STATE_APP_GRID;
+  else
+    return luaL_argerror (L, 3, "expected 'window-picker' or 'app-grid'");
+
+  shell_overview_show_for_reason (overview, controls_state, reason);
+  return 0;
+}
+
+/* overview:hide_for_reason (reason) */
+static int
+l_overview_hide_for_reason (lua_State *L)
+{
+  ShellOverview *overview = check_instance (L, 1, SHELL_TYPE_OVERVIEW);
+
+  shell_overview_hide_for_reason (overview, luaL_checkstring (L, 2));
+  return 0;
+}
+
 static const luaL_Reg overview_methods[] = {
   { "show", l_overview_show },
   { "hide", l_overview_hide },
+  { "show_for_reason", l_overview_show_for_reason },
+  { "hide_for_reason", l_overview_hide_for_reason },
   { NULL, NULL }
 };
 
@@ -2091,6 +2161,485 @@ register_object_methods (void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* Tests of the extension API (tests/api)                                     */
+/* ------------------------------------------------------------------------ */
+
+#define STEP_HOOK "test.step"
+
+typedef struct
+{
+  char     *name;
+  gboolean  ok;
+  char     *message;
+} Check;
+
+typedef struct
+{
+  GPtrArray  *checks;  /* Check */
+  GHashTable *done;    /* label (owned) -> label, a set */
+} ExtensionReport;
+
+typedef struct
+{
+  const char *level;
+  char       *message;
+} CapturedLog;
+
+static void
+check_free (Check *check)
+{
+  g_free (check->name);
+  g_free (check->message);
+  g_free (check);
+}
+
+static ExtensionReport *
+extension_report_new (void)
+{
+  ExtensionReport *report = g_new0 (ExtensionReport, 1);
+
+  report->checks = g_ptr_array_new_with_free_func ((GDestroyNotify) check_free);
+  report->done = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+  return report;
+}
+
+static void
+extension_report_free (ExtensionReport *report)
+{
+  g_ptr_array_unref (report->checks);
+  g_hash_table_unref (report->done);
+  g_free (report);
+}
+
+static void
+captured_log_free (CapturedLog *entry)
+{
+  g_free (entry->message);
+  g_free (entry);
+}
+
+/* The report of the extension @uuid, made if there is none */
+static ExtensionReport *
+get_report (Runner     *r,
+            const char *uuid)
+{
+  ExtensionReport *report = g_hash_table_lookup (r->reports, uuid);
+
+  if (report == NULL)
+    {
+      report = extension_report_new ();
+      g_hash_table_insert (r->reports, g_strdup (uuid), report);
+    }
+
+  return report;
+}
+
+/* shell.test.report (name, ok [, message]): one check of a fixture extension
+ * (sandboxed states only). A failed check is logged at once, so that the log
+ * of a run that aborts says what failed. */
+static int
+l_api_report (lua_State *L)
+{
+  Runner *r = the_runner;
+  ShellLuaState *state = shell_lua_state_from_L (L);
+  const char *name = luaL_checkstring (L, 1);
+  const char *message = luaL_optstring (L, 3, NULL);
+  const char *uuid = state != NULL ? shell_lua_state_get_id (state) : "?";
+  Check *check;
+  gboolean ok;
+
+  luaL_checktype (L, 2, LUA_TBOOLEAN);
+  ok = lua_toboolean (L, 2);
+  if (r == NULL)
+    return 0;
+
+  check = g_new0 (Check, 1);
+  check->name = g_strdup (name);
+  check->ok = ok;
+  check->message = g_strdup (message);
+  g_ptr_array_add (get_report (r, uuid)->checks, check);
+
+  if (!ok)
+    g_printerr ("API check failed in %s: %s: %s\n", uuid, name, message != NULL ? message : "");
+  return 0;
+}
+
+/* shell.test.done ([label]): the fixture finished the main part ("main") or
+ * the step @label */
+static int
+l_api_done (lua_State *L)
+{
+  Runner *r = the_runner;
+  ShellLuaState *state = shell_lua_state_from_L (L);
+  const char *label = luaL_optstring (L, 1, "main");
+  const char *uuid = state != NULL ? shell_lua_state_get_id (state) : "?";
+
+  if (r != NULL)
+    g_hash_table_add (get_report (r, uuid)->done, g_strdup (label));
+  return 0;
+}
+
+static const luaL_Reg api_test_functions[] = {
+  { "report", l_api_report },
+  { "done", l_api_done },
+  { NULL, NULL }
+};
+
+/* The `shell.test` table of the sandbox, registered when the runner starts:
+ * the shells that do not run a test script do not have it */
+static void
+api_test_register (ShellLuaState *state,
+                   lua_State     *L)
+{
+  int shell = lua_absindex (L, -1);
+
+  luaL_checkstack (L, 4, "shell.test");
+  lua_newtable (L);
+  luaL_setfuncs (L, api_test_functions, 0);
+  lua_setfield (L, shell, "test");
+}
+
+static ShellExtensionManager *
+check_extension_manager (lua_State *L)
+{
+  ShellExtensionManager *manager = shell_main_get_extension_manager (shell_main_get_default ());
+
+  if (manager == NULL)
+    luaL_error (L, "the extension manager is not up");
+
+  return manager;
+}
+
+/* test.extension_enable (uuid) */
+static int
+l_extension_enable (lua_State *L)
+{
+  Runner *r = the_runner;
+  const char *uuid = luaL_checkstring (L, 1);
+  ShellExtensionManager *manager = check_extension_manager (L);
+
+  g_hash_table_remove (r->reports, uuid);
+  if (!shell_extension_manager_enable_extension (manager, uuid))
+    return luaL_error (L, "extension %s is not installed", uuid);
+
+  return 0;
+}
+
+/* test.extension_disable (uuid) */
+static int
+l_extension_disable (lua_State *L)
+{
+  const char *uuid = luaL_checkstring (L, 1);
+  ShellExtensionManager *manager = check_extension_manager (L);
+
+  if (!shell_extension_manager_disable_extension (manager, uuid))
+    return luaL_error (L, "extension %s is not installed", uuid);
+
+  return 0;
+}
+
+static const char *
+state_nick (ShellLuaExtensionState state)
+{
+  switch (state)
+    {
+    case SHELL_LUA_EXTENSION_STATE_ACTIVE:
+      return "active";
+    case SHELL_LUA_EXTENSION_STATE_INACTIVE:
+      return "inactive";
+    case SHELL_LUA_EXTENSION_STATE_ERROR:
+      return "error";
+    case SHELL_LUA_EXTENSION_STATE_OUT_OF_DATE:
+      return "out-of-date";
+    case SHELL_LUA_EXTENSION_STATE_DOWNLOADING:
+      return "downloading";
+    case SHELL_LUA_EXTENSION_STATE_INITIALIZED:
+      return "initialized";
+    case SHELL_LUA_EXTENSION_STATE_DEACTIVATING:
+      return "deactivating";
+    case SHELL_LUA_EXTENSION_STATE_ACTIVATING:
+      return "activating";
+    case SHELL_LUA_EXTENSION_STATE_UNINSTALLED:
+      return "uninstalled";
+    default:
+      return "unknown";
+    }
+}
+
+/* test.extension_state (uuid) -> {state, error, errors}, or nil */
+static int
+l_extension_state (lua_State *L)
+{
+  const char *uuid = luaL_checkstring (L, 1);
+  ShellExtensionManager *manager = check_extension_manager (L);
+  ShellLuaExtension *extension = shell_extension_manager_lookup (manager, uuid);
+  const char *error;
+
+  if (extension == NULL)
+    {
+      lua_pushnil (L);
+      return 1;
+    }
+
+  lua_createtable (L, 0, 3);
+  lua_pushstring (L, state_nick (shell_lua_extension_get_state (extension)));
+  lua_setfield (L, -2, "state");
+  error = shell_lua_extension_get_error (extension);
+  if (error != NULL && error[0] != '\0')
+    {
+      lua_pushstring (L, error);
+      lua_setfield (L, -2, "error");
+    }
+  lua_pushinteger (L, shell_lua_extension_get_error_count (extension));
+  lua_setfield (L, -2, "errors");
+  return 1;
+}
+
+/* test.extension_report (uuid) -> {checks, passed, failed, done} */
+static int
+l_extension_report (lua_State *L)
+{
+  Runner *r = the_runner;
+  const char *uuid = luaL_checkstring (L, 1);
+  ExtensionReport *report = g_hash_table_lookup (r->reports, uuid);
+  lua_Integer passed = 0, failed = 0;
+  guint i;
+
+  luaL_checkstack (L, 6, "extension_report");
+  lua_createtable (L, 0, 4);
+
+  lua_createtable (L, report != NULL ? report->checks->len : 0, 0);
+  for (i = 0; report != NULL && i < report->checks->len; i++)
+    {
+      Check *check = g_ptr_array_index (report->checks, i);
+
+      lua_createtable (L, 0, 3);
+      lua_pushstring (L, check->name);
+      lua_setfield (L, -2, "name");
+      lua_pushboolean (L, check->ok);
+      lua_setfield (L, -2, "ok");
+      if (check->message != NULL)
+        {
+          lua_pushstring (L, check->message);
+          lua_setfield (L, -2, "message");
+        }
+      lua_rawseti (L, -2, i + 1);
+
+      if (check->ok)
+        passed++;
+      else
+        failed++;
+    }
+  lua_setfield (L, -2, "checks");
+
+  lua_pushinteger (L, passed);
+  lua_setfield (L, -2, "passed");
+  lua_pushinteger (L, failed);
+  lua_setfield (L, -2, "failed");
+
+  lua_newtable (L);
+  if (report != NULL)
+    {
+      GHashTableIter iter;
+      gpointer label;
+
+      g_hash_table_iter_init (&iter, report->done);
+      while (g_hash_table_iter_next (&iter, &label, NULL))
+        {
+          lua_pushboolean (L, 1);
+          lua_setfield (L, -2, label);
+        }
+    }
+  lua_setfield (L, -2, "done");
+  return 1;
+}
+
+static const char *
+log_level_nick (GLogLevelFlags level)
+{
+  if (level & G_LOG_LEVEL_ERROR)
+    return "error";
+  if (level & G_LOG_LEVEL_CRITICAL)
+    return "critical";
+  if (level & G_LOG_LEVEL_WARNING)
+    return "warning";
+  if (level & G_LOG_LEVEL_MESSAGE)
+    return "message";
+  if (level & G_LOG_LEVEL_INFO)
+    return "info";
+  return "debug";
+}
+
+static void
+capture_log_handler (const char     *domain,
+                     GLogLevelFlags  level,
+                     const char     *message,
+                     gpointer        user_data)
+{
+  Runner *r = user_data;
+  CapturedLog *entry;
+
+  /* The runtime logs the errors of the callbacks as "[uuid] message" in its
+   * own domain; the other messages of that domain are not the extension's */
+  if (g_str_equal (domain, "ShellLua"))
+    {
+      g_autofree char *prefix = g_strdup_printf ("[%s] ", r->capture_uuid);
+
+      if (!g_str_has_prefix (message, prefix))
+        {
+          g_log_default_handler (domain, level, message, NULL);
+          return;
+        }
+    }
+
+  entry = g_new0 (CapturedLog, 1);
+  entry->level = log_level_nick (level);
+  entry->message = g_strdup (message);
+  g_ptr_array_add (r->captured, entry);
+
+  g_log_default_handler (domain, level, message, NULL);
+}
+
+static void
+stop_log_capture (Runner *r)
+{
+  g_autofree char *domain = NULL;
+
+  if (r->capture_handler == 0)
+    return;
+
+  domain = g_strconcat ("shell-lua/", r->capture_uuid, NULL);
+  g_log_remove_handler (domain, r->capture_handler);
+  g_log_remove_handler ("ShellLua", r->capture_lib_handler);
+  g_log_set_always_fatal (r->capture_fatal);
+  r->capture_handler = 0;
+  r->capture_lib_handler = 0;
+  g_clear_pointer (&r->capture_uuid, g_free);
+}
+
+/* test.log_capture (uuid, on): with @on the log of the extension (what it
+ * logs, and the errors of its callbacks that the runtime logs) is collected,
+ * and warnings and criticals are not fatal until it is stopped (the API logs
+ * them on purpose); without, returns {{level, message}...} */
+static int
+l_log_capture (lua_State *L)
+{
+  Runner *r = the_runner;
+  const char *uuid = luaL_checkstring (L, 1);
+  guint i;
+
+  luaL_checktype (L, 2, LUA_TBOOLEAN);
+
+  if (lua_toboolean (L, 2))
+    {
+      g_autofree char *domain = NULL;
+      GLogLevelFlags flags = G_LOG_LEVEL_MASK | G_LOG_FLAG_FATAL | G_LOG_FLAG_RECURSION;
+
+      if (r->capture_handler != 0)
+        return luaL_error (L, "the log of an extension is already captured");
+
+      g_ptr_array_set_size (r->captured, 0);
+      r->capture_uuid = g_strdup (uuid);
+      domain = g_strconcat ("shell-lua/", uuid, NULL);
+      r->capture_handler = g_log_set_handler (domain, flags, capture_log_handler, r);
+      r->capture_lib_handler = g_log_set_handler ("ShellLua", flags, capture_log_handler, r);
+      r->capture_fatal = g_log_set_always_fatal (G_LOG_FATAL_MASK);
+      return 0;
+    }
+
+  if (r->capture_handler == 0)
+    return luaL_error (L, "the log is not captured");
+
+  stop_log_capture (r);
+
+  luaL_checkstack (L, 6, "log_capture");
+  lua_createtable (L, r->captured->len, 0);
+  for (i = 0; i < r->captured->len; i++)
+    {
+      CapturedLog *entry = g_ptr_array_index (r->captured, i);
+
+      lua_createtable (L, 0, 2);
+      lua_pushstring (L, entry->level);
+      lua_setfield (L, -2, "level");
+      lua_pushstring (L, entry->message);
+      lua_setfield (L, -2, "message");
+      lua_rawseti (L, -2, i + 1);
+    }
+  g_ptr_array_set_size (r->captured, 0);
+  return 1;
+}
+
+static void
+count_actors (ClutterActor *actor,
+              GHashTable   *all,
+              GHashTable   *mapped)
+{
+  ClutterActor *child;
+  const char *name = G_OBJECT_TYPE_NAME (actor);
+
+  g_hash_table_replace (all, (gpointer) name,
+                        GINT_TO_POINTER (GPOINTER_TO_INT (g_hash_table_lookup (all, name)) + 1));
+  if (clutter_actor_is_mapped (actor))
+    g_hash_table_replace (mapped, (gpointer) name,
+                          GINT_TO_POINTER (GPOINTER_TO_INT (g_hash_table_lookup (mapped, name)) + 1));
+
+  for (child = clutter_actor_get_first_child (actor);
+       child != NULL;
+       child = clutter_actor_get_next_sibling (child))
+    count_actors (child, all, mapped);
+}
+
+static void
+push_counts (lua_State  *L,
+             GHashTable *counts)
+{
+  GHashTableIter iter;
+  gpointer name, count;
+
+  lua_createtable (L, 0, g_hash_table_size (counts));
+  g_hash_table_iter_init (&iter, counts);
+  while (g_hash_table_iter_next (&iter, &name, &count))
+    {
+      lua_pushinteger (L, GPOINTER_TO_INT (count));
+      lua_setfield (L, -2, name);
+    }
+}
+
+/* test.fingerprint () -> {actors, mapped, listeners}: how many actors of
+ * each type are in the stage (the mapped ones too) and how many listeners
+ * each hook has. The shell is idle before the tests compare two of them. */
+static int
+l_fingerprint (lua_State *L)
+{
+  ShellHookRegistry *registry = shell_hook_registry_get_default ();
+  g_autoptr (GHashTable) all = g_hash_table_new (g_str_hash, g_str_equal);
+  g_autoptr (GHashTable) mapped = g_hash_table_new (g_str_hash, g_str_equal);
+  g_autoptr (GHashTable) listeners = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+  g_auto (GStrv) hooks = shell_hook_registry_list (registry);
+  guint i;
+
+  count_actors (CLUTTER_ACTOR (shell_global_get_stage (shell_global_get ())), all, mapped);
+
+  for (i = 0; hooks != NULL && hooks[i] != NULL; i++)
+    {
+      guint n = shell_hook_registry_count_listeners (registry, hooks[i], SHELL_HOOK_PHASE_BEFORE) +
+                shell_hook_registry_count_listeners (registry, hooks[i], SHELL_HOOK_PHASE_AFTER);
+
+      g_hash_table_replace (listeners, g_strdup (hooks[i]), GUINT_TO_POINTER (n));
+    }
+
+  luaL_checkstack (L, 6, "fingerprint");
+  lua_createtable (L, 0, 3);
+  push_counts (L, all);
+  lua_setfield (L, -2, "actors");
+  push_counts (L, mapped);
+  lua_setfield (L, -2, "mapped");
+  push_counts (L, listeners);
+  lua_setfield (L, -2, "listeners");
+  return 1;
+}
+
+/* ------------------------------------------------------------------------ */
 /* The test module and the script                                             */
 /* ------------------------------------------------------------------------ */
 
@@ -2111,6 +2660,12 @@ static const luaL_Reg test_functions[] = {
   { "new_monitor", l_new_monitor },
   { "create_virtual_device", l_create_virtual_device },
   { "set_boolean", l_set_boolean },
+  { "extension_enable", l_extension_enable },
+  { "extension_disable", l_extension_disable },
+  { "extension_state", l_extension_state },
+  { "extension_report", l_extension_report },
+  { "log_capture", l_log_capture },
+  { "fingerprint", l_fingerprint },
   { "print", l_print },
   { "log", l_log },
   { "define_event", l_define_event },
@@ -2426,6 +2981,7 @@ runner_free (Runner *r)
   for (i = 0; i < r->monitors->len; i++)
     destroy_monitor (r, g_ptr_array_index (r->monitors, i));
   g_ptr_array_set_size (r->keep, 0);
+  stop_log_capture (r);
 
   /* The state is closed with the inspector: from now on the closures and the
    * callbacks that are left do nothing */
@@ -2445,6 +3001,8 @@ runner_free (Runner *r)
   g_ptr_array_unref (r->monitors);
   g_ptr_array_unref (r->keep);
   g_ptr_array_unref (r->waiters);
+  g_hash_table_unref (r->reports);
+  g_ptr_array_unref (r->captured);
   g_free (r->script);
   g_free (r);
 }
@@ -2494,8 +3052,16 @@ shell_test_runner_start (void)
   r->keep = g_ptr_array_new_with_free_func (g_object_unref);
   r->monitors = g_ptr_array_new_with_free_func ((GDestroyNotify) test_monitor_free);
   r->waiters = g_ptr_array_new_with_free_func ((GDestroyNotify) waiter_free);
+  r->reports = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+                                      (GDestroyNotify) extension_report_free);
+  r->captured = g_ptr_array_new_with_free_func ((GDestroyNotify) captured_log_free);
   g_weak_ref_init (&r->layout_manager, NULL);
   the_runner = r;
+
+  /* What the fixture extensions of tests/api use to report and to be driven */
+  shell_lua_api_register ("test", api_test_register);
+  shell_hook_registry_declare (shell_hook_registry_get_default (), STEP_HOOK, "step:s", FALSE,
+                               "Test runner: asks the fixture extensions to run a step (tests/api)");
 
   r->shutdown_id = g_signal_connect_after (shell_global_get (), "shutdown",
                                            G_CALLBACK (shutdown_cb), r);

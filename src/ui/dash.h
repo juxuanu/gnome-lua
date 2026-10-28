@@ -13,6 +13,9 @@
  *  - #ShellShowAppsIcon (`ShowAppsIcon`): the item with the button that shows
  *    the application grid, and the drop target that unpins applications.
  *  - #ShellDash (`Dash`): the dash itself.
+ *  - #ShellDashButton: the launcher-style button an extension adds to the
+ *    dash (docs/api/dash.md); the dash keeps them in two groups beside the
+ *    box of the applications (shell_dash_add_extension_button ()).
  *
  * The drag placeholder, the empty drop target, the layout of the icons and
  * the drop target of the box of the icons are private to the C file.
@@ -111,6 +114,45 @@ void               shell_show_apps_icon_set_drag_app      (ShellShowAppsIcon *se
                                                            ShellApp          *app);
 
 /* ------------------------------------------------------------------------ */
+/* ShellDashButton                                                           */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * ShellDashEdge:
+ * @SHELL_DASH_EDGE_START: the group of extension buttons before the
+ *   applications
+ * @SHELL_DASH_EDGE_END: the group of extension buttons after the applications
+ *   and before the button that shows the application grid
+ *
+ * The group of the dash an extension button is placed in.
+ */
+typedef enum
+{
+  SHELL_DASH_EDGE_START,
+  SHELL_DASH_EDGE_END,
+} ShellDashEdge;
+
+/**
+ * SHELL_DASH_MAX_EXTENSION_BUTTONS:
+ *
+ * The number of buttons one extension may have in the dash.
+ */
+#define SHELL_DASH_MAX_EXTENSION_BUTTONS 8
+
+#define SHELL_TYPE_DASH_BUTTON (shell_dash_button_get_type ())
+G_DECLARE_FINAL_TYPE (ShellDashButton, shell_dash_button,
+                      SHELL, DASH_BUTTON, ShellDashItemContainer)
+
+ShellDashButton *shell_dash_button_new            (const char *label);
+void             shell_dash_button_set_icon_name  (ShellDashButton *self,
+                                                   const char      *icon_name);
+void             shell_dash_button_set_icon_file  (ShellDashButton *self,
+                                                   const char      *icon_file);
+const char      *shell_dash_button_get_icon_name  (ShellDashButton *self);
+const char      *shell_dash_button_get_icon_file  (ShellDashButton *self);
+ShellBaseIcon   *shell_dash_button_get_icon       (ShellDashButton *self);
+
+/* ------------------------------------------------------------------------ */
 /* ShellDash                                                                 */
 /* ------------------------------------------------------------------------ */
 
@@ -128,5 +170,13 @@ void          shell_dash_set_max_size        (ShellDash *self,
                                               int        max_height);
 void          shell_dash_window_drag_begin   (ShellDash *self);
 void          shell_dash_window_drag_end     (ShellDash *self);
+gboolean      shell_dash_add_extension_button    (ShellDash       *self,
+                                                  ShellDashButton *button,
+                                                  const char      *owner,
+                                                  ShellDashEdge    edge,
+                                                  int              index,
+                                                  GError         **error);
+void          shell_dash_remove_extension_button (ShellDash       *self,
+                                                  ShellDashButton *button);
 
 G_END_DECLS

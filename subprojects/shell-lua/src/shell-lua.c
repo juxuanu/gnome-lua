@@ -1013,9 +1013,9 @@ push_api_version (lua_State *L)
   lua_newtable (L);            /* proxy */
   lua_newtable (L);            /* metatable */
   lua_newtable (L);            /* real */
-  lua_pushinteger (L, 1);
+  lua_pushinteger (L, SHELL_LUA_API_MAJOR);
   lua_setfield (L, -2, "major");
-  lua_pushinteger (L, 0);
+  lua_pushinteger (L, SHELL_LUA_API_MINOR);
   lua_setfield (L, -2, "minor");
   lua_pushvalue (L, -1);
   lua_setfield (L, -3, "__index");

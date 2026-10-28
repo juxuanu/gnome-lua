@@ -8,6 +8,8 @@ shell_lua_tests = [
   'hooks',
   'handle',
   'api-core',
+  'api-dbus',
+  'objects',
   'extension',
   'inspector',
 ]

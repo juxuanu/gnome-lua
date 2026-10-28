@@ -1,0 +1,7 @@
+{
+  "uuid": "dash@test",
+  "name": "API conformance: dash",
+  "description": "Fixture of tests/api/dash.lua: shell.dash and shell.DashButton",
+  "shell-api": "1",
+  "version": 1
+}

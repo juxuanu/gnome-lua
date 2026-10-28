@@ -1,0 +1,7 @@
+{
+  "uuid": "core-errors@test",
+  "name": "API conformance: core, errors",
+  "description": "Fixture of tests/api/core.lua: errors in callbacks and the error limit",
+  "shell-api": "1",
+  "version": 1
+}

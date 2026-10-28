@@ -1,0 +1,8 @@
+{
+  "uuid": "dbus@test",
+  "name": "API conformance: dbus",
+  "description": "Fixture of tests/api/dbus.lua: shell.dbus",
+  "shell-api": "1",
+  "capabilities": ["dbus"],
+  "version": 1
+}

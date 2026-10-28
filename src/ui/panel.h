@@ -13,6 +13,10 @@
  *
  * Hooks declared here: "panel.indicator-added" and "panel.menu-opened"
  * (docs/api/hooks.md).
+ *
+ * Each box is [extension indicators at the start] [the indicators of the
+ * shell] [extension indicators at the end]; see
+ * shell_panel_add_extension_indicator () and docs/api/panel.md.
  */
 
 #pragma once
@@ -42,6 +46,21 @@ typedef enum
   SHELL_PANEL_BOX_RIGHT,
 } ShellPanelBox;
 
+/**
+ * ShellPanelEdge:
+ * @SHELL_PANEL_EDGE_START: the group of extension indicators before the
+ *   indicators of the shell in a box of the top bar
+ * @SHELL_PANEL_EDGE_END: the group of extension indicators after them
+ *
+ * Which end of a box of the top bar an extension indicator is placed at (see
+ * shell_panel_add_extension_indicator ()).
+ */
+typedef enum
+{
+  SHELL_PANEL_EDGE_START,
+  SHELL_PANEL_EDGE_END,
+} ShellPanelEdge;
+
 #define SHELL_TYPE_PANEL (shell_panel_get_type ())
 G_DECLARE_FINAL_TYPE (ShellPanel, shell_panel, SHELL, PANEL, StWidget)
 
@@ -60,6 +79,14 @@ gboolean             shell_panel_add_to_status_area_with_owner (ShellPanel      
                                                                 ShellPanelBox         box,
                                                                 const char           *owner,
                                                                 GError              **error);
+gboolean             shell_panel_add_extension_indicator    (ShellPanel           *self,
+                                                             const char           *role,
+                                                             ShellPanelMenuButton *indicator,
+                                                             const char           *owner,
+                                                             ShellPanelBox         box,
+                                                             ShellPanelEdge        edge,
+                                                             int                   index,
+                                                             GError              **error);
 ShellPanelButtonBox *shell_panel_get_status_area_indicator  (ShellPanel           *self,
                                                              const char           *role);
 char               **shell_panel_list_status_area_roles     (ShellPanel           *self);

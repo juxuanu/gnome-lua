@@ -3,17 +3,27 @@
 Each subdirectory is a complete extension in the packaging format described
 in `docs/PLAN.md` (D13): a directory named after its uuid containing
 `metadata.json` and `extension.lua`, plus optional `prefs.lua`,
-`stylesheet.css`, `schemas/` and `locale/`. `hello@gnome-lua.example/` is the canonical minimal
-extension: it logs, runs a timer and shows how to connect to a hook only when
-the running shell declares it. It has no `disable()` on purpose, to show that
-everything created through `shell.*` is torn down automatically.
+`stylesheet.css`, `schemas/` and `locale/`. The examples are written against
+the documents of `docs/api/`; `tests/api/examples.lua` installs and enables
+each of them in a headless shell.
 
-It also has settings and a preferences window: `metadata.json` names the
-schema (`"settings-schema"`), `schemas/` holds it (the source and the
+| Example | Shows | Documents |
+|---|---|---|
+| `hello@gnome-lua.example` | the canonical minimal extension: logs, runs a timer, connects to a hook only when the running shell declares it, has settings and a preferences window | core.md, hooks.md, prefs.md |
+| `indicator@gnome-lua.example` | a top-bar indicator with a menu (action, switch, submenu with a choice, separator, image item), widgets as its content, a stylesheet | panel.md, menu.md, ui.md |
+| `quick-toggle@gnome-lua.example` | a quick-settings menu toggle with a header and a slider, and a status icon, kept in sync with the extension's settings in both directions | quick-settings.md, core.md |
+| `dash-launcher@gnome-lua.example` | two buttons in the dash: one launches an application, one toggles a mark | dash.md, window.md (`shell.apps`) |
+| `hooks-log@gnome-lua.example` | an extension that only listens to hooks and logs the lifecycle events of the shell, skipping the hooks the shell does not declare | hooks.md |
+| `prefs@gnome-lua.example` | a tour of `prefs.lua`: every kind of row, two pages, rows that depend on other keys | prefs.md |
+
+`hello@gnome-lua.example` has no `disable()` on purpose, to show that
+everything created through `shell.*` is torn down automatically; the others
+have none either, except `hooks-log`, which has one to show where it would go.
+
+The preferences of an example with a `prefs.lua` open with `gnome-extensions
+prefs <uuid>`. Its `schemas/` holds the source of the schema and the
 `gschemas.compiled` that `glib-compile-schemas schemas/` makes of it; compile
-again after editing the XML), and `prefs.lua` describes the window as data
-(`docs/api/prefs.md`). Open it with `gnome-extensions prefs
-hello@gnome-lua.example`.
+again after editing the XML.
 
 To install one for your user, copy the directory (the directory name must equal
 the uuid in `metadata.json`) into the per-user extension directory and enable

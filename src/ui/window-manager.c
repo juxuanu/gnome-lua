@@ -70,6 +70,7 @@
 #include "ui/pad-osd.h"
 #include "ui/panel.h"
 #include "ui/switch-monitor.h"
+#include "lua-api/shell-window-hooks.h"
 #include "ui/window-manager.h"
 #include "ui/window-menu.h"
 #include "ui/workspace-animation.h"
@@ -1479,6 +1480,9 @@ struct _ShellWindowManager
   ShellWorkspaceAnimationController *workspace_animation;
   ShellEdgeDragGesture *top_drag_gesture;
 
+  /* Emits the window.* and workspace.* hooks for Lua extensions */
+  ShellWindowHooks *lua_hooks;
+
   /* The master adjustment of the workspaces, and the ones handed out */
   StAdjustment *workspaces_adjustment;
   GPtrArray *derived_adjustments; /* of weak StAdjustment pointers */
@@ -1623,6 +1627,9 @@ on_minimize (ShellWM             *shellwm,
   MetaWindow *window = meta_window_actor_get_meta_window (actor);
   ShellEaseParams params;
 
+  if (self->lua_hooks != NULL)
+    shell_window_hooks_window_minimized (self->lua_hooks, window, TRUE);
+
   if (!should_animate_actor (self, actor, TYPES_NORMAL_AND_DIALOGS))
     {
       shell_wm_completed_minimize (shellwm, actor);
@@ -1726,6 +1733,9 @@ on_unminimize (ShellWM            *shellwm,
   ClutterActor *clutter_actor = CLUTTER_ACTOR (actor);
   MetaWindow *window = meta_window_actor_get_meta_window (actor);
   ShellEaseParams params;
+
+  if (self->lua_hooks != NULL)
+    shell_window_hooks_window_minimized (self->lua_hooks, window, FALSE);
 
   if (!should_animate_actor (self, actor, TYPES_NORMAL_AND_DIALOGS))
     {
@@ -2229,6 +2239,9 @@ on_map (ShellWM            *shellwm,
   MetaWindow *window = meta_window_actor_get_meta_window (actor);
   MetaWindowType type;
 
+  if (self->lua_hooks != NULL)
+    shell_window_hooks_window_mapped (self->lua_hooks, window);
+
   g_object_set_qdata (G_OBJECT (actor), window_type_quark (),
                       GINT_TO_POINTER (meta_window_get_window_type (window) + 1));
 
@@ -2348,6 +2361,9 @@ on_destroy (ShellWM            *shellwm,
   MetaWindow *window = meta_window_actor_get_meta_window (actor);
   ShellEaseParams params;
   MetaWindowType type;
+
+  if (self->lua_hooks != NULL)
+    shell_window_hooks_window_unmapped (self->lua_hooks, window);
 
   g_signal_handlers_disconnect_by_func (window, on_window_type_changed, self);
 
@@ -2601,6 +2617,9 @@ on_switch_workspace (ShellWM            *shellwm,
                      int                 direction,
                      ShellWindowManager *self)
 {
+  if (self->lua_hooks != NULL)
+    shell_window_hooks_workspace_switched (self->lua_hooks, from, to);
+
   if (!session_mode_get_flag ("has-workspaces", FALSE) || !should_animate (self) ||
       self->workspace_animation == NULL)
     {
@@ -4109,6 +4128,9 @@ shell_window_manager_constructed (GObject *object)
   g_set_weak_pointer (&self->workspace_manager, workspace_manager);
   g_set_weak_pointer (&self->stage, stage);
 
+  /* Lua extensions (gnome-lua): the window.* and workspace.* hooks */
+  self->lua_hooks = shell_window_hooks_new (display, workspace_manager);
+
   g_signal_connect_object (global, "shutdown",
                            G_CALLBACK (window_manager_on_shutdown), self, 0);
 
@@ -4225,6 +4247,7 @@ shell_window_manager_dispose (GObject *object)
 
   g_clear_pointer (&self->pending_maps, g_ptr_array_unref);
 
+  g_clear_object (&self->lua_hooks);
   g_clear_object (&self->workspace_tracker);
   g_clear_object (&self->workspace_animation);
   g_clear_object (&self->window_menu_manager);
@@ -4271,6 +4294,9 @@ shell_window_manager_class_init (ShellWindowManagerClass *klass)
   object_class->finalize = shell_window_manager_finalize;
   object_class->get_property = shell_window_manager_get_property;
   object_class->set_property = shell_window_manager_set_property;
+
+  /* Lua extensions (gnome-lua): the hook points of the windows */
+  shell_window_hooks_declare ();
 
   /**
    * ShellWindowManager:overview-visible:

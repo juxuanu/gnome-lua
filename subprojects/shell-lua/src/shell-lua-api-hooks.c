@@ -17,6 +17,8 @@
 #include <glib.h>
 
 #include "shell-hooks.h"
+#include <string.h>
+
 #include "shell-lua-api-private.h"
 #include "shell-lua-connection-private.h"
 
@@ -145,6 +147,26 @@ hook_listener (const char     *name,
   return phase == SHELL_HOOK_PHASE_BEFORE ? call.verdict : SHELL_HOOK_VERDICT_CONTINUE;
 }
 
+/* Hooks that carry something sensitive (what the user types) and need a
+ * capability to be connected to (docs/api/hooks.md). */
+static const struct {
+  const char *hook;
+  const char *capability;
+} gated_hooks[] = {
+  { "search.query", "search" },
+};
+
+static const char *
+hook_capability (const char *name)
+{
+  guint i;
+
+  for (i = 0; i < G_N_ELEMENTS (gated_hooks); i++)
+    if (strcmp (gated_hooks[i].hook, name) == 0)
+      return gated_hooks[i].capability;
+  return NULL;
+}
+
 static int
 hooks_connect (lua_State     *L,
                ShellHookPhase phase)
@@ -152,6 +174,7 @@ hooks_connect (lua_State     *L,
   ShellLuaState *state = shell_lua_state_from_L (L);
   ShellHookRegistry *registry = shell_hook_registry_get_default ();
   const char *name = luaL_checkstring (L, 1);
+  const char *capability;
   ShellLuaConnection *connection;
   Listener *d;
   int ref;
@@ -162,6 +185,15 @@ hooks_connect (lua_State     *L,
     return luaL_error (L, "unknown hook '%s'", name);
   if (phase == SHELL_HOOK_PHASE_BEFORE && !shell_hook_registry_is_cancellable (registry, name))
     return luaL_error (L, "hook '%s' is not cancellable", name);
+
+  capability = hook_capability (name);
+  if (capability != NULL)
+    {
+      /* `hook 'search.query' requires the "search" capability` */
+      lua_pushfstring (L, "hook '%s'", name);
+      shell_lua_require_capability (L, capability, lua_tostring (L, -1));
+      lua_pop (L, 1);
+    }
 
   shell_lua_connection_register_handle_type (L);
 
@@ -223,9 +255,16 @@ l_hooks_list (lua_State *L)
       const char *doc = shell_hook_registry_get_doc (registry, names[i]);
       const char *schema = shell_hook_registry_get_schema (registry, names[i]);
 
-      lua_createtable (L, 0, 4);
+      const char *capability = hook_capability (names[i]);
+
+      lua_createtable (L, 0, 5);
       lua_pushstring (L, names[i]);
       lua_setfield (L, -2, "name");
+      if (capability != NULL)
+        {
+          lua_pushstring (L, capability);
+          lua_setfield (L, -2, "capability");
+        }
       lua_pushboolean (L, shell_hook_registry_is_cancellable (registry, names[i]));
       lua_setfield (L, -2, "cancellable");
       if (doc != NULL)

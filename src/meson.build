@@ -278,6 +278,7 @@ libshell_private_headers = [
   'shell-global-private.h',
   'shell-test-runner.h',
   'shell-wm-private.h',
+  'lua-api/shell-window-hooks.h',
   'gdm/auth-services.h',
   'gdm/auth-services-legacy.h',
   'gdm/auth-services-sssd-switchable.h',
@@ -293,6 +294,10 @@ libshell_private_headers = [
   'ui/components.h',
   'ui/deferred-work.h',
   'ui/extension-downloader.h',
+  'ui/extension-order.h',
+  'lua-api/shell-lua-api-resolve.h',
+  'lua-api/shell-lua-api-ui.h',
+  'lua-api/shell-lua-api-menu.h',
   'ui/extension-system-private.h',
   'ui/panel-items.h'
 ]
@@ -495,7 +500,16 @@ libshell_private_sources = [
   'ui/components.c',
   'ui/deferred-work.c',
   'ui/extension-downloader.c',
+  'ui/extension-order.c',
   'ui/panel-items.c',
+  'lua-api/shell-lua-api-ui.c',
+  'lua-api/shell-lua-api-menu.c',
+  'lua-api/shell-lua-api-dash.c',
+  'lua-api/shell-lua-api-panel.c',
+  'lua-api/shell-lua-api-notify.c',
+  'lua-api/shell-lua-api-quick-settings.c',
+  'lua-api/shell-lua-api-window.c',
+  'lua-api/shell-window-hooks.c',
 ]
 
 libshell_enums = gnome.mkenums_simple('shell-enum-types',

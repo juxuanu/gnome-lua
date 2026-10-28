@@ -27,6 +27,39 @@ typedef struct {
   gboolean    writable;
 } ShellLuaHandleProperty;
 
+/* Flags of a method listed in ShellLuaHandleType.methods_ex. */
+typedef enum {
+  /* The method may be called on a dead handle (its C function must then use
+   * shell_lua_handle_get(), which returns NULL instead of raising). Every
+   * other method raises "handle to <type> is no longer valid". */
+  SHELL_LUA_METHOD_DEAD_OK = 1 << 0,
+} ShellLuaMethodFlags;
+
+typedef struct {
+  const char   *name;
+  lua_CFunction func;
+  guint         flags;   /* ShellLuaMethodFlags */
+} ShellLuaHandleMethod;
+
+/* A property that is not one GObject property (a computed value, a
+ * property of a child object, a per-type setting). @get pushes exactly one
+ * value; @set receives the absolute stack index of the new value and raises
+ * on a bad one. A NULL @set makes it read-only. Both run with the object
+ * referenced; @set runs silenced (docs/api/README.md rule 7: callbacks
+ * connected with shell_lua_callback_* are not invoked, see
+ * shell-lua-api-private.h). */
+typedef void (* ShellLuaVirtualGetter) (lua_State *L,
+                                        GObject   *object);
+typedef void (* ShellLuaVirtualSetter) (lua_State *L,
+                                        GObject   *object,
+                                        int        idx);
+
+typedef struct {
+  const char            *name;
+  ShellLuaVirtualGetter  get;
+  ShellLuaVirtualSetter  set;
+} ShellLuaHandleVirtual;
+
 typedef struct {
   const char                   *name;        /* metatable name, e.g. "shell.Timer" */
   GType                         gtype;       /* required type of wrapped objects */
@@ -35,7 +68,15 @@ typedef struct {
                                               * marshalled with shell_lua_push_gvalue / shell_lua_to_gvalue */
   const char                   *parent;      /* metatable name of the parent type, or NULL;
                                               * methods/properties are inherited */
+  const ShellLuaHandleMethod   *methods_ex;  /* optional, terminated by {NULL}: methods with flags */
+  const ShellLuaHandleVirtual  *virtuals;    /* optional, terminated by {NULL}: virtual properties.
+                                              * They win over a GObject property of the same name. */
 } ShellLuaHandleType;
+
+/* Every handle has a read-only boolean property `alive` (it never raises,
+ * not even on a dead handle) and shows up as such in
+ * shell_lua_handle_foreach_member(). Assigning a read-only or unknown
+ * property raises; reading an unknown one gives nil. */
 
 /* Register a type in @L. Idempotent per name. Must be called before any
  * handle of that type is pushed; API modules do it in their register func. */
@@ -65,6 +106,13 @@ GObject  *shell_lua_handle_peek          (lua_State  *L,
 
 gboolean  shell_lua_handle_is_alive      (lua_State  *L,
                                           int         idx);
+
+/* Like check, but for methods flagged SHELL_LUA_METHOD_DEAD_OK: returns NULL
+ * (without raising) when the handle is dead. Still raises on a non-handle or
+ * on the wrong type. */
+GObject  *shell_lua_handle_get           (lua_State  *L,
+                                          int         idx,
+                                          const char *type_name);
 
 /* Called for each member visible on a handle: @name is the Lua-visible name,
  * @is_method is TRUE for methods and FALSE for properties. Only the readable

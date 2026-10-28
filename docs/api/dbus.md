@@ -9,6 +9,12 @@ Every function in this document requires `"dbus"` in `metadata.json`
 `shell.dbus.<fn>() requires the "dbus" capability`. Values are mapped by
 `variant.md`; this document adds only what D-Bus needs on top.
 
+Status: implemented (M7) by `subprojects/shell-lua/src/shell-lua-api-dbus.c`
+(GLib only) and, for the typed values, `shell-lua-variant.c`; unit tests
+`subprojects/shell-lua/tests/test-api-dbus.c` (against a private session bus,
+and also running the fixture below), conformance test `tests/api/dbus.lua` with
+the fixtures `tests/api/fixtures/dbus@test` and `dbus-nocap@test`.
+
 Not in v1:
 - Synchronous calls of any kind (they would stall the compositor; the
   watchdog would kill the extension first): everything is callback-based.
@@ -17,8 +23,9 @@ Not in v1:
   `g-properties-changed`: a proxy here is only a `(name, path, interface)`
   triple.
 - Unix file descriptors (`h`), `GDBusObjectManager`, peer-to-peer or private
-  connections, other bus addresses, `org.freedesktop.DBus` bus-daemon calls
-  (use `watch_name`), messages with `maybe` types (not valid D-Bus).
+  connections, other bus addresses, dedicated functions for the bus daemon
+  (`watch_name` covers who owns a name; a proxy to `org.freedesktop.DBus` is an
+  ordinary proxy), messages with `maybe` types (not valid D-Bus).
 - Exported objects: more than one interface per object, writable properties,
   asynchronous method replies, caller identity (sender, credentials), fd
   arguments, sub-trees.
@@ -41,7 +48,11 @@ Not in v1:
 | `shell.dbus.system()` | `shell.Bus` for the system bus (bus policy still applies) |
 | `shell.dbus.variant(signature, value)` | a typed value for `v` positions, see Mapping |
 
-A `shell.Bus` is a handle that performs no I/O to create. Every object created
+A `shell.Bus` is a handle that performs no I/O to create (the connection is
+asked for in the background; what needs it waits for it, in order, and fails
+with `...Error.Disconnected` from the main loop when the bus cannot be
+reached). `shell.dbus.session()` and `.system()` return the same handle every
+time. Every object created
 from it is owned by the extension and torn down on disable (README):
 subscriptions cancelled, names released, objects unexported, pending calls
 cancelled (their callbacks never run afterwards).
@@ -63,7 +74,9 @@ cancelled (their callbacks never run afterwards).
 Properties (ro): `name`, `path`, `interface`, `bus` (`"session"|"system"`).
 
 **`proxy:call{...}`** -> `shell.DBusCall` (`cancel()`, `pending` ro). Always
-asynchronous.
+asynchronous. `pending` is false from the moment a callback runs, and the
+handle stays usable after the call ended (`cancel()` then does nothing); a
+finished call does not count against the cap of owned objects.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -95,7 +108,9 @@ awaited, `NO_REPLY_EXPECTED`).
 | `methods` | table | `Name = function(...)` for XML methods; every function name must exist in the XML and a method with no function replies with `org.freedesktop.DBus.Error.UnknownMethod`. Arguments are decoded from the XML in-signature |
 | `properties` | table | initial values for the XML properties, converted by their XML types; absent ones take the type's default (0, "", empty) |
 
-A method function **returns its out-arguments in order** (one return value per
+The object is registered on the bus as soon as the connection is up; if that
+fails (the path and interface are taken) a warning is logged and the object
+stays inert. A method function **returns its out-arguments in order** (one return value per
 XML `out` arg, converted by the XML type). To fail, return
 `nil, "org.example.Error.NotReady", "message"` (the name must be a valid error
 name). A Lua error or a wrong return count produces
@@ -132,8 +147,7 @@ XML, never guessed. In addition, for D-Bus:
   type, e.g. `shell.dbus.variant("u", 5)`. Use the second form whenever the
   service expects a narrower integer type; a typed value outside a `v` position
   raises. Replies unwrap `v` and lose its inner type (variant.md).
-- Needs an amendment of variant.md (`shell.dbus.variant` box, accepted by
-  `shell_lua_to_variant` when the target is `v`).
+- The `shell.dbus.variant` box is described in variant.md ("Typed values").
 
 ## Example
 

@@ -9,11 +9,10 @@
 
 #include "shell-lua-extension.h"
 #include "shell-lua-extension-private.h"
-
-#define SUPPORTED_SHELL_API_MAJOR 1
+#include "shell-lua-api-private.h"
 
 static const char * const known_capabilities[] = {
-  "dbus", "settings", "fs", "spawn", "network", NULL
+  "dbus", "settings", "search", "fs", "spawn", "network", NULL
 };
 
 enum {
@@ -135,24 +134,27 @@ is_known_capability (const char *capability)
   return g_strv_contains (known_capabilities, capability);
 }
 
-/* Returns TRUE and sets *major when @api starts with an unsigned integer
- * followed by end of string or '.'. */
+/* Parses "N" or "N.M" (decimal digits only). Returns FALSE for anything
+ * else. *minor is 0 when absent. */
 static gboolean
-parse_api_major (const char *api,
-                 gint64     *major)
+parse_api_version (const char *api,
+                   gint64     *major,
+                   gint64     *minor)
 {
   char *end = NULL;
-  gint64 value;
 
   if (!g_ascii_isdigit (api[0]))
     return FALSE;
 
-  value = g_ascii_strtoll (api, &end, 10);
-  if (*end != '\0' && *end != '.')
+  *major = g_ascii_strtoll (api, &end, 10);
+  *minor = 0;
+  if (*end == '\0')
+    return TRUE;
+  if (*end != '.' || !g_ascii_isdigit (end[1]))
     return FALSE;
 
-  *major = value;
-  return TRUE;
+  *minor = g_ascii_strtoll (end + 1, &end, 10);
+  return *end == '\0';
 }
 
 static char **
@@ -191,6 +193,7 @@ load_metadata (ShellLuaExtension  *self,
   const char *name;
   const char *api;
   gint64 api_major = 0;
+  gint64 api_minor = 0;
   gsize length = 0;
 
   dir_name = g_file_get_basename (dir);
@@ -352,8 +355,11 @@ load_metadata (ShellLuaExtension  *self,
       self->session_modes = g_strsplit ("user", ",", -1);
     }
 
-  if (!parse_api_major (api, &api_major) ||
-      api_major != SUPPORTED_SHELL_API_MAJOR)
+  /* "1" or "1.N": the major must match, and the running minor must be at
+   * least N (additive minors: an extension written for 1.3 needs 1.3). */
+  if (!parse_api_version (api, &api_major, &api_minor) ||
+      api_major != SHELL_LUA_API_MAJOR ||
+      api_minor > SHELL_LUA_API_MINOR)
     {
       self->state = SHELL_LUA_EXTENSION_STATE_OUT_OF_DATE;
       self->error = g_strdup_printf ("shell-api %s not supported", api);
@@ -471,8 +477,17 @@ static void
 teardown_runtime (ShellLuaExtension *self,
                   gboolean           call_disable)
 {
+  /* From here on no callback runs (README "Ownership and teardown"): not
+   * during disable(), not while the objects are destroyed. */
+  if (self->lua_state != NULL)
+    shell_lua_objects_block (self->lua_state);
+
   if (call_disable)
     call_lua_disable (self);
+
+  /* Everything created through shell.*, newest first. */
+  if (self->lua_state != NULL)
+    shell_lua_objects_destroy_all (self->lua_state);
 
   dispose_owned (self);
 

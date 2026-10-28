@@ -8,6 +8,7 @@ except ImportError:
     import simplejson as json
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -26,7 +27,26 @@ class GSettingsConfig(ConfigParser):
         with open(f'{dir}/keyfile', 'w') as keyfile:
             self.write(keyfile)
 
-def install_extension(extension, env):
+def install_extension_dir(extension, data_home):
+    # An extension directory is copied to the per-user extension directory of
+    # the test home, as gnome-extensions install does for a bundle. The
+    # schemas are compiled here, so the sources need no compiled file.
+    with open(os.path.join(extension, 'metadata.json')) as f:
+        uuid = json.load(f)['uuid']
+
+    destination = os.path.join(data_home, 'gnome-shell', 'extensions', uuid)
+    shutil.copytree(extension, destination, ignore=shutil.ignore_patterns('gschemas.compiled'))
+
+    schemas = os.path.join(destination, 'schemas')
+    if os.path.isdir(schemas):
+        subprocess.run(['glib-compile-schemas', schemas], check=True)
+
+    return uuid
+
+def install_extension(extension, env, data_home):
+    if os.path.isdir(extension):
+        return install_extension_dir(extension, data_home)
+
     self_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
     args = []
     args.append(os.path.join(self_dir, 'gnome-extensions'))
@@ -67,8 +87,12 @@ def start_shell(xdg_home, wrap=None, perf_output=None):
     if os.getenv('SHELL_BACKGROUND_IMAGE') is None:
       env['SHELL_BACKGROUND_IMAGE'] = '@pkgdatadir@/perf-background.xml'
 
+    # Extensions that are installed only: the script enables them
+    for extension in options.install_extension:
+        install_extension(extension, env=env, data_home=f'{xdg_home}/data')
+
     if options.extension:
-        uuid = install_extension(options.extension, env=env)
+        uuid = install_extension(options.extension, env=env, data_home=f'{xdg_home}/data')
         gsettings_config.add('org/gnome/shell', 'enabled-extensions', f'["{uuid}"]')
 
     self_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
@@ -229,7 +253,7 @@ def run_performance_test(wrap=None):
 parser = argparse.ArgumentParser()
 parser.add_argument("script",
                     metavar="TEST_SCRIPT",
-                    help="Lua test script to run (tests/shell/*.lua)")
+                    help="Lua test script to run (tests/shell/*.lua, tests/api/*.lua)")
 parser.add_argument("--test-iters", type=int, metavar="ITERS",
                     help="Numbers of iterations of the test to run",
                     default=1)
@@ -256,7 +280,11 @@ parser.add_argument("--hotplug", action="store_true",
 parser.add_argument("--disable-animations", action="store_true",
                     help="Run with animations disabled")
 parser.add_argument("--extension",
-                    help="Run with extension installed and enabled")
+                    help="Run with extension (a bundle or a directory) installed and enabled")
+parser.add_argument("--install-extension", action="append", default=[],
+                    metavar="EXTENSION",
+                    help="Install an extension (a bundle or a directory) without enabling it; "
+                         "can be given several times")
 
 options = parser.parse_args()
 

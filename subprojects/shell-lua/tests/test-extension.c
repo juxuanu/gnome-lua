@@ -423,7 +423,10 @@ test_shell_api_versions (void)
     const char *api;
     gboolean    supported;
   } cases[] = {
-    { "1", TRUE }, { "1.0", TRUE }, { "1.7", TRUE },
+    { "1", TRUE }, { "1.0", TRUE },
+    /* additive minors: the running minor (SHELL_LUA_API_MINOR) must be at least N */
+    { "1.1", FALSE }, { "1.7", FALSE }, { "1.", FALSE }, { "1.x", FALSE }, { "1.0.1", FALSE },
+    { "1.-1", FALSE }, { ".1", FALSE },
     { "2", FALSE }, { "0", FALSE }, { "10", FALSE }, { "11.0", FALSE }, { "x", FALSE },
     { "1x", FALSE }, { "-1", FALSE }, { "1,0", FALSE }, { "47", FALSE },
   };
@@ -480,16 +483,18 @@ test_capabilities (void)
   env_init (&e);
   write_ext (e.user, "caps@test",
              "{\"uuid\": \"caps@test\", \"name\": \"N\", \"shell-api\": \"1\", "
-             "\"capabilities\": [\"dbus\", \"settings\", \"fs\", \"spawn\", \"network\", \"dbus\"]}",
+             "\"capabilities\": [\"dbus\", \"settings\", \"search\", \"fs\", \"spawn\", \"network\", \"dbus\"]}",
              PLAIN_LUA);
   write_ext (e.user, "nocaps@test", NULL, PLAIN_LUA);
   shell_lua_extension_manager_scan (e.manager);
 
   ext = must_lookup (&e, "caps@test");
   caps = shell_lua_extension_get_capabilities (ext);
-  g_assert_cmpuint (g_strv_length ((char **) caps), ==, 5);      /* duplicates collapse */
+  g_assert_cmpuint (g_strv_length ((char **) caps), ==, 6);      /* duplicates collapse */
   g_assert_cmpstr (caps[0], ==, "dbus");
-  g_assert_cmpstr (caps[4], ==, "network");
+  g_assert_cmpstr (caps[2], ==, "search");
+  g_assert_cmpstr (caps[5], ==, "network");
+  g_assert_true (shell_lua_extension_has_capability (ext, "search"));
   g_assert_true (shell_lua_extension_has_capability (ext, "settings"));
   g_assert_true (shell_lua_extension_has_capability (ext, "spawn"));
   g_assert_false (shell_lua_extension_has_capability (ext, "teleport"));

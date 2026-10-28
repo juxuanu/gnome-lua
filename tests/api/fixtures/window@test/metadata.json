@@ -1,0 +1,7 @@
+{
+  "uuid": "window@test",
+  "name": "API conformance: windows",
+  "description": "Fixture of tests/api/window.lua: shell.windows, shell.workspaces, shell.monitors, shell.apps and the window.*, workspace.* and monitors.changed hooks",
+  "shell-api": "1",
+  "version": 1
+}

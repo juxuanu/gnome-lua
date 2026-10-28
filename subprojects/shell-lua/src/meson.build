@@ -12,6 +12,8 @@ shell_lua_sources = [
   'shell-lua-api.c',
   'shell-lua-api-core.c',
   'shell-lua-api-hooks.c',
+  'shell-lua-api-dbus.c',
+  'shell-lua-objects.c',
   'shell-lua-handle.c',
   'shell-lua-variant.c',
   'shell-hooks.c',

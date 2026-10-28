@@ -1,0 +1,7 @@
+{
+  "uuid": "ui@test",
+  "name": "API conformance: ui",
+  "description": "Fixture of tests/api/ui.lua: shell.ui and the shell.Widget types",
+  "shell-api": "1",
+  "version": 1
+}

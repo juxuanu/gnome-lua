@@ -28,6 +28,7 @@
  */
 
 #include "shell-lua-handle.h"
+#include "shell-lua-api-private.h"
 #include "shell-lua-variant.h"
 
 #include <string.h>
@@ -38,6 +39,12 @@ typedef struct {
   lua_State                *scratch;
   gboolean                  dead;
 } Handle;
+
+/* qdata on an object: the interned name of the handle type it was last pushed
+ * as. Pushing without a type name (a callback's first argument, a property
+ * that returns an object) then gives the type the module chose, not the
+ * first one registered for the GType. */
+#define TYPE_HINT_QUARK "shell-lua-handle-type"
 
 static char scratch_key, cache_key, types_key, gtypes_key, closer_key, marker_key, resolver_key;
 
@@ -136,6 +143,44 @@ find_method (lua_State                *L,
       for (r = t->methods; r != NULL && r->name != NULL; r++)
         if (r->func != NULL && strcmp (r->name, key) == 0)
           return r;
+      t = parent_of (L, t);
+    }
+  return NULL;
+}
+
+static const ShellLuaHandleMethod *
+find_method_ex (lua_State                *L,
+                const ShellLuaHandleType *t,
+                const char               *key)
+{
+  int depth;
+
+  for (depth = 0; t != NULL && depth < MAX_TYPE_DEPTH; depth++)
+    {
+      const ShellLuaHandleMethod *r;
+
+      for (r = t->methods_ex; r != NULL && r->name != NULL; r++)
+        if (r->func != NULL && strcmp (r->name, key) == 0)
+          return r;
+      t = parent_of (L, t);
+    }
+  return NULL;
+}
+
+static const ShellLuaHandleVirtual *
+find_virtual (lua_State                *L,
+              const ShellLuaHandleType *t,
+              const char               *key)
+{
+  int depth;
+
+  for (depth = 0; t != NULL && depth < MAX_TYPE_DEPTH; depth++)
+    {
+      const ShellLuaHandleVirtual *v;
+
+      for (v = t->virtuals; v != NULL && v->name != NULL; v++)
+        if (v->get != NULL && strcmp (v->name, key) == 0)
+          return v;
       t = parent_of (L, t);
     }
   return NULL;
@@ -786,24 +831,64 @@ handle_index (lua_State *L)
   Handle *h = to_handle (L, 1);
   const char *key;
   const luaL_Reg *method;
+  const ShellLuaHandleMethod *method_ex;
+  const ShellLuaHandleVirtual *virt;
   const ShellLuaHandleProperty *prop;
 
   if (h == NULL)
     return luaL_error (L, "not a handle");
-  if (h->dead)
-    return dead_error (L, h);
 
   if (lua_type (L, 2) != LUA_TSTRING)
     {
+      if (h->dead)
+        return dead_error (L, h);
       lua_pushnil (L);
       return 1;
     }
   key = lua_tostring (L, 2);
 
+  /* `alive` exists on every handle and never raises. */
+  if (strcmp (key, "alive") == 0)
+    {
+      lua_pushboolean (L, !h->dead);
+      return 1;
+    }
+
+  if (h->dead)
+    {
+      /* Only the methods flagged DEAD_OK survive the object. */
+      method_ex = find_method_ex (L, h->type, key);
+      if (method_ex != NULL && (method_ex->flags & SHELL_LUA_METHOD_DEAD_OK))
+        {
+          lua_pushcfunction (L, method_ex->func);
+          return 1;
+        }
+      return dead_error (L, h);
+    }
+
   method = find_method (L, h->type, key);
   if (method != NULL)
     {
       lua_pushcfunction (L, method->func);
+      return 1;
+    }
+  method_ex = find_method_ex (L, h->type, key);
+  if (method_ex != NULL)
+    {
+      lua_pushcfunction (L, method_ex->func);
+      return 1;
+    }
+
+  virt = find_virtual (L, h->type, key);
+  if (virt != NULL)
+    {
+      GObject *object = g_object_ref (h->object);
+
+      /* The getter may raise: the reference is dropped by the caller's
+       * object ownership at worst (the object is owned by an extension), so
+       * a leak here would need an out-of-memory error. */
+      virt->get (L, object);
+      g_object_unref (object);
       return 1;
     }
 
@@ -850,12 +935,28 @@ value_passes_validation (GParamSpec  *pspec,
   return !modified;
 }
 
+typedef struct {
+  ShellLuaVirtualSetter set;
+  GObject              *object;
+  int                   idx;
+} VirtualSet;
+
+static void
+virtual_set_trampoline (lua_State *L,
+                        gpointer   data)
+{
+  VirtualSet *vs = data;
+
+  vs->set (L, vs->object, vs->idx);
+}
+
 static int
 handle_newindex (lua_State *L)
 {
   Handle *h = to_handle (L, 1);
   const char *key;
   const ShellLuaHandleProperty *prop;
+  const ShellLuaHandleVirtual *virt;
   GParamSpec *pspec;
   GValue value = G_VALUE_INIT;
   char *err = NULL;
@@ -869,6 +970,31 @@ handle_newindex (lua_State *L)
   if (lua_type (L, 2) != LUA_TSTRING)
     return luaL_error (L, "no property of type %s on %s", luaL_typename (L, 2), h->type->name);
   key = lua_tostring (L, 2);
+
+  if (strcmp (key, "alive") == 0)
+    return luaL_error (L, "property 'alive' on %s is read-only", h->type->name);
+
+  virt = find_virtual (L, h->type, key);
+  if (virt != NULL)
+    {
+      VirtualSet vs;
+      gboolean ok;
+
+      if (virt->set == NULL)
+        return luaL_error (L, "property '%s' on %s is read-only", key, h->type->name);
+
+      vs.set = virt->set;
+      vs.object = g_object_ref (h->object);
+      vs.idx = 1;
+      /* Rule 7: nothing the setter provokes calls back into Lua. The value
+       * is the only argument of the silenced frame. */
+      lua_pushvalue (L, 3);
+      ok = shell_lua_try_silenced_args (L, 1, virtual_set_trampoline, &vs);
+      g_object_unref (vs.object);
+      if (!ok)
+        return lua_error (L);   /* the error object is on top */
+      return 0;
+    }
 
   prop = find_property (L, h->type, key);
   if (prop == NULL)
@@ -902,7 +1028,9 @@ handle_newindex (lua_State *L)
 
   /* Setting may run arbitrary signal handlers, which can invalidate @h. */
   object = g_object_ref (h->object);
+  shell_lua_silence_enter (L);   /* rule 7; nothing below can raise */
   g_object_set_property (object, pspec->name, &value);
+  shell_lua_silence_leave (L);
   g_object_unref (object);
   g_value_unset (&value);
   return 0;
@@ -1080,6 +1208,19 @@ shell_lua_handle_register_type (lua_State                *L,
 /* Push / check                                                              */
 /* ------------------------------------------------------------------------ */
 
+/* Remember @t as the type of @object unless a more specific one is known. */
+static void
+set_type_hint (lua_State                *L,
+               GObject                  *object,
+               const ShellLuaHandleType *t)
+{
+  const char *old = g_object_get_data (object, TYPE_HINT_QUARK);
+  const ShellLuaHandleType *old_t = old != NULL ? find_type (L, old) : NULL;
+
+  if (old_t == NULL || type_is_a (L, t, old_t->name))
+    g_object_set_data (object, TYPE_HINT_QUARK, (gpointer) g_intern_string (t->name));
+}
+
 typedef enum {
   PUSH_OK,
   PUSH_NOT_OBJECT,
@@ -1145,6 +1286,9 @@ handle_push_impl (lua_State  *L,
     }
   else
     {
+      const ShellLuaHandleType *hinted;
+      const char *hint = g_object_get_data (object, TYPE_HINT_QUARK);
+
       if (lua_rawgetp (L, LUA_REGISTRYINDEX, &resolver_key) == LUA_TLIGHTUSERDATA)
         {
           ShellLuaHandleResolver resolver;
@@ -1165,6 +1309,13 @@ handle_push_impl (lua_State  *L,
           *detail = G_OBJECT_TYPE_NAME (object);
           return PUSH_NO_TYPE;
         }
+
+      /* The type a module pushed the object as wins when it refines the one
+       * of the GType (several types may share a GType). */
+      hinted = hint != NULL ? find_type (L, hint) : NULL;
+      if (hinted != NULL && hinted != t && type_is_a (L, hinted, t->name) &&
+          g_type_is_a (G_OBJECT_TYPE (object), hinted->gtype))
+        t = hinted;
     }
 
   luaL_checkstack (L, 4, "shell_lua_handle_push");
@@ -1187,6 +1338,8 @@ handle_push_impl (lua_State  *L,
               /* upgrade in place: identity is preserved */
               c->type = t;
               luaL_setmetatable (L, t->name);
+              if (type_name != NULL)
+                set_type_hint (L, object, t);
               lua_remove (L, -2);
               return PUSH_OK;
             }
@@ -1206,6 +1359,8 @@ handle_push_impl (lua_State  *L,
 
   h->object = object;
   g_object_weak_ref (object, weak_notify, h);
+  if (type_name != NULL)
+    set_type_hint (L, object, t);
 
   lua_pushvalue (L, -1);
   lua_rawsetp (L, -3, object);                       /* may raise: __gc cleans up */
@@ -1283,6 +1438,26 @@ shell_lua_handle_check (lua_State  *L,
 }
 
 GObject *
+shell_lua_handle_get (lua_State  *L,
+                      int         idx,
+                      const char *type_name)
+{
+  Handle *h = to_handle (L, idx);
+
+  if (h == NULL)
+    {
+      luaL_typeerror (L, idx, type_name != NULL ? type_name : "handle");
+      return NULL;
+    }
+  if (type_name != NULL && !type_is_a (L, h->type, type_name))
+    {
+      luaL_typeerror (L, idx, type_name);
+      return NULL;
+    }
+  return h->dead ? NULL : h->object;
+}
+
+GObject *
 shell_lua_handle_peek (lua_State  *L,
                        int         idx,
                        const char *type_name)
@@ -1327,17 +1502,27 @@ shell_lua_handle_foreach_member (lua_State                *L,
   if (h == NULL)
     return;
 
+  func ("alive", FALSE, user_data);
+
   for (t = h->type, depth = 0; t != NULL && depth < MAX_TYPE_DEPTH; depth++)
     {
       const ShellLuaHandleProperty *p;
+      const ShellLuaHandleVirtual *v;
+      const ShellLuaHandleMethod *m;
       const luaL_Reg *r;
 
       for (p = t->properties; p != NULL && p->name != NULL; p++)
         if (p->readable)
           func (p->name, FALSE, user_data);
+      for (v = t->virtuals; v != NULL && v->name != NULL; v++)
+        if (v->get != NULL)
+          func (v->name, FALSE, user_data);
       for (r = t->methods; r != NULL && r->name != NULL; r++)
         if (r->func != NULL)
           func (r->name, TRUE, user_data);
+      for (m = t->methods_ex; m != NULL && m->name != NULL; m++)
+        if (m->func != NULL)
+          func (m->name, TRUE, user_data);
       t = parent_of (L, t);
     }
 }

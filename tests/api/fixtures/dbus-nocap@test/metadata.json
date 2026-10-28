@@ -1,0 +1,7 @@
+{
+  "uuid": "dbus-nocap@test",
+  "name": "API conformance: dbus without the capability",
+  "description": "Fixture of tests/api/dbus.lua: shell.dbus raises without the dbus capability",
+  "shell-api": "1",
+  "version": 1
+}

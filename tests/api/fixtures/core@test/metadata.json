@@ -1,0 +1,16 @@
+{
+  "uuid": "core@test",
+  "name": "API conformance: core",
+  "description": "Fixture of tests/api/core.lua: shell.api_version, extension, log, timer, settings, gettext",
+  "shell-api": "1",
+  "capabilities": ["settings"],
+  "settings-schema": "org.gnome-lua.test.core",
+  "gettext-domain": "gnome-lua-test-core",
+  "version": 1,
+  "ratio": 0.5,
+  "nothing": null,
+  "custom-field": {
+    "nested": [1, 2, {"deep": true}],
+    "text": "café"
+  }
+}

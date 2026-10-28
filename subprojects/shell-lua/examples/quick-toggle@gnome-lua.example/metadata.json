@@ -1,0 +1,8 @@
+{
+  "uuid": "quick-toggle@gnome-lua.example",
+  "name": "Quick settings toggle",
+  "description": "A quick-settings toggle with a menu, a slider and a status icon, kept in sync with the extension's settings.",
+  "shell-api": "1",
+  "settings-schema": "org.gnome-lua.example.quick-toggle",
+  "version": 1
+}

@@ -1,0 +1,7 @@
+{
+  "uuid": "core-minor@test",
+  "name": "API conformance: core, shell-api 1.0",
+  "description": "Fixture of tests/api/core.lua: shell-api 1.0 is satisfied by every 1.x",
+  "shell-api": "1.0",
+  "version": 1
+}

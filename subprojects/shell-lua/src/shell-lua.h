@@ -21,6 +21,11 @@
 
 G_BEGIN_DECLS
 
+/* The version of the `shell.*` API this runtime implements (docs/api/README.md).
+ * metadata.json "shell-api": "1" or "1.N" is accepted when N <= the minor. */
+#define SHELL_LUA_API_MAJOR 1
+#define SHELL_LUA_API_MINOR 0
+
 #define SHELL_LUA_ERROR (shell_lua_error_quark ())
 GQuark shell_lua_error_quark (void);
 

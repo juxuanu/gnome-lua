@@ -1,0 +1,7 @@
+{
+  "uuid": "core-v2@test",
+  "name": "API conformance: core, future major",
+  "description": "Fixture of tests/api/core.lua: shell-api 2 is out of date in this shell",
+  "shell-api": "2",
+  "version": 1
+}

@@ -1,0 +1,7 @@
+{
+  "uuid": "hooks-log@gnome-lua.example",
+  "name": "Lifecycle logger",
+  "description": "Logs the lifecycle events of the shell (overview, windows, workspaces, notifications); an extension that only uses hooks.",
+  "shell-api": "1",
+  "version": 1
+}

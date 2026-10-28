@@ -24,6 +24,19 @@ Not in v1:
 - Menu header suffix actors (`addHeaderSuffix`), custom slider widgets
   (`QuickSlider.slider` is not exposed; use `value`).
 
+## Status
+
+**M7, implemented.** `src/lua-api/shell-lua-api-quick-settings.c` (the module
+and the handle types) over `ShellQuickToggle`, `ShellQuickMenuToggle`,
+`ShellQuickSlider` and `ShellQuickToggleMenu` (`src/ui/quick-settings.c`), and
+`shell_panel_items_add_extension_item ()` / `_add_extension_indicator ()` in
+`src/ui/panel-items.c`, with the ordering helpers of
+`src/ui/extension-order.c`. The hook `quick-settings.opened` is declared by
+`shell_quick_settings_menu_class_init ()`. Conformance test:
+`tests/api/quick-settings.lua` with the fixture
+`tests/api/fixtures/quick-settings@test`. Differences from the text below are
+marked **(as built)** where they occur.
+
 ## Placement
 
 The grid has **2 columns** (`N_QUICK_SETTINGS_COLUMNS`, `js/ui/panel.js`). Items
@@ -39,7 +52,11 @@ slot rules in README.md (extension order, then `index`).
 Status icons (`add_indicator`) go into the top-bar system area after the
 privacy indicators (remote access, camera, microphone, location) and before the
 first other built-in icon (`insert_child_below(indicator, this._brightness)`),
-ordered by the same slot rules.
+ordered by the same slot rules. **(as built)** The items and the icons are two
+slots, each with its own `index`. The order follows `enabled-extensions` while
+it changes, too. In a session mode whose top bar has no quick settings button
+(the constructors raise `The top bar has no quick settings menu in this
+session mode`) nothing can be added.
 
 ## Constructors
 
@@ -53,13 +70,16 @@ All return a handle and take one table. Common optional fields: `visible`
 |---|---|---|
 | `title` | string, required | label and accessible name |
 | `subtitle` | string | hidden when nil or empty |
-| `icon_name` / `icon_file` | string | at most one |
+| `icon_name` / `icon_file` | string | at most one. **(as built)** `icon_file` is a path relative to the extension directory, `.svg` or `.png`, as in ui.md; an absolute path, `..` or a missing file raises |
 | `checked` | boolean | initial state, default false |
 | `on_toggle` | function(self, checked) | the user toggled: `checked` is the new value, already applied. Makes the item a toggle (`toggle_mode`) |
 | `on_click` | function(self) | action button: no state, `checked` stays false. Exclusive with `on_toggle` (raises); with neither, the item is display-only |
 
 When `on_toggle` runs the shell has already flipped `checked`; to veto, assign
-`self.checked = false` in the callback (silent, README rule 7).
+`self.checked = false` in the callback (silent, README rule 7). **(as built)**
+`on_toggle` and `on_click` are the user clicking the item (the `clicked` signal
+of the button, by pointer or keyboard); `h:on_toggle(fn)` and `h:on_click(fn)`
+raise on an item that has the other one.
 
 **`add_menu_toggle{...}` -> `shell.QuickMenuToggle`**: all of `add_toggle`'s
 fields, plus `menu_enabled` (true) and `menu_button_accessible_name` (default
@@ -79,6 +99,10 @@ toggles.
 | `accessible_name` | string, required | name of the slider |
 | `menu_enabled` | boolean | show the menu arrow, default false |
 | `menu_button_accessible_name` | string | |
+
+**(as built)** `value` outside `0.0..1.0` and `on_icon_click` without
+`icon_reactive = true` raise; `sensitive = false` makes the slider, its icon
+button and its menu button insensitive.
 
 **`add_indicator{...}` -> `shell.QuickIndicator`**: `icon_name` or `icon_file`
 (one required), `visible`, `accessible_name`, `index`. The icon gets the
@@ -103,6 +127,10 @@ row, `QuickToggleMenu.setHeader`; the icon is highlighted while the owning item
 is checked). A menu opens inline, dims the grid and closes with the panel; at
 most one is open at a time. `menu:open()` returns `false` unless the
 quick-settings panel itself is open (hook `quick-settings.opened`).
+**(as built)** `title` is required by `set_header`. The rule of `open()` is
+that the item of the menu is on screen (`ShellQuickToggleMenu` refuses to open
+while its item is not mapped): it holds for a hidden item, too, and for the
+menus of the built-in items.
 
 There is no separate `remove`: `item:destroy()` removes an item (and
 `indicator:destroy()` an icon), and `visible = false` hides one temporarily.

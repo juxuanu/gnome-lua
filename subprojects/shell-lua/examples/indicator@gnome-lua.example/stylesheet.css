@@ -1,0 +1,8 @@
+/* Loaded with the extension, unloaded when it is disabled. The class
+ * lua-ext-<id> is added by the shell to every widget of the extension (the uuid
+ * with each character outside [a-z0-9-] replaced by "-"), so the selector
+ * stays out of the way of the other extensions and of the theme. */
+.lua-ext-indicator-gnome-lua-example .indicator-example-count {
+  font-weight: bold;
+  padding-left: 4px;
+}

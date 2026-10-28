@@ -1,0 +1,8 @@
+{
+  "uuid": "core-modes@test",
+  "name": "API conformance: core, session modes",
+  "description": "Fixture of tests/api/core.lua: an extension that runs in the unlock dialog only does not run in the user session",
+  "shell-api": "1",
+  "session-modes": ["unlock-dialog"],
+  "version": 1
+}

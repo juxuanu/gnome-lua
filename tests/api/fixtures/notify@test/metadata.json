@@ -1,0 +1,7 @@
+{
+  "uuid": "notify@test",
+  "name": "API conformance: notify",
+  "description": "Fixture of tests/api/notify.lua: shell.notify (docs/api/notify.md)",
+  "shell-api": "1",
+  "version": 1
+}

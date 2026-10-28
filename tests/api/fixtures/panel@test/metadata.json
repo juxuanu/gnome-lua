@@ -1,0 +1,7 @@
+{
+  "uuid": "panel@test",
+  "name": "API conformance: panel",
+  "description": "Fixture of tests/api/panel.lua: shell.panel and shell.Indicator",
+  "shell-api": "1",
+  "version": 1
+}

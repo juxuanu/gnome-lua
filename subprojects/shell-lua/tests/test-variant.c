@@ -650,6 +650,66 @@ test_typed_maybe_holes (Fixture *f, gconstpointer data)
 }
 
 /* ------------------------------------------------------------------------ */
+/* Typed values (shell.dbus.variant)                                         */
+/* ------------------------------------------------------------------------ */
+
+/* box(signature, value): the C side of shell.dbus.variant */
+static int
+cf_box (lua_State *L)
+{
+  const char *sig = luaL_checkstring (L, 1);
+  GVariant *v = shell_lua_to_variant (L, 2, G_VARIANT_TYPE (sig));
+
+  shell_lua_push_variant_box (L, v);
+  g_variant_unref (v);
+  return 1;
+}
+
+static void
+test_typed_values (Fixture *f, gconstpointer data)
+{
+  lua_pushcfunction (f->L, cf_box);
+  lua_setglobal (f->L, "box");
+
+  /* in a `v` position, alone or nested in inferred containers, the box keeps
+   * its exact type where a plain integer would become 'x' */
+  ASSERT_CONVERTS ("box('u', 5)", "v", "v", "<uint32 5>");
+  ASSERT_CONVERTS ("5", "v", "v", "<int64 5>");
+  ASSERT_CONVERTS ("{n = box('y', 1), o = 2, s = box('s', 'x')}", "a{sv}", "a{sv}",
+                   "{'n': <byte 0x01>, 'o': <int64 2>, 's': <'x'>}");
+  ASSERT_CONVERTS ("{box('q', 7), 'a', box('as', {'b'})}", "av", "av",
+                   "[<uint16 7>, <'a'>, <['b']>]");
+  ASSERT_CONVERTS ("{k = {box('i', -3)}}", "a{sv}", "a{sv}", "{'k': <[<-3>]>}");
+  ASSERT_CONVERTS ("box('v', 5)", "v", "v", "<<int64 5>>");
+  ASSERT_CONVERTS ("box('(ui)', {1, 2})", "v", "v", "<(uint32 1, 2)>");
+  ASSERT_CONVERTS ("box('a{uv}', {{1, 'a'}, {2, box('y', 3)}})", "v", "v",
+                   "<{uint32 1: <'a'>, 2: <byte 0x03>}>");
+  ASSERT_CONVERTS ("{box('u', 1)}", "(v)", "(v)", "(<uint32 1>,)");
+
+  /* anywhere else it is an error, with the same wording everywhere */
+  ASSERT_ERROR_SUB ("box('u', 5)", NULL, "is only valid where the type is 'v'");
+  ASSERT_ERROR_SUB ("box('u', 5)", "u", "is only valid where the type is 'v'");
+  ASSERT_ERROR_SUB ("box('u', 5)", "x", "is only valid where the type is 'v'");
+  ASSERT_ERROR_SUB ("{box('u', 5)}", "ai", "field value[1]");
+  ASSERT_ERROR_SUB ("{k = box('u', 5)}", "a{ss}", "field value.k");
+  ASSERT_ERROR_SUB ("box('u', 5)", "*", "is only valid where the type is 'v'");
+  ASSERT_ERROR_SUB ("box('u', 5)", "a{sv}", "is only valid where the type is 'v'");
+
+  /* a box is validated when it is made: a wrong value never reaches the wire */
+  ASSERT_ERROR_SUB ("box('y', 300)", NULL, "out of range");
+  ASSERT_ERROR_SUB ("box('u', 'x')", NULL, "expected integer");
+
+  run_lua (f->L,
+           "local b = box('u', 5)\n"
+           "assert(type(b) == 'userdata')\n"
+           "assert(tostring(b) == \"<variant 'u'>\", tostring(b))\n"
+           "assert(getmetatable(b) == 'shell.dbus.variant')\n"
+           "assert(b == b and b ~= box('u', 5))\n"
+           "collectgarbage() collectgarbage()\n");
+  g_assert_cmpint (lua_gettop (f->L), ==, 0);
+}
+
+/* ------------------------------------------------------------------------ */
 /* Round trips                                                               */
 /* ------------------------------------------------------------------------ */
 
@@ -807,6 +867,7 @@ main (int argc, char **argv)
   ADD ("/shell-lua/variant/typed/containers", test_typed_containers);
   ADD ("/shell-lua/variant/typed/dicts", test_typed_dicts);
   ADD ("/shell-lua/variant/typed/maybe-holes", test_typed_maybe_holes);
+  ADD ("/shell-lua/variant/typed/boxes", test_typed_values);
   ADD ("/shell-lua/variant/roundtrip", test_roundtrip);
   ADD ("/shell-lua/variant/errors-reach-lua", test_errors_reach_lua);
 

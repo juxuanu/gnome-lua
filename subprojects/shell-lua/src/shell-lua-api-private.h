@@ -5,6 +5,7 @@
 #pragma once
 
 #include "shell-lua.h"
+#include "shell-lua-extension.h"
 #include "shell-lua-handle.h"
 #include "shell-lua-variant.h"
 
@@ -48,9 +49,234 @@ gboolean    shell_lua_call_ref (ShellLuaState        *state,
                                 ShellLuaPushArgsFunc  push_args,
                                 gpointer              user_data);
 
+/* Raise "unknown field 'x'" for any key of the table at @tbl that is not in
+ * the NULL-terminated @allowed list (README calling convention 1). */
+void        shell_lua_check_fields (lua_State         *L,
+                                    int                tbl,
+                                    const char *const *allowed);
+
 /* Module entry points (one per api-*.c), called through the registry; listed
  * here only so tests can register them explicitly in a bare state. */
 void shell_lua_api_core_register  (ShellLuaState *state, lua_State *L);
 void shell_lua_api_hooks_register (ShellLuaState *state, lua_State *L);
+void shell_lua_api_dbus_register  (ShellLuaState *state, lua_State *L);
+
+
+/* ======================================================================== *
+ * Runtime API for the modules of libshell (src/lua-api/, M7)
+ *
+ * The rest of this file is what a module that wraps shell objects needs:
+ * the extension of a state, capabilities, owned objects with a destroy rule
+ * and a slot cap, callbacks bound to an owned object (silenced by
+ * assignments, never run after disable begins), the "emitting" deferral of
+ * README rule 8, and the handle type registration (shell-lua-handle.h: a
+ * parent type, methods with flags, properties and virtual properties).
+ *
+ * Typical constructor of a widget type:
+ *
+ *   static int l_label (lua_State *L)
+ *   {
+ *     StWidget *w;
+ *     shell_lua_check_fields (L, 1, label_fields);
+ *     shell_lua_check_owned_capacity (L);              // raises at the cap
+ *     w = g_object_new (ST_TYPE_LABEL, ...);           // floating
+ *     shell_lua_own_object (L, G_OBJECT (w), &widget_ops);  // sinks, owns
+ *     shell_lua_handle_push (L, "shell.Label", G_OBJECT (w));
+ *     return 1;
+ *   }
+ *
+ * and the destroy method of every owning handle type is
+ *   { "destroy", shell_lua_handle_destroy_method, SHELL_LUA_METHOD_DEAD_OK }
+ * in the type's methods_ex.
+ * ======================================================================== */
+
+/* The extension that owns the state of @L, or NULL (inspector, test states). */
+ShellLuaExtension *shell_lua_extension_from_L (lua_State *L);
+
+/* Raise `<function> requires the "<capability>" capability` unless the
+ * extension declares it. States without an extension pass when PRIVILEGED. */
+void        shell_lua_require_capability (lua_State  *L,
+                                          const char *capability,
+                                          const char *function);
+
+/* ---- Owned objects ------------------------------------------------------ */
+
+/* At most this many live owned objects per state; the next shell_lua_own_object
+ * raises `too many objects (limit 4096)`. */
+#define SHELL_LUA_MAX_OWNED_OBJECTS 4096
+
+/* How an owned object is destroyed. */
+typedef void (* ShellLuaDestroyFunc) (GObject *object);
+
+typedef struct {
+  /* Really destroys the object, so that it stops being visible and its
+   * children die with it (clutter_actor_destroy, ...). NULL means
+   * g_object_run_dispose(). */
+  ShellLuaDestroyFunc  destroy;
+  /* Name of a signal the object emits when it is destroyed from elsewhere (its
+   * parent was destroyed, the shell removed it): "destroy" for a
+   * ClutterActor. The slot is then freed and the handles die. NULL: none.
+   * The emitter must keep the instance alive during the emission. */
+  const char          *destroyed_signal;
+} ShellLuaOwnOps;
+
+/* Raise unless one more object can be owned (call before creating one). */
+void        shell_lua_check_owned_capacity (lua_State *L);
+
+/* Make the extension context own @object: g_object_ref_sink() semantics. A
+ * floating object (a new actor) has its floating reference sunk into the
+ * context's: the caller must NOT unref it. Any other object gets one more
+ * reference, and the caller keeps (and releases) its own. Objects are
+ * destroyed in reverse creation order when the extension is disabled. Beyond
+ * the cap the object is destroyed again and a Lua error is raised: use
+ * shell_lua_check_owned_capacity() before creating anything. Owning an
+ * object twice is a no-op. */
+void        shell_lua_own_object (lua_State            *L,
+                                  GObject              *object,
+                                  const ShellLuaOwnOps *ops);
+
+gboolean    shell_lua_object_is_owned (lua_State *L,
+                                       GObject   *object);
+guint       shell_lua_n_owned_objects (lua_State *L);
+
+/* Destroy an owned object now: kills its callbacks, runs ops->destroy, frees
+ * its slot immediately (so it stops counting against the cap), turns every
+ * handle to it dead. Idempotent: FALSE when @object is not owned (any more).
+ * README rule 8: if @object, or an ancestor of it (see
+ * shell_lua_set_contains_func), is emitting a callback right now, the
+ * destruction is deferred until that callback returns and the handle stays
+ * valid until then (still returns TRUE). */
+gboolean    shell_lua_destroy_object (lua_State *L,
+                                      GObject   *object);
+
+/* The Lua C function for `h:destroy()`: list it in methods_ex with
+ * SHELL_LUA_METHOD_DEAD_OK. Does nothing on a dead handle. */
+int         shell_lua_handle_destroy_method (lua_State *L);
+
+/* Tell the runtime how containment works so that destroying or reparenting
+ * an *ancestor* of the emitting object is deferred too (libshell sets
+ * clutter_actor_contains()). @ancestor itself counts as containing itself. */
+typedef gboolean (* ShellLuaContainsFunc) (GObject *ancestor,
+                                           GObject *descendant);
+void        shell_lua_set_contains_func (ShellLuaContainsFunc func);
+
+/* ---- Callbacks bound to an object ---------------------------------------- */
+
+/* A Lua function stored for an event of an owned object. Reference counted:
+ * the owner's slot holds one reference, and every shell_lua_callback_connect()
+ * one more (dropped by the signal's closure notify). When the owner is
+ * destroyed the callback is killed: its Lua reference is released and every
+ * emit returns FALSE, so a handler still connected to a dying instance is
+ * harmless. */
+typedef struct _ShellLuaCallback ShellLuaCallback;
+
+/* Takes over the registry @ref (from shell_lua_opt_callback or luaL_ref). The
+ * returned pointer is (transfer none): it lives as long as the owner or a
+ * connection holds it; take shell_lua_callback_ref() to keep it longer.
+ * @owner must already be owned (shell_lua_own_object); it is passed to
+ * callbacks as their first argument (README rule 6). */
+ShellLuaCallback *shell_lua_callback_new   (lua_State *L,
+                                            GObject   *owner,
+                                            int        ref);
+ShellLuaCallback *shell_lua_callback_ref   (ShellLuaCallback *cb);
+void              shell_lua_callback_unref (ShellLuaCallback *cb);
+gboolean          shell_lua_callback_is_live (ShellLuaCallback *cb);
+/* Release the Lua function now (disconnect()); emits become no-ops. */
+void              shell_lua_callback_kill  (ShellLuaCallback *cb);
+
+/* g_signal_connect_data() with @cb as user data (the C handler gets it as its
+ * last argument); the connection holds a reference on @cb. Returns the handler
+ * id. */
+gulong            shell_lua_callback_connect (ShellLuaCallback *cb,
+                                              gpointer          instance,
+                                              const char       *detailed_signal,
+                                              GCallback         c_handler);
+
+/* Call the function as `fn(owner_handle, args...)` (shapes: "handles that are
+ * something on screen pass the emitting handle first"). @nargs counts the
+ * arguments pushed by @push_args, not the handle. Returns FALSE without
+ * calling when the callback is dead, the extension is being disabled, or the
+ * event was caused by an assignment made by Lua code (rule 7); also FALSE if
+ * the call failed (already logged, counted and signalled). While it runs the
+ * owner counts as emitting (rule 8). */
+gboolean          shell_lua_callback_emit  (ShellLuaCallback    *cb,
+                                            int                  nargs,
+                                            ShellLuaPushArgsFunc push_args,
+                                            gpointer             user_data);
+
+/* Same without the handle: `fn(args...)` (one-shot completions, data
+ * sources). The silence rule does not apply, the disable rule does. */
+gboolean          shell_lua_callback_emit_data (ShellLuaCallback    *cb,
+                                                int                  nargs,
+                                                ShellLuaPushArgsFunc push_args,
+                                                gpointer             user_data);
+
+/* Pushes the shell.Connection (owned by the extension) of an `h:on_<event>`
+ * call: disconnect() disconnects @handler_id on @instance and kills @cb.
+ * @instance is held weakly. Returns 1 (for `return shell_lua_callback_push_connection (...)`). */
+int               shell_lua_callback_push_connection (lua_State        *L,
+                                                      ShellLuaCallback *cb,
+                                                      gpointer          instance,
+                                                      gulong            handler_id);
+
+/* Run an event callback whose emitter is not a callback's owner, with the
+ * same rules (blocked, silenced, emitting frame). The handle of @emitter is
+ * pushed first when @emitter is not NULL. */
+gboolean          shell_lua_emit_ref (ShellLuaState        *state,
+                                      GObject              *emitter,
+                                      int                   ref,
+                                      int                   nargs,
+                                      ShellLuaPushArgsFunc  push_args,
+                                      gpointer              user_data);
+
+/* ---- Rule 7 (no callback because of an assignment) ---------------------- */
+
+/* Assignments to handle properties are silenced by shell-lua-handle.c; a
+ * module whose *method* changes shell state (`menu:clear()`, `b:add()`) wraps
+ * the change the same way. @fn runs in a protected call (it may raise); a
+ * raised error is rethrown after the silence ends. */
+typedef void (* ShellLuaSilencedFunc) (lua_State *L,
+                                       gpointer   user_data);
+void              shell_lua_call_silenced (lua_State           *L,
+                                           ShellLuaSilencedFunc fn,
+                                           gpointer             user_data);
+/* As above but returns FALSE with the error object on top of the stack, so
+ * that the caller can clean up before lua_error(). */
+gboolean          shell_lua_try_silenced  (lua_State           *L,
+                                           ShellLuaSilencedFunc fn,
+                                           gpointer             user_data);
+/* Same, passing the top @nargs values of the stack (popped) to @fn, which
+ * sees them at indexes 1..@nargs of its own frame. */
+gboolean          shell_lua_try_silenced_args (lua_State           *L,
+                                               int                  nargs,
+                                               ShellLuaSilencedFunc fn,
+                                               gpointer             user_data);
+/* Lower level pair; nothing between them may raise. */
+void              shell_lua_silence_enter (lua_State *L);
+void              shell_lua_silence_leave (lua_State *L);
+
+/* ---- Rule 8 (destroy / reparent the emitter) ---------------------------- */
+
+typedef void (* ShellLuaDeferredFunc) (gpointer data);
+
+/* If @object (or an ancestor of it) is emitting a callback right now, queue
+ * @func(@data) to run when that callback returns, free @data with @notify
+ * afterwards, and return TRUE: the caller must then return without acting.
+ * Otherwise return FALSE and do nothing (the caller acts now; @data stays its
+ * own). Never defers while the extension is being disabled. */
+gboolean          shell_lua_defer_if_emitting (lua_State           *L,
+                                               GObject             *object,
+                                               ShellLuaDeferredFunc func,
+                                               gpointer             data,
+                                               GDestroyNotify       notify);
+
+/* ---- Teardown (used by ShellLuaExtension; also by tests) ---------------- */
+
+/* From now on no callback runs for this state (call_ref, emit and
+ * call_protected return FALSE). Called when disable begins. */
+void              shell_lua_objects_block      (ShellLuaState *state);
+gboolean          shell_lua_objects_is_blocked (ShellLuaState *state);
+/* Destroy every owned object, newest first. Also runs at state destruction. */
+void              shell_lua_objects_destroy_all (ShellLuaState *state);
 
 G_END_DECLS

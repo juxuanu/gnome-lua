@@ -1,0 +1,9 @@
+{
+  "uuid": "prefs@gnome-lua.example",
+  "name": "Preferences window",
+  "description": "A tour of prefs.lua: every kind of row, two pages, rows that depend on other keys. The extension logs a counter that the settings control.",
+  "shell-api": "1",
+  "settings-schema": "org.gnome-lua.example.prefs",
+  "gettext-domain": "gnome-lua-example-prefs",
+  "version": 1
+}

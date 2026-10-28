@@ -245,6 +245,72 @@ shell_lua_push_variant (lua_State *L,
     lua_error (L);
 }
 
+/* ===== Typed values (boxes) ============================================ */
+
+#define BOX_MT "shell.lua.variant-box"
+
+typedef struct
+{
+  GVariant *variant;
+} Box;
+
+static int
+box_gc (lua_State *L)
+{
+  Box *box = lua_touserdata (L, 1);
+
+  g_clear_pointer (&box->variant, g_variant_unref);
+  return 0;
+}
+
+static int
+box_tostring (lua_State *L)
+{
+  Box *box = lua_touserdata (L, 1);
+
+  if (box->variant == NULL)
+    lua_pushliteral (L, "<variant>");
+  else
+    lua_pushfstring (L, "<variant '%s'>", g_variant_get_type_string (box->variant));
+  return 1;
+}
+
+void
+shell_lua_push_variant_box (lua_State *L,
+                            GVariant  *variant)
+{
+  Box *box;
+
+  g_return_if_fail (variant != NULL);
+
+  luaL_checkstack (L, 3, "pushing a typed value");
+  box = lua_newuserdatauv (L, sizeof (Box), 0);
+  box->variant = NULL;
+  if (luaL_newmetatable (L, BOX_MT))
+    {
+      lua_pushcfunction (L, box_gc);
+      lua_setfield (L, -2, "__gc");
+      lua_pushcfunction (L, box_tostring);
+      lua_setfield (L, -2, "__tostring");
+      lua_pushliteral (L, "shell.dbus.variant");
+      lua_setfield (L, -2, "__metatable");
+    }
+  lua_setmetatable (L, -2);
+  box->variant = g_variant_ref_sink (variant);
+}
+
+GVariant *
+shell_lua_variant_box_peek (lua_State *L,
+                            int        idx)
+{
+  Box *box;
+
+  if (lua_type (L, idx) != LUA_TUSERDATA)
+    return NULL;
+  box = luaL_testudata (L, idx, BOX_MT);
+  return box != NULL ? box->variant : NULL;
+}
+
 /* ===== Lua -> GVariant ================================================== */
 
 typedef struct
@@ -823,6 +889,15 @@ convert (Ctx                *ctx,
                  ctx->path->str, MAX_DEPTH);
   if (!lua_checkstack (L, 8))
     return fail (ctx, "stack overflow while converting field %s", ctx->path->str);
+
+  if (shell_lua_variant_box_peek (L, idx) != NULL)
+    {
+      /* A typed value goes where a `v` is expected and nowhere else */
+      if (type != NULL && g_variant_type_equal (type, G_VARIANT_TYPE_VARIANT))
+        return g_variant_new_variant (shell_lua_variant_box_peek (L, idx));
+      return fail (ctx, "typed value (shell.dbus.variant) for field %s is only valid "
+                   "where the type is 'v'", ctx->path->str);
+    }
 
   if (type == NULL || g_variant_type_equal (type, G_VARIANT_TYPE_ANY))
     return convert_inferred (ctx, idx, depth);

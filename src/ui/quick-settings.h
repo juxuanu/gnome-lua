@@ -185,6 +185,9 @@ void         shell_quick_slider_set_gicon         (ShellQuickSlider *self,
 gboolean     shell_quick_slider_get_icon_reactive (ShellQuickSlider *self);
 void         shell_quick_slider_set_icon_reactive (ShellQuickSlider *self,
                                                    gboolean          reactive);
+gboolean     shell_quick_slider_get_sensitive     (ShellQuickSlider *self);
+void         shell_quick_slider_set_sensitive     (ShellQuickSlider *self,
+                                                   gboolean          sensitive);
 const char  *shell_quick_slider_get_icon_label    (ShellQuickSlider *self);
 void         shell_quick_slider_set_icon_label    (ShellQuickSlider *self,
                                                    const char       *label);
@@ -236,6 +239,11 @@ void                    shell_quick_settings_menu_insert_item_before (ShellQuick
                                                                       ClutterActor           *item,
                                                                       ClutterActor           *sibling,
                                                                       int                     col_span);
+int                     shell_quick_settings_menu_get_item_col_span (ShellQuickSettingsMenu *self,
+                                                                     ClutterActor           *item);
+void                    shell_quick_settings_menu_set_item_col_span (ShellQuickSettingsMenu *self,
+                                                                     ClutterActor           *item,
+                                                                     int                     col_span);
 ClutterActor           *shell_quick_settings_menu_get_first_item    (ShellQuickSettingsMenu *self);
 ClutterActor           *shell_quick_settings_menu_get_grid          (ShellQuickSettingsMenu *self);
 ClutterActor           *shell_quick_settings_menu_get_overlay       (ShellQuickSettingsMenu *self);

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome-lua.example.quick-toggle" path="/org/gnome-lua/example/quick-toggle/">
+    <key name="enabled" type="b">
+      <default>false</default>
+      <summary>Whether the toggle is on</summary>
+    </key>
+    <key name="level" type="d">
+      <range min="0.0" max="1.0"/>
+      <default>0.5</default>
+      <summary>The position of the slider, from 0 to 1</summary>
+    </key>
+  </schema>
+</schemalist>

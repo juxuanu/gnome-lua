@@ -1,0 +1,7 @@
+{
+  "uuid": "hooks@test",
+  "name": "API conformance: hooks",
+  "description": "Fixture of tests/api/hooks.lua: shell.hooks and the hook catalogue",
+  "shell-api": "1",
+  "version": 1
+}

@@ -84,6 +84,7 @@ shell_lua_api_populate (ShellLuaState *state,
    * library usable without --whole-archive. */
   shell_lua_api_register ("core", shell_lua_api_core_register);
   shell_lua_api_register ("hooks", shell_lua_api_hooks_register);
+  shell_lua_api_register ("dbus", shell_lua_api_dbus_register);
 
   /* Deterministic order independent of link order */
   g_array_sort (modules, compare_modules);
@@ -125,6 +126,29 @@ check_options_table (lua_State *L,
 {
   if (!lua_istable (L, tbl))
     luaL_error (L, "options table expected, got %s", luaL_typename (L, tbl));
+}
+
+void
+shell_lua_check_fields (lua_State         *L,
+                        int                tbl,
+                        const char *const *allowed)
+{
+  tbl = lua_absindex (L, tbl);
+  check_options_table (L, tbl);
+  luaL_checkstack (L, 3, "options");
+
+  lua_pushnil (L);
+  while (lua_next (L, tbl) != 0)
+    {
+      const char *key;
+
+      lua_pop (L, 1);
+      if (lua_type (L, -1) != LUA_TSTRING)
+        luaL_error (L, "options table has a non-string key (%s)", luaL_typename (L, -1));
+      key = lua_tostring (L, -1);
+      if (!g_strv_contains (allowed, key))
+        luaL_error (L, "unknown field '%s'", key);
+    }
 }
 
 const char *
@@ -313,6 +337,10 @@ shell_lua_call_ref (ShellLuaState        *state,
                shell_lua_state_get_id (state), ref);
       return FALSE;
     }
+
+  /* Callbacks never run once disable has begun. */
+  if (shell_lua_objects_is_blocked (state))
+    return FALSE;
 
   L = shell_lua_state_get_L (state);
   top = lua_gettop (L);

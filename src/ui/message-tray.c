@@ -114,6 +114,7 @@ hook_payload (ShellNotification *notification)
   GVariantBuilder builder;
   const char *title = NULL;
   const char *app_id = NULL;
+  const char *owner = NULL;
 
   g_variant_builder_init (&builder, G_VARIANT_TYPE_VARDICT);
   g_variant_builder_add (&builder, "{sv}", "notification-id",
@@ -124,6 +125,7 @@ hook_payload (ShellNotification *notification)
       ShellNotificationPolicy *policy = shell_source_get_policy (source);
 
       title = shell_message_source_get_title (SHELL_MESSAGE_SOURCE (source));
+      owner = shell_source_get_owner (source);
       if (policy != NULL && SHELL_IS_NOTIFICATION_APPLICATION_POLICY (policy))
         app_id = shell_notification_policy_get_id (policy);
     }
@@ -136,7 +138,8 @@ hook_payload (ShellNotification *notification)
                          g_variant_new_boolean (shell_notification_get_resident (notification)));
   g_variant_builder_add (&builder, "{sv}", "transient",
                          g_variant_new_boolean (shell_notification_get_is_transient (notification)));
-  g_variant_builder_add (&builder, "{sv}", "owner", g_variant_new_string (""));
+  g_variant_builder_add (&builder, "{sv}", "owner",
+                         g_variant_new_string (owner != NULL ? owner : ""));
   if (app_id != NULL)
     g_variant_builder_add (&builder, "{sv}", "app-id", g_variant_new_string (app_id));
 
@@ -2915,6 +2918,7 @@ typedef struct
 {
   ShellNotificationPolicy *policy;
   GPtrArray *notifications; /* of ShellNotification */
+  char *owner;
   gboolean in_destruction;
   gboolean destroying;
 } ShellSourcePrivate;
@@ -2963,6 +2967,46 @@ shell_source_set_policy (ShellSource             *self,
     shell_notification_policy_destroy (priv->policy);
 
   g_set_object (&priv->policy, policy);
+}
+
+/**
+ * shell_source_get_owner:
+ * @self: a #ShellSource
+ *
+ * Returns: (nullable): the uuid of the Lua extension that created the source
+ *   through `shell.notify`, or %NULL for the sources of the shell and of
+ *   applications. It is the `owner` of the notification hooks.
+ */
+const char *
+shell_source_get_owner (ShellSource *self)
+{
+  ShellSourcePrivate *priv;
+
+  g_return_val_if_fail (SHELL_IS_SOURCE (self), NULL);
+
+  priv = shell_source_get_instance_private (self);
+  return priv->owner;
+}
+
+/**
+ * shell_source_set_owner:
+ * @self: a #ShellSource
+ * @owner: (nullable): the uuid of the extension that owns the source
+ *
+ * Sets the extension that created the source (see
+ * shell_source_get_owner ()).
+ */
+void
+shell_source_set_owner (ShellSource *self,
+                        const char  *owner)
+{
+  ShellSourcePrivate *priv;
+
+  g_return_if_fail (SHELL_IS_SOURCE (self));
+
+  priv = shell_source_get_instance_private (self);
+  g_free (priv->owner);
+  priv->owner = g_strdup (owner);
 }
 
 /**
@@ -3396,6 +3440,7 @@ shell_source_finalize (GObject *object)
   ShellSourcePrivate *priv = shell_source_get_instance_private (self);
 
   g_clear_pointer (&priv->notifications, g_ptr_array_unref);
+  g_clear_pointer (&priv->owner, g_free);
 
   G_OBJECT_CLASS (shell_source_parent_class)->finalize (object);
 }

@@ -20,6 +20,15 @@ Not in v1:
   so sizing and the hover tooltip match app icons.
 - Animations other than the built-in fade/scale on add and remove.
 
+## Status
+
+**M7, implemented.** `src/lua-api/shell-lua-api-dash.c` (the module and the
+handle type) over `ShellDashButton` and `shell_dash_add_extension_button ()` /
+`shell_dash_remove_extension_button ()` in `src/ui/dash.c`, with the ordering
+helpers of `src/ui/extension-order.c`. Conformance test: `tests/api/dash.lua`
+with the fixture `tests/api/fixtures/dash@test`. Differences from the text
+below are marked **(as built)** where they occur.
+
 ## Layout facts that constrain the design
 
 `Dash._dashContainer` holds `_box` (favorites, then a separator, then running
@@ -37,7 +46,10 @@ part in icon-size fitting (`Dash._adjustIconSize` counts every icon child), so
 adding buttons can shrink all icons, down to the 16 px minimum, and button
 icons always render at the dash's current size. The dash is shown by the
 overview; a button is only clickable while the overview shows it. An
-extension may create at most 8 buttons (raises beyond).
+extension may create at most 8 buttons (raises beyond). **(as built)** The
+limit counts the buttons that are not destroyed: a button that fades out
+after `destroy()` is already gone from it, and a button with
+`visible = false` counts for the limit but not for the size of the icons.
 
 ## Constructors
 
@@ -47,9 +59,9 @@ extension may create at most 8 buttons (raises beyond).
 |---|---|---|---|
 | `label` | string | required | hover tooltip (`dash-label`) and accessible name (`DashItemContainer.setLabelText`) |
 | `icon_name` / `icon_file` | string | one required | at most one |
-| `on_click` | function(self, button) | nil | primary button only (`button == 1`) |
+| `on_click` | function(self, button) | nil | primary button only (`button == 1`); **(as built)** Enter and Space on the focused button call it with `button == 1` too |
 | `position` | `"start"`, `"end"` | `"end"` | which group |
-| `hide_overview` | boolean | `true` | hide the overview after `on_click` returns, as launching an app does (`Main.overview.hide()` in `AppIcon`); set false for buttons that toggle something |
+| `hide_overview` | boolean | `true` | hide the overview after `on_click` returns, as launching an app does (`Main.overview.hide()` in `AppIcon`); set false for buttons that toggle something. **(as built)** the overview hides with reason `other` (hooks.md) |
 | `checked` | boolean | false | `:checked` pseudo-class, e.g. for an "on" state; no automatic toggling |
 | `visible`, `sensitive` | boolean | true | |
 
@@ -73,7 +85,10 @@ order across extensions follows README.md ("Placement and ordering").
 | `alive` | boolean | ro |
 
 Methods: `destroy()` (fades out like an app icon being removed, then frees the
-slot; the handle is dead immediately), `on_click(fn)`.
+slot; the handle is dead immediately), `on_click(fn)`. **(as built)** The
+fade only runs while the overview is shown and not moving; otherwise, and for
+a button that goes away because the extension is disabled, the button is
+destroyed at once. The slot is free from the call on.
 
 Behaviour: the dash label appears on hover after `DASH_ITEM_HOVER_TIMEOUT`
 (300 ms) exactly as for app icons. Keyboard focus and Enter/Space activate.

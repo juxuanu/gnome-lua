@@ -36,29 +36,7 @@ shell_lua_api_core_init (void)
 /* Helpers                                                                   */
 /* ------------------------------------------------------------------------ */
 
-/* Raise "unknown field 'x'" for any key of the table at @tbl that is not in
- * the NULL-terminated @allowed list. */
-static void
-check_fields (lua_State         *L,
-              int                tbl,
-              const char *const *allowed)
-{
-  tbl = lua_absindex (L, tbl);
-  luaL_checkstack (L, 3, "options");
-
-  lua_pushnil (L);
-  while (lua_next (L, tbl) != 0)
-    {
-      const char *key;
-
-      lua_pop (L, 1);
-      if (lua_type (L, -1) != LUA_TSTRING)
-        luaL_error (L, "options table has a non-string key (%s)", luaL_typename (L, -1));
-      key = lua_tostring (L, -1);
-      if (!g_strv_contains (allowed, key))
-        luaL_error (L, "unknown field '%s'", key);
-    }
-}
+#define check_fields shell_lua_check_fields
 
 static ShellLuaExtension *
 extension_of (ShellLuaState *state)

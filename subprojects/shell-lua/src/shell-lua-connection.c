@@ -178,6 +178,10 @@ shell_lua_api_call_protected (ShellLuaState        *state,
   if (state == NULL || !shell_lua_state_is_alive (state))
     return FALSE;
 
+  /* Callbacks never run once disable has begun. */
+  if (shell_lua_objects_is_blocked (state))
+    return FALSE;
+
   L = shell_lua_state_get_L (state);
   if (!lua_checkstack (L, 4))
     return FALSE;

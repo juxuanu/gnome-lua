@@ -1,0 +1,7 @@
+{
+  "uuid": "dash-launcher@gnome-lua.example",
+  "name": "Dash launcher",
+  "description": "Buttons in the dash: one launches an application, one toggles a mark.",
+  "shell-api": "1",
+  "version": 1
+}

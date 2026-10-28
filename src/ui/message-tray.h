@@ -387,6 +387,9 @@ struct _ShellSourceClass
 ShellNotificationPolicy *shell_source_get_policy  (ShellSource             *self);
 void                     shell_source_set_policy  (ShellSource             *self,
                                                    ShellNotificationPolicy *policy);
+const char *shell_source_get_owner                (ShellSource *self);
+void        shell_source_set_owner                (ShellSource *self,
+                                                   const char  *owner);
 int         shell_source_get_count                (ShellSource *self);
 int         shell_source_get_unseen_count         (ShellSource *self);
 gboolean    shell_source_get_count_visible        (ShellSource *self);

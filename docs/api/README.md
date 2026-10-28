@@ -31,9 +31,10 @@ from outside the extension directory.
 ## Versioning and stability
 
 - `shell.api_version = {major, minor}` (read-only). `metadata.json` declares
-  `"shell-api": "1"` or `"1.N"`. Today the loader checks the major only
-  (**impl**); with `"1.N"` it MUST also mark the extension OUT_OF_DATE when the
-  running minor is below `N` (**M7**).
+  `"shell-api": "1"` or `"1.N"`. The loader checks the major, and with `"1.N"`
+  marks the extension OUT_OF_DATE when the running minor is below `N`
+  (**impl**; a malformed version such as `"1."`, `"1.x"` or `"1.0.1"` is
+  OUT_OF_DATE too).
 - Within a major, minors are additive: new functions, new optional fields, new
   properties, new hooks, new payload keys, new enum strings. Nothing documented
   is removed or changes meaning. A removal needs two releases of runtime
@@ -110,7 +111,7 @@ Snapshots (`shell.monitors`) are ordinary tables, never handles.
 A handle goes **dead** when its object is destroyed (by `destroy()`, by its
 parent, by the shell, or at disable). Any use raises
 `handle to <type> is no longer valid` (**impl**) except: `tostring(h)`, `==`,
-and the two below (**M7**: need a per-method "allowed when dead" flag).
+and the two below (**impl**: `SHELL_LUA_METHOD_DEAD_OK`).
 
 - every handle has `alive` (boolean, read-only, never raises);
 - every handle that owns something has `destroy()`, idempotent.
@@ -152,16 +153,20 @@ app. Calling a gated function without the capability raises
 | Capability | Unlocks | Status |
 |---|---|---|
 | `settings` | `shell.settings.open(schema_id)` for any installed schema | impl |
-| `dbus` | all of `shell.dbus`. It reaches every service the user can; treat it as roughly `spawn`-equivalent (e.g. systemd user manager), not as a narrow permission | M7 |
-| `search` | connecting to hook `search.query` (carries what the user types) | M7, new |
+| `dbus` | all of `shell.dbus`. It reaches every service the user can; treat it as roughly `spawn`-equivalent (e.g. systemd user manager), not as a narrow permission | impl |
+| `search` | connecting to hook `search.query` (carries what the user types) | impl (accepted in `metadata.json`) |
 | `fs`, `spawn`, `network` | reserved: accepted and displayed, no v1 function uses them | impl (names only) |
 
 ## Required changes to the M1 runtime
 
-`alive`/idempotent `destroy()` on dead handles; `"1.N"` minor check; `search`
-in `known_capabilities`; handle properties that are not 1:1 GObject properties
-(`sensitive`, `icon_file`, `index`-style virtuals); an assignment guard
-implementing rule 7; `shell.dbus.variant` (dbus.md).
+Done (`subprojects/shell-lua`, tests in `tests/test-objects.c`): `alive` on
+every handle and idempotent `destroy()` on dead handles (per-method
+`SHELL_LUA_METHOD_DEAD_OK`); the owned-object registry (`shell_lua_own_object`,
+reverse-order destruction at disable, the 4096 cap, `destroy()` frees the slot
+at once, callbacks blocked once disable begins); the `"1.N"` check; `search`
+in `known_capabilities`; virtual handle properties (per-type getter/setter
+tables); the assignment guard (rule 7: assignments are silent, unknown and
+read-only properties raise); the deferral of rule 8. Still to do: `shell.dbus.variant` (dbus.md).
 
 ## Example
 

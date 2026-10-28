@@ -37,6 +37,12 @@
  *  - The hook "panel.indicator-added" is emitted once per indicator, when it
  *    is first registered (the JS `_addToPanelBox ()` ran at every session mode
  *    change, and connected its handlers every time).
+ *  - Every box is [indicators of extensions at the start] [the indicators of
+ *    the shell] [indicators of extensions at the end]
+ *    (shell_panel_add_extension_indicator (), docs/api/panel.md). The JS
+ *    panel put the indicators of the shell at the end of the box at every
+ *    session mode update, which would have moved them left of the extensions
+ *    at the end; the boxes are laid out again after the update instead.
  */
 
 #include "config.h"
@@ -51,6 +57,7 @@
 
 #include "shell-global.h"
 #include "shell-hooks.h"
+#include "ui/extension-order.h"
 #include "ui/layout.h"
 #include "ui/main.h"
 #include "ui/panel.h"
@@ -107,6 +114,7 @@ struct _ShellPanel
   StBoxLayout *right_box;  /* weak */
 
   GHashTable *status_area; /* role -> ShellPanelButtonBox, both strong */
+  GPtrArray *ext_items;    /* ExtItem, grouped by owner, ordered by the rank of the owners */
 
   char *session_style;
   ShellSessionMode *session_mode; /* weak */
@@ -119,6 +127,31 @@ struct _ShellPanel
 };
 
 G_DEFINE_FINAL_TYPE (ShellPanel, shell_panel, ST_TYPE_WIDGET)
+
+/* An indicator added by an extension. The status area holds the reference;
+ * the item is removed when the indicator is destroyed. */
+typedef struct
+{
+  char *owner;
+  ShellPanelButtonBox *indicator;
+  ShellPanelBox box;
+  ShellPanelEdge edge;
+} ExtItem;
+
+static void
+ext_item_free (gpointer data)
+{
+  ExtItem *item = data;
+
+  g_free (item->owner);
+  g_free (item);
+}
+
+static const char *
+ext_item_get_owner (gpointer data)
+{
+  return ((ExtItem *) data)->owner;
+}
 
 /* ------------------------------------------------------------------------ */
 /* Helpers                                                                  */
@@ -339,6 +372,23 @@ indicator_destroyed_cb (ClutterActor *actor,
   GHashTableIter iter;
   gpointer value;
 
+  guint i;
+
+  /* An extension indicator leaves its slot */
+  if (self->ext_items != NULL)
+    {
+      for (i = 0; i < self->ext_items->len; i++)
+        {
+          ExtItem *item = g_ptr_array_index (self->ext_items, i);
+
+          if (item->indicator == (ShellPanelButtonBox *) actor)
+            {
+              g_ptr_array_remove_index (self->ext_items, i);
+              break;
+            }
+        }
+    }
+
   /* delete this.statusArea[role]; the indicators are destroyed with the
    * panel after dispose already dropped the table */
   if (self->status_area == NULL)
@@ -432,32 +482,18 @@ shell_panel_list_status_area_roles (ShellPanel *self)
   return (char **) g_ptr_array_free (g_steal_pointer (&roles), FALSE);
 }
 
+/* The part of adding an indicator which does not depend on where it goes:
+ * the role is taken, the panel learns when the indicator is destroyed or
+ * gets a menu, and the hook is emitted. */
 static void
-add_to_panel_box (ShellPanel          *self,
-                  const char          *role,
-                  ShellPanelButtonBox *indicator,
-                  int                  position,
-                  ShellPanelBox        box,
-                  const char          *owner)
+register_indicator (ShellPanel          *self,
+                    const char          *role,
+                    ShellPanelButtonBox *indicator,
+                    ShellPanelBox        box,
+                    const char          *owner)
 {
-  ClutterActor *container =
-    CLUTTER_ACTOR (shell_panel_button_box_get_container (indicator));
-  StBoxLayout *box_actor = get_box (self, box);
-  ClutterActor *parent;
-  gboolean is_new;
+  gboolean is_new = g_hash_table_lookup (self->status_area, role) != indicator;
 
-  if (box_actor == NULL)
-    return;
-
-  clutter_actor_show (container);
-
-  parent = clutter_actor_get_parent (container);
-  if (parent != NULL)
-    clutter_actor_remove_child (parent, container);
-
-  clutter_actor_insert_child_at_index (CLUTTER_ACTOR (box_actor), container, position);
-
-  is_new = g_hash_table_lookup (self->status_area, role) != indicator;
   if (is_new)
     {
       g_hash_table_replace (self->status_area, g_strdup (role), g_object_ref (indicator));
@@ -474,6 +510,33 @@ add_to_panel_box (ShellPanel          *self,
 
   if (is_new)
     emit_hook ("panel.indicator-added", role, box_to_string (box), owner != NULL ? owner : "");
+}
+
+static void
+add_to_panel_box (ShellPanel          *self,
+                  const char          *role,
+                  ShellPanelButtonBox *indicator,
+                  int                  position,
+                  ShellPanelBox        box,
+                  const char          *owner)
+{
+  ClutterActor *container =
+    CLUTTER_ACTOR (shell_panel_button_box_get_container (indicator));
+  StBoxLayout *box_actor = get_box (self, box);
+  ClutterActor *parent;
+
+  if (box_actor == NULL)
+    return;
+
+  clutter_actor_show (container);
+
+  parent = clutter_actor_get_parent (container);
+  if (parent != NULL)
+    clutter_actor_remove_child (parent, container);
+
+  clutter_actor_insert_child_at_index (CLUTTER_ACTOR (box_actor), container, position);
+
+  register_indicator (self, role, indicator, box, owner);
 }
 
 /**
@@ -548,6 +611,209 @@ shell_panel_add_to_status_area (ShellPanel           *self,
 }
 
 /* ------------------------------------------------------------------------ */
+/* Extension indicators                                                     */
+/* ------------------------------------------------------------------------ */
+
+static ExtItem *
+find_ext_item_of_container (ShellPanel   *self,
+                            ShellPanelBox box,
+                            ClutterActor *actor)
+{
+  guint i;
+
+  for (i = 0; i < self->ext_items->len; i++)
+    {
+      ExtItem *item = g_ptr_array_index (self->ext_items, i);
+
+      if (item->box == box && item->indicator != NULL &&
+          CLUTTER_ACTOR (shell_panel_button_box_get_container (item->indicator)) == actor)
+        return item;
+    }
+
+  return NULL;
+}
+
+/* Appends the containers of the extension indicators of a slot, in order */
+static void
+append_ext_group (ShellPanel     *self,
+                  ShellPanelBox   box,
+                  ShellPanelEdge  edge,
+                  GPtrArray      *desired)
+{
+  ClutterActor *box_actor = CLUTTER_ACTOR (get_box (self, box));
+  guint i;
+
+  for (i = 0; i < self->ext_items->len; i++)
+    {
+      ExtItem *item = g_ptr_array_index (self->ext_items, i);
+      ClutterActor *container;
+
+      if (item->box != box || item->edge != edge || item->indicator == NULL)
+        continue;
+
+      container = CLUTTER_ACTOR (shell_panel_button_box_get_container (item->indicator));
+      if (container != NULL && clutter_actor_get_parent (container) == box_actor)
+        g_ptr_array_add (desired, container);
+    }
+}
+
+/* Puts the children of a box in the order [extensions at the start] [the
+ * indicators of the shell, in the order they already have] [extensions at the
+ * end]. Only the children which are out of place are moved. */
+static void
+relayout_box (ShellPanel    *self,
+              ShellPanelBox  box)
+{
+  StBoxLayout *box_actor = get_box (self, box);
+  g_autoptr (GPtrArray) desired = g_ptr_array_new ();
+  ClutterActor *child;
+  guint i;
+
+  if (box_actor == NULL || self->ext_items == NULL)
+    return;
+
+  append_ext_group (self, box, SHELL_PANEL_EDGE_START, desired);
+
+  for (child = clutter_actor_get_first_child (CLUTTER_ACTOR (box_actor));
+       child != NULL;
+       child = clutter_actor_get_next_sibling (child))
+    {
+      if (find_ext_item_of_container (self, box, child) == NULL)
+        g_ptr_array_add (desired, child);
+    }
+
+  append_ext_group (self, box, SHELL_PANEL_EDGE_END, desired);
+
+  for (i = 0; i < desired->len; i++)
+    {
+      ClutterActor *actor = g_ptr_array_index (desired, i);
+
+      if (clutter_actor_get_child_at_index (CLUTTER_ACTOR (box_actor), i) != actor)
+        clutter_actor_set_child_at_index (CLUTTER_ACTOR (box_actor), actor, i);
+    }
+}
+
+typedef struct
+{
+  ShellPanelBox box;
+  ShellPanelEdge edge;
+} ExtSlot;
+
+static gboolean
+ext_item_in_slot (gpointer item_data,
+                  gpointer slot_data)
+{
+  ExtItem *item = item_data;
+  ExtSlot *slot = slot_data;
+
+  return item->box == slot->box && item->edge == slot->edge;
+}
+
+static void
+enabled_extensions_changed_cb (GSettings  *settings,
+                               const char *key,
+                               ShellPanel *self)
+{
+  ShellPanelBox box;
+
+  if (self->ext_items == NULL)
+    return;
+
+  shell_extension_order_sort (self->ext_items, ext_item_get_owner);
+  for (box = SHELL_PANEL_BOX_LEFT; box <= SHELL_PANEL_BOX_RIGHT; box++)
+    relayout_box (self, box);
+}
+
+/**
+ * shell_panel_add_extension_indicator:
+ * @self: a #ShellPanel
+ * @role: the role of the indicator, which must be unique and not the role
+ *   of an indicator of the shell
+ * @indicator: the indicator, a button with a menu
+ * @owner: the uuid of the extension which adds the indicator
+ * @box: the box to add the indicator to
+ * @edge: which end of the box
+ * @index: the 1-based position among the indicators of @owner at that end of
+ *   that box, or 0 or less to go after the last one; values past the end
+ *   clamp
+ * @error: return location for a #GError
+ *
+ * Adds an indicator of an extension to the top bar and registers it under
+ * @role. Every box is [indicators of extensions at %SHELL_PANEL_EDGE_START]
+ * [indicators of the shell] [indicators of extensions at
+ * %SHELL_PANEL_EDGE_END]; inside a group the indicators of the extensions are
+ * ordered by the position of the extension in the `enabled-extensions`
+ * setting, then by @index (docs/api/README.md, "Placement and ordering").
+ * The placement is kept when the session mode changes. Emits the
+ * "panel.indicator-added" hook with @owner.
+ *
+ * Returns: %TRUE on success, %FALSE with %G_IO_ERROR_EXISTS if the role is
+ *   taken or is a role of the shell
+ */
+gboolean
+shell_panel_add_extension_indicator (ShellPanel           *self,
+                                     const char           *role,
+                                     ShellPanelMenuButton *indicator,
+                                     const char           *owner,
+                                     ShellPanelBox         box,
+                                     ShellPanelEdge        edge,
+                                     int                   index,
+                                     GError              **error)
+{
+  ShellPanelButtonBox *button_box;
+  ClutterActor *container;
+  StBoxLayout *box_actor;
+  ExtSlot slot = { box, edge };
+  ExtItem *item;
+  guint position;
+
+  g_return_val_if_fail (SHELL_IS_PANEL (self), FALSE);
+  g_return_val_if_fail (role != NULL, FALSE);
+  g_return_val_if_fail (SHELL_IS_PANEL_MENU_BUTTON (indicator), FALSE);
+  g_return_val_if_fail (owner != NULL && owner[0] != '\0', FALSE);
+
+  button_box = SHELL_PANEL_BUTTON_BOX (indicator);
+  box_actor = get_box (self, box);
+
+  if (shell_panel_is_builtin_role (role) || g_hash_table_contains (self->status_area, role))
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_EXISTS,
+                   "Extension point conflict: there is already a status indicator for role %s",
+                   role);
+      return FALSE;
+    }
+
+  if (box_actor == NULL)
+    {
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                   "The top bar has no %s box", box_to_string (box));
+      return FALSE;
+    }
+
+  container = CLUTTER_ACTOR (shell_panel_button_box_get_container (button_box));
+  clutter_actor_show (container);
+  if (clutter_actor_get_parent (container) != NULL)
+    clutter_actor_remove_child (clutter_actor_get_parent (container), container);
+  clutter_actor_add_child (CLUTTER_ACTOR (box_actor), container);
+
+  item = g_new0 (ExtItem, 1);
+  item->owner = g_strdup (owner);
+  item->indicator = button_box;
+  item->box = box;
+  item->edge = edge;
+
+  position = shell_extension_order_insert_position (self->ext_items, ext_item_get_owner,
+                                                    ext_item_in_slot, &slot, owner, index);
+  g_ptr_array_insert (self->ext_items, MIN (position, self->ext_items->len), item);
+
+  /* In place before the hook runs */
+  relayout_box (self, box);
+  register_indicator (self, role, button_box, box, owner);
+
+  return TRUE;
+}
+
+/* ------------------------------------------------------------------------ */
 /* Session mode                                                             */
 /* ------------------------------------------------------------------------ */
 
@@ -619,6 +885,9 @@ update_box (ShellPanel          *self,
 
       add_to_panel_box (self, elements[i], indicator, i + n_children, box, NULL);
     }
+
+  /* The indicators of the shell go between the groups of the extensions */
+  relayout_box (self, box);
 }
 
 static void
@@ -1308,6 +1577,11 @@ shell_panel_constructed (GObject *object)
   else
     g_warning ("%s: the layout manager does not exist yet", G_STRFUNC);
 
+  /* The order of the extensions' indicators follows enabled-extensions */
+  g_signal_connect_object (shell_global_get_settings (shell_global_get ()),
+                           "changed::enabled-extensions",
+                           G_CALLBACK (enabled_extensions_changed_cb), self, 0);
+
   display = shell_global_get_display (shell_global_get ());
   g_signal_connect_object (display, "workareas-changed",
                            G_CALLBACK (clutter_actor_queue_relayout), self,
@@ -1327,6 +1601,7 @@ shell_panel_dispose (GObject *object)
   g_clear_weak_pointer (&self->center_box);
   g_clear_weak_pointer (&self->right_box);
 
+  g_clear_pointer (&self->ext_items, g_ptr_array_unref);
   g_clear_pointer (&self->status_area, g_hash_table_unref);
   g_clear_object (&self->menu_manager);
 
@@ -1515,5 +1790,6 @@ shell_panel_init (ShellPanel *self)
   self->menu_manager = shell_popup_menu_manager_new (SHELL_ACTION_MODE_POPUP);
   self->status_area = g_hash_table_new_full (g_str_hash, g_str_equal,
                                              g_free, g_object_unref);
+  self->ext_items = g_ptr_array_new_with_free_func (ext_item_free);
   self->banner_alignment = CLUTTER_ACTOR_ALIGN_CENTER;
 }

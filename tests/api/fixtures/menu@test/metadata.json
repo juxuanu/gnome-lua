@@ -1,0 +1,7 @@
+{
+  "uuid": "menu@test",
+  "name": "API conformance: menu",
+  "description": "Fixture of tests/api/menu.lua: shell.Menu and its items",
+  "shell-api": "1",
+  "version": 1
+}

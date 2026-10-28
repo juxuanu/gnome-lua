@@ -373,17 +373,17 @@ pack_extension (char      *srcdir,
   char **s;
 
   pack = extension_pack_new (srcdir);
-  extension_pack_add_source (pack, "extension.js");
+  extension_pack_add_source (pack, "extension.lua");
   extension_pack_add_source (pack, "metadata.json");
   extension_pack_add_source (pack, "stylesheet-dark.css");
   extension_pack_add_source (pack, "stylesheet-light.css");
   extension_pack_add_source (pack, "stylesheet.css");
-  extension_pack_add_source (pack, "prefs.js");
+  extension_pack_add_source (pack, "prefs.lua");
 
   for (s = extra_sources; s && *s; s++)
     extension_pack_add_source (pack, *s);
 
-  if (!extension_pack_check_required_file (pack, "extension.js", &error))
+  if (!extension_pack_check_required_file (pack, "extension.lua", &error))
     goto err;
 
   if (!extension_pack_check_required_file (pack, "metadata.json", &error))

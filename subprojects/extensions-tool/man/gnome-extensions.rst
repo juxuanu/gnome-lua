@@ -131,7 +131,12 @@ COMMANDS
 
 ``create`` [*OPTION*...]
 
-  Creates a new extension from a template.
+  Creates a new Lua extension from a template in the extensions directory
+  of the user. The extension consists of the *extension.lua* of the template,
+  a *stylesheet.css* and a *metadata.json* that declares ``"shell-api": "1"``,
+  the major version of the extension API (docs/api in the gnome-shell sources)
+  that the extension is written for; unlike the ``shell-version`` of former
+  extensions it does not depend on the version of the running shell.
 
   **Options**
 
@@ -154,7 +159,8 @@ COMMANDS
 
     ``--settings-schema``\ =\ *SCHEMA*
 
-      Set the GSettings schema used by the extension
+      Set the GSettings schema used by the extension. An empty schema
+      is created in the schemas/ folder of the extension
 
     ``--template``\ =\ *TEMPLATE*
 
@@ -162,7 +168,11 @@ COMMANDS
 
     ``--prefs``
 
-      Include a prefs.js template
+      Include a prefs.lua template, a description of the preferences
+      window, together with a settings schema with the key that its
+      row is bound to: *SCHEMA* of ``--settings-schema`` if given, otherwise
+      org.gnome.shell.extensions.\ *NAME*, *NAME* being the UUID without
+      the part after the "@"
 
     ``-i``,
     ``--interactive``
@@ -174,9 +184,9 @@ COMMANDS
 
   Creates an extension bundle that is suitable for publishing.
 
-  The bundle will always include the required files extension.js
+  The bundle will always include the required files extension.lua
   and metadata.json, as well as any of the optional stylesheet.css,
-  stylesheet-dark.css, stylesheet-light.css or prefs.js if found.
+  stylesheet-dark.css, stylesheet-light.css or prefs.lua if found.
   Each additional source that should be included must be specified
   with ``--extra-source``.
 

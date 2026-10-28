@@ -38,6 +38,7 @@
 #include <meta/workspace.h>
 
 #include "shell-global.h"
+#include "shell-hooks.h"
 #include "ui/background.h"
 #include "ui/environment.h"
 #include "ui/layout.h"
@@ -2063,6 +2064,19 @@ monitors_changed (ShellLayoutManager *self)
 
   g_signal_emit (self, signals[MONITORS_CHANGED], 0);
 
+  /* Lua extensions (gnome-lua): the monitors.changed hook */
+  {
+    ShellHookRegistry *registry = shell_hook_registry_get_default ();
+    GVariantBuilder builder;
+
+    g_variant_builder_init (&builder, G_VARIANT_TYPE_VARDICT);
+    g_variant_builder_add (&builder, "{sv}", "count",
+                           g_variant_new_int32 ((int) self->monitors->len));
+    g_variant_builder_add (&builder, "{sv}", "primary",
+                           g_variant_new_int32 (self->monitors->len > 0 ? self->primary_index + 1 : 0));
+    shell_hook_registry_emit_after (registry, "monitors.changed", g_variant_builder_end (&builder));
+  }
+
   /* The await of _ensurePrimaryMonitor () */
   startup_resume (self);
 }
@@ -2764,6 +2778,11 @@ shell_layout_manager_class_init (ShellLayoutManagerClass *klass)
   object_class->finalize = shell_layout_manager_finalize;
   object_class->get_property = shell_layout_manager_get_property;
   object_class->set_property = shell_layout_manager_set_property;
+
+  /* Lua extensions (gnome-lua): the hook point of the monitors */
+  shell_hook_registry_declare (shell_hook_registry_get_default (), "monitors.changed",
+                               "count:i primary:i", FALSE,
+                               "The monitors were plugged, unplugged or rearranged");
 
   /**
    * ShellLayoutManager:ui-group:

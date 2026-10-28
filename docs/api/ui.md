@@ -1,5 +1,8 @@
 # `shell.ui`: widgets (version 1, draft)
 
+Status: **impl** (`src/lua-api/shell-lua-api-ui.c`; conformance: `tests/api/ui.lua`,
+fixture `tests/api/fixtures/ui@test`).
+
 Scope: constructors for the nine St-level widgets an extension composes into a
 panel indicator (panel.md), a menu (menu.md) or a quick-settings menu
 (quick-settings.md), their common property set, containment, events and CSS. A
@@ -45,12 +48,12 @@ below plus its own; an unknown field raises.
 
 | Property | Type | Access | Notes |
 |---|---|---|---|
-| `style_class` | string | rw | space-separated CSS classes. The shell always adds `lua-ext-<id>` (uuid with every char outside `[a-z0-9-]` replaced by `-`, lower-cased) so a stylesheet can scope itself |
+| `style_class` | string | rw | space-separated CSS classes. The shell always adds `lua-ext-<id>` (uuid with every char outside `[a-z0-9-]` replaced by `-`, lower-cased) so a stylesheet can scope itself; reading returns only the classes the extension set (`has_style_class` sees `lua-ext-<id>`, `remove_style_class` cannot remove it) |
 | `style` | string | rw | inline declarations only (`"color: red; padding: 2px"`), no selectors, at most 1024 bytes; for values computed at runtime (a prefs colour) |
 | `visible` | boolean | rw | hidden widgets take no space; default `true` |
 | `reactive` | boolean | rw | receives pointer input; default per widget |
 | `x_expand`, `y_expand` | boolean | rw | default `false` (`spacer`: `true`) |
-| `x_align`, `y_align` | `"fill"`, `"start"`, `"center"`, `"end"` | rw | `Clutter.ActorAlign`; default `"fill"` |
+| `x_align`, `y_align` | `"fill"`, `"start"`, `"center"`, `"end"` | rw | `Clutter.ActorAlign`; default `"fill"` (a `switch` is `"center"` vertically, as everywhere in the shell) |
 | `opacity` | integer 0..255 | rw | default 255 |
 | `accessible_name` | string | rw | exposed to AT-SPI; REQUIRED for an icon-only `button` (construction raises without it); SHOULD be set on an `entry`, `slider` or `switch` that has no visible label beside it |
 | `sensitive` | boolean | rw | only on `button`, `entry`, `switch`, `slider`; `false` = not clickable, not focusable, `:insensitive` pseudo-class |

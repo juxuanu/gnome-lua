@@ -17,28 +17,28 @@ Every new hook point gets a row here in the same commit that declares it.
 | `shell.started` | no | (empty) | `shell_global_notify_startup_complete()`, called by `main.js` when the layout manager reports startup complete | 1.0 |
 | `shell.shutting-down` | no | (empty) | `_shell_global_notify_shutdown()` | 1.0 |
 | `session.mode-changed` | no | `mode: s` | `ShellSessionMode` (`src/ui/session-mode.c`), after `::updated` on every mode change, including the initial mode | 1.0 |
-| `panel.indicator-added` | no | `name:s box:s owner:s` | `add_to_panel_box ()` in `src/ui/panel.c`, once per indicator when it is first registered in the status area: the indicators of the shell when the session mode first lists them (`owner` empty), the others through `shell_panel_add_to_status_area_with_owner ()`. Not repeated when a session mode change moves an indicator | 1.0 (M2) |
+| `panel.indicator-added` | no | `name:s box:s owner:s` | `add_to_panel_box ()` in `src/ui/panel.c`, once per indicator when it is first registered in the status area: the indicators of the shell when the session mode first lists them (`owner` empty), the others through `shell_panel_add_to_status_area_with_owner ()` and, for the indicators of `shell.panel`, `shell_panel_add_extension_indicator ()` (`register_indicator ()` emits the hook once the indicator is in its place). Not repeated when a session mode change moves an indicator | 1.0 (M2) |
 | `panel.menu-opened` | no | `name:s box:s` | the `open-state-changed` handler (`menu_open_state_changed_cb ()`) that `src/ui/panel.c` installs on the menu of every indicator from `indicator_menu_set_cb ()` (the former `Panel._onMenuSet`), when the menu opens | 1.0 (M2) |
-| `monitors.changed` | no | `count:i primary:i` | `ShellLayoutManager::monitors-changed` (`src/ui/layout.c`) | 1.0 (M2) |
+| `monitors.changed` | no | `count:i primary:i` | `monitors_changed ()` in `src/ui/layout.c`, after `ShellLayoutManager::monitors-changed` was emitted (the layout manager has updated itself) | 1.0 (M2) |
 | `overview.showing` | yes | `reason:s target:s` | `shell_overview_show_for_reason ()` in `src/ui/overview.c` (`Overview.show()`) for the "before" phase, and `change_shown_state ()` for the "after" phase, together with the `showing` signal; a swipe gesture asks in its `begin` handler | 1.0 (M3) |
 | `overview.shown` | no | `target:s` | `change_shown_state ()` in `src/ui/overview.c` (`Overview._showDone()`), together with the `shown` signal | 1.0 (M3) |
 | `overview.hiding` | yes | `reason:s` | `shell_overview_hide_for_reason ()` in `src/ui/overview.c` (`Overview.hide()`) for the "before" phase, and `change_shown_state ()` for the "after" phase, together with the `hiding` signal. A gesture that ends by hiding the overview does not ask | 1.0 (M3) |
 | `overview.hidden` | no | (empty) | `change_shown_state ()` in `src/ui/overview.c` (`Overview._hideDone()`), together with the `hidden` signal | 1.0 (M3) |
-| `window.mapped` | no | W | `WindowManager._mapWindowDone` (`js/ui/window-manager.c`) | 1.0 (M3) |
-| `window.unmapped` | no | W | `WindowManager._destroyWindow`: the window is gone (not emitted on minimize) | 1.0 (M3) |
-| `window.focused` | no | W + `previous-window-id:t` | `notify::focus-window` of `Meta.Display` | 1.0 (M3) |
-| `window.minimized` | no | W | `WindowManager._minimizeWindow` | 1.0 (M3) |
-| `window.unminimized` | no | W | `WindowManager._unminimizeWindow` | 1.0 (M3) |
-| `window.title-changed` | no | W + `old-title:s` | `notify::title` of `Meta.Window` | 1.0 (M3) |
-| `window.workspace-changed` | no | W + `from:i to:i` | `Meta.Window::workspace-changed` | 1.0 (M3) |
-| `window.monitor-changed` | no | W + `from:i to:i` | `window-entered-monitor` (`window-manager.c`) | 1.0 (M3) |
-| `window.state-changed` | no | W + `maximized:b fullscreen:b changed:as` | `notify::maximized-*`, `notify::fullscreen` of `Meta.Window` | 1.0 (M3) |
-| `workspace.switched` | no | `from:i to:i` | `WindowManager._switchWorkspace` | 1.0 (M3) |
-| `workspace.added` | no | `index:i` | `WorkspaceManager::workspace-added` | 1.0 (M3) |
-| `workspace.removed` | no | `index:i` | `WorkspaceManager::workspace-removed` | 1.0 (M3) |
+| `window.mapped` | no | W | `shell_window_hooks_window_mapped ()` (`src/lua-api/shell-window-hooks.c`), called at the start of `on_map ()` in `src/ui/window-manager.c` (the `map` effect of `ShellWM`, before the map animation): the first hook of a window | 1.0 (M3) |
+| `window.unmapped` | no | W | `shell_window_hooks_window_unmapped ()`, called at the start of `on_destroy ()` in `src/ui/window-manager.c` (the `destroy` effect): the window is gone (not emitted on minimize) | 1.0 (M3) |
+| `window.focused` | no | W + `previous-window-id:t` | `notify::focus-window` of `MetaDisplay` (`display_focus_window_cb ()` in `src/lua-api/shell-window-hooks.c`); not emitted when the focus goes to no window or to a window that is not listed; `previous-window-id` is absent when no listed window had the focus | 1.0 (M3) |
+| `window.minimized` | no | W | `shell_window_hooks_window_minimized ()`, called at the start of `on_minimize ()` in `src/ui/window-manager.c` | 1.0 (M3) |
+| `window.unminimized` | no | W | the same, from `on_unminimize ()` | 1.0 (M3) |
+| `window.title-changed` | no | W + `old-title:s` | `notify::title` of `MetaWindow` (`window_title_cb ()` in `src/lua-api/shell-window-hooks.c`) | 1.0 (M3) |
+| `window.workspace-changed` | no | W + `from:i to:i` | `MetaWindow::workspace-changed` (`window_workspace_cb ()`); not emitted when removing a workspace only renumbers the others | 1.0 (M3) |
+| `window.monitor-changed` | no | W + `from:i to:i` | `MetaDisplay::window-entered-monitor` (`display_window_entered_monitor_cb ()`); `from` is omitted for the first monitor the window is on | 1.0 (M3) |
+| `window.state-changed` | no | W + `maximized:b fullscreen:b changed:as` | `notify::maximized-horizontally`, `notify::maximized-vertically`, `notify::fullscreen` of `MetaWindow` (`window_state_cb ()`), once per change of `maximized` (both axes) or `fullscreen` | 1.0 (M3) |
+| `workspace.switched` | no | `from:i to:i` | `shell_window_hooks_workspace_switched ()`, called at the start of `on_switch_workspace ()` in `src/ui/window-manager.c` (the `switch-workspace` effect, also when it is not animated) | 1.0 (M3) |
+| `workspace.added` | no | `index:i` | `MetaWorkspaceManager::workspace-added` (`workspace_added_cb ()` in `src/lua-api/shell-window-hooks.c`) | 1.0 (M3) |
+| `workspace.removed` | no | `index:i` | `MetaWorkspaceManager::workspace-removed` (`workspace_removed_cb ()`) | 1.0 (M3) |
 | `search.query` | no | `query:s terms:as` | `view_do_search ()` in `src/ui/search.c` (`ShellSearchResultsView`), when the search starts after the debounce of 150 ms or is forced by activating the default result (`query` is the terms joined by spaces); needs capability `search` | 1.0 (M3) |
-| `dash.item-added` | no | `kind:s owner:s index:i` + `app-id:s` for apps | `dash_redisplay ()` in `src/ui/dash.c` (`Dash._redisplay`), once for every application item added to the dash, after its `show ()`; `shell.dash` for buttons (M7) | 1.0 (M3) |
-| `quick-settings.opened` | no | (empty) | `open-state-changed` of `QuickSettingsMenu` (`js/ui/quickSettings.js`) | 1.0 (M4) |
+| `dash.item-added` | no | `kind:s owner:s index:i` + `app-id:s` for apps | `dash_redisplay ()` in `src/ui/dash.c` (`Dash._redisplay`), once for every application item added to the dash, after its `show ()`; `shell_dash_add_extension_button ()` in `src/ui/dash.c` for the buttons of `shell.dash`, once per button, after it is in place and shown | 1.0 (M3) |
+| `quick-settings.opened` | no | (empty) | `quick_settings_menu_open_state_changed_cb ()` in `src/ui/quick-settings.c` (`open-state-changed` of `ShellQuickSettingsMenu`), when the menu has opened; not emitted when it closes | 1.0 (M4) |
 | `notification.showing` | yes | N | `tray_on_notification_request_banner ()` in `src/ui/message-tray.c` (`MessageTray._onNotificationRequestBanner`), after the checks that already skip the banner (acknowledged, low urgency, banners off) and before the notification is queued or its shown banner updated | 1.0 (M4) |
 | `notification.shown` | no | N | `tray_show_notification ()` in `src/ui/message-tray.c` (`MessageTray._showNotification`), when the banner starts to slide in | 1.0 (M4) |
 | `notification.activated` | no | N | `shell_notification_real_activate ()` in `src/ui/message-tray.c` (`Notification.activate`), before `::activated` is emitted | 1.0 (M4) |
@@ -50,8 +50,10 @@ The three `1.0` rows at the top are declared today
 (`shell_global_declare_hooks()`), and the two `panel.*` rows by `shell_panel_class_init ()`
 (`src/ui/panel.c`), and the two `osk.*` rows by `shell_osk_manager_class_init ()`
 (`src/ui/keyboard.c`), and `search.query` by `shell_search_results_view_class_init ()`
-(`src/ui/search.c`), and the three `notification.*` rows by `shell_notification_class_init ()` and
-`shell_message_tray_class_init ()` (`src/ui/message-tray.c`), and `screenshot.taken` by `shell_screenshot_ui_class_init ()` (`src/ui/screenshot-ui.c`), and `dash.item-added` by `shell_dash_class_init ()` (`src/ui/dash.c`), and the four `overview.*` rows by `shell_overview_class_init ()` (`src/ui/overview.c`), so they exist once those classes are loaded, before any extension. Every other row is **reserved**: the name,
+(`src/ui/search.c`), and `quick-settings.opened` by `shell_quick_settings_menu_class_init ()`
+(`src/ui/quick-settings.c`), and the three `notification.*` rows by `shell_notification_class_init ()` and
+`shell_message_tray_class_init ()` (`src/ui/message-tray.c`; their `owner` is `shell_source_get_owner ()` of the
+source of the notification, which `shell.notify` sets), and `screenshot.taken` by `shell_screenshot_ui_class_init ()` (`src/ui/screenshot-ui.c`), and `dash.item-added` by `shell_dash_class_init ()` (`src/ui/dash.c`), and the four `overview.*` rows by `shell_overview_class_init ()` (`src/ui/overview.c`), and the `window.*` and `workspace.*` rows by `shell_window_hooks_declare ()` (`src/lua-api/shell-window-hooks.c`, called from `shell_window_manager_class_init ()` in `src/ui/window-manager.c`), and `monitors.changed` by `shell_layout_manager_class_init ()` (`src/ui/layout.c`), so they exist once those classes are loaded, before any extension. Every other row is **reserved**: the name,
 cancellability and payload are the contract, but the hook is declared by the
 code that owns it when that module is ported (milestone in the last column).
 `shell.hooks.list()` lists only declared hooks, so extensions feature-detect
@@ -71,7 +73,11 @@ Workspace and monitor numbers are 1-based, as in `window.md`.
   `workspace:i` (omitted when the window is on all workspaces), `monitor:i`,
   `pid:u` (omitted when unknown). Values are those at emission time; for
   `window.unmapped` the last known ones. `window-id` is the `Window.id` of
-  window.md.
+  window.md. Only the windows `shell.windows.list()` shows have hooks (not
+  skip-taskbar windows: docks, the shell's own chrome), and a window's first hook
+  is `window.mapped` even for one that was not listed when it mapped but is now;
+  windows that were already mapped when the shell's window manager started get
+  no `window.mapped`.
 - **N** (notification summary): `notification-id:u` (assigned by the shell,
   unique for the session, not the D-Bus id), `source:s` (source title),
   `urgency:s` (`low`, `normal`, `high`, `critical`), `resident:b`, `transient:b`,
@@ -127,7 +133,9 @@ ignored (debug log); an amendment of the wrong type is dropped whole.
   `overview.hidden` always pair unless the first is cancelled.
 - A listener that calls an API action on the emitter's object (closing the
   window it is told about, destroying the notification) is deferred to idle
-  (README rule 8). Hooks are never emitted from `dispose`.
+  (README rule 8; the actions of `shell.Window` and `shell.Workspace` do it for
+  every `window.*` and `workspace.*` hook, whichever window they name). Hooks
+  are never emitted from `dispose`.
 - `search.query` is emitted after the shell's own debounce, not per key press,
   and not at all for the lock screen. Gated hooks (`search.query`) appear in
   `shell.hooks.list()` with an additional `capability` key; connecting without
