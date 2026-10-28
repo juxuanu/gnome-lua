@@ -7,7 +7,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as AppDisplay from './appDisplay.js';
-import * as AppFavorites from './appFavorites.js';
 import * as IconGrid from './iconGrid.js';
 import * as Main from './main.js';
 import * as Overview from './overview.js';
@@ -228,7 +227,7 @@ export const ShowAppsIcon = GObject.registerClass({
             return false;
 
         const id = app.get_id();
-        const isFavorite = AppFavorites.getAppFavorites().isFavorite(id);
+        const isFavorite = Shell.AppFavorites.get_default().is_favorite(id);
         return isFavorite;
     }
 
@@ -261,7 +260,7 @@ export const ShowAppsIcon = GObject.registerClass({
 
         const laters = global.compositor.get_laters();
         laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
-            AppFavorites.getAppFavorites().removeFavorite(id);
+            Shell.AppFavorites.get_default().remove_favorite(id);
             return GLib.SOURCE_REMOVE;
         });
 
@@ -404,7 +403,7 @@ export const Dash = GObject.registerClass({
             'app-state-changed', () => this._queueRedisplay(),
             this);
 
-        AppFavorites.getAppFavorites().connectObject('changed',
+        Shell.AppFavorites.get_default().connectObject('changed',
             () => this._queueRedisplay(), this);
 
         Main.overview.connectObject(
@@ -418,7 +417,7 @@ export const Dash = GObject.registerClass({
 
         // Translators: this is the name of the dock/favorites area on
         // the bottom of the overview
-        Main.ctrlAltTabManager.addGroup(this, _('Dash'), 'shell-focus-dash-symbolic');
+        Main.ctrlAltTabManager.add_group(this, _('Dash'), 'shell-focus-dash-symbolic');
     }
 
     _onItemDragBegin() {
@@ -702,7 +701,8 @@ export const Dash = GObject.registerClass({
     }
 
     _redisplay() {
-        const favorites = AppFavorites.getAppFavorites().getFavoriteMap();
+        const appFavorites = Shell.AppFavorites.get_default();
+        const favorites = appFavorites.get_favorites();
 
         const running = this._appSystem.get_running();
 
@@ -714,12 +714,12 @@ export const Dash = GObject.registerClass({
         // Apps supposed to be in the dash
         const newApps = [];
 
-        for (const id in favorites)
-            newApps.push(favorites[id]);
+        for (const app of favorites)
+            newApps.push(app);
 
         for (let i = 0; i < running.length; i++) {
             const app = running[i];
-            if (app.get_id() in favorites)
+            if (appFavorites.is_favorite(app.get_id()))
                 continue;
             newApps.push(app);
         }
@@ -829,7 +829,7 @@ export const Dash = GObject.registerClass({
             addedItems[i].item.show(animate);
 
         // Update separator
-        const nFavorites = Object.keys(favorites).length;
+        const nFavorites = favorites.length;
         const nIcons = children.length + addedItems.length - removedActors.length;
         if (nFavorites > 0 && nFavorites < nIcons) {
             if (!this._separator) {
@@ -893,7 +893,7 @@ export const Dash = GObject.registerClass({
         if (!global.settings.is_writable('favorite-apps'))
             return Shell.DragMotionResult.NO_DROP;
 
-        const favorites = AppFavorites.getAppFavorites().getFavorites();
+        const favorites = Shell.AppFavorites.get_default().get_favorites();
         const numFavorites = favorites.length;
 
         const favPos = favorites.indexOf(app);
@@ -977,9 +977,9 @@ export const Dash = GObject.registerClass({
 
         const id = app.get_id();
 
-        const favorites = AppFavorites.getAppFavorites().getFavoriteMap();
+        const appFavorites = Shell.AppFavorites.get_default();
 
-        const srcIsFavorite = id in favorites;
+        const srcIsFavorite = appFavorites.is_favorite(id);
 
         let favPos = 0;
         const children = this._box.get_children();
@@ -991,7 +991,7 @@ export const Dash = GObject.registerClass({
             const childId = children[i].child.app.get_id();
             if (childId === id)
                 continue;
-            if (childId in favorites)
+            if (appFavorites.is_favorite(childId))
                 favPos++;
         }
 
@@ -1002,11 +1002,10 @@ export const Dash = GObject.registerClass({
 
         const laters = global.compositor.get_laters();
         laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
-            const appFavorites = AppFavorites.getAppFavorites();
             if (srcIsFavorite)
-                appFavorites.moveFavoriteToPos(id, favPos);
+                appFavorites.move_favorite_to_pos(id, favPos);
             else
-                appFavorites.addFavoriteAtPos(id, favPos);
+                appFavorites.add_favorite_at_pos(id, favPos);
             return GLib.SOURCE_REMOVE;
         });
 

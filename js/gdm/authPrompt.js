@@ -17,9 +17,7 @@ import * as UserWidget from '../ui/userWidget.js';
 import * as WebLogin from './webLogin.js';
 import {wiggle} from '../misc/animationUtils.js';
 
-import {loadInterfaceXML} from '../misc/fileUtils.js';
-
-const TimerChildIface = loadInterfaceXML('org.freedesktop.MalcontentTimer1.Child');
+const TimerChildIface = Shell.dbus_load_interface_xml('org.freedesktop.MalcontentTimer1.Child');
 const TimerChildProxy = Gio.DBusProxy.makeProxyWrapper(TimerChildIface);
 
 export const DEFAULT_BUTTON_WELL_ICON_SIZE = 16;

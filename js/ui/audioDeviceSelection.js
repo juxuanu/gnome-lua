@@ -6,10 +6,7 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-
 import * as Main from './main.js';
-import {emitSignalToDestination} from '../misc/dbusUtils.js';
-import {loadInterfaceXML} from '../misc/fileUtils.js';
 
 const AudioDevice = {
     HEADPHONES: 1 << 0,
@@ -17,7 +14,7 @@ const AudioDevice = {
     MICROPHONE: 1 << 2,
 };
 
-const AudioDeviceSelectionIface = loadInterfaceXML('org.gnome.Shell.AudioDeviceSelection');
+const AudioDeviceSelectionIface = Shell.dbus_load_interface_xml('org.gnome.Shell.AudioDeviceSelection');
 
 const AudioDeviceSelectionDialog = GObject.registerClass({
     Signals: {'device-selected': {param_types: [GObject.TYPE_UINT]}},
@@ -162,7 +159,7 @@ export class AudioDeviceSelectionDBus {
         const deviceName = Object.keys(AudioDevice)
             .filter(dev => AudioDevice[dev] === device)[0].toLowerCase();
 
-        emitSignalToDestination(this._dbusImpl,
+        Shell.dbus_emit_signal_to_destination(this._dbusImpl,
             this._audioSelectionDialog._sender, 'DeviceSelected',
             GLib.Variant.new('(s)', [deviceName]));
     }

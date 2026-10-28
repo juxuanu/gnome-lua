@@ -9,7 +9,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as AppFavorites from './appFavorites.js';
 import {AppMenu} from './appMenu.js';
 import * as IconGrid from './iconGrid.js';
 import * as Search from './search.js';
@@ -648,7 +647,7 @@ var BaseAppView = GObject.registerClass({
             () => this._redisplay(), this);
 
         // Don't duplicate favorites
-        this._appFavorites = AppFavorites.getAppFavorites();
+        this._appFavorites = Shell.AppFavorites.get_default();
         this._appFavorites.connectObject('changed',
             () => this._redisplay(), this);
 
@@ -1529,7 +1528,7 @@ export class AppDisplay extends BaseAppView {
             } catch {
                 return false;
             }
-            return !this._appFavorites.isFavorite(appInfo.get_id()) &&
+            return !this._appFavorites.is_favorite(appInfo.get_id()) &&
                 this._parentalControlsManager.should_show_app(appInfo);
         });
 
@@ -1658,7 +1657,7 @@ export class AppDisplay extends BaseAppView {
         // icon that is either destroyed on cancel, or becomes the effective
         // new icon when dropped.
         if (_getViewFromIcon(source) instanceof FolderView ||
-            this._appFavorites.isFavorite(source.id))
+            this._appFavorites.is_favorite(source.id))
             this._ensurePlaceholder(source);
     }
 
@@ -1697,8 +1696,8 @@ export class AppDisplay extends BaseAppView {
         if (this._currentDialog)
             this._currentDialog.popdown();
 
-        if (this._appFavorites.isFavorite(source.id))
-            this._appFavorites.removeFavorite(source.id);
+        if (this._appFavorites.is_favorite(source.id))
+            this._appFavorites.remove_favorite(source.id);
 
         return true;
     }
@@ -2186,7 +2185,7 @@ class FolderView extends BaseAppView {
             if (excludedApps.includes(appId))
                 return;
 
-            if (this._appFavorites.isFavorite(appId))
+            if (this._appFavorites.is_favorite(appId))
                 return;
 
             const app = appSys.lookup_app(appId);
@@ -2329,7 +2328,7 @@ export const FolderIcon = GObject.registerClass({
 
         this._folder.connectObject(
             'changed', this._sync.bind(this), this);
-        const appFavorites = AppFavorites.getAppFavorites();
+        const appFavorites = Shell.AppFavorites.get_default();
         appFavorites.connectObject(
             'changed', this._sync.bind(this), this);
         this._sync();

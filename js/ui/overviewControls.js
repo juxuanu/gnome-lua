@@ -392,28 +392,28 @@ class ControlsManager extends St.Widget {
         this.dash.showAppsButton.connectObject('notify::checked',
             () => this._onShowAppsButtonToggled(), this);
 
-        Main.ctrlAltTabManager.addGroup(
+        Main.ctrlAltTabManager.add_group_full(
             this.appDisplay,
             _('Apps'),
-            'shell-focus-app-grid-symbolic', {
-                proxy: this,
-                focusCallback: () => {
-                    this.dash.showAppsButton.checked = true;
-                    this.appDisplay.navigate_focus(
-                        null, St.DirectionType.TAB_FORWARD, false);
-                },
+            'shell-focus-app-grid-symbolic',
+            Shell.CtrlAltTabSortGroup.MIDDLE,
+            this,
+            () => {
+                this.dash.showAppsButton.checked = true;
+                this.appDisplay.navigate_focus(
+                    null, St.DirectionType.TAB_FORWARD, false);
             });
 
-        Main.ctrlAltTabManager.addGroup(
+        Main.ctrlAltTabManager.add_group_full(
             this._workspacesDisplay,
             _('Windows'),
-            'shell-focus-windows-symbolic', {
-                proxy: this,
-                focusCallback: () => {
-                    this.dash.showAppsButton.checked = false;
-                    this._workspacesDisplay.navigate_focus(
-                        null, St.DirectionType.TAB_FORWARD, false);
-                },
+            'shell-focus-windows-symbolic',
+            Shell.CtrlAltTabSortGroup.MIDDLE,
+            this,
+            () => {
+                this.dash.showAppsButton.checked = false;
+                this._workspacesDisplay.navigate_focus(
+                    null, St.DirectionType.TAB_FORWARD, false);
             });
 
         this._a11ySettings = new Gio.Settings({schema_id: A11Y_SCHEMA});

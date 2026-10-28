@@ -1,13 +1,12 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
-
-import {loadInterfaceXML} from '../misc/fileUtils.js';
+import Shell from 'gi://Shell';
 
 const FprintManagerInfo = Gio.DBusInterfaceInfo.new_for_xml(
-    loadInterfaceXML('net.reactivated.Fprint.Manager'));
+    Shell.dbus_load_interface_xml('net.reactivated.Fprint.Manager'));
 const FprintDeviceInfo = Gio.DBusInterfaceInfo.new_for_xml(
-    loadInterfaceXML('net.reactivated.Fprint.Device'));
+    Shell.dbus_load_interface_xml('net.reactivated.Fprint.Device'));
 
 export const FingerprintReaderType = {
     NONE: 0,

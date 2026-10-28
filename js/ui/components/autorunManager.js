@@ -5,8 +5,6 @@ import * as MessageTray from '../messageTray.js';
 
 Gio._promisify(Gio.Mount.prototype, 'guess_content_type');
 
-import {loadInterfaceXML} from '../../misc/fileUtils.js';
-
 // GSettings keys
 const SETTINGS_SCHEMA = 'org.gnome.desktop.media-handling';
 const SETTING_DISABLE_AUTORUN = 'autorun-never';
@@ -71,7 +69,7 @@ function startAppForMount(app, mount) {
     return retval;
 }
 
-const HotplugSnifferIface = loadInterfaceXML('org.gnome.Shell.HotplugSniffer');
+const HotplugSnifferIface = Shell.dbus_load_interface_xml('org.gnome.Shell.HotplugSniffer');
 const HotplugSnifferProxy = Gio.DBusProxy.makeProxyWrapper(HotplugSnifferIface);
 function HotplugSniffer() {
     return new HotplugSnifferProxy(Gio.DBus.session,

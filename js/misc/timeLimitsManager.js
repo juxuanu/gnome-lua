@@ -32,9 +32,7 @@ import * as Gettext from 'gettext';
 import * as Main from '../ui/main.js';
 import * as MessageTray from '../ui/messageTray.js';
 
-import {loadInterfaceXML} from './fileUtils.js';
-
-const TimerChildIface = loadInterfaceXML('org.freedesktop.MalcontentTimer1.Child');
+const TimerChildIface = Shell.dbus_load_interface_xml('org.freedesktop.MalcontentTimer1.Child');
 const TimerChildProxy = Gio.DBusProxy.makeProxyWrapper(TimerChildIface);
 
 export const HISTORY_THRESHOLD_SECONDS = 14 * 7 * 24 * 60 * 60;  // maximum time history entries are kept

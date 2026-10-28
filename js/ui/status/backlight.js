@@ -8,12 +8,10 @@ import St from 'gi://St';
 
 import {QuickMenuToggle} from '../quickSettings.js';
 
-import {loadInterfaceXML} from '../../misc/fileUtils.js';
-
 const BUS_NAME = 'org.gnome.SettingsDaemon.Power';
 const OBJECT_PATH = '/org/gnome/SettingsDaemon/Power';
 
-const BrightnessInterface = loadInterfaceXML('org.gnome.SettingsDaemon.Power.Keyboard');
+const BrightnessInterface = Shell.dbus_load_interface_xml('org.gnome.SettingsDaemon.Power.Keyboard');
 const BrightnessProxy = Gio.DBusProxy.makeProxyWrapper(BrightnessInterface);
 
 const SliderItem = GObject.registerClass({

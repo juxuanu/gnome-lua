@@ -6,7 +6,6 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as AppFavorites from './appFavorites.js';
 import * as Main from './main.js';
 
 export class AppMenu extends Shell.PopupMenu {
@@ -45,7 +44,7 @@ export class AppMenu extends Shell.PopupMenu {
         this._app = null;
         this._appSystem = Shell.AppSystem.get_default();
         this._parentalControlsManager = Shell.ParentalControlsManager.get_default();
-        this._appFavorites = AppFavorites.getAppFavorites();
+        this._appFavorites = Shell.AppFavorites.get_default();
         this._enableFavorites = favoritesSection;
         this._showSingleWindows = showSingleWindows;
 
@@ -80,10 +79,10 @@ export class AppMenu extends Shell.PopupMenu {
 
         this._toggleFavoriteItem = this.add_action('', () => {
             const appId = this._app.get_id();
-            if (this._appFavorites.isFavorite(appId))
-                this._appFavorites.removeFavorite(appId);
+            if (this._appFavorites.is_favorite(appId))
+                this._appFavorites.remove_favorite(appId);
             else
-                this._appFavorites.addFavorite(appId);
+                this._appFavorites.add_favorite(appId);
         });
 
         this.add_menu_item(new Shell.PopupSeparatorMenuItem());
@@ -163,7 +162,7 @@ export class AppMenu extends Shell.PopupMenu {
             return;
 
         const {id} = this._app;
-        this._toggleFavoriteItem.label.text = this._appFavorites.isFavorite(id)
+        this._toggleFavoriteItem.label.text = this._appFavorites.is_favorite(id)
             ? _('Unpin')
             : _('Pin to Dash');
     }

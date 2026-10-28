@@ -31,7 +31,6 @@ import * as AuthMenuButton from './authMenuButton.js';
 import * as AuthPrompt from './authPrompt.js';
 import * as Batch from './batch.js';
 import {ConflictingSessionDialog} from './conflictingSessionDialog.js';
-import * as CtrlAltTab from '../ui/ctrlAltTab.js';
 import * as GdmUtil from './util.js';
 import * as Settings from './settings.js';
 import * as Main from '../ui/main.js';
@@ -1513,10 +1512,9 @@ export const LoginDialog = GObject.registerClass({
     }
 
     open() {
-        Main.ctrlAltTabManager.addGroup(this,
+        Main.ctrlAltTabManager.add_group(this,
             _('Login Window'),
-            'dialog-password-symbolic',
-            {sortGroup: CtrlAltTab.SortGroup.MIDDLE});
+            'dialog-password-symbolic');
         this.activate();
 
         this.opacity = 0;
@@ -1535,7 +1533,7 @@ export const LoginDialog = GObject.registerClass({
     close() {
         Main.popModal(this._grab);
         this._grab = null;
-        Main.ctrlAltTabManager.removeGroup(this);
+        Main.ctrlAltTabManager.remove_group(this);
     }
 
     cancel() {

@@ -25,6 +25,7 @@ enum
   PROP_MODAL_COUNT,
   PROP_SESSION_MODE,
   PROP_LAYOUT_MANAGER,
+  PROP_OSD_WINDOW_MANAGER,
 
   N_PROPS
 };
@@ -71,6 +72,7 @@ struct _ShellMain
   ShellActionMode action_mode;
   ShellSessionMode *session_mode;
   ShellLayoutManager *layout_manager;
+  ShellOsdWindowManager *osd_window_manager;
   MetaCompositor *compositor;     /* weak; same reason as @stage */
   ClutterStage *stage;            /* weak; set on the first push_modal so that
                                    * pops during shell teardown (after ShellGlobal
@@ -199,6 +201,10 @@ shell_main_get_property (GObject    *object,
       g_value_set_object (value, self->layout_manager);
       break;
 
+    case PROP_OSD_WINDOW_MANAGER:
+      g_value_set_object (value, self->osd_window_manager);
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -227,6 +233,10 @@ shell_main_set_property (GObject      *object,
       shell_main_set_layout_manager (self, g_value_get_object (value));
       break;
 
+    case PROP_OSD_WINDOW_MANAGER:
+      shell_main_set_osd_window_manager (self, g_value_get_object (value));
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -243,6 +253,7 @@ shell_main_dispose (GObject *object)
   g_clear_pointer (&self->modal_stack, g_ptr_array_unref);
   g_clear_object (&self->session_mode);
   g_clear_object (&self->layout_manager);
+  g_clear_object (&self->osd_window_manager);
 
   G_OBJECT_CLASS (shell_main_parent_class)->dispose (object);
 }
@@ -308,6 +319,20 @@ shell_main_class_init (ShellMainClass *klass)
   props[PROP_LAYOUT_MANAGER] =
     g_param_spec_object ("layout-manager", NULL, NULL,
                          SHELL_TYPE_LAYOUT_MANAGER,
+                         G_PARAM_READWRITE |
+                         G_PARAM_EXPLICIT_NOTIFY |
+                         G_PARAM_STATIC_STRINGS);
+
+  /**
+   * ShellMain:osd-window-manager:
+   *
+   * The OSD window manager of the shell (`Main.osdWindowManager`). main.js
+   * sets it right after creating it, so that the switcher popups can hide
+   * the OSDs when they appear.
+   */
+  props[PROP_OSD_WINDOW_MANAGER] =
+    g_param_spec_object ("osd-window-manager", NULL, NULL,
+                         SHELL_TYPE_OSD_WINDOW_MANAGER,
                          G_PARAM_READWRITE |
                          G_PARAM_EXPLICIT_NOTIFY |
                          G_PARAM_STATIC_STRINGS);
@@ -718,6 +743,40 @@ shell_main_set_layout_manager (ShellMain          *self,
 
   if (g_set_object (&self->layout_manager, layout_manager))
     g_object_notify_by_pspec (G_OBJECT (self), props[PROP_LAYOUT_MANAGER]);
+}
+
+/**
+ * shell_main_get_osd_window_manager:
+ * @self: a #ShellMain
+ *
+ * Returns: (transfer none) (nullable): the OSD window manager, once main.js
+ *   has created it
+ */
+ShellOsdWindowManager *
+shell_main_get_osd_window_manager (ShellMain *self)
+{
+  g_return_val_if_fail (SHELL_IS_MAIN (self), NULL);
+
+  return self->osd_window_manager;
+}
+
+/**
+ * shell_main_set_osd_window_manager:
+ * @self: a #ShellMain
+ * @osd_window_manager: (nullable): the OSD window manager of the shell
+ *
+ * Sets #ShellMain:osd-window-manager.
+ */
+void
+shell_main_set_osd_window_manager (ShellMain             *self,
+                                   ShellOsdWindowManager *osd_window_manager)
+{
+  g_return_if_fail (SHELL_IS_MAIN (self));
+  g_return_if_fail (osd_window_manager == NULL ||
+                    SHELL_IS_OSD_WINDOW_MANAGER (osd_window_manager));
+
+  if (g_set_object (&self->osd_window_manager, osd_window_manager))
+    g_object_notify_by_pspec (G_OBJECT (self), props[PROP_OSD_WINDOW_MANAGER]);
 }
 
 /**

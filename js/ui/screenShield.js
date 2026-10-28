@@ -13,7 +13,6 @@ import * as OVirt from '../gdm/oVirt.js';
 import * as Main from './main.js';
 import * as Overview from './overview.js';
 import * as MessageTray from './messageTray.js';
-import * as ShellDBus from './shellDBus.js';
 import * as SmartcardManager from '../gdm/smartcardManager.js';
 
 import {adjustAnimationTime} from '../misc/animationUtils.js';
@@ -87,7 +86,23 @@ export class ScreenShield extends Signals.EventEmitter {
             this._onStatusChanged(this._presence.status);
         });
 
-        this._screenSaverDBus = new ShellDBus.ScreenSaverDBus(this);
+        // org.gnome.ScreenSaver lives in C (src/ui/shell-dbus.c)
+        this._screenSaverDBus = new Shell.ScreenSaverService();
+        this._screenSaverDBus.connect('lock-requested', () => this.lock(true));
+        this._screenSaverDBus.connect('set-active-requested', (_service, active) => {
+            if (active)
+                this.activate(true);
+            else
+                this.deactivate(false);
+        });
+        this._screenSaverDBus.connect('query-active', () => this.active);
+        this._screenSaverDBus.connect('query-activation-time', () => this.activationTime);
+        this.connect('active-changed',
+            () => this._screenSaverDBus.emit_active_changed(this.active));
+        this.connect('wake-up-screen',
+            () => this._screenSaverDBus.emit_wake_up_screen());
+        this.connect('lock-screen-shown',
+            () => this._screenSaverDBus.lock_screen_shown());
 
         this._smartcardManager = SmartcardManager.getSmartcardManager();
         this._smartcardManager.connect('smartcard-inserted',

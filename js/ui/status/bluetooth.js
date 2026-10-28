@@ -11,14 +11,12 @@ import St from 'gi://St';
 
 import {QuickMenuToggle} from '../quickSettings.js';
 
-import {loadInterfaceXML} from '../../misc/fileUtils.js';
-
 const {AdapterState} = GnomeBluetooth;
 
 const BUS_NAME = 'org.gnome.SettingsDaemon.Rfkill';
 const OBJECT_PATH = '/org/gnome/SettingsDaemon/Rfkill';
 
-const RfkillManagerInterface = loadInterfaceXML('org.gnome.SettingsDaemon.Rfkill');
+const RfkillManagerInterface = Shell.dbus_load_interface_xml('org.gnome.SettingsDaemon.Rfkill');
 const rfkillManagerInfo = Gio.DBusInterfaceInfo.new_for_xml(RfkillManagerInterface);
 
 Gio._promisify(GnomeBluetooth.Client.prototype, 'connect_service');

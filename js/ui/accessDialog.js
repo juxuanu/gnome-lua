@@ -6,12 +6,10 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-
 import {DBusSenderChecker} from '../misc/util.js';
-import {loadInterfaceXML} from '../misc/fileUtils.js';
 
-const RequestIface = loadInterfaceXML('org.freedesktop.impl.portal.Request');
-const AccessIface = loadInterfaceXML('org.freedesktop.impl.portal.Access');
+const RequestIface = Shell.dbus_load_interface_xml('org.freedesktop.impl.portal.Request');
+const AccessIface = Shell.dbus_load_interface_xml('org.freedesktop.impl.portal.Access');
 
 /** @enum {number} */
 const DialogResponse = {

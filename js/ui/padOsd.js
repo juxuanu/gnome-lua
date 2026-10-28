@@ -14,8 +14,6 @@ import * as Signals from '../misc/signals.js';
 
 import * as Main from './main.js';
 
-import {loadInterfaceXML} from '../misc/fileUtils.js';
-
 const ACTIVE_COLOR = 'st-lighten(-st-accent-color, 15%)';
 
 const LTR = 0;
@@ -976,7 +974,7 @@ export const PadOsd = GObject.registerClass({
     }
 });
 
-const PadOsdIface = loadInterfaceXML('org.gnome.Shell.Wacom.PadOsd');
+const PadOsdIface = Shell.dbus_load_interface_xml('org.gnome.Shell.Wacom.PadOsd');
 
 export class PadOsdService extends Signals.EventEmitter {
     constructor() {

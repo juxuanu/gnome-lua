@@ -4,15 +4,13 @@ import Shell from 'gi://Shell';
 
 import * as MessageList from './messageList.js';
 
-import {loadInterfaceXML} from '../misc/fileUtils.js';
-
-const DBusIface = loadInterfaceXML('org.freedesktop.DBus');
+const DBusIface = Shell.dbus_load_interface_xml('org.freedesktop.DBus');
 const DBusProxy = Gio.DBusProxy.makeProxyWrapper(DBusIface);
 
-const MprisIface = loadInterfaceXML('org.mpris.MediaPlayer2');
+const MprisIface = Shell.dbus_load_interface_xml('org.mpris.MediaPlayer2');
 const MprisProxy = Gio.DBusProxy.makeProxyWrapper(MprisIface);
 
-const MprisPlayerIface = loadInterfaceXML('org.mpris.MediaPlayer2.Player');
+const MprisPlayerIface = Shell.dbus_load_interface_xml('org.mpris.MediaPlayer2.Player');
 const MprisPlayerProxy = Gio.DBusProxy.makeProxyWrapper(MprisPlayerIface);
 
 const MPRIS_PLAYER_PREFIX = 'org.mpris.MediaPlayer2.';

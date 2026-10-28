@@ -12,7 +12,6 @@ import * as Main from './main.js';
 import * as Calendar from './calendar.js';
 
 import {formatDateWithCFormatString, formatTime, clearCachedLocalTimeZone} from '../misc/dateUtils.js';
-import {loadInterfaceXML} from '../misc/fileUtils.js';
 
 const NC_ = (context, str) => `${context}\u0004${str}`;
 const T_ = Shell.util_translate_time_string;
@@ -20,7 +19,7 @@ const T_ = Shell.util_translate_time_string;
 const MAX_FORECASTS = 5;
 const EN_CHAR = '\u2013';
 
-const ClocksIntegrationIface = loadInterfaceXML('org.gnome.Shell.ClocksIntegration');
+const ClocksIntegrationIface = Shell.dbus_load_interface_xml('org.gnome.Shell.ClocksIntegration');
 const ClocksProxy = Gio.DBusProxy.makeProxyWrapper(ClocksIntegrationIface);
 
 /**

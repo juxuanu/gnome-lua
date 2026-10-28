@@ -5,12 +5,10 @@ import Shell from 'gi://Shell';
 
 import {QuickToggle} from '../quickSettings.js';
 
-import {loadInterfaceXML} from '../../misc/fileUtils.js';
-
 const BUS_NAME = 'org.gnome.SettingsDaemon.Color';
 const OBJECT_PATH = '/org/gnome/SettingsDaemon/Color';
 
-const ColorInterface = loadInterfaceXML('org.gnome.SettingsDaemon.Color');
+const ColorInterface = Shell.dbus_load_interface_xml('org.gnome.SettingsDaemon.Color');
 const colorInfo = Gio.DBusInterfaceInfo.new_for_xml(ColorInterface);
 
 const NightLightToggle = GObject.registerClass(
@@ -68,3 +66,4 @@ class Indicator extends Shell.SystemIndicator {
         this._indicator.visible = this._proxy.NightLightActive;
     }
 });
+

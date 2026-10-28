@@ -8,8 +8,6 @@ import * as Main from './main.js';
 import * as Params from '../misc/params.js';
 import * as Util from '../misc/util.js';
 
-import {loadInterfaceXML} from '../misc/fileUtils.js';
-
 // This module provides functionality for driving the shell user interface
 // in an automated fashion. The primary current use case for this is
 // automated performance testing (see runPerfScript()), but it could
@@ -57,7 +55,7 @@ export function waitLeisure() {
     });
 }
 
-const PerfHelperIface = loadInterfaceXML('org.gnome.Shell.PerfHelper');
+const PerfHelperIface = Shell.dbus_load_interface_xml('org.gnome.Shell.PerfHelper');
 export const PerfHelperProxy = Gio.DBusProxy.makeProxyWrapper(PerfHelperIface);
 
 let _perfHelper = null;

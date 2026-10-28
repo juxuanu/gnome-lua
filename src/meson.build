@@ -137,8 +137,14 @@ libshell_public_headers = [
   'ui/layout.h',
   'ui/swipe-tracker.h',
   'ui/background-menu.h',
+  'ui/app-favorites.h',
+  'ui/close-dialog.h',
+  'ui/window-menu.h',
   'ui/panel-menu.h',
   'ui/panel.h',
+  'ui/switcher-popup.h',
+  'ui/ctrl-alt-tab.h',
+  'ui/switch-monitor.h',
   'shell-camera-monitor.h',
   'shell-edge-drag-gesture.h',
   'shell-global.h',
@@ -157,6 +163,8 @@ libshell_public_headers = [
   'misc/weather.h',
   'misc/brightness-manager.h',
   'misc/introspect.h',
+  'misc/dbus-utils.h',
+  'ui/shell-dbus.h',
   'shell-mount-operation.h',
   'shell-perf-log.h',
   'shell-screenshot.h',
@@ -228,8 +236,14 @@ libshell_sources = [
   'ui/layout.c',
   'ui/swipe-tracker.c',
   'ui/background-menu.c',
+  'ui/app-favorites.c',
+  'ui/close-dialog.c',
+  'ui/window-menu.c',
   'ui/panel-menu.c',
   'ui/panel.c',
+  'ui/switcher-popup.c',
+  'ui/ctrl-alt-tab.c',
+  'ui/switch-monitor.c',
   'shell-camera-monitor.c',
   'misc/gnome-session.c',
   'misc/ibus-manager.c',
@@ -244,6 +258,8 @@ libshell_sources = [
   'misc/weather.c',
   'misc/brightness-manager.c',
   'misc/introspect.c',
+  'misc/dbus-utils.c',
+  'ui/shell-dbus.c',
   'shell-edge-drag-gesture.c',
   'shell-global.c',
   'shell-invert-lightness-effect.c',
@@ -355,6 +371,20 @@ dbus_generated += gnome.gdbus_codegen('introspect-dbus',
   sources: '../data/dbus-interfaces/org.gnome.Shell.Introspect.xml',
   interface_prefix: 'org.gnome.Shell.',
   namespace: 'Shell'
+)
+
+# The skeletons of ui/shell-dbus.c (type names ShellDBusShell,
+# ShellDBusShellExtensions, ShellDBusScreenSaver, ...)
+dbus_generated += gnome.gdbus_codegen('shell-dbus-generated',
+  sources: [
+    '../data/dbus-interfaces/org.gnome.Shell.xml',
+    '../data/dbus-interfaces/org.gnome.Shell.Extensions.xml',
+    '../data/dbus-interfaces/org.gnome.ScreenSaver.xml',
+    '../data/dbus-interfaces/org.gnome.Shell.ScreenTime.xml',
+    '../data/dbus-interfaces/org.gnome.Shell.Brightness.xml',
+  ],
+  interface_prefix: 'org.gnome.',
+  namespace: 'ShellDBus'
 )
 
 if have_networkmanager

@@ -10,7 +10,6 @@ import * as MessageTray from './messageTray.js';
 import * as Params from '../misc/params.js';
 import * as ShellEntry from './shellEntry.js';
 
-import {loadInterfaceXML} from '../misc/fileUtils.js';
 import {wiggle} from '../misc/animationUtils.js';
 
 const LIST_ITEM_ICON_SIZE = 48;
@@ -555,7 +554,7 @@ class ShellProcessesDialog extends Shell.ModalDialog {
     }
 }
 
-const GnomeShellMountOpIface = loadInterfaceXML('org.Gtk.MountOperationHandler');
+const GnomeShellMountOpIface = Shell.dbus_load_interface_xml('org.Gtk.MountOperationHandler');
 
 /** @enum {number} */
 const ShellMountOperationType = {

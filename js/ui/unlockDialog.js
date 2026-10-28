@@ -692,7 +692,7 @@ export const UnlockDialog = GObject.registerClass({
 
         this.allowCancel = false;
 
-        Main.ctrlAltTabManager.addGroup(this, _('Unlock Window'), 'dialog-password-symbolic');
+        Main.ctrlAltTabManager.add_group(this, _('Unlock Window'), 'dialog-password-symbolic');
 
         // Notifications
         this._notificationsBox = new NotificationsBox();

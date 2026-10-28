@@ -11,10 +11,10 @@ import * as AudioDeviceSelection from './audioDeviceSelection.js';
 import * as BreakManager from '../misc/breakManager.js';
 import * as Config from '../misc/config.js';
 import * as Components from './components.js';
-import * as CtrlAltTab from './ctrlAltTab.js';
 import * as EndSessionDialog from './endSessionDialog.js';
 import * as ExtensionSystem from './extensionSystem.js';
 import * as ExtensionDownloader from './extensionDownloader.js';
+import * as ExtensionUtils from '../misc/extensionUtils.js';
 import * as Keyboard from './keyboard.js';
 import * as MessageTray from './messageTray.js';
 import * as Overview from './overview.js';
@@ -29,13 +29,13 @@ import * as Screenshot from './screenshot.js';
 import * as ScreenShield from './screenShield.js';
 import {LoginDialog} from '../gdm/loginDialog.js';
 import {UnlockDialog} from './unlockDialog.js';
-import * as ShellDBus from './shellDBus.js';
 import * as ShellMountOperation from './shellMountOperation.js';
 import * as TimeLimitsManager from '../misc/timeLimitsManager.js';
 import * as WindowManager from './windowManager.js';
 import * as Magnifier from './magnifier.js';
 import * as KbdA11yDialog from './kbdA11yDialog.js';
 import {formatError} from '../misc/errorUtils.js';
+import {ControlsState} from './overviewControls.js';
 import * as Util from '../misc/util.js';
 
 const WELCOME_DIALOG_LAST_SHOWN_VERSION = 'welcome-dialog-last-shown-version';
@@ -90,6 +90,8 @@ export let brightnessManager = null;
 export let brightnessDBus = null;
 
 let _startDate;
+let _shellExtensionsDBusService = null;
+let _screenshotService = null;
 let _defaultCssStylesheet = null;
 let _cssStylesheet = null;
 let _themeResource = null;
@@ -199,7 +201,7 @@ export async function start() {
 
     shellAccessDialogDBusService = new AccessDialog.AccessDialogDBus();
     shellAudioSelectionDBusService = new AudioDeviceSelection.AudioDeviceSelectionDBus();
-    shellDBusService = new ShellDBus.GnomeShell();
+    _createShellDBusServices();
     shellMountOpDBusService = new ShellMountOperation.GnomeShellMountOpHandler();
 
     const watchId = Gio.DBus.session.watch_name('org.gnome.Shell.Notifications',
@@ -208,6 +210,133 @@ export async function start() {
         bus => bus.unwatch_name(watchId));
 
     _sessionUpdated();
+}
+
+/**
+ * Shows the "Pinned to Dash" / "Unpinned From Dash" notifications of
+ * Shell.AppFavorites (js/ui/appFavorites.js had them before it was ported to
+ * C), each with an Undo button.
+ *
+ * @private
+ */
+function _connectAppFavorites() {
+    const favorites = Shell.AppFavorites.get_default();
+
+    const showNotification = (title, undoCallback) => {
+        const source = MessageTray.getSystemSource();
+        const notification = new MessageTray.Notification({
+            source,
+            title,
+            body: null,
+            isTransient: true,
+            forFeedback: true,
+        });
+        notification.addAction(_('Undo'), () => undoCallback());
+        source.addNotification(notification);
+    };
+
+    favorites.connect('favorite-added', (_favorites, app) => {
+        const appId = app.get_id();
+        showNotification(_('%s Pinned to Dash').format(app.get_name()),
+            () => favorites.remove_favorite_silently(appId));
+    });
+    favorites.connect('favorite-removed', (_favorites, app, pos) => {
+        const appId = app.get_id();
+        showNotification(_('%s Unpinned From Dash').format(app.get_name()),
+            () => favorites.add_favorite_silently(appId, pos));
+    });
+}
+
+/**
+ * Exports org.gnome.Shell and org.gnome.Shell.Extensions, and the Screenshot
+ * service. The first two live in C (src/ui/shell-dbus.c); what they used to
+ * reach through the singletons that are still JS is a signal that is
+ * connected here.
+ *
+ * @private
+ */
+function _createShellDBusServices() {
+    shellDBusService = new Shell.DBusService({
+        osd_window_manager: osdWindowManager,
+        osd_monitor_labeler: osdMonitorLabeler,
+    });
+
+    shellDBusService.connect('eval-requested', async (_service, code, invocation) => {
+        // The scripts see the exports of this module as `Main`, as they did
+        // when shellDBus.js evaluated them
+        // eslint-disable-next-line no-unused-vars
+        const Main = await import('./main.js');
+        let returnValue;
+        let success;
+        try {
+            returnValue = JSON.stringify(await eval(code));
+            // A hack; DBus doesn't have null/undefined
+            if (returnValue === undefined)
+                returnValue = '';
+            success = true;
+        } catch (e) {
+            returnValue = `${e}`;
+            success = false;
+        }
+        shellDBusService.complete_eval(invocation, success, returnValue);
+    });
+    shellDBusService.connect('focus-search-requested',
+        () => overview.focusSearch());
+    shellDBusService.connect('focus-app-requested',
+        (_service, id) => overview.selectApp(id));
+    shellDBusService.connect('show-applications-requested',
+        () => overview.show(ControlsState.APP_GRID));
+    shellDBusService.connect('allow-keybinding-requested',
+        (_service, name, modeFlags) => wm.allowKeybinding(name, modeFlags));
+    shellDBusService.connect('overview-active-requested', (_service, active) => {
+        if (active)
+            overview.show();
+        else
+            overview.hide();
+    });
+
+    const syncOverviewActive = () => {
+        shellDBusService.overview_active = overview.visible;
+    };
+    overview.connect('showing', syncOverviewActive);
+    overview.connect('hidden', syncOverviewActive);
+
+    const extensionsService = new Shell.DBusExtensionsService();
+    _shellExtensionsDBusService = extensionsService;
+
+    const serializeExtension = uuid =>
+        ExtensionUtils.serializeExtension(extensionManager.lookup(uuid) || {});
+    extensionsService.connect('list-extensions', () => {
+        const out = {};
+        extensionManager.getUuids().forEach(uuid => {
+            out[uuid] = serializeExtension(uuid);
+        });
+        return new GLib.Variant('a{sa{sv}}', out);
+    });
+    extensionsService.connect('get-extension-info',
+        (_service, uuid) => new GLib.Variant('a{sv}', serializeExtension(uuid)));
+    extensionsService.connect('get-extension-errors',
+        (_service, uuid) => extensionManager.lookup(uuid)?.errors ?? []);
+    extensionsService.connect('install-remote-extension',
+        (_service, uuid, invocation) => ExtensionDownloader.installExtension(uuid, invocation));
+    extensionsService.connect('uninstall-extension',
+        (_service, uuid) => !!ExtensionDownloader.uninstallExtension(uuid));
+    extensionsService.connect('enable-extension',
+        (_service, uuid) => !!extensionManager.enableExtension(uuid));
+    extensionsService.connect('disable-extension',
+        (_service, uuid) => !!extensionManager.disableExtension(uuid));
+    extensionsService.connect('open-extension-prefs',
+        (_service, uuid, parentWindow, options) =>
+            extensionManager.openExtensionPrefs(uuid, parentWindow, options.deepUnpack()));
+    extensionsService.connect('check-for-updates',
+        () => ExtensionDownloader.checkForUpdates());
+    extensionManager.connect('extension-state-changed', (_manager, extension) => {
+        extensionsService.emit_state_changed(extension.uuid,
+            new GLib.Variant('a{sv}', ExtensionUtils.serializeExtension(extension)),
+            extension.state, extension.error ?? '');
+    });
+
+    _screenshotService = new Screenshot.ScreenshotService();
 }
 
 /** @private */
@@ -292,8 +421,14 @@ async function _initializeUI() {
     sessionMode.connect('updated', () => {
         xdndHandler.session_locked = sessionMode.is_locked;
     });
-    ctrlAltTabManager = new CtrlAltTab.CtrlAltTabManager();
+    ctrlAltTabManager = new Shell.CtrlAltTabManager();
+    // What Main.activateWindow() does on top of activating the window
+    ctrlAltTabManager.connect('window-activated', () => {
+        overview.hide();
+        panel.close_calendar();
+    });
     osdWindowManager = new Shell.OsdWindowManager({ui_group: uiGroup});
+    _shellMain.osd_window_manager = osdWindowManager;
     osdMonitorLabeler = new Shell.OsdMonitorLabeler({ui_group: uiGroup});
     overview = new Overview.Overview();
     kbdA11yDialog = new KbdA11yDialog.KbdA11yDialog();
@@ -317,7 +452,7 @@ async function _initializeUI() {
     brightnessManager.connect('osd-requested', (_manager, icon, levels) => {
         osdWindowManager.show(icon, null, levels);
     });
-    brightnessDBus = new ShellDBus.BrightnessDBus(brightnessManager);
+    brightnessDBus = new Shell.BrightnessService({manager: brightnessManager});
 
     messageTray = new MessageTray.MessageTray();
     panel = _createPanel();
@@ -331,7 +466,7 @@ async function _initializeUI() {
     // Set up the global default break reminder manager and its D-Bus interface
     breakManager = new BreakManager.BreakManager();
     timeLimitsManager = new TimeLimitsManager.TimeLimitsManager();
-    screenTimeDBus = new ShellDBus.ScreenTimeDBus(breakManager);
+    screenTimeDBus = new Shell.ScreenTimeService({manager: breakManager});
     breakManagerDispatcher = new BreakManager.BreakDispatcher(breakManager);
     timeLimitsDispatcher = new TimeLimitsManager.TimeLimitsDispatcher(timeLimitsManager);
 
@@ -351,6 +486,7 @@ async function _initializeUI() {
 
     layoutManager.begin_startup();
     overview.init();
+    _connectAppFavorites();
 
     pointerA11yTimeout = new Shell.PointerA11yTimeout({ui_group: uiGroup});
 
@@ -466,9 +602,9 @@ function _createPanel() {
     newPanel.connect('create-indicator',
         (_panel, role) => PanelItems.createPanelItem(role));
 
-    ctrlAltTabManager.addGroup(newPanel,
+    ctrlAltTabManager.add_group_full(newPanel,
         _('Top Bar'), 'shell-focus-top-bar-symbolic',
-        {sortGroup: CtrlAltTab.SortGroup.TOP});
+        Shell.CtrlAltTabSortGroup.TOP, null, null);
 
     overview.connectObject(
         'showing', () => (newPanel.overview_visible = true),

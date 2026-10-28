@@ -30,13 +30,11 @@ import * as UserWidget from './userWidget.js';
 
 import {ModalDialogErrors, ModalDialogError} from '../misc/dbusErrors.js';
 
-import {loadInterfaceXML} from '../misc/fileUtils.js';
-
 const _ITEM_ICON_SIZE = 64;
 
 const LOW_BATTERY_THRESHOLD = 30;
 
-const EndSessionDialogIface = loadInterfaceXML('org.gnome.SessionManager.EndSessionDialog');
+const EndSessionDialogIface = Shell.dbus_load_interface_xml('org.gnome.SessionManager.EndSessionDialog');
 
 const logoutDialogContent = {
     subjectWithUser: C_('title', 'Log Out %s'),
@@ -137,10 +135,10 @@ const MAX_USERS_IN_SESSION_DIALOG = 5;
 
 const OFFLINE_UPDATE_ACTION_REBOOT = 'reboot';
 const OFFLINE_UPDATE_ACTION_SHUTDOWN = 'shutdown';
-const SoftwareOfflineUpdatesIface = loadInterfaceXML('org.gnome.Software.OfflineUpdates');
+const SoftwareOfflineUpdatesIface = Shell.dbus_load_interface_xml('org.gnome.Software.OfflineUpdates');
 const SoftwareOfflineUpdatesProxy = Gio.DBusProxy.makeProxyWrapper(SoftwareOfflineUpdatesIface);
 
-const UPowerIface = loadInterfaceXML('org.freedesktop.UPower.Device');
+const UPowerIface = Shell.dbus_load_interface_xml('org.freedesktop.UPower.Device');
 const UPowerProxy = Gio.DBusProxy.makeProxyWrapper(UPowerIface);
 
 function findAppFromInhibitor(inhibitor) {

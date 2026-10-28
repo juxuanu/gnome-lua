@@ -11,12 +11,11 @@ import UPower from 'gi://UPowerGlib';
 import * as Main from '../main.js';
 
 import {QuickSettingsItem, QuickToggle} from '../quickSettings.js';
-import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
 const BUS_NAME = 'org.freedesktop.UPower';
 const OBJECT_PATH = '/org/freedesktop/UPower/devices/DisplayDevice';
 
-const DisplayDeviceInterface = loadInterfaceXML('org.freedesktop.UPower.Device');
+const DisplayDeviceInterface = Shell.dbus_load_interface_xml('org.freedesktop.UPower.Device');
 const PowerManagerProxy = Gio.DBusProxy.makeProxyWrapper(DisplayDeviceInterface);
 
 const SHOW_BATTERY_PERCENTAGE = 'show-battery-percentage';

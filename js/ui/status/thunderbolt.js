@@ -10,12 +10,10 @@ import * as Signals from '../../misc/signals.js';
 import * as Main from '../main.js';
 import * as MessageTray from '../messageTray.js';
 
-import {loadInterfaceXML} from '../../misc/fileUtils.js';
-
 /* Keep in sync with data/org.freedesktop.bolt.xml */
 
-const BoltClientInterface = loadInterfaceXML('org.freedesktop.bolt1.Manager');
-const BoltDeviceInterface = loadInterfaceXML('org.freedesktop.bolt1.Device');
+const BoltClientInterface = Shell.dbus_load_interface_xml('org.freedesktop.bolt1.Manager');
+const BoltDeviceInterface = Shell.dbus_load_interface_xml('org.freedesktop.bolt1.Device');
 
 const BoltDeviceProxy = Gio.DBusProxy.makeProxyWrapper(BoltDeviceInterface);
 

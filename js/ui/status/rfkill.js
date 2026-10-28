@@ -5,12 +5,10 @@ import Shell from 'gi://Shell';
 
 import {QuickToggle} from '../quickSettings.js';
 
-import {loadInterfaceXML} from '../../misc/fileUtils.js';
-
 const BUS_NAME = 'org.gnome.SettingsDaemon.Rfkill';
 const OBJECT_PATH = '/org/gnome/SettingsDaemon/Rfkill';
 
-const RfkillManagerInterface = loadInterfaceXML('org.gnome.SettingsDaemon.Rfkill');
+const RfkillManagerInterface = Shell.dbus_load_interface_xml('org.gnome.SettingsDaemon.Rfkill');
 const rfkillManagerInfo = Gio.DBusInterfaceInfo.new_for_xml(RfkillManagerInterface);
 
 const RfkillManager = GObject.registerClass({

@@ -2,15 +2,12 @@ import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
-
 import {QuickMenuToggle} from '../quickSettings.js';
-
-import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
 const BUS_NAME = 'org.freedesktop.UPower.PowerProfiles';
 const OBJECT_PATH = '/org/freedesktop/UPower/PowerProfiles';
 
-const PowerProfilesIface = loadInterfaceXML('org.freedesktop.UPower.PowerProfiles');
+const PowerProfilesIface = Shell.dbus_load_interface_xml('org.freedesktop.UPower.PowerProfiles');
 const PowerProfilesProxy = Gio.DBusProxy.makeProxyWrapper(PowerProfilesIface);
 
 const PROFILE_PARAMS = {

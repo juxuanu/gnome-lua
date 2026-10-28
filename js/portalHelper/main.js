@@ -11,7 +11,7 @@ import {programInvocationName, programArgs} from 'system';
 const _ = Gettext.gettext;
 
 import * as Config from '../misc/config.js';
-import {loadInterfaceXML} from '../misc/fileUtils.js';
+import {loadInterfaceXML} from '../misc/dbusUtils.js';
 
 const PortalHelperResult = {
     CANCELLED: 0,

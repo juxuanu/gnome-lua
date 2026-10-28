@@ -5,14 +5,12 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
 import * as Config from '../misc/config.js';
-import {emitSignalToDestination} from '../misc/dbusUtils.js';
 import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
 
-import {loadInterfaceXML} from '../misc/fileUtils.js';
 import {NotificationErrors, NotificationError} from '../misc/dbusErrors.js';
 
-const FdoNotificationsIface = loadInterfaceXML('org.freedesktop.Notifications');
+const FdoNotificationsIface = Shell.dbus_load_interface_xml('org.freedesktop.Notifications');
 
 const NOTIFICATION_SERIALIZED_NAME = 'notifications';
 const NOTIFICATION_SERIALIZED_FORMAT = 'a(sa(sv))';
@@ -303,13 +301,13 @@ class FdoNotificationDaemon {
 
     _emitNotificationClosed(id, reason, invocation) {
         const sender = invocation.get_sender();
-        emitSignalToDestination(this._dbusImpl, sender, 'NotificationClosed',
+        Shell.dbus_emit_signal_to_destination(this._dbusImpl, sender, 'NotificationClosed',
             GLib.Variant.new('(uu)', [id, reason]));
     }
 
     _emitActionInvoked(id, action, invocation) {
         const sender = invocation.get_sender();
-        emitSignalToDestination(this._dbusImpl, sender, 'ActionInvoked',
+        Shell.dbus_emit_signal_to_destination(this._dbusImpl, sender, 'ActionInvoked',
             GLib.Variant.new('(us)', [id, action]));
     }
 
@@ -317,7 +315,7 @@ class FdoNotificationDaemon {
         const sender = invocation.get_sender();
         const context = global.create_app_launch_context(0, -1);
         const token = context.get_startup_notify_id(null, []);
-        emitSignalToDestination(this._dbusImpl, sender, 'ActivationToken',
+        Shell.dbus_emit_signal_to_destination(this._dbusImpl, sender, 'ActivationToken',
             GLib.Variant.new('(us)', [id, token]));
     }
 }
@@ -584,7 +582,7 @@ class GtkNotificationDaemonAppSource extends MessageTray.Source {
     }
 });
 
-const GtkNotificationsIface = loadInterfaceXML('org.gtk.Notifications');
+const GtkNotificationsIface = Shell.dbus_load_interface_xml('org.gtk.Notifications');
 
 class GtkNotificationDaemon {
     constructor() {

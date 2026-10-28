@@ -9,12 +9,9 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as AltTab from './altTab.js';
-import * as AppFavorites from './appFavorites.js';
 import * as InhibitShortcutsDialog from './inhibitShortcutsDialog.js';
-import * as WindowMenu from './windowMenu.js';
 import * as PadOsd from './padOsd.js';
-import * as CloseDialog from './closeDialog.js';
-import * as SwitchMonitor from './switchMonitor.js';
+import * as Screenshot from './screenshot.js';
 import * as WorkspaceAnimation from './workspaceAnimation.js';
 
 import * as Main from './main.js';
@@ -891,7 +888,14 @@ export class WindowManager {
             Shell.IBusManager.get_default().restart_daemon(null);
         });
 
-        this._windowMenuManager = new WindowMenu.WindowMenuManager();
+        this._windowMenuManager = new Shell.WindowMenuManager();
+        this._windowMenuManager.connect('screenshot-requested', async (_manager, texture) => {
+            try {
+                await Screenshot.captureScreenshot(texture, null, 1, null);
+            } catch (e) {
+                logError(e, 'Error capturing screenshot');
+            }
+        });
 
         if (Main.sessionMode.has_workspaces)
             this._workspaceTracker = new WorkspaceTracker(this);
@@ -1687,7 +1691,7 @@ export class WindowManager {
     }
 
     _showWindowMenu(shellwm, window, menu, rect) {
-        this._windowMenuManager.showWindowMenuForWindow(window, menu, rect);
+        this._windowMenuManager.show_window_menu_for_window(window, menu, rect);
     }
 
     _startSwitcher(display, window, event, binding) {
@@ -1712,7 +1716,7 @@ export class WindowManager {
             constructor = AltTab.GroupCyclerPopup;
             break;
         case 'switch-monitor':
-            constructor = SwitchMonitor.SwitchMonitorPopup;
+            constructor = Shell.SwitchMonitorPopup;
             break;
         }
 
@@ -1725,12 +1729,13 @@ export class WindowManager {
 
         const tabPopup = new constructor();
 
-        if (!tabPopup.show(binding.is_reversed(), binding.get_name(), binding.get_mask()))
+        if (!tabPopup.show_switcher(binding.is_reversed(), binding.get_name(), binding.get_mask()))
             tabPopup.destroy();
     }
 
     _startA11ySwitcher(display, window, event, binding) {
-        Main.ctrlAltTabManager.popup(binding.is_reversed(), binding.get_name(), binding.get_mask());
+        Main.ctrlAltTabManager.popup(binding.is_reversed(), binding.get_name(), binding.get_mask(),
+            Main.overview.visible);
     }
 
     _allowFavoriteShortcuts() {
@@ -1741,7 +1746,7 @@ export class WindowManager {
         if (!this._allowFavoriteShortcuts())
             return null;
 
-        const apps = AppFavorites.getAppFavorites().getFavorites();
+        const apps = Shell.AppFavorites.get_default().get_favorites();
         return apps[n];
     }
 
@@ -1954,7 +1959,7 @@ export class WindowManager {
     }
 
     _createCloseDialog(shellwm, window) {
-        return new CloseDialog.CloseDialog(window);
+        return new Shell.CloseDialog({window});
     }
 
     _createInhibitShortcutsDialog(shellwm, window) {

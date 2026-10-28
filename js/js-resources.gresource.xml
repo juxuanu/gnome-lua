@@ -31,7 +31,6 @@
     <file>misc/config.js</file>
     <file>misc/dateUtils.js</file>
     <file>misc/dbusErrors.js</file>
-    <file>misc/dbusUtils.js</file>
     <file>misc/dependencies.js</file>
     <file>misc/errorUtils.js</file>
     <file>misc/extensionUtils.js</file>
@@ -46,12 +45,9 @@
     <file>ui/accessDialog.js</file>
     <file>ui/altTab.js</file>
     <file>ui/appDisplay.js</file>
-    <file>ui/appFavorites.js</file>
     <file>ui/appMenu.js</file>
     <file>ui/audioDeviceSelection.js</file>
     <file>ui/calendar.js</file>
-    <file>ui/closeDialog.js</file>
-    <file>ui/ctrlAltTab.js</file>
     <file>ui/dash.js</file>
     <file>ui/dateMenu.js</file>
     <file>ui/endSessionDialog.js</file>
@@ -86,17 +82,13 @@
     <file>ui/scripting.js</file>
     <file>ui/search.js</file>
     <file>ui/searchController.js</file>
-    <file>ui/shellDBus.js</file>
     <file>ui/shellEntry.js</file>
     <file>ui/shellMountOperation.js</file>
-    <file>ui/switcherPopup.js</file>
-    <file>ui/switchMonitor.js</file>
     <file>ui/unlockDialog.js</file>
     <file>ui/userWidget.js</file>
     <file>ui/welcomeDialog.js</file>
     <file>ui/windowAttentionHandler.js</file>
     <file>ui/windowManager.js</file>
-    <file>ui/windowMenu.js</file>
     <file>ui/windowPreview.js</file>
     <file>ui/workspace.js</file>
     <file>ui/workspaceAnimation.js</file>

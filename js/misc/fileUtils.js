@@ -1,8 +1,6 @@
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
 
-export {loadInterfaceXML} from './dbusUtils.js';
-
 /**
  * @typedef {object} ChildInfo
  * @property {Gio.File} file the file object for the child

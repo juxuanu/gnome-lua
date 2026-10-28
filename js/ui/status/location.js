@@ -5,9 +5,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-
-import {loadInterfaceXML} from '../../misc/fileUtils.js';
-
 const LOCATION_SCHEMA = 'org.gnome.system.location';
 const MAX_ACCURACY_LEVEL = 'max-accuracy-level';
 const ENABLED = 'enabled';
@@ -34,10 +31,10 @@ function accuracyLevelToString(accuracyLevel) {
     return 'NONE';
 }
 
-const GeoclueIface = loadInterfaceXML('org.freedesktop.GeoClue2.Manager');
+const GeoclueIface = Shell.dbus_load_interface_xml('org.freedesktop.GeoClue2.Manager');
 const GeoclueManager = Gio.DBusProxy.makeProxyWrapper(GeoclueIface);
 
-const AgentIface = loadInterfaceXML('org.freedesktop.GeoClue2.Agent');
+const AgentIface = Shell.dbus_load_interface_xml('org.freedesktop.GeoClue2.Agent');
 
 let _geoclueAgent = null;
 

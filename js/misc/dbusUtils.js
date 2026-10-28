@@ -1,3 +1,8 @@
+// The shell itself uses Shell.dbus_load_interface_xml () and friends
+// (src/misc/dbus-utils.c). This module is only bundled by the out-of-process
+// helpers, which run in plain gjs without libshell: js/portalHelper and the
+// js/dbusServices processes. It goes away with them in M5.
+
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 

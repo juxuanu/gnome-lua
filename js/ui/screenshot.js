@@ -22,12 +22,11 @@ Gio._promisify(Shell.Screenshot.prototype, 'screenshot_stage_to_content');
 Gio._promisify(Shell.Screenshot, 'composite_to_stream');
 
 import {ScreencastErrors, ScreencastError} from '../misc/dbusErrors.js';
-import {loadInterfaceXML} from '../misc/fileUtils.js';
 import {DBusSenderChecker} from '../misc/util.js';
 
-const ScreenshotIface = loadInterfaceXML('org.gnome.Shell.Screenshot');
+const ScreenshotIface = Shell.dbus_load_interface_xml('org.gnome.Shell.Screenshot');
 
-const ScreencastIface = loadInterfaceXML('org.gnome.Shell.Screencast');
+const ScreencastIface = Shell.dbus_load_interface_xml('org.gnome.Shell.Screencast');
 const ScreencastProxy = Gio.DBusProxy.makeProxyWrapper(ScreencastIface);
 
 let screenshotNotificationSource = null;

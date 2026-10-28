@@ -9,14 +9,13 @@ import * as Main from '../main.js';
 import * as Util from '../../misc/util.js';
 
 import {QuickToggle} from '../quickSettings.js';
-import {loadInterfaceXML} from '../../misc/dbusUtils.js';
 
 const DBUS_NAME = 'org.freedesktop.background.Monitor';
 const DBUS_OBJECT_PATH = '/org/freedesktop/background/monitor';
 
 const SPINNER_TIMEOUT = 5; // seconds
 
-const BackgroundMonitorIface = loadInterfaceXML('org.freedesktop.background.Monitor');
+const BackgroundMonitorIface = Shell.dbus_load_interface_xml('org.freedesktop.background.Monitor');
 const BackgroundMonitorProxy = Gio.DBusProxy.makeProxyWrapper(BackgroundMonitorIface);
 
 Gio._promisify(Gio.DBusConnection.prototype, 'call');

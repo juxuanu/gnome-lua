@@ -10,7 +10,6 @@ import * as MessageList from './messageList.js';
 import {ensureActorVisibleInScrollView} from '../misc/animationUtils.js';
 
 import {formatDateWithCFormatString} from '../misc/dateUtils.js';
-import {loadInterfaceXML} from '../misc/fileUtils.js';
 
 const SHOW_WEEKDATE_KEY = 'show-weekdate';
 const WEEK_START_DAY_KEY = 'week-start-day';
@@ -159,7 +158,7 @@ class EmptyEventSource extends EventSourceBase {
     }
 });
 
-const CalendarServerIface = loadInterfaceXML('org.gnome.Shell.CalendarServer');
+const CalendarServerIface = Shell.dbus_load_interface_xml('org.gnome.Shell.CalendarServer');
 
 const CalendarServerInfo  = Gio.DBusInterfaceInfo.new_for_xml(CalendarServerIface);
 

@@ -1,15 +1,15 @@
 import Gio from 'gi://Gio';
+import Shell from 'gi://Shell';
+
 import * as Signals from '../misc/signals.js';
 
-import {loadInterfaceXML} from '../misc/fileUtils.js';
-
-const ProviderIface = loadInterfaceXML('org.freedesktop.realmd.Provider');
+const ProviderIface = Shell.dbus_load_interface_xml('org.freedesktop.realmd.Provider');
 const Provider = Gio.DBusProxy.makeProxyWrapper(ProviderIface);
 
-const ServiceIface = loadInterfaceXML('org.freedesktop.realmd.Service');
+const ServiceIface = Shell.dbus_load_interface_xml('org.freedesktop.realmd.Service');
 const Service = Gio.DBusProxy.makeProxyWrapper(ServiceIface);
 
-const RealmIface = loadInterfaceXML('org.freedesktop.realmd.Realm');
+const RealmIface = Shell.dbus_load_interface_xml('org.freedesktop.realmd.Realm');
 const Realm = Gio.DBusProxy.makeProxyWrapper(RealmIface);
 
 export class Manager extends Signals.EventEmitter {

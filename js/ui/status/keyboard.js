@@ -11,7 +11,6 @@ import * as Signals from '../../misc/signals.js';
 
 import * as IBusCandidatePopup from '../ibusCandidatePopup.js';
 import * as Main from '../main.js';
-import * as SwitcherPopup from '../switcherPopup.js';
 
 export const INPUT_SOURCE_TYPE_XKB = 'xkb';
 export const INPUT_SOURCE_TYPE_IBUS = 'ibus';
@@ -73,42 +72,47 @@ export class InputSource extends Signals.EventEmitter {
 }
 
 export const InputSourcePopup = GObject.registerClass(
-class InputSourcePopup extends SwitcherPopup.SwitcherPopup {
+class InputSourcePopup extends Shell.SwitcherPopup {
     _init(items, action, actionBackward) {
-        super._init(items);
+        super._init();
 
+        this._items = items;
         this._action = action;
         this._actionBackward = actionBackward;
 
-        this._switcherList = new InputSourceSwitcher(this._items);
+        this.switcher_list = new InputSourceSwitcher(this._items);
     }
 
-    _keyPressHandler(keysym, action) {
+    vfunc_get_n_items() {
+        return this._items.length;
+    }
+
+    vfunc_key_press_handler(keysym, action) {
         if (action === this._action)
-            this._select(this._next());
+            this.select(this.get_next_index());
         else if (action === this._actionBackward)
-            this._select(this._previous());
+            this.select(this.get_previous_index());
         else if (keysym === Clutter.KEY_Left)
-            this._select(this._previous());
+            this.select(this.get_previous_index());
         else if (keysym === Clutter.KEY_Right)
-            this._select(this._next());
+            this.select(this.get_next_index());
         else
             return Clutter.EVENT_PROPAGATE;
 
         return Clutter.EVENT_STOP;
     }
 
-    _finish() {
-        super._finish();
+    vfunc_finish(timestamp) {
+        super.vfunc_finish(timestamp);
 
-        this._items[this._selectedIndex].activate(true);
+        this._items[this.selected_index].activate(true);
     }
 });
 
 const InputSourceSwitcher = GObject.registerClass(
-class InputSourceSwitcher extends SwitcherPopup.SwitcherList {
+class InputSourceSwitcher extends Shell.SwitcherList {
     _init(items) {
-        super._init(true);
+        super._init({square_items: true});
 
         for (let i = 0; i < items.length; i++)
             this._addIcon(items[i]);
@@ -135,7 +139,7 @@ class InputSourceSwitcher extends SwitcherPopup.SwitcherList {
         });
         box.add_child(text);
 
-        this.addItem(box, text);
+        this.add_item(box, text);
     }
 });
 
@@ -451,9 +455,9 @@ export class InputSourceManager extends Signals.EventEmitter {
         this._switcherPopup.connect('destroy', () => {
             this._switcherPopup = null;
         });
-        if (!this._switcherPopup.show(
+        if (!this._switcherPopup.show_switcher(
             binding.is_reversed(), binding.get_name(), binding.get_mask()))
-            this._switcherPopup.fadeAndDestroy();
+            this._switcherPopup.fade_and_destroy();
     }
 
     _keyboardOptionsChanged() {

@@ -16,7 +16,6 @@ import * as Util from '../../misc/util.js';
 
 import {QuickMenuToggle} from '../quickSettings.js';
 
-import {loadInterfaceXML} from '../../misc/fileUtils.js';
 import {registerDestroyableType} from '../../misc/signalTracker.js';
 
 Gio._promisify(Gio.DBusConnection.prototype, 'call');
@@ -38,7 +37,7 @@ const PortalHelperResult = {
     RECHECK: 2,
 };
 
-const PortalHelperIface = loadInterfaceXML('org.gnome.Shell.PortalHelper');
+const PortalHelperIface = Shell.dbus_load_interface_xml('org.gnome.Shell.PortalHelper');
 const PortalHelperInfo = Gio.DBusInterfaceInfo.new_for_xml(PortalHelperIface);
 
 function signalToIcon(value) {
