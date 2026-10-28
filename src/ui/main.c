@@ -15,6 +15,7 @@
 
 #include "shell-global.h"
 #include "ui/main.h"
+#include "shell-enum-types.h"
 
 enum
 {
@@ -22,6 +23,7 @@ enum
 
   PROP_ACTION_MODE,
   PROP_MODAL_COUNT,
+  PROP_SESSION_MODE,
 
   N_PROPS
 };
@@ -31,6 +33,8 @@ static GParamSpec *props[N_PROPS] = { NULL, };
 enum
 {
   MODAL_ENDED,
+  SYSTEM_MODAL_OPENED,
+  SETTINGS_APP_ACTIVATING,
 
   LAST_SIGNAL
 };
@@ -64,6 +68,7 @@ struct _ShellMain
   GPtrArray *modal_stack;         /* of ModalRecord */
   guint modal_count;
   ShellActionMode action_mode;
+  ShellSessionMode *session_mode;
 };
 
 G_DEFINE_FINAL_TYPE (ShellMain, shell_main, G_TYPE_OBJECT)
@@ -173,11 +178,15 @@ shell_main_get_property (GObject    *object,
   switch (prop_id)
     {
     case PROP_ACTION_MODE:
-      g_value_set_uint (value, self->action_mode);
+      g_value_set_flags (value, self->action_mode);
       break;
 
     case PROP_MODAL_COUNT:
       g_value_set_uint (value, self->modal_count);
+      break;
+
+    case PROP_SESSION_MODE:
+      g_value_set_object (value, self->session_mode);
       break;
 
     default:
@@ -197,7 +206,11 @@ shell_main_set_property (GObject      *object,
   switch (prop_id)
     {
     case PROP_ACTION_MODE:
-      shell_main_set_action_mode (self, g_value_get_uint (value));
+      shell_main_set_action_mode (self, g_value_get_flags (value));
+      break;
+
+    case PROP_SESSION_MODE:
+      shell_main_set_session_mode (self, g_value_get_object (value));
       break;
 
     default:
@@ -212,6 +225,7 @@ shell_main_dispose (GObject *object)
   ShellMain *self = SHELL_MAIN (object);
 
   g_clear_pointer (&self->modal_stack, g_ptr_array_unref);
+  g_clear_object (&self->session_mode);
 
   G_OBJECT_CLASS (shell_main_parent_class)->dispose (object);
 }
@@ -235,9 +249,9 @@ shell_main_class_init (ShellMainClass *klass)
    * sets it to %SHELL_ACTION_MODE_NORMAL. Notified whenever it changes.
    */
   props[PROP_ACTION_MODE] =
-    g_param_spec_uint ("action-mode", NULL, NULL,
-                       0, G_MAXUINT, SHELL_ACTION_MODE_NONE,
-                       G_PARAM_READWRITE |
+    g_param_spec_flags ("action-mode", NULL, NULL,
+                        SHELL_TYPE_ACTION_MODE, SHELL_ACTION_MODE_NONE,
+                        G_PARAM_READWRITE |
                        G_PARAM_EXPLICIT_NOTIFY |
                        G_PARAM_STATIC_STRINGS);
 
@@ -253,6 +267,20 @@ shell_main_class_init (ShellMainClass *klass)
                        G_PARAM_EXPLICIT_NOTIFY |
                        G_PARAM_STATIC_STRINGS);
 
+  /**
+   * ShellMain:session-mode:
+   *
+   * The session mode of the shell (`Main.sessionMode`). main.js sets it
+   * right after creating it, so that the ported UI code (the popup menus)
+   * can follow it.
+   */
+  props[PROP_SESSION_MODE] =
+    g_param_spec_object ("session-mode", NULL, NULL,
+                         SHELL_TYPE_SESSION_MODE,
+                         G_PARAM_READWRITE |
+                         G_PARAM_EXPLICIT_NOTIFY |
+                         G_PARAM_STATIC_STRINGS);
+
   g_object_class_install_properties (object_class, N_PROPS, props);
 
   /**
@@ -265,6 +293,38 @@ shell_main_class_init (ShellMainClass *klass)
    */
   signals[MODAL_ENDED] =
     g_signal_new ("modal-ended",
+                  G_TYPE_FROM_CLASS (klass),
+                  G_SIGNAL_RUN_LAST,
+                  0, NULL, NULL, NULL,
+                  G_TYPE_NONE, 0);
+
+  /**
+   * ShellMain::system-modal-opened:
+   * @self: the #ShellMain
+   *
+   * Emitted when a system modal dialog opens, which dismisses the popup
+   * menus. main.js forwards the signal of the same name of the layout
+   * manager (`layoutManager.emit ('system-modal-opened')`) by calling
+   * shell_main_system_modal_opened ().
+   */
+  signals[SYSTEM_MODAL_OPENED] =
+    g_signal_new ("system-modal-opened",
+                  G_TYPE_FROM_CLASS (klass),
+                  G_SIGNAL_RUN_LAST,
+                  0, NULL, NULL, NULL,
+                  G_TYPE_NONE, 0);
+
+  /**
+   * ShellMain::settings-app-activating:
+   * @self: the #ShellMain
+   *
+   * Emitted by the settings items of the popup menus before they activate
+   * the settings application. main.js hides the overview and closes the
+   * quick settings in response (`Main.overview.hide ()` and
+   * `Main.panel.closeQuickSettings ()`), which are not reachable from C.
+   */
+  signals[SETTINGS_APP_ACTIVATING] =
+    g_signal_new ("settings-app-activating",
                   G_TYPE_FROM_CLASS (klass),
                   G_SIGNAL_RUN_LAST,
                   0, NULL, NULL, NULL,
@@ -546,4 +606,66 @@ shell_main_set_action_mode (ShellMain       *self,
   g_return_if_fail (SHELL_IS_MAIN (self));
 
   set_action_mode (self, action_mode);
+}
+
+/**
+ * shell_main_get_session_mode:
+ * @self: a #ShellMain
+ *
+ * Returns: (transfer none) (nullable): the session mode, once main.js has
+ *   created it
+ */
+ShellSessionMode *
+shell_main_get_session_mode (ShellMain *self)
+{
+  g_return_val_if_fail (SHELL_IS_MAIN (self), NULL);
+
+  return self->session_mode;
+}
+
+/**
+ * shell_main_set_session_mode:
+ * @self: a #ShellMain
+ * @session_mode: (nullable): the session mode of the shell
+ *
+ * Sets #ShellMain:session-mode. Menus which already exist keep following the
+ * session mode they were created with.
+ */
+void
+shell_main_set_session_mode (ShellMain        *self,
+                             ShellSessionMode *session_mode)
+{
+  g_return_if_fail (SHELL_IS_MAIN (self));
+  g_return_if_fail (session_mode == NULL || SHELL_IS_SESSION_MODE (session_mode));
+
+  if (g_set_object (&self->session_mode, session_mode))
+    g_object_notify_by_pspec (G_OBJECT (self), props[PROP_SESSION_MODE]);
+}
+
+/**
+ * shell_main_system_modal_opened:
+ * @self: a #ShellMain
+ *
+ * Emits #ShellMain::system-modal-opened.
+ */
+void
+shell_main_system_modal_opened (ShellMain *self)
+{
+  g_return_if_fail (SHELL_IS_MAIN (self));
+
+  g_signal_emit (self, signals[SYSTEM_MODAL_OPENED], 0);
+}
+
+/**
+ * shell_main_emit_settings_app_activating:
+ * @self: a #ShellMain
+ *
+ * Emits #ShellMain::settings-app-activating.
+ */
+void
+shell_main_emit_settings_app_activating (ShellMain *self)
+{
+  g_return_if_fail (SHELL_IS_MAIN (self));
+
+  g_signal_emit (self, signals[SETTINGS_APP_ACTIVATING], 0);
 }
