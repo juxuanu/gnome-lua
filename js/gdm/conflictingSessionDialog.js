@@ -19,9 +19,9 @@ import Clutter from 'gi://Clutter';
 import Cogl from 'gi://Cogl';
 import GObject from 'gi://GObject';
 import Pango from 'gi://Pango';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {Spinner} from '../ui/animation.js';
 import {ModalDialog} from '../ui/modalDialog.js';
 
 const SPINNER_SIZE = 32;
@@ -113,7 +113,7 @@ export class ConflictingSessionDialog extends ModalDialog {
         });
         this.dialogLayout.add_effect(this._dimEffect);
 
-        this._spinner = new Spinner(SPINNER_SIZE, {hideOnStop: true});
+        this._spinner = new Shell.Spinner({spinner_size: SPINNER_SIZE, hide_on_stop: true});
         this._spinner.add_constraint(new Clutter.BindConstraint({
             source: this.dialogLayout,
             coordinate: Clutter.BindCoordinate.POSITION,

@@ -7,7 +7,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Animation from '../ui/animation.js';
 import * as AuthList from './authList.js';
 import * as Batch from './batch.js';
 import {logErrorUnlessCancelled} from '../misc/errorUtils.js';
@@ -374,7 +373,7 @@ export const AuthPrompt = GObject.registerClass({
         this._nextButton.add_style_pseudo_class('default');
         this._defaultButtonWell.add_child(this._nextButton);
 
-        this._spinner = new Animation.Spinner(DEFAULT_BUTTON_WELL_ICON_SIZE);
+        this._spinner = new Shell.Spinner({spinner_size: DEFAULT_BUTTON_WELL_ICON_SIZE});
         this._defaultButtonWell.add_child(this._spinner);
 
         this.setActorInDefaultButtonWell(this._nextButton);

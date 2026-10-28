@@ -56,13 +56,13 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/ui/xdndHandler.js` | 127 | ported | `src/ui/xdnd-handler.[ch]` (`ShellXdndHandler`, final). Signals `drag-begin (time)`, `drag-end`, new `drag-motion (x, y, drag-actor, target-actor)`; the drag-monitor / `_delegate.handleDragOver` dispatch is now `DND.handleXdndMotion()` in dnd.js, wired in main.js. `Main.sessionMode.isLocked` is mirrored into the `session-locked` property by main.js. |
 | `js/misc/animationUtils.js` | 124 | wip | adjustAnimationTime in C |
 | `js/ui/osdMonitorLabeler.js` | 119 | todo | |
-| `js/ui/ripples.js` | 112 | todo | |
+| `js/ui/ripples.js` | 112 | ported | `src/ui/ripples.[ch]` (`ShellRipples`, final GObject). `new Ripples(px, py, cls, req)` is now `Shell.Ripples.new(px, py, cls, req)`; `addTo`/`playAnimation` are `add_to`/`play_animation`. Calling `add_to` twice or `play_animation` before `add_to` logs a critical instead of throwing. |
 | `js/misc/history.js` | 111 | todo | |
 | `js/misc/errorUtils.js` | 91 | todo | |
 | `js/ui/windowAttentionHandler.js` | 91 | todo | blocked on messageTray (M4): ~85% of the file is the `MessageTray.Source`/`Notification` glue, the C-able signal filter is about ten lines |
 | `js/misc/dbusUtils.js` | 86 | todo | |
 | `js/misc/fileUtils.js` | 86 | todo | |
-| `js/ui/animation.js` | 81 | todo | |
+| `js/ui/animation.js` | 81 | ported | `src/ui/animation.[ch]` (`ShellSpinner`, final; the file only held `Spinner` in 51.1). `new Spinner(16, {hideOnStop: true})` is now `new Shell.Spinner({spinner_size: 16, hide_on_stop: true})` (`size` clashes with `ClutterActor:size`). |
 | `js/misc/gnomeSession.js` | 71 | todo | |
 | `js/misc/dependencies.js` | 68 | todo | |
 | `js/ui/backgroundMenu.js` | 66 | todo | |

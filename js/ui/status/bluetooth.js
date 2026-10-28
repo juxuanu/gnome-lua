@@ -6,9 +6,9 @@ import GLib from 'gi://GLib';
 import GnomeBluetooth from 'gi://GnomeBluetooth';
 import GObject from 'gi://GObject';
 import Pango from 'gi://Pango';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {Spinner} from '../animation.js';
 import * as PopupMenu from '../popupMenu.js';
 import {QuickMenuToggle, SystemIndicator} from '../quickSettings.js';
 
@@ -222,7 +222,7 @@ class BluetoothDeviceItem extends PopupMenu.PopupBaseMenuItem {
         });
         this.add_child(this._subtitle);
 
-        this._spinner = new Spinner(16, {hideOnStop: true});
+        this._spinner = new Shell.Spinner({spinner_size: 16, hide_on_stop: true});
         this.add_child(this._spinner);
 
         this._spinner.bind_property('visible',

@@ -3,8 +3,8 @@
 import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
 import Pango from 'gi://Pango';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
-import {Spinner} from '../ui/animation.js';
 import * as Params from '../misc/params.js';
 import {QrCode} from '../ui/qrCode.js';
 
@@ -220,8 +220,9 @@ export class WebLoginDialog extends St.Widget {
         });
         this.add_child(this._spinnerFrame);
 
-        this._spinner = new Spinner(WEB_LOGIN_SPINNER_SIZE, {
-            hideOnStop: true,
+        this._spinner = new Shell.Spinner({
+            spinner_size: WEB_LOGIN_SPINNER_SIZE,
+            hide_on_stop: true,
         });
         this._spinnerFrame.add_child(this._spinner);
     }

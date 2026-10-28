@@ -15,7 +15,6 @@ import * as RemoteSearch from './remoteSearch.js';
 import {ensureActorVisibleInScrollView} from '../misc/animationUtils.js';
 
 import {Highlighter} from '../misc/util.js';
-import {Spinner} from './animation.js';
 import {logErrorUnlessCancelled} from '../misc/errorUtils.js';
 
 const SEARCH_PROVIDERS_SCHEMA = 'org.gnome.desktop.search-providers';
@@ -628,7 +627,7 @@ export const SearchResultsView = GObject.registerClass({
             y_align: Clutter.ActorAlign.CENTER,
         });
 
-        this._statusSpinner = new Spinner(SEARCH_SPINNER_SIZE);
+        this._statusSpinner = new Shell.Spinner({spinner_size: SEARCH_SPINNER_SIZE});
 
         this._statusText = new St.Label({style_class: 'search-statustext'});
 

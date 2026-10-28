@@ -16,7 +16,6 @@ import * as ModemManager from '../../misc/modemManager.js';
 import * as Signals from '../../misc/signals.js';
 import * as Util from '../../misc/util.js';
 
-import {Spinner} from '../animation.js';
 import {QuickMenuToggle, SystemIndicator} from '../quickSettings.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
@@ -1799,7 +1798,7 @@ class NMWirelessToggle extends NMDeviceToggle {
             this, 'menu-enabled',
             GObject.BindingFlags.INVERT_BOOLEAN);
 
-        this._scanningSpinner = new Spinner(16);
+        this._scanningSpinner = new Shell.Spinner({spinner_size: 16});
 
         this.menu.connectObject('open-state-changed', (m, isOpen) => {
             if (isOpen)

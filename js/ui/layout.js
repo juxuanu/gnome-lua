@@ -14,7 +14,6 @@ import * as BackgroundMenu from './backgroundMenu.js';
 import * as DND from './dnd.js';
 import * as Main from './main.js';
 import * as Params from '../misc/params.js';
-import * as Ripples from './ripples.js';
 
 import {logErrorUnlessCancelled} from '../misc/errorUtils.js';
 
@@ -1168,8 +1167,8 @@ class HotCorner extends Clutter.Actor {
             py = 0.0;
         }
 
-        this._ripples = new Ripples.Ripples(px, py, 'ripple-box');
-        this._ripples.addTo(layoutManager.uiGroup);
+        this._ripples = Shell.Ripples.new(px, py, 'ripple-box', false);
+        this._ripples.add_to(layoutManager.uiGroup);
 
         this.connect('destroy', this._onDestroy.bind(this));
     }
@@ -1232,7 +1231,7 @@ class HotCorner extends Clutter.Actor {
         if (Main.overview.shouldToggleByCornerOrButton()) {
             Main.overview.toggle();
             if (Main.overview.animationInProgress)
-                this._ripples.playAnimation(this._x, this._y);
+                this._ripples.play_animation(this._x, this._y);
         }
     }
 

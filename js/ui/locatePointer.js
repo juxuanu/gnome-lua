@@ -1,5 +1,6 @@
 import Gio from 'gi://Gio';
-import * as Ripples from './ripples.js';
+import Shell from 'gi://Shell';
+
 import * as Main from './main.js';
 
 const LOCATE_POINTER_KEY = 'locate-pointer';
@@ -18,8 +19,8 @@ export class LocatePointer {
             return;
 
         if (enabled) {
-            this._ripples = new Ripples.Ripples(0.5, 0.5, 'ripple-pointer-location', true);
-            this._ripples.addTo(Main.uiGroup);
+            this._ripples = Shell.Ripples.new(0.5, 0.5, 'ripple-pointer-location', true);
+            this._ripples.add_to(Main.uiGroup);
         } else {
             this._ripples.destroy();
             this._ripples = null;
@@ -31,6 +32,6 @@ export class LocatePointer {
             return;
 
         const [x, y] = global.get_pointer();
-        this._ripples.playAnimation(x, y);
+        this._ripples.play_animation(x, y);
     }
 }

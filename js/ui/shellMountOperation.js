@@ -6,7 +6,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Animation from './animation.js';
 import * as CheckBox from './checkBox.js';
 import * as Dialog from './dialog.js';
 import * as MessageTray from './messageTray.js';
@@ -352,7 +351,8 @@ const ShellMountPasswordDialog = GObject.registerClass({
         this.setInitialKeyFocus(this._passwordEntry);
         ShellEntry.addContextMenu(this._passwordEntry);
 
-        this._workSpinner = new Animation.Spinner(WORK_SPINNER_ICON_SIZE, {
+        this._workSpinner = new Shell.Spinner({
+            spinner_size: WORK_SPINNER_ICON_SIZE,
             animate: true,
         });
 

@@ -9,7 +9,6 @@ import * as Main from '../main.js';
 import * as PopupMenu from '../popupMenu.js';
 import * as Util from '../../misc/util.js';
 
-import {Spinner} from '../animation.js';
 import {QuickToggle, SystemIndicator} from '../quickSettings.js';
 import {loadInterfaceXML} from '../../misc/dbusUtils.js';
 
@@ -75,7 +74,7 @@ const BackgroundAppMenuItem = GObject.registerClass({
 
         this.set_child_above_sibling(this._ornamentIcon, null);
 
-        this._spinner = new Spinner(16, {hideOnStop: true});
+        this._spinner = new Shell.Spinner({spinner_size: 16, hide_on_stop: true});
         this._spinner.add_style_class_name('spinner');
         this.add_child(this._spinner);
 
