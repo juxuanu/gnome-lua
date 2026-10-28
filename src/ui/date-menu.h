@@ -11,8 +11,8 @@
  *
  * The date menu has no knowledge of the overview, which is still JS: it
  * emits #ShellDateMenuButton::overview-hide-requested before it closes its
- * menu for an application it launches. The MPRIS players are in JS too, see
- * shell_date_menu_button_get_message_view ().
+ * menu for an application it launches. The MPRIS media messages are added to
+ * the message view by the message list itself (ui/mpris.h).
  */
 
 #pragma once

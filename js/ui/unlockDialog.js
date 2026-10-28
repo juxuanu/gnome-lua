@@ -14,7 +14,6 @@ import {fixMarkup} from '../misc/util.js';
 import * as AuthMenuButton from '../gdm/authMenuButton.js';
 import * as AuthPrompt from '../gdm/authPrompt.js';
 import {AuthPromptStatus} from '../gdm/authPrompt.js';
-import {MediaMessage, MprisSource} from './mpris.js';
 
 const PRIMARY_UNLOCK_METHOD_SECTION_NAME = _('Unlock Options');
 
@@ -53,12 +52,12 @@ const NotificationsBox = GObject.registerClass({
         this.add_child(this._scrollView);
 
         this._players = new Map();
-        this._mediaSource = new MprisSource();
+        this._mediaSource = new Shell.MprisSource();
         this._mediaSource.connectObject(
             'player-added', (o, player) => this._addPlayer(player),
             'player-removed', (o, player) => this._removePlayer(player),
             this);
-        this._mediaSource.players.forEach(player => {
+        this._mediaSource.get_players().forEach(player => {
             this._addPlayer(player);
         });
 
@@ -217,7 +216,7 @@ const NotificationsBox = GObject.registerClass({
     }
 
     _addPlayer(player) {
-        const message = new MediaMessage(player);
+        const message = new Shell.MediaMessage({player});
         this._players.set(player, message);
         this._notificationBox.insert_child_at_index(message, 0);
         this._updateVisibility();

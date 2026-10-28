@@ -19,9 +19,9 @@
  *    uninitialised proxy and waited for `notify::g-name-owner`).
  *  - The source cancels its pending calls and drops its proxy on
  *    ShellGlobal::shutdown and when it is destroyed.
- *  - The MPRIS players live in JS (js/ui/mpris.js): the message list does not
- *    create the media messages, the owner of the list does (js/ui/panelItems.js
- *    adds them to shell_calendar_message_list_get_message_view ()).
+ *  - The message list creates its own #ShellMprisSource and adds a
+ *    #ShellMediaMessage to the view for each player (`_setupMpris ()`), as the
+ *    JS list did before the media messages moved to the owner.
  *  - `Placeholder` is a plain vertical box.
  *  - The events of the cache are sorted by time and then by the order in which
  *    they were first received, as the stable sort of the JS `Map` iteration
@@ -38,6 +38,7 @@
 #include "shell-util.h"
 #include "ui/calendar.h"
 #include "ui/environment.h"
+#include "ui/mpris.h"
 
 #include "calendar-server-dbus.h"
 
@@ -1938,10 +1939,77 @@ struct _ShellCalendarMessageList
   ClutterClickGesture *click_gesture;  /* strong */
   ClutterKeyController *key_controller; /* strong */
   ClutterActor *capture_container;     /* weak */
+
+  ShellMprisSource *mpris_source;      /* strong */
+  GHashTable *players;                 /* ShellMprisPlayer -> ShellMediaMessage, strong */
 };
 
 G_DEFINE_FINAL_TYPE (ShellCalendarMessageList, shell_calendar_message_list,
                      ST_TYPE_WIDGET)
+
+static void
+list_add_player (ShellCalendarMessageList *self,
+                 ShellMprisPlayer         *player)
+{
+  ShellMediaMessage *message;
+
+  if (self->message_view == NULL || g_hash_table_contains (self->players, player))
+    return;
+
+  message = shell_media_message_new (player);
+  g_object_ref_sink (message);
+  g_hash_table_insert (self->players, g_object_ref (player), message);
+  shell_message_view_add_media_message (self->message_view, SHELL_MESSAGE (message));
+}
+
+static void
+list_remove_player (ShellCalendarMessageList *self,
+                    ShellMprisPlayer         *player)
+{
+  ShellMediaMessage *message = g_hash_table_lookup (self->players, player);
+
+  if (message == NULL)
+    return;
+
+  if (self->message_view != NULL)
+    shell_message_view_remove_media_message (self->message_view,
+                                             SHELL_MESSAGE (message));
+  g_hash_table_remove (self->players, player);
+}
+
+static void
+list_on_player_added (ShellMprisSource          *source,
+                      ShellMprisPlayer          *player,
+                      ShellCalendarMessageList  *self)
+{
+  list_add_player (self, player);
+}
+
+static void
+list_on_player_removed (ShellMprisSource          *source,
+                        ShellMprisPlayer          *player,
+                        ShellCalendarMessageList  *self)
+{
+  list_remove_player (self, player);
+}
+
+/* `_setupMpris ()` */
+static void
+list_setup_mpris (ShellCalendarMessageList *self)
+{
+  g_autoptr (GList) players = NULL;
+  GList *l;
+
+  self->mpris_source = shell_mpris_source_new ();
+  g_signal_connect_object (self->mpris_source, "player-added",
+                           G_CALLBACK (list_on_player_added), self, 0);
+  g_signal_connect_object (self->mpris_source, "player-removed",
+                           G_CALLBACK (list_on_player_removed), self, 0);
+
+  players = shell_mpris_source_get_players (self->mpris_source);
+  for (l = players; l != NULL; l = l->next)
+    list_add_player (self, l->data);
+}
 
 static void
 list_on_clear_clicked (StButton                 *button,
@@ -2091,8 +2159,8 @@ shell_calendar_message_list_set_capture_container (ShellCalendarMessageList *sel
  * shell_calendar_message_list_get_message_view:
  * @self: a #ShellCalendarMessageList
  *
- * Gets the view of the messages, to which the owner adds the media messages
- * of the MPRIS players (js/ui/mpris.js).
+ * Gets the view of the messages, to which the list adds the media messages
+ * of the MPRIS players.
  *
  * Returns: (transfer none): the #ShellMessageView
  */
@@ -2220,6 +2288,8 @@ shell_calendar_message_list_constructed (GObject *object)
                                G_BINDING_SYNC_CREATE,
                                list_expanded_group_to_enabled, NULL,
                                NULL, NULL);
+
+  list_setup_mpris (self);
 }
 
 static void
@@ -2274,6 +2344,11 @@ shell_calendar_message_list_dispose (GObject *object)
   g_clear_weak_pointer (&self->clear_button);
   g_clear_weak_pointer (&self->message_view);
 
+  if (self->mpris_source != NULL)
+    g_signal_handlers_disconnect_by_data (self->mpris_source, self);
+  g_clear_object (&self->mpris_source);
+  g_clear_pointer (&self->players, g_hash_table_unref);
+
   g_clear_object (&self->click_gesture);
   g_clear_object (&self->key_controller);
   g_clear_object (&self->message_tray);
@@ -2310,6 +2385,9 @@ static void
 shell_calendar_message_list_init (ShellCalendarMessageList *self)
 {
   ClutterActor *actor = CLUTTER_ACTOR (self);
+
+  self->players = g_hash_table_new_full (NULL, NULL,
+                                          g_object_unref, g_object_unref);
 
   st_widget_set_style_class_name (ST_WIDGET (self), "message-list");
   clutter_actor_set_x_expand (actor, TRUE);

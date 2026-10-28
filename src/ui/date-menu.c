@@ -2459,7 +2459,7 @@ shell_date_menu_button_get_message_list (ShellDateMenuButton *self)
  * @self: a #ShellDateMenuButton
  *
  * Gets the view of the messages in the menu, to which the media messages of
- * the MPRIS players are added (js/ui/mpris.js is still JS).
+ * the MPRIS players are added.
  *
  * Returns: (transfer none) (nullable): the view
  */

@@ -49,7 +49,6 @@
     <file>ui/listModes.js</file>
     <file>ui/lookingGlass.js</file>
     <file>ui/main.js</file>
-    <file>ui/mpris.js</file>
     <file>ui/overview.js</file>
     <file>ui/overviewControls.js</file>
     <file>ui/panelItems.js</file>

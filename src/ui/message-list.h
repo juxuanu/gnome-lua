@@ -6,15 +6,13 @@
  * #ShellMessage is the base class (derivable): a header with the title and
  * the icon of the source, an icon, a title, a body that expands, an optional
  * action area and media controls. It is a #StButton; the JS subclass
- * `MediaMessage` (js/ui/mpris.js) overrides `vfunc_clicked ()` and the
- * virtual function `can_close`. #ShellNotificationMessage is the message of
- * a #ShellNotification, final.
+ * `MediaMessage` is #ShellMediaMessage (ui/mpris.h), a final subclass.
+ * #ShellNotificationMessage is the message of a #ShellNotification, final.
  *
  * #ShellMessageView is the scrollable list of the date menu. Its notification
  * sources come from the #ShellMessageTray in #ShellMessageView:message-tray;
  * the media messages are added by the caller with
- * shell_message_view_add_media_message () because the MPRIS players live in
- * JS (js/ui/mpris.js, which also defines the `MediaMessage` class).
+ * shell_message_view_add_media_message ().
  *
  * The other classes of the JS module (the notification group, the layout
  * managers, the fade effect, the URL highlighter and the time label) are

@@ -14,9 +14,10 @@
  * Differences from the JS module, other than the renames listed in
  * docs/PORT_STATUS.md:
  *
- *  - `MediaMessage` and the MPRIS players stay in JS (js/ui/mpris.js):
+ *  - `MediaMessage` and the MPRIS players are in ui/mpris.c:
  *    #ShellMessageView:message-tray provides the notification sources, and
- *    the caller adds the media messages with
+ *    the caller (the message list of the date menu, ui/calendar.c, or the
+ *    lock screen) adds the media messages with
  *    shell_message_view_add_media_message ().
  *  - The messages are limited to a number of grapheme clusters as Pango finds
  *    them in the text (`Intl.Segmenter` is not available).

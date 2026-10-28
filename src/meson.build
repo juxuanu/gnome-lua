@@ -119,6 +119,8 @@ libshell_public_headers = [
   'ui/window-attention-handler.h',
   'ui/components/automount-manager.h',
   'ui/components/autorun-manager.h',
+  'ui/components/keyring.h',
+  'ui/components/polkit-agent.h',
   'ui/message-list.h',
   'misc/text-utils.h',
   'ui/bar-level.h',
@@ -154,6 +156,7 @@ libshell_public_headers = [
   'ui/panel-menu.h',
   'ui/panel.h',
   'ui/calendar.h',
+  'ui/mpris.h',
   'ui/date-menu.h',
   'ui/quick-settings.h',
   'ui/switcher-popup.h',
@@ -170,6 +173,8 @@ libshell_public_headers = [
   'ui/pad-osd.h',
   'ui/inhibit-shortcuts-dialog.h',
   'ui/user-widget.h',
+  'ui/qr-code.h',
+  'ui/welcome-dialog.h',
   'ui/end-session-dialog.h',
   'ui/access-dialog.h',
   'ui/audio-device-selection.h',
@@ -280,6 +285,8 @@ libshell_sources = [
   'ui/window-attention-handler.c',
   'ui/components/automount-manager.c',
   'ui/components/autorun-manager.c',
+  'ui/components/keyring.c',
+  'ui/components/polkit-agent.c',
   'ui/message-list.c',
   'misc/text-utils.c',
   'ui/bar-level.c',
@@ -315,6 +322,7 @@ libshell_sources = [
   'ui/panel-menu.c',
   'ui/panel.c',
   'ui/calendar.c',
+  'ui/mpris.c',
   'ui/date-menu.c',
   'ui/quick-settings.c',
   'ui/switcher-popup.c',
@@ -331,6 +339,8 @@ libshell_sources = [
   'ui/pad-osd.c',
   'ui/inhibit-shortcuts-dialog.c',
   'ui/user-widget.c',
+  'ui/qr-code.c',
+  'ui/welcome-dialog.c',
   'ui/end-session-dialog.c',
   'ui/access-dialog.c',
   'ui/audio-device-selection.c',
@@ -503,6 +513,16 @@ dbus_generated += gnome.gdbus_codegen('calendar-server-dbus',
 dbus_generated += gnome.gdbus_codegen('clocks-integration-dbus',
   sources: '../data/dbus-interfaces/org.gnome.Shell.ClocksIntegration.xml',
   interface_prefix: 'org.gnome.Shell.',
+  namespace: 'Shell'
+)
+
+# The proxies of ui/mpris.c (types ShellMediaPlayer2 and ShellMediaPlayer2Player)
+dbus_generated += gnome.gdbus_codegen('mpris-dbus',
+  sources: [
+    '../data/dbus-interfaces/org.mpris.MediaPlayer2.xml',
+    '../data/dbus-interfaces/org.mpris.MediaPlayer2.Player.xml',
+  ],
+  interface_prefix: 'org.mpris.',
   namespace: 'Shell'
 )
 
@@ -717,7 +737,7 @@ endif
 
 libshell = library('shell-' + mutter_api_version,
   sources: libshell_gir_sources + libshell_no_gir_sources,
-  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, glycin_dep, ibus_dep, json_glib_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep, gweather_dep, geoclue_dep, malcontent_dep, rsvg_dep, libgvc_dep, upower_dep] + (have_bluetooth ? [bluetooth_dep] : []),
+  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, gnome_qr_dep, glycin_dep, ibus_dep, json_glib_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep, gweather_dep, geoclue_dep, malcontent_dep, rsvg_dep, libgvc_dep, upower_dep] + (have_bluetooth ? [bluetooth_dep] : []),
   include_directories: [conf_inc, include_directories('tray')],
   c_args: gnome_shell_cflags,
   link_with: libshell_link_with,

@@ -21,10 +21,8 @@
  *    from the `org.gnome.Shell.CalendarServer` service of the session bus.
  *  - #ShellCalendar: `Calendar`, the month grid.
  *  - #ShellCalendarMessageList: `CalendarMessageList`, the notifications list
- *    with its "Clear" button. MPRIS stays in JS (js/ui/mpris.js), so the list
- *    does not create the media messages itself: the owner of the list adds
- *    them to shell_calendar_message_list_get_message_view () (see
- *    js/ui/panelItems.js).
+ *    with its "Clear" button. It creates a #ShellMprisSource and adds the
+ *    #ShellMediaMessage of each player to its message view (`_setupMpris ()`).
  */
 
 #pragma once

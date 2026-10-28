@@ -6,7 +6,7 @@
  * The types, with the name they had in the JS module:
  *
  *  - #ShellMessageSource: `MessageList.Source`, a title and an icon. Derivable;
- *    mpris.js creates plain ones for its players.
+ *    mpris.c creates plain ones for its players.
  *  - #ShellNotificationPolicy (`NotificationPolicy`, derivable, abstract),
  *    #ShellNotificationGenericPolicy and #ShellNotificationApplicationPolicy:
  *    what the user configured for the notifications of an application.

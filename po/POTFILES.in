@@ -31,7 +31,7 @@ js/ui/extensionSystem.js
 js/ui/kbdA11yDialog.js
 js/ui/lookingGlass.js
 js/ui/main.js
-js/ui/mpris.js
+src/ui/mpris.c
 js/ui/overviewControls.js
 js/ui/overview.js
 js/ui/panelItems.js
