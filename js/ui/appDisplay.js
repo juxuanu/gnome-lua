@@ -15,7 +15,6 @@ import * as DND from './dnd.js';
 import * as GrabHelper from './grabHelper.js';
 import * as IconGrid from './iconGrid.js';
 import * as Layout from './layout.js';
-import * as PageIndicators from './pageIndicators.js';
 import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as PopupMenu from './popupMenu.js';
 import * as Search from './search.js';
@@ -484,8 +483,8 @@ var BaseAppView = GObject.registerClass({
         this._grid.x_expand = true;
         this._grid.connect('pages-changed', () => {
             this.goToPage(this._grid.currentPage);
-            this._pageIndicators.setNPages(this._grid.nPages);
-            this._pageIndicators.setCurrentPosition(this._grid.currentPage);
+            this._pageIndicators.set_n_pages(this._grid.nPages);
+            this._pageIndicators.set_current_position(this._grid.currentPage);
         });
 
         // Scroll View
@@ -515,12 +514,13 @@ var BaseAppView = GObject.registerClass({
         this._adjustment = this._scrollView.hadjustment;
         this._adjustment.connect('notify::value', adj => {
             const value = adj.value / adj.page_size;
-            this._pageIndicators.setCurrentPosition(value);
+            this._pageIndicators.set_current_position(value);
         });
 
         // Page Indicators
-        this._pageIndicators =
-            new PageIndicators.PageIndicators(Clutter.Orientation.HORIZONTAL);
+        this._pageIndicators = new Shell.PageIndicators({
+            orientation: Clutter.Orientation.HORIZONTAL,
+        });
 
         this._pageIndicators.y_expand = false;
         this._pageIndicators.connect('page-activated',

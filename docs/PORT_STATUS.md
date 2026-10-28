@@ -100,9 +100,9 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/ui/ctrlAltTab.js` | 195 | todo | |
 | `js/ui/closeDialog.js` | 179 | todo | |
 | `js/ui/appFavorites.js` | 163 | todo | |
-| `js/ui/workspaceSwitcherPopup.js` | 128 | todo | |
+| `js/ui/workspaceSwitcherPopup.js` | 128 | ported | `src/ui/workspace-switcher-popup.[ch]` (`ShellWorkspaceSwitcherPopup`, a ClutterActor as before; private monitor constraint reading `MetaDisplay`, since `Layout.MonitorConstraint` is still JS). `new WorkspaceSwitcherPopup()` is now `new Shell.WorkspaceSwitcherPopup({ui_group: Main.uiGroup})`; `display` is `display`. The `ANIMATION_TIME` export and `MonitorWorkspaceSwitcherPopup` class are gone. |
 | `js/ui/switchMonitor.js` | 122 | todo | |
-| `js/ui/pageIndicators.js` | 115 | todo | |
+| `js/ui/pageIndicators.js` | 115 | ported | `src/ui/page-indicators.[ch]` (`ShellPageIndicators`). `new PageIndicators(orientation)` is now `new Shell.PageIndicators({orientation})`; `setNPages`/`setCurrentPosition` are `set_n_pages`/`set_current_position`; `nPages` is the read-only `n-pages` property; `setReactive` is `set_indicators_reactive` (`set_reactive` is ClutterActor's). The default orientation is still vertical, and the alignment now also follows later orientation changes. |
 | `js/ui/checkBox.js` | 48 | ported | `src/ui/check-box.[ch]` (`ShellCheckBox`, final StButton). `new CheckBox(text)` is now `Shell.CheckBox.new(text)`; `setLabel`/`getLabelActor` are `set_label`/`get_label_actor`. No `label` construct property (StButton owns that name). |
 
 ## M4

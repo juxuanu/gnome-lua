@@ -12,7 +12,6 @@ import * as Signals from '../misc/signals.js';
 import * as InputSourceManager from './status/keyboard.js';
 import * as IBusManager from '../misc/ibusManager.js';
 import * as Main from './main.js';
-import * as PageIndicators from './pageIndicators.js';
 import * as PopupMenu from './popupMenu.js';
 import * as SwipeTracker from './swipeTracker.js';
 
@@ -786,12 +785,13 @@ const EmojiSelection = GObject.registerClass({
         });
         this._pagerBox.add_child(this._emojiPager);
 
-        this._pageIndicator = new PageIndicators.PageIndicators(
-            Clutter.Orientation.HORIZONTAL);
+        this._pageIndicator = new Shell.PageIndicators({
+            orientation: Clutter.Orientation.HORIZONTAL,
+        });
         this._pageIndicator.y_expand = false;
         this._pageIndicator.y_align = Clutter.ActorAlign.START;
         this._pagerBox.add_child(this._pageIndicator);
-        this._pageIndicator.setReactive(false);
+        this._pageIndicator.set_indicators_reactive(false);
 
         this._emojiPager.connect('notify::delta', () => {
             this._updateIndicatorPosition();
@@ -809,7 +809,7 @@ const EmojiSelection = GObject.registerClass({
 
     _onPageChanged(sectionLabel, page, nPages) {
         this._curPage = page;
-        this._pageIndicator.setNPages(nPages);
+        this._pageIndicator.set_n_pages(nPages);
         this._updateIndicatorPosition();
 
         for (let i = 0; i < this._sections.length; i++) {
@@ -819,7 +819,7 @@ const EmojiSelection = GObject.registerClass({
     }
 
     _updateIndicatorPosition() {
-        this._pageIndicator.setCurrentPosition(this._curPage -
+        this._pageIndicator.set_current_position(this._curPage -
             this._emojiPager.delta / this._emojiPager.width);
     }
 

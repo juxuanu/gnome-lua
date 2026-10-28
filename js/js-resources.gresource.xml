@@ -99,7 +99,6 @@
     <file>ui/overview.js</file>
     <file>ui/overviewControls.js</file>
     <file>ui/padOsd.js</file>
-    <file>ui/pageIndicators.js</file>
     <file>ui/panel.js</file>
     <file>ui/panelMenu.js</file>
     <file>ui/popupMenu.js</file>
@@ -129,7 +128,6 @@
     <file>ui/workspace.js</file>
     <file>ui/workspaceAnimation.js</file>
     <file>ui/workspacesView.js</file>
-    <file>ui/workspaceSwitcherPopup.js</file>
     <file>ui/workspaceThumbnail.js</file>
 
     <file>ui/components.js</file>

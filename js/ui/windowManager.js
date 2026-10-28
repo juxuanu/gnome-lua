@@ -11,7 +11,6 @@ import St from 'gi://St';
 import * as AltTab from './altTab.js';
 import * as AppFavorites from './appFavorites.js';
 import * as Dialog from './dialog.js';
-import * as WorkspaceSwitcherPopup from './workspaceSwitcherPopup.js';
 import * as InhibitShortcutsDialog from './inhibitShortcutsDialog.js';
 import * as ModalDialog from './modalDialog.js';
 import * as WindowMenu from './windowMenu.js';
@@ -1869,7 +1868,8 @@ export class WindowManager {
         if (!Main.overview.visible) {
             if (this._workspaceSwitcherPopup == null) {
                 this.blockWorkspaceUpdates();
-                this._workspaceSwitcherPopup = new WorkspaceSwitcherPopup.WorkspaceSwitcherPopup();
+                this._workspaceSwitcherPopup =
+                    new Shell.WorkspaceSwitcherPopup({ui_group: Main.uiGroup});
                 this._workspaceSwitcherPopup.connect('destroy', () => {
                     this.unblockWorkspaceUpdates();
                     this._workspaceSwitcherPopup = null;
