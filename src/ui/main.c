@@ -2944,6 +2944,12 @@ lock_warning_touch_ready_cb (GObject      *source,
       g_message ("Failed to create the lock warning file: %s", error->message);
     }
 
+  /* A test session has no GDM either: the banner would stay on screen (the
+   * session is idle, nothing expires it) and hold back the banners the test
+   * waits for, like the dialogs and notifications skipped below */
+  if (shell_test_runner_is_enabled ())
+    return;
+
   shell_main_send_notification (self,
                      _("Screen Lock disabled"),
                      _("Screen Locking requires the GNOME display manager"));

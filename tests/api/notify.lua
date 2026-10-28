@@ -43,6 +43,9 @@ harness.run {
   uuid = "notify@test",
   -- the banners and the message list make actors of their own while they exist
   actors = false,
+  -- the steps that wait for a banner give up after 20 s themselves, with
+  -- the name of what did not happen
+  timeout = 25000,
 
   drive = function (c)
     c.wait_done ("main")

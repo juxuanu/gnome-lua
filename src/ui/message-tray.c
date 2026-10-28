@@ -38,6 +38,7 @@
 #include "shell-global.h"
 #include "shell-enum-types.h"
 #include "shell-hooks.h"
+#include "shell-test-runner.h"
 #include "shell-util.h"
 #include "ui/environment.h"
 #include "ui/layout.h"
@@ -4449,8 +4450,11 @@ tray_show_notification (ShellMessageTray *self)
   self->notification = g_steal_pointer (&next);
   emit_queue_changed (self);
 
+  /* The session of a test script is idle for ever: its banners must expire
+   * like those of a user who is at the computer */
   self->user_active_while_notification_shown =
     self->idle_monitor == NULL ||
+    shell_test_runner_is_enabled () ||
     meta_idle_monitor_get_idletime (self->idle_monitor) <= IDLE_TIME;
   if (!self->user_active_while_notification_shown)
     {
