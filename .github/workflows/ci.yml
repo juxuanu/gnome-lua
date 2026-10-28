@@ -1,0 +1,114 @@
+# CI for gnome-lua. See docs/PLAN.md (M0).
+#
+# shell-lua   standalone Meson project in subprojects/shell-lua (needs network
+#             to fetch the Lua 5.5.1 wrap)
+# gnome-shell mirrors the `build` and `test` jobs of .gitlab-ci.yml, in the
+#             same container image, against mutter 51.1
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shell-lua:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y meson ninja-build libglib2.0-dev \
+            libjson-glib-dev gobject-introspection libgirepository1.0-dev \
+            gettext
+
+      - name: Configure
+        working-directory: subprojects/shell-lua
+        run: meson setup build -Dintrospection=disabled
+
+      - name: Build
+        working-directory: subprojects/shell-lua
+        run: meson compile -C build
+
+      - name: Test
+        working-directory: subprojects/shell-lua
+        run: meson test -C build --print-errorlogs
+
+      - name: Upload meson logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shell-lua-meson-logs
+          path: subprojects/shell-lua/build/meson-logs
+
+  gnome-shell:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    container:
+      # MUTTER_CI_IMAGE in .gitlab-ci.yml
+      image: registry.gitlab.gnome.org/gnome/mutter/fedora/45:x86_64-2026-09-10.0
+      # Run as root so the upstream `sudo meson install` steps need no sudo.
+      options: --user root
+    env:
+      # Same variables as the upstream `test` job (it uses
+      # $CI_PROJECT_DIR/runtime-dir; the workspace is the equivalent here).
+      NO_AT_BRIDGE: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Mark workspace as safe for git
+        run: git config --global --add safe.directory '*'
+
+      # Replaces .gitlab-ci/checkout-mutter.sh. That script picks a mutter
+      # branch from CI_* variables (MR source/target branch, tag, ...) and
+      # otherwise uses mutter HEAD; none of these exist here and this fork
+      # tracks exactly one mutter API version, so use the 51.1 tag.
+      - name: Build and install mutter 51.1
+        run: |
+          git clone --quiet --depth=1 --branch 51.1 \
+            https://gitlab.gnome.org/GNOME/mutter.git mutter
+          meson setup mutter/build mutter --prefix=/usr
+          meson install -C mutter/build
+
+      # Upstream `build` job. Its `sudo meson install -C build` is done with
+      # --destdir so the installed shell cannot shadow the build tree in the
+      # test step below (upstream runs the tests in a fresh container where
+      # only mutter is installed).
+      - name: Build gnome-shell
+        run: |
+          meson setup build \
+            -Dbuildtype=debugoptimized \
+            -Dman=false \
+            -Dgtk_doc=true \
+            -Db_sanitize='["address"]' \
+            --werror \
+            --fatal-meson-warnings
+          meson compile -C build
+          meson install -C build --destdir "$RUNNER_TEMP/shell-destdir"
+
+      # Upstream `test` job.
+      - name: Test gnome-shell
+        env:
+          BUILD_DIR: build-tests
+        run: |
+          export XDG_RUNTIME_DIR="$GITHUB_WORKSPACE/runtime-dir"
+          mkdir -m 700 "$XDG_RUNTIME_DIR"
+          mkdir -p -m 1777 /tmp/.X11-unix
+          # Start with a fresh build dir to ensure test dependencies are correct
+          meson setup "$BUILD_DIR" -Dman=false -Dgtk_doc=false
+          dbus-run-session -- meson test -C "$BUILD_DIR" --timeout-multiplier 5
+
+      - name: Upload test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gnome-shell-test-logs
+          path: |
+            build-tests/meson-logs/testlog.txt
+            build-tests/meson-logs/testlog.junit.xml
+            build/meson-logs
