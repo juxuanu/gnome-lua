@@ -1,0 +1,3 @@
+[D-BUS Service]
+Name=org.gnome.Shell.Notifications
+Exec=@libexecdir@/org.gnome.Shell.Notifications

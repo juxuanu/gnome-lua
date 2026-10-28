@@ -4,10 +4,8 @@ launcherconf.set('prefix', prefix)
 launcherconf.set('libdir', libdir)
 
 dbus_services = {
+  # The other services are C programs, see src/dbus-services
   'org.gnome.Shell.Extensions': 'extensions',
-  'org.gnome.Shell.Notifications': 'notifications',
-  'org.gnome.Shell.Screencast': 'screencast',
-  'org.gnome.ScreenSaver': 'screensaver',
 }
 
 config_dir = '@0@/..'.format(meson.current_build_dir())

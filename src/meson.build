@@ -11,6 +11,7 @@ introspection_common = {
 }
 
 subdir('calendar-server')
+subdir('dbus-services')
 subdir('hotplug-sniffer')
 subdir('st')
 if have_xwayland

@@ -7,7 +7,7 @@
  * skeletons:
  *
  *  - /org/freedesktop/Notifications (org.freedesktop.Notifications): the
- *    notification helper process (js/dbusServices/notifications) owns the bus
+ *    notification helper process (src/dbus-services/notification-service.c) owns the bus
  *    name and forwards the calls of the applications to the shell, adding the
  *    `x-shell-sender` and `x-shell-sender-pid` hints. The signals are sent to
  *    the helper only.
