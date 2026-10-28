@@ -21,8 +21,8 @@
 #include <string.h>
 
 G_DEFINE_ENUM_TYPE (ShellHookVerdict, shell_hook_verdict,
-                    G_DEFINE_ENUM_VALUE (SHELL_HOOK_CONTINUE, "continue"),
-                    G_DEFINE_ENUM_VALUE (SHELL_HOOK_CANCEL, "cancel"))
+                    G_DEFINE_ENUM_VALUE (SHELL_HOOK_VERDICT_CONTINUE, "continue"),
+                    G_DEFINE_ENUM_VALUE (SHELL_HOOK_VERDICT_CANCEL, "cancel"))
 
 G_DEFINE_ENUM_TYPE (ShellHookPhase, shell_hook_phase,
                     G_DEFINE_ENUM_VALUE (SHELL_HOOK_PHASE_BEFORE, "before"),
@@ -569,7 +569,7 @@ merge_amendments (GVariantDict *result,
  * @payload: (nullable): a{sv}, NULL for an empty dictionary
  * @amendments: (out) (optional) (transfer full) (nullable): merged a{sv} of all amendments, NULL if none
  *
- * Returns: %SHELL_HOOK_CANCEL if any listener cancelled
+ * Returns: %SHELL_HOOK_VERDICT_CANCEL if any listener cancelled
  */
 ShellHookVerdict
 shell_hook_registry_emit_before (ShellHookRegistry *self,
@@ -581,29 +581,29 @@ shell_hook_registry_emit_before (ShellHookRegistry *self,
   GVariant *pl;
   GPtrArray *snap;
   GVariantDict *merged = NULL;
-  ShellHookVerdict verdict = SHELL_HOOK_CONTINUE;
+  ShellHookVerdict verdict = SHELL_HOOK_VERDICT_CONTINUE;
 
   if (amendments)
     *amendments = NULL;
 
-  g_return_val_if_fail (SHELL_IS_HOOK_REGISTRY (self), SHELL_HOOK_CONTINUE);
+  g_return_val_if_fail (SHELL_IS_HOOK_REGISTRY (self), SHELL_HOOK_VERDICT_CONTINUE);
 
   pl = normalize_payload (payload);
   if (pl == NULL)
-    return SHELL_HOOK_CONTINUE;
+    return SHELL_HOOK_VERDICT_CONTINUE;
 
   hp = lookup_point (self, name);
   if (hp == NULL)
     {
       g_warning ("Emitting undeclared hook '%s'", name ? name : "(null)");
       g_variant_unref (pl);
-      return SHELL_HOOK_CONTINUE;
+      return SHELL_HOOK_VERDICT_CONTINUE;
     }
   if (!hp->cancellable)
     {
       g_warning ("Hook '%s' is not cancellable; use emit_after()", name);
       g_variant_unref (pl);
-      return SHELL_HOOK_CONTINUE;
+      return SHELL_HOOK_VERDICT_CONTINUE;
     }
 
   g_object_ref (self);
@@ -636,9 +636,9 @@ shell_hook_registry_emit_before (ShellHookRegistry *self,
         }
       g_variant_unref (amended);
 
-      if (v == SHELL_HOOK_CANCEL)
+      if (v == SHELL_HOOK_VERDICT_CANCEL)
         {
-          verdict = SHELL_HOOK_CANCEL;
+          verdict = SHELL_HOOK_VERDICT_CANCEL;
           break;
         }
     }

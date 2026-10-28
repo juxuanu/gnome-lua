@@ -3,7 +3,7 @@
 Each subdirectory is a complete extension in the packaging format described
 in `docs/PLAN.md` (D13): a directory named after its uuid containing
 `metadata.json` and `extension.lua`, plus optional `prefs.lua`,
-`stylesheet.css`, `schemas/` and `locale/`. `hello/` is the canonical minimal
+`stylesheet.css`, `schemas/` and `locale/`. `hello@gnome-lua.example/` is the canonical minimal
 extension: it logs, runs a timer and shows how to connect to a hook only when
 the running shell declares it. It has no `disable()` on purpose, to show that
 everything created through `shell.*` is torn down automatically.
@@ -26,6 +26,6 @@ replaces the default search path:
     SHELL_LUA_EXTENSION_PATH=$PWD/subprojects/shell-lua/examples gnome-shell --nested
 
 Directories listed there are treated like per-user extensions, and the
-directory name must still equal the uuid, which is why `examples/` contains a
-symlink `hello@gnome-lua.example` pointing at `hello/`. Log output appears in
+directory name must still equal the uuid, which is why the example lives in
+`examples/hello@gnome-lua.example/`. Log output appears in
 the journal with the domain `shell-lua/hello@gnome-lua.example`.

@@ -22,8 +22,8 @@
 G_BEGIN_DECLS
 
 typedef enum {
-  SHELL_HOOK_CONTINUE,
-  SHELL_HOOK_CANCEL,
+  SHELL_HOOK_VERDICT_CONTINUE,
+  SHELL_HOOK_VERDICT_CANCEL,
 } ShellHookVerdict;
 
 #define SHELL_TYPE_HOOK_VERDICT (shell_hook_verdict_get_type ())
@@ -96,7 +96,7 @@ guint              shell_hook_registry_count_listeners (ShellHookRegistry *self,
  * @payload: (nullable): a{sv}, NULL for an empty dictionary
  * @amendments: (out) (optional) (transfer full) (nullable): merged a{sv} of all amendments, NULL if none
  *
- * Returns: %SHELL_HOOK_CANCEL if any listener cancelled
+ * Returns: %SHELL_HOOK_VERDICT_CANCEL if any listener cancelled
  */
 ShellHookVerdict   shell_hook_registry_emit_before (ShellHookRegistry *self,
                                                     const char        *name,

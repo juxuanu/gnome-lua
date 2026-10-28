@@ -152,7 +152,7 @@ never call extension code directly.
 * Payload is an `a{sv}` GVariant of basic types: keys lower-case kebab-case;
   refer to objects by id (`app-id:s`, `window-id:t`), never by pointer.
 * Order: `emit_before ()` (if cancellable), do the action unless
-  `SHELL_HOOK_CANCEL`, then `emit_after ()`. Emit from the state transition,
+  `SHELL_HOOK_VERDICT_CANCEL`, then `emit_after ()`. Emit from the state transition,
   not from a signal handler that can fire twice. Hooks must not be emitted from
   `dispose`.
 

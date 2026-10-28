@@ -41,6 +41,7 @@ if get_option('buildtype') != 'plain'
     '-Wpointer-arith',
     '-Wmissing-declarations',
     '-Wimplicit-function-declaration',
+    '-Wno-unused-parameter',
     '-Wformat=2',
     '-Wformat-nonliteral',
     '-Wformat-security',

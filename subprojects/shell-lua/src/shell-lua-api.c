@@ -78,8 +78,12 @@ shell_lua_api_populate (ShellLuaState *state,
   g_return_if_fail (L != NULL);
   g_return_if_fail (lua_istable (L, -1));
 
-  if (modules == NULL)
-    return;
+  /* The built-in modules register themselves from constructors, but when
+   * the library is linked statically nothing references their object files
+   * and the linker drops them. Registering them here (idempotent) keeps the
+   * library usable without --whole-archive. */
+  shell_lua_api_register ("core", shell_lua_api_core_register);
+  shell_lua_api_register ("hooks", shell_lua_api_hooks_register);
 
   /* Deterministic order independent of link order */
   g_array_sort (modules, compare_modules);

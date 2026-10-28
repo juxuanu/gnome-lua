@@ -446,11 +446,10 @@ find_module (ShellLuaState  *self,
   for (i = 0; i < self->roots->len; i++)
     {
       GFile *root = g_ptr_array_index (self->roots, i);
-      const char *patterns[2] = { "%s.lua", "%s/init.lua" };
-
       for (k = 0; k < 2; k++)
         {
-          g_autofree char *relfile = g_strdup_printf (patterns[k], rel);
+          g_autofree char *relfile = k == 0 ? g_strconcat (rel, ".lua", NULL)
+                                            : g_strconcat (rel, "/init.lua", NULL);
           g_autoptr(GFile) child = g_file_resolve_relative_path (root, relfile);
           g_autofree char *display = file_display_name (child);
           g_autoptr(GError) error = NULL;

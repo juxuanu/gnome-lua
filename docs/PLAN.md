@@ -113,7 +113,7 @@ subprojects/shell-lua/src/
   (M7) shell-lua-api-ui.c, -panel.c, -menu.c, -quick-settings.c, -dash.c,
        -notify.c, -dbus.c, -window.c, -prefs.c
 subprojects/shell-lua/tests/  GTest programs, run by `meson test` standalone and in-tree
-subprojects/shell-lua/examples/hello/
+subprojects/shell-lua/examples/hello@gnome-lua.example/
 ```
 
 The M7 modules that touch St/Clutter/Meta cannot live in the subproject (it
@@ -154,7 +154,7 @@ in parallel across people once M1's conventions exist.
 * Looking Glass gains a Lua REPL tab (the JS one stays until M4 ports Looking Glass).
 * Tests: `subprojects/shell-lua/tests/` GTest programs (no mutter needed),
   including sandbox escape attempts, watchdog, teardown.
-* Exit: a sample extension (`examples/hello/`) loads, logs, times, and is torn down
+* Exit: a sample extension (`examples/hello@gnome-lua.example/`) loads, logs, times, and is torn down
   cleanly, with GJS still running everything else.
 
 ### M2 — Core UI to C (effort 3)
@@ -326,5 +326,5 @@ tests/shell, tests/unit (C), subprojects/shell-lua/tests, tests/api
 
 1. Confirm the interpretation at the top of this document.
 2. M0: import gnome-shell 51.1 history into this repo and get CI green.
-3. M1: land `subprojects/shell-lua/` with the sandboxed state, watchdog and `examples/hello`.
+3. M1: land `subprojects/shell-lua/` with the sandboxed state, watchdog and `examples/hello@gnome-lua.example`.
 4. Start `docs/api/` with the hook catalogue, since M2–M5 must emit the hooks.
