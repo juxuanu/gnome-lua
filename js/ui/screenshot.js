@@ -9,12 +9,12 @@ import Mtk from 'gi://Mtk';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as GrabHelper from './grabHelper.js';
 import * as Layout from './layout.js';
 import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
 import * as Workspace from './workspace.js';
 
+Gio._promisify(Shell.GrabHelper.prototype, 'grab_async', 'grab_finish');
 Gio._promisify(Shell.Screenshot.prototype, 'pick_color');
 Gio._promisify(Shell.Screenshot.prototype, 'screenshot');
 Gio._promisify(Shell.Screenshot.prototype, 'screenshot_window');
@@ -1596,8 +1596,9 @@ export class ScreenshotUI extends St.Widget {
         this._stageScreenshotContainer.add_child(this._cursor);
 
         this._openingCoroutineInProgress = false;
-        this._grabHelper = new GrabHelper.GrabHelper(this, {
-            actionMode: Shell.ActionMode.POPUP,
+        this._grabHelper = new Shell.GrabHelper({
+            owner: this,
+            action_mode: Shell.ActionMode.POPUP,
         });
 
         this._areaSelector = new UIAreaSelector({
@@ -1901,7 +1902,7 @@ export class ScreenshotUI extends St.Widget {
         const visible = this._screencastSupported;
         const reactive = visible &&
             this._currentMode !== UIMode.SCREENSHOT_ONLY &&
-            Main.sessionMode.allowScreencast;
+            Main.sessionMode.allow_screencast;
 
         this._castButton.set({visible, reactive});
     }
@@ -1911,7 +1912,7 @@ export class ScreenshotUI extends St.Widget {
             this._windowSelectors.flatMap(selector => selector.windows());
 
         this._windowButton.reactive =
-            Main.sessionMode.hasWindows &&
+            Main.sessionMode.has_windows &&
             windows.length > 0 &&
             !this._castButton.checked;
     }
@@ -2082,10 +2083,8 @@ export class ScreenshotUI extends St.Widget {
         screenshotUIGroup.get_parent().set_child_above_sibling(
             screenshotUIGroup, null);
 
-        const grabResult = this._grabHelper.grab({
-            actor: this,
-            onUngrab: () => this.close(),
-        });
+        const grabResult = this._grabHelper.grab(
+            this, null, () => this.close());
         if (!grabResult) {
             this.close(true);
             return;
@@ -2132,7 +2131,7 @@ export class ScreenshotUI extends St.Widget {
     }
 
     close(instantly = false) {
-        this._grabHelper.ungrab();
+        this._grabHelper.ungrab(false);
 
         if (instantly) {
             this._finishClosing();
@@ -3201,7 +3200,7 @@ class SelectArea extends St.Widget {
         });
         Main.uiGroup.add_child(this);
 
-        this._grabHelper = new GrabHelper.GrabHelper(this);
+        this._grabHelper = new Shell.GrabHelper({owner: this});
 
         const constraint = new Clutter.BindConstraint({
             source: global.stage,
@@ -3230,7 +3229,7 @@ class SelectArea extends St.Widget {
         this.show();
 
         try {
-            await this._grabHelper.grabAsync({actor: this});
+            await this._grabHelper.grab_async(this, null);
         } finally {
             GLib.idle_add_once(GLib.PRIORITY_DEFAULT, () => {
                 this.destroy();
@@ -3282,7 +3281,7 @@ class SelectArea extends St.Widget {
             opacity: 0,
             duration: 200,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-            onComplete: () => this._grabHelper.ungrab(),
+            onComplete: () => this._grabHelper.ungrab(false),
         });
     }
 });
@@ -3413,7 +3412,7 @@ class PickPixel extends St.Widget {
 
         Main.uiGroup.add_child(this);
 
-        this._grabHelper = new GrabHelper.GrabHelper(this);
+        this._grabHelper = new Shell.GrabHelper({owner: this});
 
         const constraint = new Clutter.BindConstraint({
             source: global.stage,
@@ -3427,7 +3426,7 @@ class PickPixel extends St.Widget {
 
             await this._pickColor(x, y);
             this._result = this._color;
-            this._grabHelper.ungrab();
+            this._grabHelper.ungrab(false);
         });
         this.add_action(clickGesture);
 
@@ -3464,7 +3463,7 @@ class PickPixel extends St.Widget {
         this._pickColor(...global.get_pointer());
 
         try {
-            await this._grabHelper.grabAsync({actor: this});
+            await this._grabHelper.grab_async(this, null);
         } finally {
             this._previewCursor.destroy();
 

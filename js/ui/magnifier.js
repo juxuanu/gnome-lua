@@ -10,7 +10,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Signals from '../misc/signals.js';
 
-import * as Background from './background.js';
 import * as FocusCaretTracker from './focusCaretTracker.js';
 import * as Main from './main.js';
 import * as Params from '../misc/params.js';
@@ -1535,7 +1534,7 @@ class ZoomRegion {
 
         // Add a background for when the magnified uiGroup is scrolled
         // out of view (don't want to see desktop showing through).
-        this._background = new Background.SystemBackground();
+        this._background = new Shell.SystemBackground();
         mainGroup.add_child(this._background);
 
         // Clone the group that contains all of UI on the screen.  This is the

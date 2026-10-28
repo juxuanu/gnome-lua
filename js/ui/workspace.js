@@ -6,7 +6,6 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Background from './background.js';
 import * as DND from './dnd.js';
 import * as Main from './main.js';
 import * as OverviewControls from './overviewControls.js';
@@ -975,11 +974,11 @@ class WorkspaceBackground extends Shell.WorkspaceBackground {
         this._bin.add_child(this._backgroundGroup);
         this.add_child(this._bin);
 
-        this._bgManager = new Background.BackgroundManager({
+        this._bgManager = new Shell.BackgroundManager({
             container: this._backgroundGroup,
-            monitorIndex: this._monitorIndex,
-            controlPosition: false,
-            useContentSize: false,
+            monitor_index: this._monitorIndex,
+            control_position: false,
+            use_content_size: false,
         });
 
         this._bgManager.connect('changed', () => {
@@ -1003,7 +1002,7 @@ class WorkspaceBackground extends Shell.WorkspaceBackground {
         const {scaleFactor} = St.ThemeContext.get_for_stage(global.stage);
         const cornerRadius = scaleFactor * BACKGROUND_CORNER_RADIUS_PIXELS;
 
-        const backgroundContent = this._bgManager.backgroundActor.content;
+        const backgroundContent = this._bgManager.background_actor.content;
         backgroundContent.rounded_clip_radius =
             Util.lerp(0, cornerRadius, this._stateAdjustment.value);
     }
@@ -1017,7 +1016,7 @@ class WorkspaceBackground extends Shell.WorkspaceBackground {
         rect.size.width = this._workarea.width;
         rect.size.height = this._workarea.height;
 
-        this._bgManager.backgroundActor.content.set_rounded_clip_bounds(rect);
+        this._bgManager.background_actor.content.set_rounded_clip_bounds(rect);
     }
 
     _onDestroy() {

@@ -187,7 +187,7 @@ class BackgroundAppsToggle extends QuickToggle {
     }
 
     _syncVisibility() {
-        const {isLocked} = Main.sessionMode;
+        const {is_locked: isLocked} = Main.sessionMode;
         const nBackgroundApps = this._proxy?.BackgroundApps?.length;
         // We cannot hide the quick toggle while the menu is open, otherwise
         // the menu position goes bogus. We can't show it in locked sessions

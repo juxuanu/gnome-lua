@@ -173,10 +173,10 @@ export class ExtensionManager extends Signals.EventEmitter {
         if (!extension)
             return false;
 
-        if (extension.sessionModes.includes(Main.sessionMode.currentMode))
+        if (extension.sessionModes.includes(Main.sessionMode.current_mode))
             return true;
 
-        if (extension.sessionModes.includes(Main.sessionMode.parentMode))
+        if (extension.sessionModes.includes(Main.sessionMode.parent_mode))
             return true;
 
         return false;
@@ -527,8 +527,8 @@ export class ExtensionManager extends Signals.EventEmitter {
     }
 
     _getModeExtensions() {
-        if (Array.isArray(Main.sessionMode.enabledExtensions))
-            return Main.sessionMode.enabledExtensions;
+        if (Array.isArray(Main.sessionMode.enabled_extensions))
+            return Main.sessionMode.enabled_extensions;
         return [];
     }
 
@@ -612,7 +612,7 @@ export class ExtensionManager extends Signals.EventEmitter {
     // inherit from it such as "unlock-dialog"). In other modes, e.g. the
     // login screen, they are all disabled.
     _luaExtensionsAllowed() {
-        const {currentMode, parentMode} = Main.sessionMode;
+        const {current_mode: currentMode, parent_mode: parentMode} = Main.sessionMode;
         return currentMode === 'user' || parentMode === 'user';
     }
 

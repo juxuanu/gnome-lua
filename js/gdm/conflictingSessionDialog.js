@@ -43,15 +43,15 @@ export class ConflictingSessionDialog extends ModalDialog {
     constructor(conflictingSession, greeterSession) {
         super();
 
-        const userName = conflictingSession.Name;
+        const userName = conflictingSession.name;
         let bannerText;
-        if (greeterSession.Remote && conflictingSession.Remote)
+        if (greeterSession.remote && conflictingSession.remote)
             /* Translators: is running for <username> */
             bannerText = _('Remote login is not possible because a remote session is already running for %s. To login remotely, you must log out from the remote session or force stop it.').format(userName);
-        else if (!greeterSession.Remote && conflictingSession.Remote)
+        else if (!greeterSession.remote && conflictingSession.remote)
             /* Translators: is running for <username> */
             bannerText = _('Login is not possible because a remote session is already running for %s. To login, you must log out from the remote session or force stop it.').format(userName);
-        else if (greeterSession.Remote && !conflictingSession.Remote)
+        else if (greeterSession.remote && !conflictingSession.remote)
             /* Translators: is running for <username> */
             bannerText = _('Remote login is not possible because a local session is already running for %s. To login remotely, you must log out from the local session or force stop it.').format(userName);
         else

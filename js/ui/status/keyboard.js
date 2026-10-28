@@ -358,7 +358,7 @@ export class InputSourceManager extends Signals.EventEmitter {
                 Meta.KeyBindingFlags.IS_REVERSED,
                 Shell.ActionMode.ALL,
                 this._switchInputSource.bind(this));
-        if (Main.sessionMode.isGreeter)
+        if (Main.sessionMode.is_greeter)
             this._settings = new InputSourceSystemSettings();
         else
             this._settings = new InputSourceSessionSettings();
@@ -915,7 +915,7 @@ class InputSourceIndicator extends PanelMenu.Button {
         // but at least for now it is used as "allow popping up windows
         // from shell menus"; we can always add a separate sessionMode
         // option if need arises.
-        this._showLayoutItem.visible = Main.sessionMode.allowSettings;
+        this._showLayoutItem.visible = Main.sessionMode.allow_settings;
     }
 
     _createExternalSource(keyboardManager) {

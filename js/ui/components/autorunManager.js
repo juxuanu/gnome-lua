@@ -1,6 +1,6 @@
 import Gio from 'gi://Gio';
+import Shell from 'gi://Shell';
 
-import * as GnomeSession from '../../misc/gnomeSession.js';
 import * as MessageTray from '../messageTray.js';
 
 Gio._promisify(Gio.Mount.prototype, 'guess_content_type');
@@ -124,7 +124,7 @@ class ContentTypeDiscoverer {
 
 class AutorunManager {
     constructor() {
-        this._session = new GnomeSession.SessionManager();
+        this._session = Shell.gnome_session_manager_new_sync(null);
         this._volumeMonitor = Gio.VolumeMonitor.get();
 
         this._dispatcher = new AutorunDispatcher(this);
@@ -144,7 +144,7 @@ class AutorunManager {
     async _onMountAdded(monitor, mount) {
         // don't do anything if our session is not the currently
         // active one
-        if (!this._session.SessionIsActive)
+        if (!this._session.session_is_active)
             return;
 
         const discoverer = new ContentTypeDiscoverer();

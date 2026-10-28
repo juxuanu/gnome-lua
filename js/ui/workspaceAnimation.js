@@ -4,7 +4,6 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Background from './background.js';
 import * as Layout from './layout.js';
 import * as SwipeTracker from './swipeTracker.js';
 import * as Util from '../misc/util.js';
@@ -177,10 +176,10 @@ class WorkspaceBackground extends BaseWorkspaceGroup {
         const background = new Meta.BackgroundGroup();
         this.add_child(background);
 
-        this._bgManager = new Background.BackgroundManager({
+        this._bgManager = new Shell.BackgroundManager({
             container: background,
-            monitorIndex: this._monitor.index,
-            controlPosition: false,
+            monitor_index: this._monitor.index,
+            control_position: false,
         });
     }
 

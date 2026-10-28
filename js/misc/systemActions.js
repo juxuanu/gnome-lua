@@ -4,10 +4,9 @@ import Gdm from 'gi://Gdm';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 
 import {logErrorUnlessCancelled} from './errorUtils.js';
-import * as GnomeSession from './gnomeSession.js';
-import * as LoginManager from './loginManager.js';
 import * as Main from '../ui/main.js';
 import * as Screenshot from '../ui/screenshot.js';
 
@@ -162,7 +161,7 @@ const SystemActions = GObject.registerClass({
         this._orientationSettings = new Gio.Settings({schema_id: 'org.gnome.settings-daemon.peripherals.touchscreen'});
         this._screenSaverSettings = new Gio.Settings({schema_id: SCREENSAVER_SCHEMA});
 
-        this._session = new GnomeSession.SessionManager();
+        this._session = Shell.gnome_session_manager_new_sync(null);
         this._monitorManager = global.backend.get_monitor_manager();
 
         this._userManager = AccountsService.UserManager.get_default();
@@ -350,17 +349,17 @@ const SystemActions = GObject.registerClass({
     }
 
     _updateLockScreen() {
-        const showLock = !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter;
+        const showLock = !Main.sessionMode.is_locked && !Main.sessionMode.is_greeter;
         const allowLockScreen = !this._lockdownSettings.get_boolean(DISABLE_LOCK_SCREEN_KEY);
-        this._actions.get(LOCK_SCREEN_ACTION_ID).available = showLock && allowLockScreen && LoginManager.canLock();
+        this._actions.get(LOCK_SCREEN_ACTION_ID).available = showLock && allowLockScreen && Shell.LoginManager.can_lock();
         this.notify('can-lock-screen');
     }
 
     async _updateHaveShutdown() {
         try {
-            const [availability] = await this._session.CanShutdownAsync();
-            this._canHavePowerOff = availability !== GnomeSession.ActionAvailability.UNAVAILABLE;
-            this._powerOffNeedsAuth = availability === GnomeSession.ActionAvailability.CHALLENGE;
+            const availability = await this._session.call_can_shutdown(null);
+            this._canHavePowerOff = availability !== Shell.ActionAvailability.UNAVAILABLE;
+            this._powerOffNeedsAuth = availability === Shell.ActionAvailability.CHALLENGE;
         } catch {
             this._canHavePowerOff = false;
             this._powerOffNeedsAuth = false;
@@ -369,10 +368,10 @@ const SystemActions = GObject.registerClass({
     }
 
     _updatePowerOff() {
-        const disabled = (Main.sessionMode.isLocked &&
+        const disabled = (Main.sessionMode.is_locked &&
                         !this._screenSaverSettings.get_boolean(RESTART_ENABLED_KEY)) ||
-                       (Main.sessionMode.isLocked && this._powerOffNeedsAuth) ||
-                       (Main.sessionMode.isGreeter &&
+                       (Main.sessionMode.is_locked && this._powerOffNeedsAuth) ||
+                       (Main.sessionMode.is_greeter &&
                         this._loginScreenSettings.get_boolean(DISABLE_RESTART_KEY));
         this._actions.get(POWER_OFF_ACTION_ID).available = this._canHavePowerOff && !disabled;
         this.notify('can-power-off');
@@ -380,9 +379,9 @@ const SystemActions = GObject.registerClass({
 
     async _updateHaveReboot() {
         try {
-            const [availability] = await this._session.CanRebootAsync();
-            this._canHaveReboot = availability !== GnomeSession.ActionAvailability.UNAVAILABLE;
-            this._rebootNeedsAuth = availability === GnomeSession.ActionAvailability.CHALLENGE;
+            const availability = await this._session.call_can_reboot(null);
+            this._canHaveReboot = availability !== Shell.ActionAvailability.UNAVAILABLE;
+            this._rebootNeedsAuth = availability === Shell.ActionAvailability.CHALLENGE;
         } catch {
             this._canHaveReboot = false;
             this._rebootNeedsAuth = false;
@@ -391,10 +390,10 @@ const SystemActions = GObject.registerClass({
     }
 
     _updateReboot() {
-        const disabled = (Main.sessionMode.isLocked &&
+        const disabled = (Main.sessionMode.is_locked &&
                         !this._screenSaverSettings.get_boolean(RESTART_ENABLED_KEY)) ||
-                       (Main.sessionMode.isLocked && this._rebootNeedsAuth) ||
-                       (Main.sessionMode.isGreeter &&
+                       (Main.sessionMode.is_locked && this._rebootNeedsAuth) ||
+                       (Main.sessionMode.is_greeter &&
                         this._loginScreenSettings.get_boolean(DISABLE_RESTART_KEY));
         this._actions.get(RESTART_ACTION_ID).available = this._canHaveReboot && !disabled;
         this.notify('can-restart');
@@ -402,9 +401,9 @@ const SystemActions = GObject.registerClass({
 
     async _updateHaveSuspend() {
         try {
-            const [availability] = await this._session.CanSuspendAsync();
-            this._canHaveSuspend = availability !== GnomeSession.ActionAvailability.UNAVAILABLE;
-            this._suspendNeedsAuth = availability === GnomeSession.ActionAvailability.CHALLENGE;
+            const availability = await this._session.call_can_suspend(null);
+            this._canHaveSuspend = availability !== Shell.ActionAvailability.UNAVAILABLE;
+            this._suspendNeedsAuth = availability === Shell.ActionAvailability.CHALLENGE;
         } catch {
             this._canHaveSuspend = false;
             this._suspendNeedsAuth = false;
@@ -413,8 +412,8 @@ const SystemActions = GObject.registerClass({
     }
 
     _updateSuspend() {
-        const disabled = (Main.sessionMode.isLocked && this._suspendNeedsAuth) ||
-                       (Main.sessionMode.isGreeter &&
+        const disabled = (Main.sessionMode.is_locked && this._suspendNeedsAuth) ||
+                       (Main.sessionMode.is_greeter &&
                         this._loginScreenSettings.get_boolean(DISABLE_RESTART_KEY));
         this._actions.get(SUSPEND_ACTION_ID).available = this._canHaveSuspend && !disabled;
         this.notify('can-suspend');
@@ -428,7 +427,7 @@ const SystemActions = GObject.registerClass({
     _updateSwitchUser() {
         const allowSwitch = !this._lockdownSettings.get_boolean(DISABLE_USER_SWITCH_KEY);
         const multiUser = this._userManager.can_switch() && this._userManager.has_multiple_users;
-        const shouldShowInMode = !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter;
+        const shouldShowInMode = !Main.sessionMode.is_locked && !Main.sessionMode.is_greeter;
 
         const visible = allowSwitch && multiUser && shouldShowInMode;
         this._actions.get(SWITCH_USER_ACTION_ID).available = visible;
@@ -443,7 +442,7 @@ const SystemActions = GObject.registerClass({
         const {systemAccount, localAccount} = this._user;
         const multiUser = this._userManager.has_multiple_users;
         const multiSession = Gdm.get_session_ids().length > 1;
-        const shouldShowInMode = !Main.sessionMode.isLocked && !Main.sessionMode.isGreeter;
+        const shouldShowInMode = !Main.sessionMode.is_locked && !Main.sessionMode.is_greeter;
 
         const visible = allowLogout && (alwaysShow || multiUser || multiSession || systemAccount || !localAccount) && shouldShowInMode;
         this._actions.get(LOGOUT_ACTION_ID).available = visible;
@@ -485,28 +484,28 @@ const SystemActions = GObject.registerClass({
             throw new Error('The logout action is not available!');
 
         Main.overview.hide();
-        this._session.LogoutAsync(0).catch(logErrorUnlessCancelled);
+        this._session.call_logout(0, null).catch(logErrorUnlessCancelled);
     }
 
     activatePowerOff() {
         if (!this._actions.get(POWER_OFF_ACTION_ID).available)
             throw new Error('The power-off action is not available!');
 
-        this._session.ShutdownAsync(0).catch(logErrorUnlessCancelled);
+        this._session.call_shutdown(null).catch(logErrorUnlessCancelled);
     }
 
     activateRestart() {
         if (!this._actions.get(RESTART_ACTION_ID).available)
             throw new Error('The restart action is not available!');
 
-        this._session.RebootAsync().catch(logErrorUnlessCancelled);
+        this._session.call_reboot(null).catch(logErrorUnlessCancelled);
     }
 
     activateSuspend() {
         if (!this._actions.get(SUSPEND_ACTION_ID).available)
             throw new Error('The suspend action is not available!');
 
-        this._session.SuspendAsync().catch(logErrorUnlessCancelled);
+        this._session.call_suspend(null).catch(logErrorUnlessCancelled);
     }
 
     activateScreenshotUI() {

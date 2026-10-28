@@ -989,7 +989,7 @@ class DateMenuButton extends PanelMenu.Button {
 
     _sessionUpdated() {
         let eventSource;
-        const showEvents = Main.sessionMode.showCalendarEvents;
+        const showEvents = Main.sessionMode.show_calendar_events;
         if (showEvents)
             eventSource = this._getEventSource();
         else
@@ -1000,8 +1000,8 @@ class DateMenuButton extends PanelMenu.Button {
         // Displays are not actually expected to launch Settings when activated
         // but the corresponding app (clocks, weather); however we can consider
         // that display-specific settings, so re-use "allowSettings" here ...
-        this._displaysSection.visible = Main.sessionMode.allowSettings;
+        this._displaysSection.visible = Main.sessionMode.allow_settings;
 
-        this._messageList.visible = Main.sessionMode.hasNotifications && !Main.sessionMode.isGreeter;
+        this._messageList.visible = Main.sessionMode.has_notifications && !Main.sessionMode.is_greeter;
     }
 });

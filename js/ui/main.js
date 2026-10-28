@@ -27,13 +27,13 @@ import * as Panel from './panel.js';
 import * as RunDialog from './runDialog.js';
 import * as WelcomeDialog from './welcomeDialog.js';
 import * as Layout from './layout.js';
-import * as LoginManager from '../misc/loginManager.js';
 import * as LookingGlass from './lookingGlass.js';
 import * as NotificationDaemon from './notificationDaemon.js';
 import * as WindowAttentionHandler from './windowAttentionHandler.js';
 import * as Screenshot from './screenshot.js';
 import * as ScreenShield from './screenShield.js';
-import * as SessionMode from './sessionMode.js';
+import {LoginDialog} from '../gdm/loginDialog.js';
+import {UnlockDialog} from './unlockDialog.js';
 import * as ShellDBus from './shellDBus.js';
 import * as ShellMountOperation from './shellMountOperation.js';
 import * as TimeLimitsManager from '../misc/timeLimitsManager.js';
@@ -76,7 +76,6 @@ export let shellMountOpDBusService = null;
 export const screenSaverDBus = null;
 export let modalCount = 0;
 export let actionMode = Shell.ActionMode.NONE;
-export const modalActorFocusStack = [];
 export let uiGroup = null;
 export let magnifier = null;
 export let xdndHandler = null;
@@ -111,7 +110,7 @@ Gio._promisify(Gio.File.prototype, 'touch_async');
 let _remoteAccessInhibited = false;
 
 function _sessionUpdated() {
-    if (sessionMode.isPrimary)
+    if (sessionMode.is_primary)
         _loadDefaultStylesheet();
 
     wm.allowKeybinding('overlay-key',
@@ -121,9 +120,9 @@ function _sessionUpdated() {
 
     wm.setCustomKeybindingHandler('panel-run-dialog',
         Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
-        sessionMode.hasRunDialog ? openRunDialog : null);
+        sessionMode.has_run_dialog ? openRunDialog : null);
 
-    if (!sessionMode.hasRunDialog) {
+    if (!sessionMode.has_run_dialog) {
         if (runDialog)
             runDialog.close();
         if (lookingGlass)
@@ -134,10 +133,10 @@ function _sessionUpdated() {
 
     const remoteAccessController = global.backend.get_remote_access_controller();
     if (remoteAccessController && !global.backend.is_headless()) {
-        if (sessionMode.allowScreencast && _remoteAccessInhibited) {
+        if (sessionMode.allow_screencast && _remoteAccessInhibited) {
             remoteAccessController.uninhibit_remote_access();
             _remoteAccessInhibited = false;
-        } else if (!sessionMode.allowScreencast && !_remoteAccessInhibited) {
+        } else if (!sessionMode.allow_screencast && !_remoteAccessInhibited) {
             remoteAccessController.inhibit_remote_access();
             _remoteAccessInhibited = true;
         }
@@ -167,7 +166,7 @@ export async function start() {
     if (!currentDesktop || !currentDesktop.split(':').includes('GNOME'))
         GioUnix.DesktopAppInfo.set_desktop_env('GNOME');
 
-    sessionMode = new SessionMode.SessionMode();
+    sessionMode = new Shell.SessionMode();
     sessionMode.connect('updated', _sessionUpdated);
 
     St.Settings.get().connect('notify::high-contrast', _loadDefaultStylesheet);
@@ -223,12 +222,12 @@ async function _initializeUI() {
     padOsdService = new PadOsd.PadOsdService();
     xdndHandler = new Shell.XdndHandler({
         ui_group: uiGroup,
-        session_locked: sessionMode.isLocked,
+        session_locked: sessionMode.is_locked,
     });
     xdndHandler.connect('drag-motion', (handler, x, y, dragActor, targetActor) =>
         DND.handleXdndMotion(handler, x, y, dragActor, targetActor));
     sessionMode.connect('updated', () => {
-        xdndHandler.session_locked = sessionMode.isLocked;
+        xdndHandler.session_locked = sessionMode.is_locked;
     });
     ctrlAltTabManager = new CtrlAltTab.CtrlAltTabManager();
     osdWindowManager = new Shell.OsdWindowManager({ui_group: uiGroup});
@@ -239,7 +238,7 @@ async function _initializeUI() {
     magnifier = new Magnifier.Magnifier();
     locatePointer = new Shell.LocatePointer({ui_group: uiGroup});
 
-    if (LoginManager.canLock())
+    if (Shell.LoginManager.can_lock())
         screenShield = new ScreenShield.ScreenShield();
 
     inputMethod = new InputMethod.InputMethod();
@@ -325,9 +324,9 @@ async function _initializeUI() {
     extensionManager = new ExtensionSystem.ExtensionManager();
     extensionManager.init();
 
-    LoginManager.registerSessionWithGDM();
+    Shell.LoginManager.register_session_with_gdm();
 
-    if (sessionMode.isGreeter && screenShield) {
+    if (sessionMode.is_greeter && screenShield) {
         layoutManager.connect('startup-prepared', () => {
             screenShield.showDialog();
         });
@@ -345,7 +344,7 @@ async function _initializeUI() {
 
     layoutManager.connect('startup-complete', () => {
         if (actionMode === Shell.ActionMode.NONE)
-            actionMode = Shell.ActionMode.NORMAL;
+            _shellMain.action_mode = Shell.ActionMode.NORMAL;
 
         // Lua extensions (gnome-lua): emits the "shell.started" hook
         global.notify_startup_complete();
@@ -353,8 +352,8 @@ async function _initializeUI() {
         if (screenShield)
             screenShield.lockIfWasLocked();
 
-        if (sessionMode.currentMode !== 'gdm' &&
-            sessionMode.currentMode !== 'initial-setup') {
+        if (sessionMode.current_mode !== 'gdm' &&
+            sessionMode.current_mode !== 'initial-setup') {
             GLib.log_structured(LOG_DOMAIN, GLib.LogLevelFlags.LEVEL_MESSAGE, {
                 'MESSAGE': `GNOME Shell started at ${_startDate}`,
                 'MESSAGE_ID': GNOMESHELL_STARTED_MESSAGE_ID,
@@ -367,16 +366,16 @@ async function _initializeUI() {
                 notify(
                     _('Logged in as a privileged user'),
                     _('Running a session as a privileged user should be avoided for security reasons. If possible, you should log in as a normal user.'));
-            } else if (sessionMode.showWelcomeDialog) {
+            } else if (sessionMode.show_welcome_dialog) {
                 _handleShowWelcomeScreen();
             }
         }
 
-        if (sessionMode.currentMode !== 'gdm' &&
-            sessionMode.currentMode !== 'initial-setup')
+        if (sessionMode.current_mode !== 'gdm' &&
+            sessionMode.current_mode !== 'initial-setup')
             _handleLockScreenWarning();
 
-        LoginManager.registerDisplayWithGDM();
+        Shell.LoginManager.register_display_with_gdm();
 
         if (perfModule) {
             const perfOutput = GLib.getenv('SHELL_PERF_OUTPUT');
@@ -441,10 +440,26 @@ function _getStylesheet(name) {
     return null;
 }
 
+/**
+ * Maps Shell.SessionMode:unlock-dialog to the class that implements it.
+ *
+ * @returns {?Function} the dialog constructor, null if the mode has none
+ */
+export function getUnlockDialogClass() {
+    switch (sessionMode.unlock_dialog) {
+    case 'login-dialog':
+        return LoginDialog;
+    case 'unlock-dialog':
+        return UnlockDialog;
+    default:
+        return null;
+    }
+}
+
 /** @returns {string} */
 export function getStyleVariant() {
     const {colorScheme} = St.Settings.get();
-    switch (sessionMode.colorScheme) {
+    switch (sessionMode.color_scheme) {
     case 'force-dark':
         return 'dark';
     case 'force-light':
@@ -462,7 +477,7 @@ export function getStyleVariant() {
 
 function _getDefaultStylesheet() {
     let stylesheet = null;
-    const name = sessionMode.stylesheetName;
+    const name = sessionMode.stylesheet_name;
 
     // Look for a high-contrast variant first
     if (St.Settings.get().high_contrast)
@@ -596,7 +611,7 @@ export function reloadThemeResource() {
         _themeResource._unregister();
 
     _themeResource = Gio.Resource.load(
-        `${global.datadir}/${sessionMode.themeResourceName}`);
+        `${global.datadir}/${sessionMode.theme_resource_name}`);
     _themeResource._register();
 }
 
@@ -626,7 +641,7 @@ export function loadTheme() {
     });
 
     if (theme.default_stylesheet == null)
-        throw new Error(`No valid stylesheet found for '${sessionMode.stylesheetName}'`);
+        throw new Error(`No valid stylesheet found for '${sessionMode.stylesheet_name}'`);
 
     if (previousTheme) {
         const customStylesheets = previousTheme.get_custom_stylesheets();
@@ -669,17 +684,18 @@ export function notifyError(msg, details) {
     notify(msg, details);
 }
 
-/**
- * @private
- * @param {Clutter.Grab} grab - grab
- */
-function _findModal(grab) {
-    for (let i = 0; i < modalActorFocusStack.length; i++) {
-        if (modalActorFocusStack[i].grab === grab)
-            return i;
-    }
-    return -1;
-}
+// The modal stack lives in C (Shell.Main); modalCount and actionMode mirror
+// its properties, which are notified synchronously at every change.
+const _shellMain = Shell.Main.get_default();
+modalCount = _shellMain.modal_count;
+actionMode = _shellMain.action_mode;
+_shellMain.connect('notify::modal-count', () => {
+    modalCount = _shellMain.modal_count;
+});
+_shellMain.connect('notify::action-mode', () => {
+    actionMode = _shellMain.action_mode;
+});
+_shellMain.connect('modal-ended', () => layoutManager.modalEnded());
 
 /**
  * Ensure we are in a mode where all keyboard and mouse input goes to
@@ -706,42 +722,7 @@ export function pushModal(actor, params = {}) {
         ...params,
     };
 
-    const grab = global.stage.grab(actor);
-
-    if (modalCount === 0)
-        global.compositor.disable_unredirect();
-
-    modalCount += 1;
-    const actorDestroyId = actor.connect('destroy', () => {
-        const index = _findModal(grab);
-        if (index >= 0)
-            popModal(grab);
-    });
-
-    const prevFocus = global.stage.get_key_focus();
-    let prevFocusDestroyId;
-    if (prevFocus != null) {
-        prevFocusDestroyId = prevFocus.connect('destroy', () => {
-            const index = modalActorFocusStack.findIndex(
-                record => record.prevFocus === prevFocus);
-
-            if (index >= 0)
-                modalActorFocusStack[index].prevFocus = null;
-        });
-    }
-    modalActorFocusStack.push({
-        actor,
-        grab,
-        destroyId: actorDestroyId,
-        prevFocus,
-        prevFocusDestroyId,
-        actionMode,
-    });
-
-    actionMode = newActionMode;
-    const newFocus = actor === global.stage ? null : actor;
-    global.stage.set_key_focus(newFocus);
-    return grab;
+    return _shellMain.push_modal(actor, newActionMode);
 }
 
 /**
@@ -752,60 +733,8 @@ export function pushModal(actor, params = {}) {
  * @param {Clutter.Grab} grab - the grab given by pushModal()
  */
 export function popModal(grab) {
-    const focusIndex = _findModal(grab);
-    if (focusIndex < 0) {
-        global.stage.set_key_focus(null);
-        actionMode = Shell.ActionMode.NORMAL;
-
-        throw new Error('incorrect pop');
-    }
-
-    modalCount -= 1;
-
-    const record = modalActorFocusStack[focusIndex];
-    record.actor.disconnect(record.destroyId);
-
-    record.grab.dismiss();
-
-    if (focusIndex === modalActorFocusStack.length - 1) {
-        if (record.prevFocus)
-            record.prevFocus.disconnect(record.prevFocusDestroyId);
-        actionMode = record.actionMode;
-        global.stage.set_key_focus(record.prevFocus);
-    } else {
-        // If we have:
-        //     global.stage.set_focus(a);
-        //     Main.pushModal(b);
-        //     Main.pushModal(c);
-        //     Main.pushModal(d);
-        //
-        // then we have the stack:
-        //     [{ prevFocus: a, actor: b },
-        //      { prevFocus: b, actor: c },
-        //      { prevFocus: c, actor: d }]
-        //
-        // When actor c is destroyed/popped, if we only simply remove the
-        // record, then the focus stack will be [a, c], rather than the correct
-        // [a, b]. Shift the focus stack up before removing the record to ensure
-        // that we get the correct result.
-        const t = modalActorFocusStack[modalActorFocusStack.length - 1];
-        if (t.prevFocus)
-            t.prevFocus.disconnect(t.prevFocusDestroyId);
-        // Remove from the middle, shift the focus chain up
-        for (let i = modalActorFocusStack.length - 1; i > focusIndex; i--) {
-            modalActorFocusStack[i].prevFocus = modalActorFocusStack[i - 1].prevFocus;
-            modalActorFocusStack[i].prevFocusDestroyId = modalActorFocusStack[i - 1].prevFocusDestroyId;
-            modalActorFocusStack[i].actionMode = modalActorFocusStack[i - 1].actionMode;
-        }
-    }
-    modalActorFocusStack.splice(focusIndex, 1);
-
-    if (modalCount > 0)
-        return;
-
-    layoutManager.modalEnded();
-    global.compositor.enable_unredirect();
-    actionMode = Shell.ActionMode.NORMAL;
+    // Throws "incorrect pop" if the grab is not on the modal stack
+    _shellMain.pop_modal(grab);
 }
 
 /**

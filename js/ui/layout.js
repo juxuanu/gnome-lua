@@ -8,7 +8,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Signals from '../misc/signals.js';
 
-import * as Background from './background.js';
 import * as BackgroundMenu from './backgroundMenu.js';
 
 import * as DND from './dnd.js';
@@ -344,6 +343,7 @@ export const LayoutManager = GObject.registerClass({
         this._monitorsChanged();
 
         this.screenTransition = new ScreenTransition();
+        Shell.BackgroundManager.set_screen_transition(this.screenTransition);
         this.uiGroup.add_child(this.screenTransition);
         this.screenTransition.add_constraint(new Clutter.BindConstraint({
             source: this.uiGroup,
@@ -492,14 +492,13 @@ export const LayoutManager = GObject.registerClass({
     }
 
     _addBackgroundMenu(bgManager) {
-        BackgroundMenu.addBackgroundMenu(bgManager.backgroundActor, this);
+        BackgroundMenu.addBackgroundMenu(bgManager.background_actor, this);
     }
 
     _createBackgroundManager(monitorIndex) {
-        const bgManager = new Background.BackgroundManager({
+        const bgManager = new Shell.BackgroundManager({
             container: this._backgroundGroup,
-            layoutManager: this,
-            monitorIndex,
+            monitor_index: monitorIndex,
         });
 
         bgManager.connect('changed', this._addBackgroundMenu.bind(this));
@@ -511,7 +510,7 @@ export const LayoutManager = GObject.registerClass({
     _showSecondaryBackgrounds() {
         for (let i = 0; i < this.monitors.length; i++) {
             if (i !== this.primaryIndex) {
-                const backgroundActor = this._bgManagers[i].backgroundActor;
+                const backgroundActor = this._bgManagers[i].background_actor;
                 backgroundActor.show();
                 backgroundActor.opacity = 0;
                 backgroundActor.ease({
@@ -547,7 +546,7 @@ export const LayoutManager = GObject.registerClass({
 
         this._bgManagers = [];
 
-        if (Main.sessionMode.isGreeter)
+        if (Main.sessionMode.is_greeter)
             return Promise.resolve();
 
         const cancellable = new Gio.Cancellable();
@@ -558,7 +557,7 @@ export const LayoutManager = GObject.registerClass({
             this._bgManagers.push(bgManager);
 
             if (i !== this.primaryIndex && this._startingUp)
-                bgManager.backgroundActor.hide();
+                bgManager.background_actor.hide();
         }
 
         if (!this._updateBackgroundsResolvers)
@@ -707,7 +706,7 @@ export const LayoutManager = GObject.registerClass({
     async _loadBackground() {
         await this._ensurePrimaryMonitor();
 
-        this._systemBackground = new Background.SystemBackground();
+        this._systemBackground = new Shell.SystemBackground();
         this._systemBackground.hide();
 
         global.stage.insert_child_below(this._systemBackground, null);
@@ -761,14 +760,14 @@ export const LayoutManager = GObject.registerClass({
         // windows restore to the right size.
         this._updateRegions();
 
-        if (Main.sessionMode.isGreeter) {
+        if (Main.sessionMode.is_greeter) {
             this.panelBox.translation_y = -this.panelBox.height;
         } else {
             this.keyboardBox.hide();
 
             const monitor = this.primaryMonitor;
 
-            if (!Main.sessionMode.hasOverview) {
+            if (!Main.sessionMode.has_overview) {
                 const x = monitor.x + monitor.width / 2.0;
                 const y = monitor.y + monitor.height / 2.0;
 
@@ -792,7 +791,7 @@ export const LayoutManager = GObject.registerClass({
     }
 
     async _startupAnimation() {
-        if (Main.sessionMode.isGreeter)
+        if (Main.sessionMode.is_greeter)
             await this._startupAnimationGreeter();
         else
             await this._startupAnimationSession();
@@ -807,7 +806,7 @@ export const LayoutManager = GObject.registerClass({
     }
 
     async _startupAnimationSession() {
-        if (Main.sessionMode.hasOverview) {
+        if (Main.sessionMode.has_overview) {
             await Main.overview.runStartupAnimation();
         } else {
             await this.uiGroup.easeAsync({
@@ -831,7 +830,7 @@ export const LayoutManager = GObject.registerClass({
 
         this.keyboardBox.show();
 
-        if (!Main.sessionMode.isGreeter) {
+        if (!Main.sessionMode.is_greeter) {
             this._showSecondaryBackgrounds();
             global.window_group.remove_clip();
         }
@@ -989,7 +988,7 @@ export const LayoutManager = GObject.registerClass({
     }
 
     _updateVisibility() {
-        const windowsVisible = Main.sessionMode.hasWindows && !this._inOverview;
+        const windowsVisible = Main.sessionMode.has_windows && !this._inOverview;
 
         global.window_group.visible = windowsVisible;
         global.top_window_group.visible = windowsVisible;

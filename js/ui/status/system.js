@@ -63,7 +63,7 @@ const PowerToggle = GObject.registerClass({
     }
 
     _sessionUpdated() {
-        this.reactive = Main.sessionMode.allowSettings;
+        this.reactive = Main.sessionMode.allow_settings;
     }
 
     _sync() {
@@ -113,7 +113,7 @@ class ScreenshotItem extends QuickSettingsItem {
             style_class: 'icon-button',
             can_focus: true,
             icon_name: 'screenshooter-symbolic',
-            visible: !Main.sessionMode.isGreeter,
+            visible: !Main.sessionMode.is_greeter,
             accessible_name: _('Take Screenshot'),
         });
 
@@ -159,7 +159,7 @@ class SettingsItem extends QuickSettingsItem {
 
     _sync() {
         this.visible =
-            this._settingsApp != null && Main.sessionMode.allowSettings;
+            this._settingsApp != null && Main.sessionMode.allow_settings;
     }
 });
 

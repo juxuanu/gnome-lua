@@ -901,7 +901,7 @@ export class WindowManager {
 
         this._windowMenuManager = new WindowMenu.WindowMenuManager();
 
-        if (Main.sessionMode.hasWorkspaces)
+        if (Main.sessionMode.has_workspaces)
             this._workspaceTracker = new WorkspaceTracker(this);
 
         const allowedModes = Shell.ActionMode.NORMAL;
@@ -1661,7 +1661,7 @@ export class WindowManager {
     }
 
     _switchWorkspace(shellwm, from, to, direction) {
-        if (!Main.sessionMode.hasWorkspaces || !this._shouldAnimate()) {
+        if (!Main.sessionMode.has_workspaces || !this._shouldAnimate()) {
             shellwm.completed_switch_workspace();
             return;
         }
@@ -1742,7 +1742,7 @@ export class WindowManager {
     }
 
     _allowFavoriteShortcuts() {
-        return Main.sessionMode.hasOverview;
+        return Main.sessionMode.has_overview;
     }
 
     _getNthFavoriteApp(n) {
@@ -1780,7 +1780,7 @@ export class WindowManager {
     _showWorkspaceSwitcher(display, window, event, binding) {
         const workspaceManager = display.get_workspace_manager();
 
-        if (!Main.sessionMode.hasWorkspaces)
+        if (!Main.sessionMode.has_workspaces)
             return;
 
         if (workspaceManager.n_workspaces === 1)
@@ -1880,7 +1880,7 @@ export class WindowManager {
     }
 
     actionMoveWorkspace(workspace) {
-        if (!Main.sessionMode.hasWorkspaces)
+        if (!Main.sessionMode.has_workspaces)
             return;
 
         if (!workspace.active)
@@ -1888,7 +1888,7 @@ export class WindowManager {
     }
 
     actionMoveWindow(window, workspace) {
-        if (!Main.sessionMode.hasWorkspaces)
+        if (!Main.sessionMode.has_workspaces)
             return;
 
         if (!workspace.active) {

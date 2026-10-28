@@ -35,7 +35,7 @@ const AuthenticationDialog = GObject.registerClass({
         this.userNames = userNames;
 
         Main.sessionMode.connectObject('updated', () => {
-            this.visible = !Main.sessionMode.isLocked;
+            this.visible = !Main.sessionMode.is_locked;
         }, this);
 
         this.connect('closed', this._onDialogClosed.bind(this));
@@ -438,7 +438,7 @@ class AuthenticationAgent extends Shell.PolkitAuthenticationAgent {
     _onInitiate(nativeAgent, actionId, message, iconName, cookie, userNames) {
         // Don't pop up a dialog while locked, unless it's triggered by user
         // action from the lock screen, such as extending the session limits
-        if (Main.sessionMode.isLocked &&
+        if (Main.sessionMode.is_locked &&
             actionId !== 'org.freedesktop.Malcontent.SessionLimits.Extend') {
             Main.sessionMode.connectObject('updated', () => {
                 Main.sessionMode.disconnectObject(this);

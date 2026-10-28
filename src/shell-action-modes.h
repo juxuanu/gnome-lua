@@ -1,3 +1,5 @@
+#pragma once
+
 /**
  * ShellActionMode:
  * @SHELL_ACTION_MODE_NONE: block action

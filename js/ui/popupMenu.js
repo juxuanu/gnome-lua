@@ -687,7 +687,7 @@ export class PopupMenuBase extends Signals.EventEmitter {
     }
 
     _sessionUpdated() {
-        this._setSettingsVisibility(Main.sessionMode.allowSettings);
+        this._setSettingsVisibility(Main.sessionMode.allow_settings);
         this.close();
     }
 
@@ -720,7 +720,7 @@ export class PopupMenuBase extends Signals.EventEmitter {
             app.activate();
         });
 
-        menuItem.visible = Main.sessionMode.allowSettings;
+        menuItem.visible = Main.sessionMode.allow_settings;
         this._settingsActions[desktopFile] = menuItem;
 
         return menuItem;

@@ -61,7 +61,7 @@ const AudioDeviceSelectionDialog = GObject.registerClass({
             key: Clutter.KEY_Escape,
         });
 
-        if (Main.sessionMode.allowSettings) {
+        if (Main.sessionMode.allow_settings) {
             this.addButton({
                 action: this._openSettings.bind(this),
                 label: _('Sound Settings'),

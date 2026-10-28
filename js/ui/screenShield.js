@@ -9,9 +9,7 @@ import St from 'gi://St';
 
 import * as Signals from '../misc/signals.js';
 
-import * as GnomeSession from '../misc/gnomeSession.js';
 import * as OVirt from '../gdm/oVirt.js';
-import * as LoginManager from '../misc/loginManager.js';
 import * as Main from './main.js';
 import * as Overview from './overview.js';
 import * as MessageTray from './messageTray.js';
@@ -74,16 +72,19 @@ export class ScreenShield extends Signals.EventEmitter {
         this.actor.add_child(this._lockScreenGroup);
         this.actor.add_child(this._lockDialogGroup);
 
-        this._presence = new GnomeSession.Presence((proxy, error) => {
-            if (error) {
+        this._presence = null;
+        Shell.gnome_session_presence_new(null, (source, res) => {
+            try {
+                this._presence = Shell.gnome_session_presence_new_finish(res);
+            } catch (error) {
                 logError(error, 'Error while reading gnome-session presence');
                 return;
             }
 
-            this._onStatusChanged(proxy.status);
-        });
-        this._presence.connectSignal('StatusChanged', (proxy, senderName, [status]) => {
-            this._onStatusChanged(status);
+            this._presence.connect('status-changed', (proxy, status) => {
+                this._onStatusChanged(status);
+            });
+            this._onStatusChanged(this._presence.status);
         });
 
         this._screenSaverDBus = new ShellDBus.ScreenSaverDBus(this);
@@ -98,12 +99,12 @@ export class ScreenShield extends Signals.EventEmitter {
         this._credentialManagers = {};
         this.addCredentialManager(OVirt.SERVICE_NAME, OVirt.getOVirtCredentialsManager());
 
-        this._loginManager = LoginManager.getLoginManager();
+        this._loginManager = Shell.LoginManager.get_default();
         this._loginManager.connect('prepare-for-sleep',
             this._prepareForSleep.bind(this));
 
         this._loginSession = null;
-        this._getLoginSession();
+        this._getLoginSession().catch(logError);
 
         this._settings = new Gio.Settings({schema_id: SCREENSAVER_SCHEMA});
         this._settings.connect(`changed::${LOCK_ENABLED_KEY}`, this._syncInhibitor.bind(this));
@@ -150,10 +151,10 @@ export class ScreenShield extends Signals.EventEmitter {
     }
 
     async _getLoginSession() {
-        this._loginSession = await this._loginManager.getCurrentSessionProxy();
-        this._loginSession.connectSignal('Lock',
+        this._loginSession = await this._loginManager.get_current_session_async(null);
+        this._loginSession.connect('lock',
             () => this.lock(false));
-        this._loginSession.connectSignal('Unlock',
+        this._loginSession.connect('unlock',
             () => this.deactivate(false));
         this._loginSession.connect('g-properties-changed',
             () => this._syncInhibitor());
@@ -178,7 +179,7 @@ export class ScreenShield extends Signals.EventEmitter {
             this.emit('locked-changed');
 
         if (this._loginSession)
-            this._loginSession.SetLockedHintAsync(locked).catch(logError);
+            this._loginSession.call_set_locked_hint(locked, null).catch(logError);
     }
 
     _activateDialog() {
@@ -209,9 +210,9 @@ export class ScreenShield extends Signals.EventEmitter {
     async _syncInhibitor() {
         const lockEnabled = this._settings.get_boolean(LOCK_ENABLED_KEY);
         const lockLocked = this._lockSettings.get_boolean(DISABLE_LOCK_KEY);
-        const inhibit = !!this._loginSession && this._loginSession.Active &&
+        const inhibit = !!this._loginSession && this._loginSession.active &&
                          !this._isActive && lockEnabled && !lockLocked &&
-                         !!Main.sessionMode.unlockDialog;
+                         !!Main.sessionMode.unlock_dialog;
 
         if (inhibit === this._inhibited)
             return;
@@ -223,7 +224,7 @@ export class ScreenShield extends Signals.EventEmitter {
 
         if (inhibit) {
             try {
-                this._inhibitor = await this._loginManager.inhibit(
+                this._inhibitor = await this._loginManager.inhibit_async(
                     _('GNOME needs to lock the screen'),
                     this._inhibitCancellable);
             } catch (e) {
@@ -247,7 +248,7 @@ export class ScreenShield extends Signals.EventEmitter {
     }
 
     _onStatusChanged(status) {
-        if (status !== GnomeSession.PresenceStatus.IDLE)
+        if (status !== Shell.PresenceStatus.IDLE)
             return;
 
         this._maybeCancelDialog();
@@ -328,7 +329,7 @@ export class ScreenShield extends Signals.EventEmitter {
     showDialog() {
         this._becomeModal();
         this.actor.show();
-        this._isGreeter = Main.sessionMode.isGreeter;
+        this._isGreeter = Main.sessionMode.is_greeter;
         this._isLocked = true;
         this._ensureUnlockDialog(true);
     }
@@ -404,7 +405,7 @@ export class ScreenShield extends Signals.EventEmitter {
 
     _ensureUnlockDialog(allowCancel) {
         if (!this._dialog) {
-            const constructor = Main.sessionMode.unlockDialog;
+            const constructor = Main.getUnlockDialogClass();
             if (!constructor) {
                 // This session mode has no locking capabilities
                 this.deactivate(true);
@@ -545,8 +546,8 @@ export class ScreenShield extends Signals.EventEmitter {
     _continueDeactivate(animate) {
         this._hideLockScreen(animate);
 
-        if (Main.sessionMode.currentMode === 'unlock-dialog')
-            Main.sessionMode.popMode('unlock-dialog');
+        if (Main.sessionMode.current_mode === 'unlock-dialog')
+            Main.sessionMode.pop_mode('unlock-dialog');
 
         this.emit('wake-up-screen');
 
@@ -622,10 +623,10 @@ export class ScreenShield extends Signals.EventEmitter {
 
         this.actor.show();
 
-        if (Main.sessionMode.currentMode !== 'unlock-dialog') {
-            this._isGreeter = Main.sessionMode.isGreeter;
+        if (Main.sessionMode.current_mode !== 'unlock-dialog') {
+            this._isGreeter = Main.sessionMode.is_greeter;
             if (!this._isGreeter)
-                Main.sessionMode.pushMode('unlock-dialog');
+                Main.sessionMode.push_mode('unlock-dialog');
         }
 
         this._resetLockScreen({

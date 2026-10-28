@@ -96,7 +96,7 @@ export class WindowMenu extends PopupMenu.PopupMenu {
             type === Meta.WindowType.SPLASHSCREEN)
             item.setSensitive(false);
 
-        if (Main.sessionMode.hasWorkspaces &&
+        if (Main.sessionMode.has_workspaces &&
             (!Meta.prefs_get_workspaces_only_on_primary() ||
              window.is_on_primary_monitor())) {
             const isSticky = window.is_on_all_workspaces();
@@ -216,7 +216,7 @@ export class WindowMenuManager {
     }
 
     showWindowMenuForWindow(window, type, rect) {
-        if (!Main.sessionMode.hasWmMenus)
+        if (!Main.sessionMode.has_wm_menus)
             return;
 
         if (type !== Meta.WindowMenuType.WM)

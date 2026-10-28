@@ -16,7 +16,7 @@ Every new hook point gets a row here in the same commit that declares it.
 |---|---|---|---|---|
 | `shell.started` | no | (empty) | `shell_global_notify_startup_complete()`, called by `main.js` when the layout manager reports startup complete | 1.0 |
 | `shell.shutting-down` | no | (empty) | `_shell_global_notify_shutdown()` | 1.0 |
-| `session.mode-changed` | no | `mode: s` | `sessionMode.js` after `_sync()` | 1.0 |
+| `session.mode-changed` | no | `mode: s` | `ShellSessionMode` (`src/ui/session-mode.c`), after `::updated` on every mode change, including the initial mode | 1.0 |
 | `panel.indicator-added` | no | `name:s box:s owner:s` | `Panel._addToPanelBox` (`js/ui/panel.js`), later `src/ui/panel.c` | 1.0 (M2) |
 | `panel.menu-opened` | no | `name:s box:s` | the `open-state-changed` handler installed by `Panel._onMenuSet` | 1.0 (M2) |
 | `monitors.changed` | no | `count:i primary:i` | `LayoutManager::monitors-changed` (`js/ui/layout.js`) | 1.0 (M2) |

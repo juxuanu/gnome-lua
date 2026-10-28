@@ -191,7 +191,7 @@ export class Overview extends Signals.EventEmitter {
     }
 
     _sessionUpdated() {
-        const {hasOverview} = Main.sessionMode;
+        const {has_overview: hasOverview} = Main.sessionMode;
         if (!hasOverview)
             this.hide();
 

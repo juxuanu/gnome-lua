@@ -10,7 +10,7 @@ Scope: adding a button to the top bar, optionally with a popup menu. Replaces
 Not in v1:
 - Reordering, hiding or replacing built-in indicators (`activities`,
   `dateMenu`, `quickSettings`, ...): they are session-mode dependent
-  (`js/ui/sessionMode.js` `panel.left/center/right`) and the layout is not API.
+  (`src/ui/session-mode.c` `panel-left/center/right`) and the layout is not API.
 - Interleaving between built-ins: see Placement. `index` is relative to the
   extension's own items.
 - Looking up other indicators (`Main.panel.statusArea[role]` of someone else's

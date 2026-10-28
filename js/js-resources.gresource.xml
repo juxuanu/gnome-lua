@@ -37,14 +37,12 @@
     <file>misc/errorUtils.js</file>
     <file>misc/extensionUtils.js</file>
     <file>misc/fileUtils.js</file>
-    <file>misc/gnomeSession.js</file>
     <file>misc/history.js</file>
     <file>misc/ibusManager.js</file>
     <file>misc/inputMethod.js</file>
     <file>misc/introspect.js</file>
     <file>misc/jsParse.js</file>
     <file>misc/keyboardManager.js</file>
-    <file>misc/loginManager.js</file>
     <file>misc/modemManager.js</file>
     <file>misc/objectManager.js</file>
     <file>misc/params.js</file>
@@ -63,7 +61,6 @@
     <file>ui/appFavorites.js</file>
     <file>ui/appMenu.js</file>
     <file>ui/audioDeviceSelection.js</file>
-    <file>ui/background.js</file>
     <file>ui/backgroundMenu.js</file>
     <file>ui/calendar.js</file>
     <file>ui/closeDialog.js</file>
@@ -76,7 +73,6 @@
     <file>ui/extensionDownloader.js</file>
     <file>ui/extensionSystem.js</file>
     <file>ui/focusCaretTracker.js</file>
-    <file>ui/grabHelper.js</file>
     <file>ui/ibusCandidatePopup.js</file>
     <file>ui/iconGrid.js</file>
     <file>ui/inhibitShortcutsDialog.js</file>
@@ -108,7 +104,6 @@
     <file>ui/scripting.js</file>
     <file>ui/search.js</file>
     <file>ui/searchController.js</file>
-    <file>ui/sessionMode.js</file>
     <file>ui/shellDBus.js</file>
     <file>ui/shellEntry.js</file>
     <file>ui/shellMountOperation.js</file>

@@ -36,7 +36,7 @@ export class ComponentManager {
         if (component)
             return component;
 
-        if (Main.sessionMode.isLocked)
+        if (Main.sessionMode.is_locked)
             return null;
 
         const constructor = await this._importComponent(name);

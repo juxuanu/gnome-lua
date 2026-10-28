@@ -701,7 +701,7 @@ class NMModemDeviceItem extends NMDeviceItem {
     }
 
     _sessionUpdated() {
-        this._autoConnectItem.sensitive = Main.sessionMode.hasWindows;
+        this._autoConnectItem.sensitive = Main.sessionMode.has_windows;
     }
 });
 
@@ -1282,7 +1282,7 @@ const NMWirelessDeviceItem = GObject.registerClass({
     }
 
     _updateItemsVisibility() {
-        const {hasWindows} = Main.sessionMode;
+        const {has_windows: hasWindows} = Main.sessionMode;
 
         let nVisible = 0;
         for (const item of this._itemSorter) {
@@ -2231,7 +2231,7 @@ class Indicator extends SystemIndicator {
             return;
         }
 
-        if (Main.sessionMode.isGreeter)
+        if (Main.sessionMode.is_greeter)
             return;
 
         let isPortal = this._client.connectivity === NM.ConnectivityState.PORTAL;

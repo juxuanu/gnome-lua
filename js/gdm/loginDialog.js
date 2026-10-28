@@ -35,7 +35,6 @@ import * as CtrlAltTab from '../ui/ctrlAltTab.js';
 import * as GdmUtil from './util.js';
 import * as Settings from './settings.js';
 import * as Layout from '../ui/layout.js';
-import * as LoginManager from '../misc/loginManager.js';
 import * as Main from '../ui/main.js';
 import * as MessageTray from '../ui/messageTray.js';
 import * as PopupMenu from '../ui/popupMenu.js';
@@ -1133,11 +1132,16 @@ export const LoginDialog = GObject.registerClass({
     }
 
     async _getGreeterSessionProxy() {
-        const loginManager = LoginManager.getLoginManager();
-        this._greeterSessionProxy = await loginManager.getCurrentSessionProxy();
+        const loginManager = Shell.LoginManager.get_default();
+        try {
+            this._greeterSessionProxy = await loginManager.get_current_session_async(null);
+        } catch (error) {
+            logError(error, 'Could not get a proxy for the greeter session');
+            this._greeterSessionProxy = null;
+        }
         this._greeterSessionProxy?.connectObject('g-properties-changed', (proxy, properties) => {
             const activeChanged = !!properties.lookup_value('Active', null);
-            if (activeChanged && proxy.Active)
+            if (activeChanged && proxy.active)
                 this._loginScreenSessionActivated();
         }, this);
     }
@@ -1162,7 +1166,7 @@ export const LoginDialog = GObject.registerClass({
     _showConflictingSessionDialog(serviceName, conflictingSession) {
         const conflictingSessionDialog =
             new ConflictingSessionDialog(conflictingSession, this._greeterSessionProxy);
-        const loginManager = LoginManager.getLoginManager();
+        const loginManager = Shell.LoginManager.get_default();
 
         const closeDialogTimeoutId = GLib.timeout_add_seconds_once(
             GLib.PRIORITY_DEFAULT,
@@ -1175,7 +1179,7 @@ export const LoginDialog = GObject.registerClass({
 
         loginManager.connectObject(
             'session-removed', (lm, sessionId) => {
-                if (sessionId === conflictingSession.Id) {
+                if (sessionId === conflictingSession.id) {
                     conflictingSessionDialog.close();
                     this._authPrompt.finish(() => this._startSession(serviceName));
                 }
@@ -1212,8 +1216,8 @@ export const LoginDialog = GObject.registerClass({
     }
 
     async _findConflictingSession(startingSessionId) {
-        const loginManager = LoginManager.getLoginManager();
-        const sessions = await loginManager.listSessions();
+        const loginManager = Shell.LoginManager.get_default();
+        const sessions = (await loginManager.list_sessions_async(null)).deepUnpack();
         const [, , startingSessionOwner, ,] = sessions.find(([id, , , ,]) => id === startingSessionId);
         for (const session of sessions.map(([id, , user, , path]) => ({id, user, path}))) {
             if (startingSessionId === session.id)
@@ -1222,12 +1226,12 @@ export const LoginDialog = GObject.registerClass({
             if (startingSessionOwner !== session.user)
                 continue;
 
-            const sessionProxy = loginManager.getSession(session.path);
+            const sessionProxy = loginManager.get_session(session.path);
 
-            if (sessionProxy.Type !== 'wayland' && sessionProxy.Type !== 'x11')
+            if (sessionProxy.type !== 'wayland' && sessionProxy.type !== 'x11')
                 continue;
 
-            if (sessionProxy.State !== 'active' && sessionProxy.State !== 'online')
+            if (sessionProxy.state !== 'active' && sessionProxy.state !== 'online')
                 continue;
 
             return sessionProxy;

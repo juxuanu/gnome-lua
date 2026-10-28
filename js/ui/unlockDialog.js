@@ -9,7 +9,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Background from './background.js';
 import * as Layout from './layout.js';
 import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
@@ -834,10 +833,10 @@ export const UnlockDialog = GObject.registerClass({
             effect: new Shell.BlurEffect({name: 'blur'}),
         });
 
-        const bgManager = new Background.BackgroundManager({
+        const bgManager = new Shell.BackgroundManager({
             container: widget,
-            monitorIndex,
-            controlPosition: false,
+            monitor_index: monitorIndex,
+            control_position: false,
         });
 
         this._bgManagers.push(bgManager);

@@ -32,6 +32,20 @@ Gio._promisify(Gio.File.prototype, 'query_info_async');
 Gio._promisify(Gio.File.prototype, 'read_async');
 Gio._promisify(Polkit.Permission, 'new');
 Gio._promisify(Shell.App.prototype, 'activate_action');
+Gio._promisify(Shell.LoginManager.prototype, 'get_current_user_async');
+Gio._promisify(Shell.LoginManager.prototype, 'get_current_session_async');
+Gio._promisify(Shell.LoginManager.prototype, 'can_reboot_to_boot_loader_menu_async');
+Gio._promisify(Shell.LoginManager.prototype, 'list_sessions_async');
+Gio._promisify(Shell.LoginManager.prototype, 'inhibit_async');
+Gio._promisify(Shell.Login1Session.prototype, 'call_set_locked_hint');
+Gio._promisify(Shell.SessionManager.prototype, 'call_can_shutdown');
+Gio._promisify(Shell.SessionManager.prototype, 'call_can_reboot');
+Gio._promisify(Shell.SessionManager.prototype, 'call_can_suspend');
+Gio._promisify(Shell.SessionManager.prototype, 'call_is_inhibited');
+Gio._promisify(Shell.SessionManager.prototype, 'call_logout');
+Gio._promisify(Shell.SessionManager.prototype, 'call_shutdown');
+Gio._promisify(Shell.SessionManager.prototype, 'call_reboot');
+Gio._promisify(Shell.SessionManager.prototype, 'call_suspend');
 Gio._promisify(Meta.Backend.prototype, 'set_keymap_async');
 
 // We can't import shell JS modules yet, because they may have

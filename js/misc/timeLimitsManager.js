@@ -29,7 +29,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
 import * as Gettext from 'gettext';
-import * as LoginManager from './loginManager.js';
 import * as Main from '../ui/main.js';
 import * as MessageTray from '../ui/messageTray.js';
 import * as ParentalControlsManager from './parentalControlsManager.js';
@@ -165,12 +164,12 @@ export const TimeLimitsManager = GObject.registerClass({
             },
         };
         this._loginManagerFactory = loginManagerFactory ?? {
-            new: LoginManager.getLoginManager,
+            new: Shell.LoginManager.get_default,
         };
         this._loginUserFactory = loginUserFactory ?? {
             newAsync: () => {
-                const loginManager = LoginManager.getLoginManager();
-                return loginManager.getCurrentUserProxy();
+                const loginManager = Shell.LoginManager.get_default();
+                return loginManager.get_current_user_async(null);
             },
         };
 
@@ -469,7 +468,7 @@ export const TimeLimitsManager = GObject.registerClass({
             return;
 
         try {
-            this._inhibitor = await this._loginManager.inhibit(
+            this._inhibitor = await this._loginManager.inhibit_async(
                 _('GNOME needs to save screen time data'), this._cancellable);
         } catch (e) {
             if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.CANCELLED))
@@ -562,9 +561,9 @@ export const TimeLimitsManager = GObject.registerClass({
     }
 
     _calculateUserStateFromLogind() {
-        const isActive = this._loginUser.State === 'active' &&
-            !this._loginUser.IdleHint &&
-            !this._loginManager.preparingForSleep;
+        const isActive = this._loginUser.state === 'active' &&
+            !this._loginUser.idle_hint &&
+            !this._loginManager.preparing_for_sleep;
         return isActive ? UserState.ACTIVE : UserState.INACTIVE;
     }
 

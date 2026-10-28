@@ -125,12 +125,12 @@ class TestHarness {
             }
 
             /* eslint-disable-next-line require-await */
-            async inhibit(unusedReason, unusedCancellable) {
+            async inhibit_async(unusedReason, unusedCancellable) {
                 // Basically a no-op for mock purposes
                 return new MockInhibitor();
             }
 
-            get preparingForSleep() {
+            get preparing_for_sleep() {
                 return harness._currentPreparingForSleepState;
             }
         }
@@ -151,11 +151,11 @@ class TestHarness {
                 harness._loginUserPropertiesChangedCallback = null;
             }
 
-            get State() {
+            get state() {
                 return harness._currentUserState;
             }
 
-            get IdleHint() {
+            get idle_hint() {
                 return harness._currentUserIdleHint;
             }
         }
@@ -581,7 +581,7 @@ class TestHarness {
     /**
      * Get a mock login manager factory for use in the `TimeLimitsManager` under
      * test. This is an object providing a constructor for the objects returned
-     * by `LoginManager.getLoginManager()`. This is roughly a wrapper around the
+     * by `Shell.LoginManager.get_default()`. This is roughly a wrapper around the
      * [`org.freedesktop.login1.Manager` D-Bus API](https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.login1.html#The%20Manager%20Object).
      * Each constructor returns a basic implementation of the manager which uses
      * the current state from `TestHarness`.

@@ -1,31 +1,36 @@
 <node>
   <interface name="org.freedesktop.login1.Manager">
     <method name="Inhibit">
-      <arg type="s" direction="in"/>
-      <arg type="s" direction="in"/>
-      <arg type="s" direction="in"/>
-      <arg type="s" direction="in"/>
-      <arg type="h" direction="out"/>
+      <annotation name="org.gtk.GDBus.C.UnixFD" value="true"/>
+      <arg name="what" type="s" direction="in"/>
+      <arg name="who" type="s" direction="in"/>
+      <arg name="why" type="s" direction="in"/>
+      <arg name="mode" type="s" direction="in"/>
+      <arg name="pipe_fd" type="h" direction="out"/>
     </method>
     <method name="GetSession">
-      <arg type="s" direction="in"/>
-      <arg type="o" direction="out"/>
+      <arg name="session_id" type="s" direction="in"/>
+      <arg name="object_path" type="o" direction="out"/>
     </method>
     <method name="GetUser">
-      <arg type="u" direction="in"/>
-      <arg type="o" direction="out"/>
+      <arg name="uid" type="u" direction="in"/>
+      <arg name="object_path" type="o" direction="out"/>
     </method>
     <method name="ListSessions">
       <arg name="sessions" type="a(susso)" direction="out"/>
     </method>
     <method name="CanRebootToBootLoaderMenu">
-      <arg type="s" direction="out"/>
+      <arg name="result" type="s" direction="out"/>
     </method>
     <method name="SetRebootToBootLoaderMenu">
-      <arg type="t" direction="in"/>
+      <arg name="timeout_usec" type="t" direction="in"/>
     </method>
     <signal name="PrepareForSleep">
-      <arg type="b" direction="out"/>
+      <arg name="start" type="b" direction="out"/>
+    </signal>
+    <signal name="SessionRemoved">
+      <arg name="session_id" type="s" direction="out"/>
+      <arg name="object_path" type="o" direction="out"/>
     </signal>
   </interface>
 </node>

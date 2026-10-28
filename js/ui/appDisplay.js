@@ -12,7 +12,6 @@ import St from 'gi://St';
 import * as AppFavorites from './appFavorites.js';
 import {AppMenu} from './appMenu.js';
 import * as DND from './dnd.js';
-import * as GrabHelper from './grabHelper.js';
 import * as IconGrid from './iconGrid.js';
 import * as Layout from './layout.js';
 import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
@@ -2515,8 +2514,9 @@ export const AppFolderDialog = GObject.registerClass({
 
         global.focus_manager.add_group(this);
 
-        this._grabHelper = new GrabHelper.GrabHelper(this, {
-            actionMode: Shell.ActionMode.POPUP,
+        this._grabHelper = new Shell.GrabHelper({
+            owner: this,
+            action_mode: Shell.ActionMode.POPUP,
         });
         this.connect('destroy', this._onDestroy.bind(this));
 
@@ -2764,7 +2764,7 @@ export const AppFolderDialog = GObject.registerClass({
     _onDestroy() {
         if (this._isOpen) {
             this._isOpen = false;
-            this._grabHelper.ungrab({actor: this});
+            this._grabHelper.ungrab_actor(this, false);
             this._grabHelper = null;
         }
 
@@ -2869,11 +2869,8 @@ export const AppFolderDialog = GObject.registerClass({
         if (this._isOpen)
             return;
 
-        this._isOpen = this._grabHelper.grab({
-            actor: this,
-            focus: this._editButton,
-            onUngrab: () => this.popdown(),
-        });
+        this._isOpen = this._grabHelper.grab(
+            this, this._editButton, () => this.popdown());
 
         if (!this._isOpen)
             return;
@@ -2903,7 +2900,7 @@ export const AppFolderDialog = GObject.registerClass({
         this._showFolderLabel();
 
         this._isOpen = false;
-        this._grabHelper.ungrab({actor: this});
+        this._grabHelper.ungrab_actor(this, false);
         this.emit('open-state-changed', false);
     }
 });

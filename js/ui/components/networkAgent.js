@@ -675,7 +675,7 @@ class NetworkAgent {
             identifier: 'org.gnome.Shell.NetworkAgent',
             capabilities: NM.SecretAgentCapabilities.VPN_HINTS,
             auto_register: false,
-            force_always_ask: Main.sessionMode.isGreeter,
+            force_always_ask: Main.sessionMode.is_greeter,
         });
 
         this._dialogs = { };

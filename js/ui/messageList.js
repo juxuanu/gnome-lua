@@ -825,7 +825,7 @@ class MediaMessage extends Message {
     }
 
     vfunc_clicked() {
-        if (Main.sessionMode.isLocked)
+        if (Main.sessionMode.is_locked)
             return;
 
         this._player.raise();
@@ -835,7 +835,7 @@ class MediaMessage extends Message {
     _applyPolicy() {
         this.visible =
             this._policy.enable &&
-            (!Main.sessionMode.isLocked || this._policy.showInLockScreen);
+            (!Main.sessionMode.is_locked || this._policy.showInLockScreen);
     }
 
     _updateNavButton(button, sensitive) {

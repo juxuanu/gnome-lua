@@ -1,8 +1,9 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
+import Shell from 'gi://Shell';
+
 import * as Params from '../../misc/params.js';
 
-import * as GnomeSession from '../../misc/gnomeSession.js';
 import * as Main from '../main.js';
 import * as ShellMountOperation from '../shellMountOperation.js';
 
@@ -18,10 +19,10 @@ class AutomountManager {
     constructor() {
         this._settings = new Gio.Settings({schema_id: SETTINGS_SCHEMA});
         this._activeOperations = new Map();
-        this._session = new GnomeSession.SessionManager();
-        this._session.connectSignal('InhibitorAdded',
+        this._session = Shell.gnome_session_manager_new_sync(null);
+        this._session.connect('inhibitor-added',
             this._InhibitorsChanged.bind(this));
-        this._session.connectSignal('InhibitorRemoved',
+        this._session.connect('inhibitor-removed',
             this._InhibitorsChanged.bind(this));
         this._inhibited = false;
 
@@ -54,10 +55,10 @@ class AutomountManager {
         }
     }
 
-    async _InhibitorsChanged(_object, _senderName, [_inhibitor]) {
+    async _InhibitorsChanged(_object, _inhibitor) {
         try {
-            const [inhibited] =
-                await this._session.IsInhibitedAsync(GNOME_SESSION_AUTOMOUNT_INHIBIT);
+            const inhibited =
+                await this._session.call_is_inhibited(GNOME_SESSION_AUTOMOUNT_INHIBIT, null);
             this._inhibited = inhibited;
         } catch {}
     }
@@ -78,7 +79,7 @@ class AutomountManager {
     _onDriveConnected() {
         // if we're not in the current ConsoleKit session,
         // or screensaver is active, don't play sounds
-        if (!this._session.SessionIsActive)
+        if (!this._session.session_is_active)
             return;
 
         const player = global.display.get_sound_player();
@@ -91,7 +92,7 @@ class AutomountManager {
     _onDriveDisconnected() {
         // if we're not in the current ConsoleKit session,
         // or screensaver is active, don't play sounds
-        if (!this._session.SessionIsActive)
+        if (!this._session.session_is_active)
             return;
 
         const player = global.display.get_sound_player();
@@ -104,7 +105,7 @@ class AutomountManager {
     _onDriveEjectButton(monitor, drive) {
         // TODO: this code path is not tested, as the GVfs volume monitor
         // doesn't emit this signal just yet.
-        if (!this._session.SessionIsActive)
+        if (!this._session.session_is_active)
             return;
 
         // we force stop/eject in this case, so we don't have to pass a
@@ -144,7 +145,7 @@ class AutomountManager {
         if (params.checkSession) {
             // if we're not in the current ConsoleKit session,
             // don't attempt automount
-            if (!this._session.SessionIsActive)
+            if (!this._session.session_is_active)
                 return;
         }
 

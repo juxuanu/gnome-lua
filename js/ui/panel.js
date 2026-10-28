@@ -650,15 +650,16 @@ export class Panel extends St.Widget {
     }
 
     _updatePanel() {
-        const panel = Main.sessionMode.panel;
+        const {panel_left: left, panel_center: center, panel_right: right} =
+            Main.sessionMode;
         this._hideIndicators();
-        this._updateBox(panel.left, this._leftBox);
-        this._updateBox(panel.center, this._centerBox);
-        this._updateBox(panel.right, this._rightBox);
+        this._updateBox(left, this._leftBox);
+        this._updateBox(center, this._centerBox);
+        this._updateBox(right, this._rightBox);
 
-        if (panel.left.includes('dateMenu'))
+        if (left.includes('dateMenu'))
             Main.messageTray.bannerAlignment = Clutter.ActorAlign.START;
-        else if (panel.right.includes('dateMenu'))
+        else if (right.includes('dateMenu'))
             Main.messageTray.bannerAlignment = Clutter.ActorAlign.END;
         // Default to center if there is no dateMenu
         else
@@ -667,7 +668,7 @@ export class Panel extends St.Widget {
         if (this._sessionStyle)
             this.remove_style_class_name(this._sessionStyle);
 
-        this._sessionStyle = Main.sessionMode.panelStyle;
+        this._sessionStyle = Main.sessionMode.panel_style;
         if (this._sessionStyle)
             this.add_style_class_name(this._sessionStyle);
     }

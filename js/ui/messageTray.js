@@ -6,7 +6,6 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as GnomeSession from '../misc/gnomeSession.js';
 import * as Layout from './layout.js';
 import * as Main from './main.js';
 import * as MessageList from './messageList.js';
@@ -727,13 +726,20 @@ export class MessageTray extends St.Widget {
             layout_manager: new Clutter.BinLayout(),
         });
 
-        this._presence = new GnomeSession.Presence((proxy, _error) => {
-            this._onStatusChanged(proxy.status);
-        });
+        this._presence = null;
         this._busy = false;
         this._bannerBlocked = false;
-        this._presence.connectSignal('StatusChanged', (proxy, senderName, [status]) => {
-            this._onStatusChanged(status);
+        Shell.gnome_session_presence_new(null, (source, res) => {
+            try {
+                this._presence = Shell.gnome_session_presence_new_finish(res);
+            } catch {
+                return;
+            }
+
+            this._presence.connect('status-changed', (proxy, status) => {
+                this._onStatusChanged(status);
+            });
+            this._onStatusChanged(this._presence.status);
         });
 
         const constraint = new Layout.MonitorConstraint({primary: true});
@@ -1015,11 +1021,11 @@ export class MessageTray extends St.Widget {
     }
 
     _onStatusChanged(status) {
-        if (status === GnomeSession.PresenceStatus.BUSY) {
+        if (status === Shell.PresenceStatus.BUSY) {
             // remove notification and allow the summary to be closed now
             this._updateNotificationTimeout(0);
             this._busy = true;
-        } else if (status !== GnomeSession.PresenceStatus.IDLE) {
+        } else if (status !== Shell.PresenceStatus.IDLE) {
             // We preserve the previous value of this._busy if the status turns to IDLE
             // so that we don't start showing notifications queued during the BUSY state
             // as the screensaver gets activated.
@@ -1080,7 +1086,7 @@ export class MessageTray extends St.Widget {
         if (changed)
             this.emit('queue-changed');
 
-        const hasNotifications = Main.sessionMode.hasNotifications;
+        const hasNotifications = Main.sessionMode.has_notifications;
 
         if (this._notificationState === State.HIDDEN) {
             const nextNotification = this._notificationQueue[0] || null;

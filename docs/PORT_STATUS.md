@@ -20,8 +20,8 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/misc/breakManager.js` | 1480 | todo | |
 | `js/misc/timeLimitsManager.js` | 1475 | todo | |
 | `js/ui/layout.js` | 1430 | todo | |
-| `js/ui/main.js` | 1069 | todo | |
-| `js/ui/background.js` | 997 | todo | |
+| `js/ui/main.js` | 1069 | wip | modal stack (pushModal/popModal) in C as ShellMain (`src/ui/main.[ch]`, `Shell.Main.get_default()`). `Main.pushModal()`/`popModal()` are thin wrappers; `Main.modalCount`/`Main.actionMode` mirror the `modal-count`/`action-mode` properties; `modal-ended` is connected to `layoutManager.modalEnded()`. `Main.modalActorFocusStack` is gone. `popModal()` still throws "incorrect pop" (a GError from C). |
+| `js/ui/background.js` | 997 | ported | `src/ui/background.[ch]`: `ShellBackgroundManager` (final GObject) and `ShellSystemBackground` (a `ClutterActor` wrapping the `Meta.BackgroundActor`, because that type is final in C); the cache, source, `Background`, glycin texture cache and slide-show `Animation` are private to the C file. `new Background.BackgroundManager({container, monitorIndex, layoutManager, controlPosition, useContentSize, vignette, settingsSchema})` is `new Shell.BackgroundManager({container, monitor_index, control_position, use_content_size, vignette, settings_schema})`: `layoutManager` is gone (monitor geometry comes from `MetaDisplay`), `.backgroundActor` is `.background_actor`, `destroy()` and the `changed`/`loaded` signals are unchanged. `new Background.SystemBackground()` is `new Shell.SystemBackground()`. New `Shell.BackgroundManager.set_screen_transition(actor)`, called by layout.js with `Main.layoutManager.screenTransition` (the C code cannot reach that JS-only actor). Textures load through the async glycin API (JS used the blocking calls). The no-key-frame animation path re-applies the color/gradient (JS called the removed `Meta.Background.set_file()`, which threw). Needs `gnome-bg-4` besides `gnome-desktop-4`. |
 | `js/ui/panel.js` | 786 | todo | |
 | `js/ui/boxpointer.js` | 689 | ported | `src/ui/box-pointer.[ch]` (`ShellBoxPointer`, derivable; `ShellPopupAnimation` flags). `new BoxPointer(side)` is now `new Shell.BoxPointer({arrow_side: side})`; methods are snake_case (`set_position`, `set_arrow_origin`, `open(animate, onComplete)`, ...), `.arrowSide` is `.arrow_side`, `BoxPointer.PopupAnimation` is `Shell.PopupAnimation`. `bin` is a read-only property. New `arrow-alignment`/`arrow-actor` properties. Monitor/work area come straight from MetaDisplay (workspace 0), falling back to the primary monitor for an off-screen source. |
 | `js/ui/dnd.js` | 643 | todo | |
@@ -39,16 +39,16 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/misc/jsParse.js` | 302 | dropped | JS tokenizer for the Looking Glass JS evaluator; the Lua REPL replaces it. Removed in M6. |
 | `js/misc/modemManager.js` | 302 | todo | |
 | `js/misc/signalTracker.js` | 287 | dropped | GJS connectObject tracking; C uses g_signal_connect_object. Removed in M6. |
-| `js/misc/loginManager.js` | 279 | todo | |
+| `js/misc/loginManager.js` | 279 | ported | `src/misc/login-manager.[ch]`: `ShellLoginManager` singleton; LoginManagerSystemd/Dummy are one class (no logind proxy = dummy). Session/User/Manager proxies are gdbus-codegen types (`Shell.Login1Session`, `Shell.Login1User`): properties are lower-case GObject properties, `connectSignal('Lock')` is `connect('lock')`. `_finish` errors propagate instead of being logged and resolved as null. `canRebootToBootLoaderMenu()` is `can_reboot_to_boot_loader_menu_async()` resolving to `[can, needsAuth]`; `listSessions()` resolves to a `GLib.Variant` (`deepUnpack()`). |
 | `js/ui/barLevel.js` | 271 | ported | `src/ui/bar-level.[ch]` (`ShellBarLevel`, derivable). `overdrive-start` above the maximum now logs a warning instead of throwing. |
 | `js/misc/parentalControlsManager.js` | 267 | todo | |
 | `js/ui/modalDialog.js` | 266 | todo | |
-| `js/ui/grabHelper.js` | 242 | todo | |
+| `js/ui/grabHelper.js` | 242 | ported | `src/ui/grab-helper.[ch]` (`ShellGrabHelper`, final). `new Shell.GrabHelper({owner, action_mode})`; `grab(actor, focus, on_ungrab)` (`focus`/callback nullable), `grab_async(actor, focus)` + `grab_finish` (promisify in screenshot.js), `ungrab(is_user)`, `ungrab_actor(actor, is_user)`, `is_actor_grabbed()`, `grabbed` property, `get_current_actor()`. `grabStack` is not exposed. Pushes the modal through `shell_main_push_modal()`. |
 | `js/misc/objectManager.js` | 241 | todo | |
 | `js/misc/dateUtils.js` | 230 | todo | |
 | `js/ui/slider.js` | 230 | ported | `src/ui/slider.[ch]` (`ShellSlider`, final). `new Slider(v)` is now `new Shell.Slider({value: v})`. |
 | `js/misc/introspect.js` | 218 | todo | |
-| `js/ui/sessionMode.js` | 209 | todo | |
+| `js/ui/sessionMode.js` | 209 | ported | `src/ui/session-mode.[ch]` (`ShellSessionMode`, final GObject). `new SessionMode.SessionMode()` is now `new Shell.SessionMode()`; the mode fields are read-only properties in snake_case (`is_locked`, `has_overview`, `allow_settings`, ...), `currentMode`/`parentMode` are `current_mode`/`parent_mode`, `panel.left/center/right` are the GStrv properties `panel_left/panel_center/panel_right`, `pushMode`/`popMode`/`switchMode` are `push_mode`/`pop_mode`/`switch_mode` (they throw a GError for an unknown mode or an invalid pop). `unlockDialog` is a string (`login-dialog`/`unlock-dialog`, null if the mode cannot lock) mapped to the JS class by `Main.getUnlockDialogClass()`. `get_field(name)` returns the raw JSON-derived GVariant of any other key. `session.mode-changed` is emitted from C after `updated` (the JS emission is gone). `listModes.js` calls `Shell.SessionMode.list_modes()`. |
 | `js/ui/osdWindow.js` | 199 | ported | `src/ui/osd-window.[ch]` (`ShellOsdWindow`, final St.Widget per monitor; `ShellOsdWindowManager`, final GObject). `new OsdWindowManager()` is now `new Shell.OsdWindowManager({ui_group: uiGroup})`. `showOne`/`showAll`/`hideAll` are `show_one`/`show_all`/`hide_all`; "no level" is a NaN `level` (was undefined/null), a max level below 1 means 1; `show(icon, label, levels)` takes a `GLib.Variant('a(idd)')` of `[monitor, level, maxLevel]` instead of an object. Windows go straight into `uiGroup` (no addChrome), so no JS shim; the `Layout.MonitorConstraint` is an `allocate` override and the box is centered by a `BinLayout`. |
 | `js/ui/panelMenu.js` | 199 | todo | |
 | `js/misc/extensionUtils.js` | 172 | dropped | JS extension loading; replaced by ShellLuaExtensionManager (M5). Removed in M6. |
@@ -63,7 +63,7 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/misc/dbusUtils.js` | 86 | todo | |
 | `js/misc/fileUtils.js` | 86 | todo | |
 | `js/ui/animation.js` | 81 | ported | `src/ui/animation.[ch]` (`ShellSpinner`, final; the file only held `Spinner` in 51.1). `new Spinner(16, {hideOnStop: true})` is now `new Shell.Spinner({spinner_size: 16, hide_on_stop: true})` (`size` clashes with `ClutterActor:size`). |
-| `js/misc/gnomeSession.js` | 71 | todo | |
+| `js/misc/gnomeSession.js` | 71 | ported | `src/misc/gnome-session.[ch]`: `Shell.gnome_session_{presence,manager,inhibitor}_new` (+ `_finish`, and `_new_sync` for the manager) return gdbus-codegen proxies (`Shell.SessionManagerPresence`, `Shell.SessionManager`, `Shell.SessionManagerInhibitor`); `PresenceStatus`, `InhibitFlags` and `ActionAvailability` are `Shell.*` enums. D-Bus signals are GObject signals (`status-changed`, `inhibitor-added`), methods are `call_*` / `call_*_sync`. |
 | `js/misc/dependencies.js` | 68 | dropped | GJS import guards; C links its dependencies. Removed in M6. |
 | `js/ui/backgroundMenu.js` | 66 | todo | |
 | `js/misc/dbusErrors.js` | 58 | dropped | Maps GJS D-Bus errors; gdbus-codegen handles this in C. Removed in M6. |
@@ -72,7 +72,7 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/misc/signals.js` | 23 | dropped | GJS EventEmitter shim; C modules use GObject signals. Removed in M6. |
 | `js/ui/init.js` | 21 | todo | |
 | `js/misc/permissionStore.js` | 18 | todo | |
-| `js/ui/listModes.js` | 5 | todo | |
+| `js/ui/listModes.js` | 5 | wip | Now prints `Shell.SessionMode.list_modes()`; still the JS entry point that `main.c` evaluates for `--list-modes` (goes with `main.c` in M6). |
 
 ## M3
 

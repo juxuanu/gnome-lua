@@ -112,6 +112,7 @@ libshell_public_headers = [
   'shell-app-system.h',
   'shell-app-usage.h',
   'shell-blur-effect.h',
+  'ui/background.h',
   'ui/bar-level.h',
   'ui/box-pointer.h',
   'ui/slider.h',
@@ -123,6 +124,9 @@ libshell_public_headers = [
   'ui/animation.h',
   'ui/pointer-a11y-timeout.h',
   'ui/xdnd-handler.h',
+  'ui/main.h',
+  'ui/grab-helper.h',
+  'ui/session-mode.h',
   'ui/osd-window.h',
   'ui/osd-monitor-labeler.h',
   'ui/page-indicators.h',
@@ -132,6 +136,8 @@ libshell_public_headers = [
   'shell-global.h',
   'shell-invert-lightness-effect.h',
   'shell-action-modes.h',
+  'misc/gnome-session.h',
+  'misc/login-manager.h',
   'shell-mount-operation.h',
   'shell-perf-log.h',
   'shell-screenshot.h',
@@ -178,6 +184,7 @@ libshell_sources = [
   'shell-app-system.c',
   'shell-app-usage.c',
   'shell-blur-effect.c',
+  'ui/background.c',
   'ui/bar-level.c',
   'ui/box-pointer.c',
   'ui/slider.c',
@@ -189,11 +196,16 @@ libshell_sources = [
   'ui/animation.c',
   'ui/pointer-a11y-timeout.c',
   'ui/xdnd-handler.c',
+  'ui/main.c',
+  'ui/grab-helper.c',
+  'ui/session-mode.c',
   'ui/osd-window.c',
   'ui/osd-monitor-labeler.c',
   'ui/page-indicators.c',
   'ui/workspace-switcher-popup.c',
   'shell-camera-monitor.c',
+  'misc/gnome-session.c',
+  'misc/login-manager.c',
   'shell-edge-drag-gesture.c',
   'shell-global.c',
   'shell-invert-lightness-effect.c',
@@ -237,9 +249,33 @@ libshell_enums = gnome.mkenums_simple('shell-enum-types',
   sources: libshell_public_headers
 )
 
+# Proxies handed out by the ported misc modules to the remaining JS, so they
+# are part of the Shell GIR (unlike dbus_generated below, which is C only).
+libshell_login1_dbus = gnome.gdbus_codegen('login1-dbus',
+  sources: [
+    '../data/dbus-interfaces/org.freedesktop.login1.Manager.xml',
+    '../data/dbus-interfaces/org.freedesktop.login1.Session.xml',
+    '../data/dbus-interfaces/org.freedesktop.login1.User.xml',
+  ],
+  interface_prefix: 'org.freedesktop.',
+  namespace: 'Shell'
+)
+
+libshell_gnome_session_dbus = gnome.gdbus_codegen('gnome-session-dbus',
+  sources: [
+    '../data/dbus-interfaces/org.gnome.SessionManager.xml',
+    '../data/dbus-interfaces/org.gnome.SessionManager.Presence.xml',
+    '../data/dbus-interfaces/org.gnome.SessionManager.Inhibitor.xml',
+  ],
+  interface_prefix: 'org.gnome.',
+  namespace: 'Shell'
+)
+
 libshell_gir_sources = [
   libshell_enums,
   libshell_public_headers,
+  libshell_login1_dbus,
+  libshell_gnome_session_dbus,
   libshell_sources
 ]
 
@@ -268,7 +304,7 @@ endif
 
 libshell = library('shell-' + mutter_api_version,
   sources: libshell_gir_sources + libshell_no_gir_sources,
-  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, m_dep, cairo_dep],
+  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, glycin_dep, m_dep, cairo_dep],
   include_directories: [conf_inc, include_directories('tray')],
   c_args: gnome_shell_cflags,
   link_with: libshell_link_with,
