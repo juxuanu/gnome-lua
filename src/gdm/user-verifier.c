@@ -680,8 +680,8 @@ filter_service_messages (ShellGdmUserVerifier *self,
 /**
  * shell_gdm_user_verifier_handle_pending_messages_async:
  * @verifier: a #ShellGdmUserVerifier
- * @callback: (scope async): called when the messages have been shown
- * @user_data: (closure): data for @callback
+ * @callback: (scope async) (closure user_data): called when the messages have been shown
+ * @user_data: data for @callback
  *
  * Waits until the queued messages have been shown. The operation fails with
  * %G_IO_ERROR_CANCELLED if the verification was cancelled meanwhile.
