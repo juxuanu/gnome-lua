@@ -16,7 +16,6 @@ import * as WindowMenu from './windowMenu.js';
 import * as PadOsd from './padOsd.js';
 import * as CloseDialog from './closeDialog.js';
 import * as SwitchMonitor from './switchMonitor.js';
-import * as IBusManager from '../misc/ibusManager.js';
 import * as WorkspaceAnimation from './workspaceAnimation.js';
 
 import * as Main from './main.js';
@@ -887,7 +886,7 @@ export class WindowManager {
         });
 
         global.display.connect('init-xserver', (display, task) => {
-            IBusManager.getIBusManager().restartDaemon(['--xim']);
+            Shell.IBusManager.get_default().restart_daemon(['--xim']);
 
             this._startX11Services(task);
 
@@ -896,7 +895,7 @@ export class WindowManager {
         global.display.connect('x11-display-closing', () => {
             this._stopX11Services(null);
 
-            IBusManager.getIBusManager().restartDaemon();
+            Shell.IBusManager.get_default().restart_daemon(null);
         });
 
         this._windowMenuManager = new WindowMenu.WindowMenuManager();

@@ -34,6 +34,7 @@ pango_req = '>= 1.46.0'
 json_glib_req = '>= 1.6'
 rsvg_req = '>= 2.46'
 glycin_req = '>= 2.0'
+ibus_req = '>= 1.5.33'
 
 nm_req = '>= 1.24'
 secret_req = '>= 0.18'
@@ -94,6 +95,7 @@ pango_dep = dependency('pango', version: pango_req)
 json_glib_dep = dependency('json-glib-1.0', version: json_glib_req)
 rsvg_dep = dependency('librsvg-2.0', version: rsvg_req)
 glycin_dep = dependency('glycin-2', version: glycin_req)
+ibus_dep = dependency('ibus-1.0', version: ibus_req)
 # misc/system-actions.c: ActUserManager and gdm_get_session_ids ()
 accountsservice_dep = dependency('accountsservice')
 gdm_dep = dependency('gdm')

@@ -137,6 +137,9 @@ libshell_public_headers = [
   'shell-invert-lightness-effect.h',
   'shell-action-modes.h',
   'misc/gnome-session.h',
+  'misc/ibus-manager.h',
+  'misc/input-method.h',
+  'misc/keyboard-manager.h',
   'misc/login-manager.h',
   'misc/history.h',
   'misc/permission-store.h',
@@ -208,6 +211,9 @@ libshell_sources = [
   'ui/workspace-switcher-popup.c',
   'shell-camera-monitor.c',
   'misc/gnome-session.c',
+  'misc/ibus-manager.c',
+  'misc/input-method.c',
+  'misc/keyboard-manager.c',
   'misc/login-manager.c',
   'misc/history.c',
   'misc/permission-store.c',
@@ -320,7 +326,7 @@ endif
 
 libshell = library('shell-' + mutter_api_version,
   sources: libshell_gir_sources + libshell_no_gir_sources,
-  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, glycin_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep],
+  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, glycin_dep, ibus_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep],
   include_directories: [conf_inc, include_directories('tray')],
   c_args: gnome_shell_cflags,
   link_with: libshell_link_with,
@@ -341,6 +347,8 @@ libshell_gir_includes = [
   'Meta-@0@'.format(mutter_api_version),
   'Gcr-4',
   'GioUnix-2.0',
+  'GnomeDesktop-4.0',
+  'IBus-1.0',
   'PolkitAgent-1.0',
   'GdkPixbuf-2.0'
 ]

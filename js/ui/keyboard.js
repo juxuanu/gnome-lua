@@ -10,10 +10,14 @@ import St from 'gi://St';
 import * as Signals from '../misc/signals.js';
 
 import * as InputSourceManager from './status/keyboard.js';
-import * as IBusManager from '../misc/ibusManager.js';
 import * as Main from './main.js';
 import * as PopupMenu from './popupMenu.js';
 import * as SwipeTracker from './swipeTracker.js';
+
+Gio._promisify(Shell.InputMethod.prototype,
+    'handle_virtual_key_async', 'handle_virtual_key_finish');
+Gio._promisify(Shell.IBusManager.prototype,
+    'set_completion_enabled_async', 'set_completion_enabled_finish');
 
 export const KEYBOARD_ANIMATION_TIME = 150;
 const KEYBOARD_REST_TIME = KEYBOARD_ANIMATION_TIME * 2;
@@ -386,15 +390,15 @@ class FocusTracker extends Signals.EventEmitter {
         Main.inputMethod.connectObject('cursor-location-changed',
             (o, rect) => this._setCurrentRect(rect), this);
 
-        this._ibusManager = IBusManager.getIBusManager();
+        this._ibusManager = Shell.IBusManager.get_default();
         this._ibusManager.connectObject(
-            'set-cursor-location', (manager, rect) => {
+            'set-cursor-location', (manager, x, y, width, height) => {
                 /* Valid for X11 clients only */
-                if (Main.inputMethod.currentFocus)
+                if (Main.inputMethod.current_focus)
                     return;
 
                 const grapheneRect = new Graphene.Rect();
-                grapheneRect.init(rect.x, rect.y, rect.width, rect.height);
+                grapheneRect.init(x, y, width, height);
 
                 this._setCurrentRect(grapheneRect);
             },
@@ -981,6 +985,7 @@ export class KeyboardManager extends Signals.EventEmitter {
         if (enabled && !this._keyboard) {
             this._keyboard = new Keyboard();
             this._keyboard.connect('visibility-changed', () => {
+                Main.inputMethod.osk_visible = !!this.visible;
                 this.emit('visibility-changed');
                 this._bottomDragGesture.enabled = !this._keyboard.visible;
             });
@@ -988,6 +993,7 @@ export class KeyboardManager extends Signals.EventEmitter {
             this._keyboard.setCursorLocation(null);
             this._keyboard.destroy();
             this._keyboard = null;
+            Main.inputMethod.osk_visible = false;
             this._bottomDragGesture.enabled = true;
         }
     }
@@ -1209,7 +1215,7 @@ export const Keyboard = GObject.registerClass({
 
             this._surroundingTextId =
                 Main.inputMethod.connect('surrounding-text-set', () => {
-                    const [text, cursor] = Main.inputMethod.getSurroundingText();
+                    const [text, cursor] = Main.inputMethod.get_surrounding_text();
                     if (!text || cursor === 0) {
                         // First character in the buffer
                         this._setActiveLevel('shift');
@@ -1947,7 +1953,7 @@ class KeyboardController extends Signals.EventEmitter {
 
         // If there is no IM focus (e.g. with X11 clients), or modifiers
         // are in use, send raw key events.
-        if (!Main.inputMethod.currentFocus || modifiers?.size > 0) {
+        if (!Main.inputMethod.current_focus || modifiers?.size > 0) {
             if (modifiers)
                 this._forwardModifiers(modifiers, Clutter.EventType.KEY_PRESS);
 
@@ -1968,7 +1974,7 @@ class KeyboardController extends Signals.EventEmitter {
             this._currentSource.type === InputSourceManager.INPUT_SOURCE_TYPE_IBUS) {
             for (const keyval of keyvals) {
                 // eslint-disable-next-line no-await-in-loop
-                if (!await Main.inputMethod.handleVirtualKey(keyval)) {
+                if (!await Main.inputMethod.handle_virtual_key_async(keyval, null)) {
                     this.keyvalPress(keyval);
                     this.keyvalRelease(keyval);
                 }
@@ -1984,7 +1990,7 @@ class KeyboardController extends Signals.EventEmitter {
             return;
 
         this._oskCompletionEnabled =
-            await IBusManager.getIBusManager().setCompletionEnabled(enabled);
+            await Shell.IBusManager.get_default().set_completion_enabled_async(enabled, null);
 
         Main.inputMethod.update();
     }
@@ -2016,8 +2022,8 @@ class KeyboardController extends Signals.EventEmitter {
         /* If there is no IM focus or are in the middle of preedit, fallback to
          * keypresses */
         if (enabled &&
-            (!Main.inputMethod.currentFocus ||
-             Main.inputMethod.hasPreedit() ||
+            (!Main.inputMethod.current_focus ||
+             Main.inputMethod.has_preedit() ||
              this._purpose === Clutter.InputContentPurpose.TERMINAL)) {
             this.keyvalPress(Clutter.KEY_BackSpace);
             this._backspacePressed = true;
@@ -2057,7 +2063,7 @@ class KeyboardController extends Signals.EventEmitter {
 
             this._surroundingUpdateId = Main.inputMethod.connect(
                 'surrounding-text-set', () => {
-                    const [text, cursor, anchor] = Main.inputMethod.getSurroundingText();
+                    const [text, cursor, anchor] = Main.inputMethod.get_surrounding_text();
                     if (this._timesDeleted === 0) {
                         func(text, cursor, anchor);
                     } else {
@@ -2073,7 +2079,7 @@ class KeyboardController extends Signals.EventEmitter {
                     }
                 });
 
-            const [text, cursor, anchor] = Main.inputMethod.getSurroundingText();
+            const [text, cursor, anchor] = Main.inputMethod.get_surrounding_text();
             if (text)
                 func(text, cursor, anchor);
             else

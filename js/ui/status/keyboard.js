@@ -9,8 +9,7 @@ import St from 'gi://St';
 import * as Gettext from 'gettext';
 import * as Signals from '../../misc/signals.js';
 
-import * as IBusManager from '../../misc/ibusManager.js';
-import * as KeyboardManager from '../../misc/keyboardManager.js';
+import * as IBusCandidatePopup from '../ibusCandidatePopup.js';
 import * as Main from '../main.js';
 import * as PopupMenu from '../popupMenu.js';
 import * as PanelMenu from '../panelMenu.js';
@@ -64,7 +63,7 @@ export class InputSource extends Signals.EventEmitter {
     }
 
     _getXkbId() {
-        const engineDesc = IBusManager.getIBusManager().getEngineDesc(this.id);
+        const engineDesc = Shell.IBusManager.get_default().get_engine_desc(this.id);
         if (!engineDesc)
             return this.id;
 
@@ -366,12 +365,21 @@ export class InputSourceManager extends Signals.EventEmitter {
         this._settings.connect('keyboard-options-changed', this._keyboardOptionsChanged.bind(this));
         this._settings.connect('keyboard-model-changed', this._keyboardModelChanged.bind(this));
 
-        this._xkbInfo = KeyboardManager.getXkbInfo();
-        this._keyboardManager = KeyboardManager.getKeyboardManager();
+        this._keyboardManager = Shell.KeyboardManager.get_default();
+        this._xkbInfo = this._keyboardManager.get_xkb_info();
         this._keyboardManager.connect('keymap-changed', this._keymapChanged.bind(this));
 
         this._ibusReady = false;
-        this._ibusManager = IBusManager.getIBusManager();
+        this._ibusManager = Shell.IBusManager.get_default();
+        this._candidatePopup = new IBusCandidatePopup.CandidatePopup();
+        this._ibusManager.connect('notify::panel-service', () => {
+            this._candidatePopup.setPanelService(this._ibusManager.panel_service);
+        });
+        this._ibusManager.connect('engine-changed', () => {
+            this._candidatePopup.close(Shell.PopupAnimation.NONE, null);
+        });
+        if (this._ibusManager.panel_service)
+            this._candidatePopup.setPanelService(this._ibusManager.panel_service);
         this._ibusManager.connect('ready', this._ibusReadyCallback.bind(this));
         this._ibusManager.connect('properties-registered', this._ibusPropertiesRegistered.bind(this));
         this._ibusManager.connect('property-updated', this._ibusPropertyUpdated.bind(this));
@@ -389,8 +397,8 @@ export class InputSourceManager extends Signals.EventEmitter {
 
     reload() {
         this._reloading = true;
-        this._keyboardManager.setKeyboardOptions(this._settings.keyboardOptions);
-        this._keyboardManager.setKeyboardModel(this._settings.keyboardModel);
+        this._keyboardManager.set_keyboard_options(this._settings.keyboardOptions);
+        this._keyboardManager.set_keyboard_model(this._settings.keyboardModel);
         this._inputSourcesChanged();
         this._reloading = false;
     }
@@ -424,7 +432,7 @@ export class InputSourceManager extends Signals.EventEmitter {
     }
 
     _switchInputSource(display, window, event, binding) {
-        if (this._keyboardManager.isLocked())
+        if (this._keyboardManager.is_locked())
             return;
 
         if (this._mruSources.length < 2)
@@ -451,12 +459,12 @@ export class InputSourceManager extends Signals.EventEmitter {
     }
 
     _keyboardOptionsChanged() {
-        this._keyboardManager.setKeyboardOptions(this._settings.keyboardOptions);
+        this._keyboardManager.set_keyboard_options(this._settings.keyboardOptions);
         this._keyboardManager.reapply();
     }
 
     _keyboardModelChanged() {
-        this._keyboardManager.setKeyboardModel(this._settings.keyboardModel);
+        this._keyboardManager.set_keyboard_model(this._settings.keyboardModel);
         this._keyboardManager.reapply();
     }
 
@@ -487,6 +495,7 @@ export class InputSourceManager extends Signals.EventEmitter {
         let oldSource;
         [oldSource, this._currentSource] = [this._currentSource, newSource];
 
+        Main.inputMethod.has_input_source = !!newSource;
         this.emit('current-source-changed', oldSource);
 
         this._mruSources = [
@@ -519,7 +528,7 @@ export class InputSourceManager extends Signals.EventEmitter {
             engine = `xkb:${name}:${variant}:${lang}`;
         }
 
-        this._ibusManager.setEngine(engine);
+        this._ibusManager.set_engine(engine);
 
         this._currentInputSourceChanged(is, interactive);
 
@@ -532,7 +541,7 @@ export class InputSourceManager extends Signals.EventEmitter {
         for (const i of Object.keys(this._inputSources).sort((a, b) => a - b))
             sourcesList.push(this._inputSources[i]);
 
-        this._keyboardManager.setUserLayouts(sourcesList.map(x => x.xkbId));
+        this._keyboardManager.set_user_layouts(sourcesList.map(x => x.xkbId));
 
         if (!this._disableIBus && this._mruSourcesBackup) {
             this._mruSources = this._mruSourcesBackup;
@@ -598,7 +607,7 @@ export class InputSourceManager extends Signals.EventEmitter {
             } else if (type === INPUT_SOURCE_TYPE_IBUS) {
                 if (this._disableIBus)
                     continue;
-                const engineDesc = this._ibusManager.getEngineDesc(id);
+                const engineDesc = this._ibusManager.get_engine_desc(id);
                 if (engineDesc) {
                     const language = IBus.get_language_name(engineDesc.get_language());
                     let longName = engineDesc.get_longname();
@@ -617,7 +626,7 @@ export class InputSourceManager extends Signals.EventEmitter {
 
         if (infosList.length === 0) {
             const type = INPUT_SOURCE_TYPE_XKB;
-            const id = KeyboardManager.DEFAULT_LAYOUT;
+            const id = Shell.KEYBOARD_MANAGER_DEFAULT_LAYOUT;
             const [, displayName, shortName] = this._xkbInfo.get_layout_info(id);
             infosList.push({type, id, displayName, shortName});
         }
@@ -658,7 +667,7 @@ export class InputSourceManager extends Signals.EventEmitter {
 
         // All ibus engines are preloaded here to reduce the launching time
         // when users switch the input sources.
-        this._ibusManager.preloadEngines(Object.keys(this._ibusSources));
+        this._ibusManager.preload_engines(Object.keys(this._ibusSources));
     }
 
     _makeEngineShortName(engineDesc) {
@@ -919,15 +928,15 @@ class InputSourceIndicator extends PanelMenu.Button {
     }
 
     _createExternalSource(keyboardManager) {
-        const {displayName, shortName} = keyboardManager;
+        const {display_name: displayName, short_name: shortName} = keyboardManager;
         const is = new InputSource('external', 'external', displayName, shortName, -1);
-        is.locked = keyboardManager.isLocked();
+        is.locked = keyboardManager.is_locked();
         return is;
     }
 
     _getCurrentSource() {
         const {keyboardManager} = this._inputSourceManager;
-        if (keyboardManager.isExternal())
+        if (keyboardManager.is_external())
             return this._inputSources[0];
         else
             return this._inputSourceManager.currentSource;
@@ -935,14 +944,14 @@ class InputSourceIndicator extends PanelMenu.Button {
 
     _updateInputSources() {
         const {keyboardManager} = this._inputSourceManager;
-        if (keyboardManager.isLocked()) {
+        if (keyboardManager.is_locked()) {
             const is = this._createExternalSource(keyboardManager);
             this._inputSources = [is];
             return;
         }
 
         const inputSources = [];
-        if (keyboardManager.isExternal())
+        if (keyboardManager.is_external())
             inputSources.push(this._createExternalSource(keyboardManager));
 
         const internalSources = this._inputSourceManager.inputSources;
@@ -1003,7 +1012,7 @@ class InputSourceIndicator extends PanelMenu.Button {
 
     _calculateSourceIndicatorIndex(source) {
         const keyboardManager = this._inputSourceManager.keyboardManager;
-        return (keyboardManager.isExternal() ? 1 : 0) + source.index;
+        return (keyboardManager.is_external() ? 1 : 0) + source.index;
     }
 
     _setSourceAsActive(source) {
@@ -1074,7 +1083,7 @@ class InputSourceIndicator extends PanelMenu.Button {
         if (!props)
             return;
 
-        const ibusManager = IBusManager.getIBusManager();
+        const ibusManager = Shell.IBusManager.get_default();
         const radioGroup = [];
         let p;
         for (let i = 0; (p = props.get(i)) != null; ++i) {
@@ -1124,12 +1133,12 @@ class InputSourceIndicator extends PanelMenu.Button {
                         if (group[j] === item) {
                             item.setOrnament(PopupMenu.Ornament.DOT);
                             item.prop.set_state(IBus.PropState.CHECKED);
-                            ibusManager.activateProperty(
+                            ibusManager.activate_property(
                                 item.prop.get_key(), IBus.PropState.CHECKED);
                         } else {
                             group[j].setOrnament(PopupMenu.Ornament.NO_DOT);
                             group[j].prop.set_state(IBus.PropState.UNCHECKED);
-                            ibusManager.activateProperty(
+                            ibusManager.activate_property(
                                 group[j].prop.get_key(), IBus.PropState.UNCHECKED);
                         }
                     }
@@ -1142,11 +1151,11 @@ class InputSourceIndicator extends PanelMenu.Button {
                 item.connect('toggled', () => {
                     if (item.state) {
                         item.prop.set_state(IBus.PropState.CHECKED);
-                        ibusManager.activateProperty(
+                        ibusManager.activate_property(
                             item.prop.get_key(), IBus.PropState.CHECKED);
                     } else {
                         item.prop.set_state(IBus.PropState.UNCHECKED);
-                        ibusManager.activateProperty(
+                        ibusManager.activate_property(
                             item.prop.get_key(), IBus.PropState.UNCHECKED);
                     }
                 });
@@ -1156,7 +1165,7 @@ class InputSourceIndicator extends PanelMenu.Button {
                 item = new PopupMenu.PopupMenuItem(prop.get_label().get_text());
                 item.prop = prop;
                 item.connect('activate', () => {
-                    ibusManager.activateProperty(
+                    ibusManager.activate_property(
                         item.prop.get_key(), item.prop.get_state());
                 });
                 break;

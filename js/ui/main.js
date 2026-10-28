@@ -17,7 +17,6 @@ import * as DND from './dnd.js';
 import * as EndSessionDialog from './endSessionDialog.js';
 import * as ExtensionSystem from './extensionSystem.js';
 import * as ExtensionDownloader from './extensionDownloader.js';
-import * as InputMethod from '../misc/inputMethod.js';
 import * as Introspect from '../misc/introspect.js';
 import * as Keyboard from './keyboard.js';
 import * as MessageTray from './messageTray.js';
@@ -259,7 +258,7 @@ async function _initializeUI() {
     if (Shell.LoginManager.can_lock())
         screenShield = new ScreenShield.ScreenShield();
 
-    inputMethod = new InputMethod.InputMethod();
+    inputMethod = new Shell.InputMethod();
     global.stage.context.get_backend().set_input_method(inputMethod);
     global.connect('shutdown',
         () => global.stage.context.get_backend().set_input_method(null));
