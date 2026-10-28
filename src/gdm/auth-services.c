@@ -551,7 +551,7 @@ shell_gdm_auth_services_send_answer (ShellGdmAuthServices *self,
 
   gdm_user_verifier_call_answer_query (self->user_verifier, service_name,
                                        answer != NULL ? answer : "",
-                                       self->cancellable, call_done, "answer");
+                                       self->cancellable, call_done, (gpointer) "answer");
 }
 
 void
@@ -565,7 +565,7 @@ shell_gdm_auth_services_send_choice (ShellGdmAuthServices *self,
   gdm_user_verifier_choice_list_call_select_choice (self->user_verifier_choice_list,
                                                     service_name,
                                                     key != NULL ? key : "",
-                                                    self->cancellable, call_done, "choice");
+                                                    self->cancellable, call_done, (gpointer) "choice");
 }
 
 void
@@ -578,7 +578,7 @@ shell_gdm_auth_services_send_custom_json (ShellGdmAuthServices *self,
 
   gdm_user_verifier_custom_json_call_reply (self->user_verifier_custom_json,
                                             service_name, json,
-                                            self->cancellable, call_done, "reply");
+                                            self->cancellable, call_done, (gpointer) "reply");
 }
 
 /* ---- handlers ---- */
