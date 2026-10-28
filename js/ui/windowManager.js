@@ -1762,11 +1762,11 @@ export class WindowManager {
     }
 
     _toggleCalendar() {
-        Main.panel.toggleCalendar();
+        Main.panel.toggle_calendar();
     }
 
     _toggleQuickSettings() {
-        Main.panel.toggleQuickSettings();
+        Main.panel.toggle_quick_settings();
     }
 
     _showWorkspaceSwitcher(display, window, event, binding) {

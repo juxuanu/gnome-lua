@@ -1,8 +1,9 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 
-import {QuickToggle, SystemIndicator} from '../quickSettings.js';
+import {QuickToggle} from '../quickSettings.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
@@ -112,11 +113,11 @@ class RfkillToggle extends QuickToggle {
 });
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
-        this._indicator = this._addIndicator();
+        this._indicator = this.add_indicator();
         this._indicator.icon_name = 'airplane-mode-symbolic';
 
         this._rfkillToggle = new RfkillToggle();
@@ -124,7 +125,7 @@ class Indicator extends SystemIndicator {
             'notify::visible', () => this._sync(),
             'notify::checked', () => this._sync(),
             this);
-        this.quickSettingsItems.push(this._rfkillToggle);
+        this.add_quick_settings_item(this._rfkillToggle);
 
         this._sync();
     }

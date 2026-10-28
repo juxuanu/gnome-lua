@@ -9,7 +9,7 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {QuickMenuToggle, SystemIndicator} from '../quickSettings.js';
+import {QuickMenuToggle} from '../quickSettings.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
@@ -442,17 +442,17 @@ class BluetoothToggle extends QuickMenuToggle {
 });
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
         this._client = new BtClient();
         this._client.connect('devices-changed', () => this._sync());
 
-        this._indicator = this._addIndicator();
+        this._indicator = this.add_indicator();
         this._indicator.icon_name = 'bluetooth-active-symbolic';
 
-        this.quickSettingsItems.push(new BluetoothToggle(this._client));
+        this.add_quick_settings_item(new BluetoothToggle(this._client));
 
         this._sync();
     }

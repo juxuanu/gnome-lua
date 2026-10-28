@@ -53,7 +53,7 @@ export async function run() {
     checkFittsiness('fittsyDash',
         showApps, Orientation.VERTICAL, bottomEdge);
 
-    const activitiesButton = Main.panel.statusArea.activities;
+    const activitiesButton = Main.panel.get_status_area_indicator('activities');
     console.debug('Checking that top bar extends to top screen edge');
     checkFittsiness('fittsyTopBarVert',
         activitiesButton, Orientation.VERTICAL, topEdge);

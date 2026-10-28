@@ -12,7 +12,6 @@ import * as BreakManager from '../misc/breakManager.js';
 import * as Config from '../misc/config.js';
 import * as Components from './components.js';
 import * as CtrlAltTab from './ctrlAltTab.js';
-import * as DND from './dnd.js';
 import * as EndSessionDialog from './endSessionDialog.js';
 import * as ExtensionSystem from './extensionSystem.js';
 import * as ExtensionDownloader from './extensionDownloader.js';
@@ -20,10 +19,9 @@ import * as Keyboard from './keyboard.js';
 import * as MessageTray from './messageTray.js';
 import * as Overview from './overview.js';
 import * as PadOsd from './padOsd.js';
-import * as Panel from './panel.js';
+import * as PanelItems from './panelItems.js';
 import * as RunDialog from './runDialog.js';
 import * as WelcomeDialog from './welcomeDialog.js';
-import * as BackgroundMenu from './backgroundMenu.js';
 import * as LookingGlass from './lookingGlass.js';
 import * as NotificationDaemon from './notificationDaemon.js';
 import * as WindowAttentionHandler from './windowAttentionHandler.js';
@@ -170,7 +168,7 @@ export async function start() {
     _shellMain.session_mode = sessionMode;
     _shellMain.connect('settings-app-activating', () => {
         overview.hide();
-        panel.closeQuickSettings();
+        panel.close_quick_settings();
     });
 
     // The system actions live in C and ask for the JS-only parts of the shell
@@ -239,7 +237,7 @@ async function _initializeUI() {
 
     // The layout manager lives in C: it asks for the JS-only parts of the shell
     layoutManager.connect('background-added', (_layoutManager, bgActor) => {
-        BackgroundMenu.addBackgroundMenu(bgActor, layoutManager);
+        Shell.BackgroundMenu.add_to(bgActor, layoutManager);
     });
     layoutManager.connect('hot-corner-activated', (_layoutManager, _monitorIndex, inFullscreen) => {
         if (!overview || (inFullscreen && !overview.visible))
@@ -290,8 +288,7 @@ async function _initializeUI() {
         ui_group: uiGroup,
         session_locked: sessionMode.is_locked,
     });
-    xdndHandler.connect('drag-motion', (handler, x, y, dragActor, targetActor) =>
-        DND.handleXdndMotion(handler, x, y, dragActor, targetActor));
+    Shell.dnd_set_xdnd_handler(xdndHandler);
     sessionMode.connect('updated', () => {
         xdndHandler.session_locked = sessionMode.is_locked;
     });
@@ -323,7 +320,7 @@ async function _initializeUI() {
     brightnessDBus = new ShellDBus.BrightnessDBus(brightnessManager);
 
     messageTray = new MessageTray.MessageTray();
-    panel = new Panel.Panel();
+    panel = _createPanel();
     keyboard = new Keyboard.KeyboardManager();
     notificationDaemon = new NotificationDaemon.NotificationDaemon();
     windowAttentionHandler = new WindowAttentionHandler.WindowAttentionHandler();
@@ -453,6 +450,42 @@ async function _initializeUI() {
             Scripting.runPerfScript(perfModule, perfOutput);
         }
     });
+}
+
+/**
+ * Creates the top bar. It lives in C; the indicators of the shell are JS
+ * classes (panelItems.js) that it asks for through its create-indicator
+ * signal, and the parts of the shell it needs but cannot reach (the overview,
+ * the message tray, the Ctrl+Alt+Tab popup) are wired up here.
+ *
+ * @returns {Shell.Panel} the new panel
+ */
+function _createPanel() {
+    const newPanel = new Shell.Panel();
+
+    newPanel.connect('create-indicator',
+        (_panel, role) => PanelItems.createPanelItem(role));
+
+    ctrlAltTabManager.addGroup(newPanel,
+        _('Top Bar'), 'shell-focus-top-bar-symbolic',
+        {sortGroup: CtrlAltTab.SortGroup.TOP});
+
+    overview.connectObject(
+        'showing', () => (newPanel.overview_visible = true),
+        'hiding', () => (newPanel.overview_visible = false),
+        newPanel);
+
+    // Banners are aligned with the date menu, and hidden while a menu is
+    // open in the same box of the top bar
+    newPanel.connect('notify::banner-alignment',
+        () => (messageTray.bannerAlignment = newPanel.banner_alignment));
+    newPanel.connect('notify::banner-blocked',
+        () => (messageTray.bannerBlocked = newPanel.banner_blocked));
+
+    newPanel.begin_startup();
+    messageTray.bannerAlignment = newPanel.banner_alignment;
+
+    return newPanel;
 }
 
 function _handleShowWelcomeScreen() {
@@ -863,7 +896,7 @@ export function activateWindow(window, time, workspaceNum) {
     }
 
     overview.hide();
-    panel.closeCalendar();
+    panel.close_calendar();
 }
 
 /**

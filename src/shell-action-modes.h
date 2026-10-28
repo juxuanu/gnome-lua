@@ -32,6 +32,16 @@ typedef enum {
   SHELL_ACTION_MODE_LOOKING_GLASS = 1 << 6,
   SHELL_ACTION_MODE_POPUP         = 1 << 7,
 
-  SHELL_ACTION_MODE_ALL = ~0,
+  /* The union of the modes above rather than ~0: GJS rejects a flags value
+   * with bits outside the GFlagsClass mask (gnome-lua: ShellSwipeTracker and
+   * ShellMain take the mode as a flags property). */
+  SHELL_ACTION_MODE_ALL = SHELL_ACTION_MODE_NORMAL |
+                          SHELL_ACTION_MODE_OVERVIEW |
+                          SHELL_ACTION_MODE_LOCK_SCREEN |
+                          SHELL_ACTION_MODE_UNLOCK_SCREEN |
+                          SHELL_ACTION_MODE_LOGIN_SCREEN |
+                          SHELL_ACTION_MODE_SYSTEM_MODAL |
+                          SHELL_ACTION_MODE_LOOKING_GLASS |
+                          SHELL_ACTION_MODE_POPUP,
 } ShellActionMode;
 

@@ -8,7 +8,7 @@ import St from 'gi://St';
 import * as Main from '../main.js';
 import * as Util from '../../misc/util.js';
 
-import {QuickToggle, SystemIndicator} from '../quickSettings.js';
+import {QuickToggle} from '../quickSettings.js';
 import {loadInterfaceXML} from '../../misc/dbusUtils.js';
 
 const DBUS_NAME = 'org.freedesktop.background.Monitor';
@@ -97,7 +97,7 @@ const BackgroundAppMenuItem = GObject.registerClass({
 
         this.connect('activate', () => {
             Main.overview.hide();
-            Main.panel.closeQuickSettings();
+            Main.panel.close_quick_settings();
             this.app.activate();
         });
 
@@ -253,10 +253,10 @@ class BackgroundAppsToggle extends QuickToggle {
 });
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
-        this.quickSettingsItems.push(new BackgroundAppsToggle());
+        this.add_quick_settings_item(new BackgroundAppsToggle());
     }
 });

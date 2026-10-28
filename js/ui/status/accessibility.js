@@ -4,7 +4,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as PanelMenu from '../panelMenu.js';
 import {QuickToggle} from '../quickSettings.js';
 
 const A11Y_SCHEMA                   = 'org.gnome.desktop.a11y';
@@ -30,9 +29,12 @@ const A11Y_INTERFACE_SCHEMA         = 'org.gnome.desktop.a11y.interface';
 const KEY_HIGH_CONTRAST             = 'high-contrast';
 
 export const ATIndicator = GObject.registerClass(
-class ATIndicator extends PanelMenu.Button {
+class ATIndicator extends Shell.PanelMenuButton {
     _init() {
-        super._init(0.5, _('Accessibility'));
+        super._init({
+            menu_alignment: 0.5,
+            accessible_name: _('Accessibility'),
+        });
 
         this.add_child(new St.Icon({
             style_class: 'system-status-icon',

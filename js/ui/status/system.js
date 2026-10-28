@@ -10,7 +10,7 @@ import UPower from 'gi://UPowerGlib';
 
 import * as Main from '../main.js';
 
-import {QuickSettingsItem, QuickToggle, SystemIndicator} from '../quickSettings.js';
+import {QuickSettingsItem, QuickToggle} from '../quickSettings.js';
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
 const BUS_NAME = 'org.freedesktop.UPower';
@@ -51,7 +51,7 @@ const PowerToggle = GObject.registerClass({
         this.connect('clicked', () => {
             const app = Shell.AppSystem.get_default().lookup_app('gnome-power-panel.desktop');
             Main.overview.hide();
-            Main.panel.closeQuickSettings();
+            Main.panel.close_quick_settings();
             app.activate();
         });
 
@@ -116,7 +116,7 @@ class ScreenshotItem extends QuickSettingsItem {
         });
 
         this.connect('clicked', () => {
-            const topMenu = Main.panel.statusArea.quickSettings.menu;
+            const topMenu = Main.panel.get_status_area_indicator('quickSettings').menu;
             const laters = global.compositor.get_laters();
             laters.add(Meta.LaterType.BEFORE_REDRAW, () => {
                 Main.screenshotUI.open().catch(logError);
@@ -147,7 +147,7 @@ class SettingsItem extends QuickSettingsItem {
 
         this.connect('clicked', () => {
             Main.overview.hide();
-            Main.panel.closeQuickSettings();
+            Main.panel.close_quick_settings();
             this._settingsApp.activate();
         });
 
@@ -179,29 +179,29 @@ class ShutdownItem extends QuickSettingsItem {
 
         this._addSystemAction(_('Suspend'), 'can-suspend', () => {
             this._systemActions.activate_suspend();
-            Main.panel.closeQuickSettings();
+            Main.panel.close_quick_settings();
         });
 
         this._addSystemAction(_('Restart…'), 'can-restart', () => {
             this._systemActions.activate_restart();
-            Main.panel.closeQuickSettings();
+            Main.panel.close_quick_settings();
         });
 
         this._addSystemAction(_('Power Off…'), 'can-power-off', () => {
             this._systemActions.activate_power_off();
-            Main.panel.closeQuickSettings();
+            Main.panel.close_quick_settings();
         });
 
         this.menu.add_menu_item(new Shell.PopupSeparatorMenuItem());
 
         this._addSystemAction(_('Log Out…'), 'can-logout', () => {
             this._systemActions.activate_logout();
-            Main.panel.closeQuickSettings();
+            Main.panel.close_quick_settings();
         });
 
         this._addSystemAction(_('Switch User…'), 'can-switch-user', () => {
             this._systemActions.activate_switch_user();
-            Main.panel.closeQuickSettings();
+            Main.panel.close_quick_settings();
         });
 
         // Whether shutdown is available or not depends on both lockdown
@@ -306,7 +306,7 @@ class SystemItem extends QuickSettingsItem {
 });
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
@@ -316,7 +316,7 @@ class Indicator extends SystemIndicator {
         this._desktopSettings.connectObject(
             `changed::${SHOW_BATTERY_PERCENTAGE}`, () => this._sync(), this);
 
-        this._indicator = this._addIndicator();
+        this._indicator = this.add_indicator();
         this._percentageLabel = new St.Label({
             y_expand: true,
             y_align: Clutter.ActorAlign.CENTER,
@@ -338,7 +338,7 @@ class Indicator extends SystemIndicator {
             'notify::fallback-icon-name', () => this._sync(),
             this);
 
-        this.quickSettingsItems.push(this._systemItem);
+        this.add_quick_settings_item(this._systemItem);
 
         this._sync();
     }

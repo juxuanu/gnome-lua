@@ -5,7 +5,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {SystemIndicator} from '../quickSettings.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
@@ -202,13 +201,13 @@ const GeoclueAgent = GObject.registerClass({
 });
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
         this._agent = getGeoclueAgent();
 
-        this._indicator = this._addIndicator();
+        this._indicator = this.add_indicator();
         this._indicator.icon_name = 'location-services-active-symbolic';
         this._agent.bind_property('in-use',
             this._indicator,

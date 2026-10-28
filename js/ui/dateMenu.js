@@ -9,7 +9,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from './main.js';
-import * as PanelMenu from './panelMenu.js';
 import * as Calendar from './calendar.js';
 
 import {formatDateWithCFormatString, formatTime, clearCachedLocalTimeZone} from '../misc/dateUtils.js';
@@ -298,7 +297,7 @@ class EventsSection extends St.Button {
 
     vfunc_clicked() {
         Main.overview.hide();
-        Main.panel.closeCalendar();
+        Main.panel.close_calendar();
 
         const appInfo = this._calendarApp;
         const context = global.create_app_launch_context(0, -1);
@@ -377,7 +376,7 @@ class WorldClocksSection extends St.Button {
             this._clocksApp.activate();
 
         Main.overview.hide();
-        Main.panel.closeCalendar();
+        Main.panel.close_calendar();
     }
 
     _sync() {
@@ -597,7 +596,7 @@ class WeatherSection extends St.Button {
         this._weatherClient.activate_app();
 
         Main.overview.hide();
-        Main.panel.closeCalendar();
+        Main.panel.close_calendar();
     }
 
     _getInfos() {
@@ -857,9 +856,9 @@ class CalendarColumnLayout extends Clutter.BoxLayout {
 });
 
 export const DateMenuButton = GObject.registerClass(
-class DateMenuButton extends PanelMenu.Button {
+class DateMenuButton extends Shell.PanelMenuButton {
     _init() {
-        super._init(0.5);
+        super._init({menu_alignment: 0.5});
 
         this._clockDisplay = new St.Label({style_class: 'clock'});
         this._clockDisplay.clutter_text.y_align = Clutter.ActorAlign.CENTER;

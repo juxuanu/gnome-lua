@@ -6,7 +6,6 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as DND from './dnd.js';
 import * as Main from './main.js';
 import * as OverviewControls from './overviewControls.js';
 import * as Params from '../misc/params.js';
@@ -1027,8 +1026,9 @@ class WorkspaceBackground extends Shell.WorkspaceBackground {
     }
 });
 
-export const Workspace = GObject.registerClass(
-class Workspace extends St.Widget {
+export const Workspace = GObject.registerClass({
+    Implements: [Shell.DragTarget],
+}, class Workspace extends St.Widget {
     /**
      * @param {Meta.Workspace} metaWorkspace
      * @param {number} monitorIndex
@@ -1089,9 +1089,6 @@ class Workspace extends St.Widget {
         this._skipTaskbarSignals = new Map();
         this._windows = [];
         this._layoutFrozenId = 0;
-
-        // DND requires this to be set
-        this._delegate = this;
 
         // Track window changes, but let the window tracker process them first
         this.metaWorkspace?.connectObject(
@@ -1400,18 +1397,18 @@ class Workspace extends St.Widget {
     }
 
     // Draggable target interface
-    handleDragOver(source, _actor, _x, _y, _time) {
+    vfunc_handle_drag_over(source, _actor, _x, _y, _time) {
         if (source.metaWindow && !this._isMyWindow(source.metaWindow))
-            return DND.DragMotionResult.MOVE_DROP;
+            return Shell.DragMotionResult.MOVE_DROP;
         if (source.app && source.app.can_open_new_window())
-            return DND.DragMotionResult.COPY_DROP;
+            return Shell.DragMotionResult.COPY_DROP;
         if (!source.app && source.shellWorkspaceLaunch)
-            return DND.DragMotionResult.COPY_DROP;
+            return Shell.DragMotionResult.COPY_DROP;
 
-        return DND.DragMotionResult.CONTINUE;
+        return Shell.DragMotionResult.CONTINUE;
     }
 
-    acceptDrop(source, actor, x, y, time) {
+    vfunc_accept_drop(source, actor, x, y, time) {
         const workspaceManager = global.workspace_manager;
         const workspaceIndex = this.metaWorkspace
             ? this.metaWorkspace.index()

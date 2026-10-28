@@ -11,7 +11,6 @@ import * as Signals from '../../misc/signals.js';
 
 import * as IBusCandidatePopup from '../ibusCandidatePopup.js';
 import * as Main from '../main.js';
-import * as PanelMenu from '../panelMenu.js';
 import * as SwitcherPopup from '../switcherPopup.js';
 
 export const INPUT_SOURCE_TYPE_XKB = 'xkb';
@@ -880,9 +879,12 @@ class InputSourceIndicatorContainer extends St.Widget {
 });
 
 export const InputSourceIndicator = GObject.registerClass(
-class InputSourceIndicator extends PanelMenu.Button {
+class InputSourceIndicator extends Shell.PanelMenuButton {
     _init() {
-        super._init(0.5, _('Keyboard'));
+        super._init({
+            menu_alignment: 0.5,
+            accessible_name: _('Keyboard'),
+        });
 
         this.connect('destroy', this._onDestroy.bind(this));
 

@@ -1,7 +1,8 @@
 import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 
-import {QuickToggle, SystemIndicator} from '../quickSettings.js';
+import {QuickToggle} from '../quickSettings.js';
 
 const DoNotDisturbToggle = GObject.registerClass(
 class DoNotDisturbToggle extends QuickToggle {
@@ -22,10 +23,10 @@ class DoNotDisturbToggle extends QuickToggle {
 });
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     constructor() {
         super();
-        this._indicator = this._addIndicator();
+        this._indicator = this.add_indicator();
         this._indicator.icon_name = 'notifications-disabled-symbolic';
 
         const toggle = new DoNotDisturbToggle();
@@ -33,7 +34,7 @@ class Indicator extends SystemIndicator {
             this._indicator, 'visible',
             GObject.BindingFlags.SYNC_CREATE);
 
-        this.quickSettingsItems.push(toggle);
+        this.add_quick_settings_item(toggle);
     }
 });
 

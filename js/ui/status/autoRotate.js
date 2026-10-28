@@ -2,7 +2,7 @@ import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
-import {QuickToggle, SystemIndicator} from '../quickSettings.js';
+import {QuickToggle} from '../quickSettings.js';
 
 const RotationToggle = GObject.registerClass(
 class RotationToggle extends QuickToggle {
@@ -35,10 +35,10 @@ class RotationToggle extends QuickToggle {
 });
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
-        this.quickSettingsItems.push(new RotationToggle());
+        this.add_quick_settings_item(new RotationToggle());
     }
 });

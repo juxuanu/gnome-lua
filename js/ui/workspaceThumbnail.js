@@ -7,7 +7,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import Graphene from 'gi://Graphene';
 
-import * as DND from './dnd.js';
 import * as Main from './main.js';
 import {TransientSignalHolder} from '../misc/signalTracker.js';
 import * as Util from '../misc/util.js';
@@ -81,10 +80,11 @@ export const WindowClone = GObject.registerClass({
 
         this.connect('destroy', this._onDestroy.bind(this));
 
-        this._draggable = DND.makeDraggable(this, {
-            restoreOnSuccess: true,
-            dragActorMaxSize: Workspace.WINDOW_DND_SIZE,
-            dragActorOpacity: Workspace.DRAGGING_WINDOW_OPACITY,
+        this._draggable = new Shell.Draggable({
+            actor: this,
+            restore_on_success: true,
+            drag_actor_max_size: Workspace.WINDOW_DND_SIZE,
+            drag_actor_opacity: Workspace.DRAGGING_WINDOW_OPACITY,
         });
         this._draggable.connectObject(
             'drag-begin', this._onDragBegin.bind(this),
@@ -517,21 +517,21 @@ export const WorkspaceThumbnail = GObject.registerClass({
     handleDragOverInternal(source, actor, time) {
         if (source === Main.xdndHandler) {
             this.metaWorkspace.activate(time);
-            return DND.DragMotionResult.CONTINUE;
+            return Shell.DragMotionResult.CONTINUE;
         }
 
         if (this.state > ThumbnailState.NORMAL)
-            return DND.DragMotionResult.CONTINUE;
+            return Shell.DragMotionResult.CONTINUE;
 
         if (source.metaWindow &&
             !this._isMyWindow(source.metaWindow.get_compositor_private()))
-            return DND.DragMotionResult.MOVE_DROP;
+            return Shell.DragMotionResult.MOVE_DROP;
         if (source.app && source.app.can_open_new_window())
-            return DND.DragMotionResult.COPY_DROP;
+            return Shell.DragMotionResult.COPY_DROP;
         if (!source.app && source.shellWorkspaceLaunch)
-            return DND.DragMotionResult.COPY_DROP;
+            return Shell.DragMotionResult.COPY_DROP;
 
-        return DND.DragMotionResult.CONTINUE;
+        return Shell.DragMotionResult.CONTINUE;
     }
 
     acceptDropInternal(source, actor, time) {
@@ -573,6 +573,7 @@ export const WorkspaceThumbnail = GObject.registerClass({
 
 
 export const ThumbnailsBox = GObject.registerClass({
+    Implements: [Shell.DragTarget],
     Properties: {
         'expand-fraction': GObject.ParamSpec.double(
             'expand-fraction', null, null,
@@ -595,8 +596,6 @@ export const ThumbnailsBox = GObject.registerClass({
             x_align: Clutter.ActorAlign.CENTER,
             pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
         });
-
-        this._delegate = this;
 
         const indicator = new St.Bin({
             style_class: 'workspace-thumbnail-indicator',
@@ -734,10 +733,8 @@ export const ThumbnailsBox = GObject.registerClass({
 
     _onDragBegin() {
         this._dragCancelled = false;
-        this._dragMonitor = {
-            dragMotion: this._onDragMotion.bind(this),
-        };
-        DND.addDragMonitor(this._dragMonitor);
+        this._dragMonitor = Shell.dnd_add_drag_monitor(
+            this._onDragMotion.bind(this), null);
     }
 
     _onDragEnd() {
@@ -754,13 +751,14 @@ export const ThumbnailsBox = GObject.registerClass({
 
     _endDrag() {
         this._clearDragPlaceholder();
-        DND.removeDragMonitor(this._dragMonitor);
+        Shell.dnd_remove_drag_monitor(this._dragMonitor ?? 0);
+        this._dragMonitor = 0;
     }
 
     _onDragMotion(dragEvent) {
-        if (!this.contains(dragEvent.targetActor))
+        if (!this.contains(dragEvent.target_actor))
             this._onLeave();
-        return DND.DragMotionResult.CONTINUE;
+        return Shell.DragMotionResult.CONTINUE;
     }
 
     _onLeave() {
@@ -834,12 +832,12 @@ export const ThumbnailsBox = GObject.registerClass({
     }
 
     // Draggable target interface
-    handleDragOver(source, actor, x, y, time) {
+    vfunc_handle_drag_over(source, actor, x, y, time) {
         if (!source.metaWindow &&
             (!source.app || !source.app.can_open_new_window()) &&
             (source.app || !source.shellWorkspaceLaunch) &&
             source !== Main.xdndHandler)
-            return DND.DragMotionResult.CONTINUE;
+            return Shell.DragMotionResult.CONTINUE;
 
         const rtl = Clutter.get_default_text_direction() === Clutter.TextDirection.RTL;
         const canCreateWorkspaces = Meta.prefs_get_dynamic_workspaces();
@@ -875,12 +873,12 @@ export const ThumbnailsBox = GObject.registerClass({
         if (this._dropWorkspace !== -1)
             return this._thumbnails[this._dropWorkspace].handleDragOverInternal(source, actor, time);
         else if (this._dropPlaceholderPos !== -1)
-            return source.metaWindow ? DND.DragMotionResult.MOVE_DROP : DND.DragMotionResult.COPY_DROP;
+            return source.metaWindow ? Shell.DragMotionResult.MOVE_DROP : Shell.DragMotionResult.COPY_DROP;
         else
-            return DND.DragMotionResult.CONTINUE;
+            return Shell.DragMotionResult.CONTINUE;
     }
 
-    acceptDrop(source, actor, x, y, time) {
+    vfunc_accept_drop(source, actor, x, y, time) {
         if (this._dropWorkspace !== -1) {
             return this._thumbnails[this._dropWorkspace].acceptDropInternal(source, actor, time);
         } else if (this._dropPlaceholderPos !== -1) {

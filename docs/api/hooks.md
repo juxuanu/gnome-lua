@@ -17,8 +17,8 @@ Every new hook point gets a row here in the same commit that declares it.
 | `shell.started` | no | (empty) | `shell_global_notify_startup_complete()`, called by `main.js` when the layout manager reports startup complete | 1.0 |
 | `shell.shutting-down` | no | (empty) | `_shell_global_notify_shutdown()` | 1.0 |
 | `session.mode-changed` | no | `mode: s` | `ShellSessionMode` (`src/ui/session-mode.c`), after `::updated` on every mode change, including the initial mode | 1.0 |
-| `panel.indicator-added` | no | `name:s box:s owner:s` | `Panel._addToPanelBox` (`js/ui/panel.js`), later `src/ui/panel.c` | 1.0 (M2) |
-| `panel.menu-opened` | no | `name:s box:s` | the `open-state-changed` handler installed by `Panel._onMenuSet` | 1.0 (M2) |
+| `panel.indicator-added` | no | `name:s box:s owner:s` | `add_to_panel_box ()` in `src/ui/panel.c`, once per indicator when it is first registered in the status area: the indicators of the shell when the session mode first lists them (`owner` empty), the others through `shell_panel_add_to_status_area_with_owner ()`. Not repeated when a session mode change moves an indicator | 1.0 (M2) |
+| `panel.menu-opened` | no | `name:s box:s` | the `open-state-changed` handler (`menu_open_state_changed_cb ()`) that `src/ui/panel.c` installs on the menu of every indicator from `indicator_menu_set_cb ()` (the former `Panel._onMenuSet`), when the menu opens | 1.0 (M2) |
 | `monitors.changed` | no | `count:i primary:i` | `ShellLayoutManager::monitors-changed` (`src/ui/layout.c`) | 1.0 (M2) |
 | `overview.showing` | yes | `reason:s target:s` | `Overview.show()` (`js/ui/overview.js`) | 1.0 (M3) |
 | `overview.shown` | no | `target:s` | `Overview._showDone()` | 1.0 (M3) |
@@ -47,7 +47,8 @@ Every new hook point gets a row here in the same commit that declares it.
 | `osk.hidden` | no | (empty) | `Keyboard.close` | 1.0 (M4) |
 
 The three `1.0` rows at the top are declared today
-(`shell_global_declare_hooks()`). Every other row is **reserved**: the name,
+(`shell_global_declare_hooks()`), and the two `panel.*` rows by `shell_panel_class_init ()`
+(`src/ui/panel.c`), so they exist once the panel class is loaded, before any extension. Every other row is **reserved**: the name,
 cancellability and payload are the contract, but the hook is declared by the
 code that owns it when that module is ported (milestone in the last column).
 `shell.hooks.list()` lists only declared hooks, so extensions feature-detect

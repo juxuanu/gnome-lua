@@ -1,9 +1,10 @@
 import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 
 import * as Main from '../main.js';
 
-import {QuickToggle, SystemIndicator} from '../quickSettings.js';
+import {QuickToggle} from '../quickSettings.js';
 
 const DarkModeToggle = GObject.registerClass(
 class DarkModeToggle extends QuickToggle {
@@ -41,10 +42,10 @@ class DarkModeToggle extends QuickToggle {
 });
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
-        this.quickSettingsItems.push(new DarkModeToggle());
+        this.add_quick_settings_item(new DarkModeToggle());
     }
 });

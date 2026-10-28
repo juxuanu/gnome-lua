@@ -3,7 +3,7 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {QuickSlider, SystemIndicator} from '../quickSettings.js';
+import {QuickSlider} from '../quickSettings.js';
 import * as Main from '../main.js';
 import {registerDestroyableType} from '../../misc/signalTracker.js';
 
@@ -109,10 +109,10 @@ class BrightnessItem extends QuickSlider {
 });
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
-        this.quickSettingsItems.push(new BrightnessItem());
+        this.add_quick_settings_item(new BrightnessItem());
     }
 });

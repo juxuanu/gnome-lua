@@ -11,7 +11,6 @@ import * as Signals from '../misc/signals.js';
 
 import * as InputSourceManager from './status/keyboard.js';
 import * as Main from './main.js';
-import * as SwipeTracker from './swipeTracker.js';
 
 Gio._promisify(Shell.InputMethod.prototype,
     'handle_virtual_key_async', 'handle_virtual_key_finish');
@@ -508,14 +507,14 @@ const EmojiPager = GObject.registerClass({
         this._delta = 0;
         this._width = null;
 
-        const swipeTracker = new SwipeTracker.SwipeTracker(this,
-            Clutter.Orientation.HORIZONTAL,
-            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
-            {
-                allowDrag: true,
-                allowScroll: true,
-                name: 'EmojiPager swipe tracker',
-            });
+        const swipeTracker = new Shell.SwipeTracker({
+            actor: this,
+            orientation: Clutter.Orientation.HORIZONTAL,
+            allowed_modes: Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
+            allow_drag: true,
+            allow_scroll: true,
+            name: 'EmojiPager swipe tracker',
+        });
         swipeTracker.connect('begin', this._onSwipeBegin.bind(this));
         swipeTracker.connect('update', this._onSwipeUpdate.bind(this));
         swipeTracker.connect('end', this._onSwipeEnd.bind(this));
@@ -602,7 +601,7 @@ const EmojiPager = GObject.registerClass({
     _onSwipeBegin(tracker) {
         this._width = this.width;
         const points = [-1, 0, 1];
-        tracker.confirmSwipe(this._width, points, 0, 0);
+        tracker.confirm_swipe(this._width, points, 0, 0);
     }
 
     _onSwipeEnd(tracker, duration, endProgress) {

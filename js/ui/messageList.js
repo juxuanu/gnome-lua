@@ -829,7 +829,7 @@ class MediaMessage extends Message {
             return;
 
         this._player.raise();
-        Main.panel.closeCalendar();
+        Main.panel.close_calendar();
     }
 
     _applyPolicy() {

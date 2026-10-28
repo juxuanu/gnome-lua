@@ -11,10 +11,8 @@ import St from 'gi://St';
 
 import * as AppFavorites from './appFavorites.js';
 import {AppMenu} from './appMenu.js';
-import * as DND from './dnd.js';
 import * as IconGrid from './iconGrid.js';
 import * as Search from './search.js';
-import * as SwipeTracker from './swipeTracker.js';
 
 import * as Main from './main.js';
 
@@ -463,6 +461,26 @@ class BaseAppViewGridLayout extends Clutter.BinLayout {
     }
 });
 
+// The drop target of the grid and the scroll container of a view. The view
+// itself is not registered as a target, so that dropping on its page
+// indicator dots is not accepted
+const BaseAppViewDragTarget = GObject.registerClass({
+    Implements: [Shell.DragTarget],
+}, class BaseAppViewDragTarget extends GObject.Object {
+    _init(view) {
+        super._init();
+        this._view = view;
+    }
+
+    vfunc_handle_drag_over(source, actor, x, y, time) {
+        return this._view.handleDragOver(source, actor, x, y, time);
+    }
+
+    vfunc_accept_drop(source, actor, x, y, time) {
+        return this._view.acceptDrop(source, actor, x, y, time);
+    }
+});
+
 var BaseAppView = GObject.registerClass({
     GTypeFlags: GObject.TypeFlags.ABSTRACT,
     Signals: {
@@ -472,8 +490,10 @@ var BaseAppView = GObject.registerClass({
     _init(params = {}) {
         super._init(params);
 
+        this._dragTarget = new BaseAppViewDragTarget(this);
+
         this._grid = this._createGrid();
-        this._grid._delegate = this;
+        Shell.dnd_set_drag_target(this._grid, this._dragTarget);
         // Standard hack for ClutterBinLayout
         this._grid.x_expand = true;
         this._grid.connect('pages-changed', () => {
@@ -596,7 +616,7 @@ var BaseAppView = GObject.registerClass({
             this._prevPageIndicator,
             this._prevPageArrow);
         this._appGridLayout = scrollContainer.layoutManager;
-        scrollContainer._delegate = this;
+        Shell.dnd_set_drag_target(scrollContainer, this._dragTarget);
 
         this._box = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
@@ -607,13 +627,12 @@ var BaseAppView = GObject.registerClass({
         this._box.add_child(this._pageIndicators);
 
         // Swipe
-        this._swipeTracker = new SwipeTracker.SwipeTracker(this._scrollView,
-            Clutter.Orientation.HORIZONTAL,
-            Shell.ActionMode.ALL,
-            {
-                name: 'AppDisplay swipe tracker',
-            });
-        this._swipeTracker.orientation = Clutter.Orientation.HORIZONTAL;
+        this._swipeTracker = new Shell.SwipeTracker({
+            actor: this._scrollView,
+            orientation: Clutter.Orientation.HORIZONTAL,
+            allowed_modes: Shell.ActionMode.ALL,
+            name: 'AppDisplay swipe tracker',
+        });
         this._swipeTracker.connect('begin', this._swipeBegin.bind(this));
         this._swipeTracker.connect('update', this._swipeUpdate.bind(this));
         this._swipeTracker.connect('end', this._swipeEnd.bind(this));
@@ -706,7 +725,7 @@ var BaseAppView = GObject.registerClass({
         const size = tracker.orientation === Clutter.Orientation.VERTICAL
             ? this._grid.allocation.get_height() : this._grid.allocation.get_width();
 
-        tracker.confirmSwipe(size, points, progress, Math.round(progress));
+        tracker.confirm_swipe(size, points, progress, Math.round(progress));
     }
 
     _swipeUpdate(tracker, progress) {
@@ -751,19 +770,18 @@ var BaseAppView = GObject.registerClass({
         }
 
         if (this._dragMonitor) {
-            DND.removeDragMonitor(this._dragMonitor);
+            Shell.dnd_remove_drag_monitor(this._dragMonitor);
             this._dragMonitor = null;
         }
     }
 
-    _maybeMoveItem(dragEvent) {
+    _maybeMoveItem(dragEvent, source = dragEvent.source) {
         const [success, x, y] =
             this._grid.transform_stage_point(dragEvent.x, dragEvent.y);
 
         if (!success)
             return;
 
-        const {source} = dragEvent;
         const [page, position, dragLocation] =
             this._getDropTarget(x, y, source);
         const item = position !== -1
@@ -898,7 +916,7 @@ var BaseAppView = GObject.registerClass({
         if (this._dragPageSwitchInitialTimeoutId || this._dragPageSwitchRepeatTimeoutId)
             return;
 
-        const {targetActor} = dragEvent;
+        const targetActor = dragEvent.target_actor;
 
         this._dragPageSwitchInitialTimeoutId =
             GLib.timeout_add_once(GLib.PRIORITY_DEFAULT, DRAG_PAGE_SWITCH_INITIAL_TIMEOUT, () => {
@@ -912,17 +930,15 @@ var BaseAppView = GObject.registerClass({
     }
 
     _onDragBegin() {
-        this._dragMonitor = {
-            dragMotion: this._onDragMotion.bind(this),
-            dragDrop: this._onDragDrop.bind(this),
-        };
-        DND.addDragMonitor(this._dragMonitor);
+        this._dragMonitor = Shell.dnd_add_drag_monitor(
+            this._onDragMotion.bind(this),
+            this._onDragDrop.bind(this));
         this._appGridLayout.showPageIndicators();
     }
 
     _onDragMotion(dragEvent) {
         if (!(dragEvent.source instanceof AppViewItem))
-            return DND.DragMotionResult.CONTINUE;
+            return Shell.DragMotionResult.CONTINUE;
 
         const appIcon = dragEvent.source;
 
@@ -934,7 +950,7 @@ var BaseAppView = GObject.registerClass({
             //    we also switch page.
 
             if (!this._dragMaybeSwitchPageImmediately(dragEvent)) {
-                const {targetActor} = dragEvent;
+                const targetActor = dragEvent.target_actor;
 
                 if (targetActor === this._prevPageIndicator ||
                     targetActor === this._nextPageIndicator)
@@ -946,19 +962,19 @@ var BaseAppView = GObject.registerClass({
 
         this._maybeMoveItem(dragEvent);
 
-        return DND.DragMotionResult.CONTINUE;
+        return Shell.DragMotionResult.CONTINUE;
     }
 
     _onDragDrop(dropEvent) {
         // Because acceptDrop() does not receive the target actor, store it
         // here and use this value in the acceptDrop() implementation below.
-        this._dropTarget = dropEvent.targetActor;
-        return DND.DragMotionResult.CONTINUE;
+        this._dropTarget = dropEvent.target_actor;
+        return Shell.DragDropResult.CONTINUE;
     }
 
     _onDragEnd() {
         if (this._dragMonitor) {
-            DND.removeDragMonitor(this._dragMonitor);
+            Shell.dnd_remove_drag_monitor(this._dragMonitor);
             this._dragMonitor = null;
         }
 
@@ -980,9 +996,9 @@ var BaseAppView = GObject.registerClass({
 
     handleDragOver(source) {
         if (!this._canAccept(source))
-            return DND.DragMotionResult.NO_DROP;
+            return Shell.DragMotionResult.NO_DROP;
 
-        return DND.DragMotionResult.MOVE_DROP;
+        return Shell.DragMotionResult.MOVE_DROP;
     }
 
     acceptDrop(source) {
@@ -1630,12 +1646,8 @@ export class AppDisplay extends BaseAppView {
     }
 
     _maybeMoveItem(dragEvent) {
-        const clonedEvent = {
-            ...dragEvent,
-            source: this._placeholder ? this._placeholder : dragEvent.source,
-        };
-
-        super._maybeMoveItem(clonedEvent);
+        super._maybeMoveItem(dragEvent,
+            this._placeholder ? this._placeholder : dragEvent.source);
     }
 
     _onDragBegin(overview, source) {
@@ -1652,7 +1664,7 @@ export class AppDisplay extends BaseAppView {
 
     _onDragMotion(dragEvent) {
         if (this._currentDialog)
-            return DND.DragMotionResult.CONTINUE;
+            return Shell.DragMotionResult.CONTINUE;
 
         return super._onDragMotion(dragEvent);
     }
@@ -1840,8 +1852,9 @@ export class AppSearchProvider {
     }
 }
 
-export const AppViewItem = GObject.registerClass(
-class AppViewItem extends St.Button {
+export const AppViewItem = GObject.registerClass({
+    Implements: [Shell.DragTarget],
+}, class AppViewItem extends St.Button {
     _init(params = {}, isDraggable = true, expandTitleOnHover = true) {
         super._init({
             pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
@@ -1854,7 +1867,7 @@ class AppViewItem extends St.Button {
         this._delegate = this;
 
         if (isDraggable) {
-            this._draggable = DND.makeDraggable(this, {timeoutThreshold: 200});
+            this._draggable = new Shell.Draggable({actor: this, timeout_threshold: 200});
             this._draggable.connectObject(
                 'drag-begin', this._onDragBegin.bind(this),
                 'drag-cancelled', this._onDragCancelled.bind(this),
@@ -1872,7 +1885,7 @@ class AppViewItem extends St.Button {
 
     _onDestroy() {
         if (this._dragMonitor) {
-            DND.removeDragMonitor(this._dragMonitor);
+            Shell.dnd_remove_drag_monitor(this._dragMonitor);
             this._dragMonitor = null;
         }
 
@@ -1981,20 +1994,19 @@ class AppViewItem extends St.Button {
         this._otherIconIsHovering = hovering;
 
         if (hovering) {
-            this._dragMonitor = {
-                dragMotion: this._onDragMotion.bind(this),
-            };
-            DND.addDragMonitor(this._dragMonitor);
-        } else {
-            DND.removeDragMonitor(this._dragMonitor);
+            this._dragMonitor = Shell.dnd_add_drag_monitor(
+                this._onDragMotion.bind(this), null);
+        } else if (this._dragMonitor) {
+            Shell.dnd_remove_drag_monitor(this._dragMonitor);
+            this._dragMonitor = null;
         }
     }
 
     _onDragMotion(dragEvent) {
-        if (!this.contains(dragEvent.targetActor))
+        if (!this.contains(dragEvent.target_actor))
             this._setHoveringByDnd(false);
 
-        return DND.DragMotionResult.CONTINUE;
+        return Shell.DragMotionResult.CONTINUE;
     }
 
     _withinLeeways(x) {
@@ -2012,21 +2024,32 @@ class AppViewItem extends St.Button {
         super.vfunc_key_focus_out();
     }
 
+    // The interface is implemented here, but handleDragOver () and
+    // acceptDrop () are overridden by the subclasses (DashIcon, FolderIcon,
+    // AppIcon), so they stay ordinary methods
+    vfunc_handle_drag_over(source, actor, x, y, time) {
+        return this.handleDragOver(source, actor, x, y, time);
+    }
+
+    vfunc_accept_drop(source, actor, x, y, time) {
+        return this.acceptDrop(source, actor, x, y, time);
+    }
+
     handleDragOver(source, _actor, x) {
         if (source === this)
-            return DND.DragMotionResult.NO_DROP;
+            return Shell.DragMotionResult.NO_DROP;
 
         if (!this._canAccept(source))
-            return DND.DragMotionResult.CONTINUE;
+            return Shell.DragMotionResult.CONTINUE;
 
         if (this._withinLeeways(x)) {
             this._setHoveringByDnd(false);
-            return DND.DragMotionResult.CONTINUE;
+            return Shell.DragMotionResult.CONTINUE;
         }
 
         this._setHoveringByDnd(true);
 
-        return DND.DragMotionResult.MOVE_DROP;
+        return Shell.DragMotionResult.MOVE_DROP;
     }
 
     acceptDrop(source, _actor, x) {
@@ -2093,7 +2116,6 @@ class FolderView extends BaseAppView {
         this._id = id;
         this._folder = folder;
         this._parentView = parentView;
-        this._grid._delegate = this;
 
         this.add_child(this._box);
 
@@ -2273,6 +2295,7 @@ class FolderView extends BaseAppView {
 });
 
 export const FolderIcon = GObject.registerClass({
+    Implements: [Shell.DragSource],
     Signals: {
         'apps-changed': {},
     },
@@ -2361,7 +2384,7 @@ export const FolderIcon = GObject.registerClass({
         return super._onDragMotion(dragEvent);
     }
 
-    getDragActor() {
+    vfunc_get_drag_actor() {
         const iconParams = {
             createIcon: this._createIcon.bind(this),
             showLabel: this.icon.label !== null,
@@ -2374,7 +2397,7 @@ export const FolderIcon = GObject.registerClass({
         return icon;
     }
 
-    getDragActorSource() {
+    vfunc_get_drag_actor_source() {
         return this;
     }
 
@@ -2456,6 +2479,7 @@ export const FolderIcon = GObject.registerClass({
 });
 
 export const AppFolderDialog = GObject.registerClass({
+    Implements: [Shell.DragTarget],
     Signals: {
         'open-state-changed': {param_types: [GObject.TYPE_BOOLEAN]},
     },
@@ -2485,7 +2509,6 @@ export const AppFolderDialog = GObject.registerClass({
         this._folder = folder;
         this._view = source.view;
         this._appDisplay = appDisplay;
-        this._delegate = this;
 
         this._isOpen = false;
 
@@ -2745,7 +2768,7 @@ export const AppFolderDialog = GObject.registerClass({
         if (!this._dragMonitor)
             return;
 
-        DND.removeDragMonitor(this._dragMonitor);
+        Shell.dnd_remove_drag_monitor(this._dragMonitor);
         this._dragMonitor = null;
     }
 
@@ -2802,21 +2825,18 @@ export const AppFolderDialog = GObject.registerClass({
         if (this._dragMonitor)
             return;
 
-        this._dragMonitor = {
-            dragMotion: dragEvent => {
-                const withinDialog =
-                    this._withinDialog(dragEvent.x, dragEvent.y);
+        this._dragMonitor = Shell.dnd_add_drag_monitor(dragEvent => {
+            const withinDialog =
+                this._withinDialog(dragEvent.x, dragEvent.y);
 
-                this._setLighterBackground(!withinDialog);
+            this._setLighterBackground(!withinDialog);
 
-                if (withinDialog) {
-                    this._removePopdownTimeout();
-                    this._removeDragMonitor();
-                }
-                return DND.DragMotionResult.CONTINUE;
-            },
-        };
-        DND.addDragMonitor(this._dragMonitor);
+            if (withinDialog) {
+                this._removePopdownTimeout();
+                this._removeDragMonitor();
+            }
+            return Shell.DragMotionResult.CONTINUE;
+        }, null);
     }
 
     _setupPopdownTimeout() {
@@ -2830,7 +2850,7 @@ export const AppFolderDialog = GObject.registerClass({
             });
     }
 
-    handleDragOver(source, actor, x, y) {
+    vfunc_handle_drag_over(source, actor, x, y) {
         if (this._withinDialog(x, y)) {
             this._setLighterBackground(false);
             this._removePopdownTimeout();
@@ -2840,10 +2860,10 @@ export const AppFolderDialog = GObject.registerClass({
             this._setupDragMonitor();
         }
 
-        return DND.DragMotionResult.MOVE_DROP;
+        return Shell.DragMotionResult.MOVE_DROP;
     }
 
-    acceptDrop(source) {
+    vfunc_accept_drop(source) {
         const appId = source.id;
 
         this.popdown(() => {
@@ -2902,6 +2922,7 @@ export const AppFolderDialog = GObject.registerClass({
 });
 
 export const AppIcon = GObject.registerClass({
+    Implements: [Shell.DragSource],
     Signals: {
         'menu-state-changed': {param_types: [GObject.TYPE_BOOLEAN]},
         'sync-tooltip': {},
@@ -3071,13 +3092,13 @@ export const AppIcon = GObject.registerClass({
         this.icon.animateZoomOutAtPos(x, y);
     }
 
-    getDragActor() {
+    vfunc_get_drag_actor() {
         return this.app.create_icon_texture(Main.overview.dash.iconSize);
     }
 
     // Returns the original actor that should align with the actor
     // we show as the item is being dragged.
-    getDragActorSource() {
+    vfunc_get_drag_actor_source() {
         return this.icon.icon;
     }
 

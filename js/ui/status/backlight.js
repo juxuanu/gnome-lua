@@ -6,7 +6,7 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {QuickMenuToggle, SystemIndicator} from '../quickSettings.js';
+import {QuickMenuToggle} from '../quickSettings.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
@@ -226,10 +226,10 @@ class KeyboardBrightnessToggle extends QuickMenuToggle {
 });
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
-        this.quickSettingsItems.push(new KeyboardBrightnessToggle());
+        this.add_quick_settings_item(new KeyboardBrightnessToggle());
     }
 });

@@ -440,8 +440,8 @@ shell_xdnd_handler_class_init (ShellXdndHandlerClass *klass)
    *   cursor window if there is one, an invisible dummy otherwise
    * @target_actor: (nullable): the reactive actor under the pointer
    *
-   * Emitted when the pointer moves during a drag. The consumers run the
-   * drag monitors and the `handleDragOver` delegates of @target_actor and its
+   * Emitted when the pointer moves during a drag. shell_dnd_set_xdnd_handler ()
+   * runs the drag monitors and the #ShellDragTarget of @target_actor and its
    * ancestors, with @self as the source of the drag.
    */
   signals[DRAG_MOTION] =

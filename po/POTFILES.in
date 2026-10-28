@@ -30,7 +30,6 @@ js/ui/appDisplay.js
 js/ui/appFavorites.js
 js/ui/appMenu.js
 js/ui/audioDeviceSelection.js
-js/ui/backgroundMenu.js
 js/ui/calendar.js
 js/ui/closeDialog.js
 js/ui/components/automountManager.js
@@ -57,7 +56,7 @@ js/ui/osdWindow.js
 js/ui/overviewControls.js
 js/ui/overview.js
 js/ui/padOsd.js
-js/ui/panel.js
+js/ui/panelItems.js
 js/ui/quickSettings.js
 js/ui/runDialog.js
 js/ui/screenShield.js
@@ -102,6 +101,7 @@ src/shell-keyring-prompt.c
 src/shell-polkit-authentication-agent.c
 src/shell-util.c
 src/st/st-icon-theme.c
+src/ui/background-menu.c
 subprojects/extensions-tool/src/command-create.c
 subprojects/extensions-tool/src/command-disable.c
 subprojects/extensions-tool/src/command-enable.c

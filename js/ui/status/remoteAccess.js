@@ -2,17 +2,16 @@ import Atk from 'gi://Atk';
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from '../main.js';
-import * as PanelMenu from '../panelMenu.js';
-import {SystemIndicator} from '../quickSettings.js';
 
 // Minimum amount of time the shared indicator is visible (in micro seconds)
 const MIN_SHARED_INDICATOR_VISIBLE_TIME_US = 5 * GLib.TIME_SPAN_SECOND;
 
 export const RemoteAccessApplet = GObject.registerClass(
-class RemoteAccessApplet extends SystemIndicator {
+class RemoteAccessApplet extends Shell.SystemIndicator {
     _init() {
         super._init();
 
@@ -23,7 +22,7 @@ class RemoteAccessApplet extends SystemIndicator {
 
         this._handles = new Set();
 
-        this._indicator = this._addIndicator();
+        this._indicator = this.add_indicator();
         this._indicator.icon_name = 'media-record-symbolic';
         this._indicator.add_style_class_name('privacy-indicator');
 
@@ -62,9 +61,8 @@ class RemoteAccessApplet extends SystemIndicator {
     }
 });
 
-export const ScreenRecordingIndicator = GObject.registerClass({
-    Signals: {'menu-set': {}},
-}, class ScreenRecordingIndicator extends PanelMenu.ButtonBox {
+export const ScreenRecordingIndicator = GObject.registerClass(
+class ScreenRecordingIndicator extends Shell.PanelButtonBox {
     _init() {
         super._init({
             reactive: true,
@@ -130,9 +128,8 @@ export const ScreenRecordingIndicator = GObject.registerClass({
     }
 });
 
-export const ScreenSharingIndicator = GObject.registerClass({
-    Signals: {'menu-set': {}},
-}, class ScreenSharingIndicator extends PanelMenu.ButtonBox {
+export const ScreenSharingIndicator = GObject.registerClass(
+class ScreenSharingIndicator extends Shell.PanelButtonBox {
     _init() {
         super._init({
             reactive: true,

@@ -2552,7 +2552,7 @@ export class ScreenshotUI extends St.Widget {
             });
 
             Main.overview.hide();
-            Main.panel.closeCalendar();
+            Main.panel.close_calendar();
         }
 
         source.addNotification(notification);
@@ -2774,7 +2774,7 @@ function _storeScreenshot(bytes, pixbuf) {
             }
 
             Main.overview.hide();
-            Main.panel.closeCalendar();
+            Main.panel.close_calendar();
         });
     }
 

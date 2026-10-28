@@ -7,7 +7,7 @@ import Shell from 'gi://Shell';
 
 import * as Main from '../main.js';
 
-import {QuickSlider, SystemIndicator} from '../quickSettings.js';
+import {QuickSlider} from '../quickSettings.js';
 
 const ALLOW_AMPLIFIED_VOLUME_KEY = 'allow-volume-above-100-percent';
 const UNMUTE_DEFAULT_VOLUME = 0.25;
@@ -435,11 +435,11 @@ class InputStreamSlider extends StreamSlider {
 });
 
 const VolumeIndicator = GObject.registerClass(
-class VolumeIndicator extends SystemIndicator {
+class VolumeIndicator extends Shell.SystemIndicator {
     constructor() {
         super();
 
-        this._indicator = this._addIndicator();
+        this._indicator = this.add_indicator();
         this._indicator.reactive = true;
 
         const scrollController = new Clutter.ScrollController({
@@ -488,7 +488,7 @@ class OutputIndicator extends VolumeIndicator {
             this._indicator.visible = icon !== null;
         });
 
-        this.quickSettingsItems.push(this._output);
+        this.add_quick_settings_item(this._output);
 
         this._onControlStateChanged();
     }
@@ -533,7 +533,7 @@ class InputIndicator extends VolumeIndicator {
             this._indicator, 'visible',
             GObject.BindingFlags.SYNC_CREATE);
 
-        this.quickSettingsItems.push(this._input);
+        this.add_quick_settings_item(this._input);
 
         this._onControlStateChanged();
     }

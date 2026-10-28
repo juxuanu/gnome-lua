@@ -11,7 +11,6 @@ import St from 'gi://St';
 
 import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
-import * as SwipeTracker from './swipeTracker.js';
 import {formatDateWithCFormatString} from '../misc/dateUtils.js';
 import {fixMarkup} from '../misc/util.js';
 import * as AuthMenuButton from '../gdm/authMenuButton.js';
@@ -626,12 +625,12 @@ export const UnlockDialog = GObject.registerClass({
             this._setTransitionProgress(this._adjustment.value);
         });
 
-        this._swipeTracker = new SwipeTracker.SwipeTracker(this,
-            Clutter.Orientation.VERTICAL,
-            Shell.ActionMode.UNLOCK_SCREEN,
-            {
-                name: 'UnlockDialog swipe tracker',
-            });
+        this._swipeTracker = new Shell.SwipeTracker({
+            actor: this,
+            orientation: Clutter.Orientation.VERTICAL,
+            allowed_modes: Shell.ActionMode.UNLOCK_SCREEN,
+            name: 'UnlockDialog swipe tracker',
+        });
         this._swipeTracker.connect('begin', this._swipeBegin.bind(this));
         this._swipeTracker.connect('update', this._swipeUpdate.bind(this));
         this._swipeTracker.connect('end', this._swipeEnd.bind(this));
@@ -1055,7 +1054,7 @@ export const UnlockDialog = GObject.registerClass({
         this._ensureAuthPrompt();
 
         const progress = this._adjustment.value;
-        tracker.confirmSwipe(this._stack.height,
+        tracker.confirm_swipe(this._stack.height,
             [0, 1],
             progress,
             Math.round(progress));

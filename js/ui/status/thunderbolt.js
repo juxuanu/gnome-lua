@@ -9,7 +9,6 @@ import * as Signals from '../../misc/signals.js';
 
 import * as Main from '../main.js';
 import * as MessageTray from '../messageTray.js';
-import {SystemIndicator} from '../quickSettings.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
@@ -214,11 +213,11 @@ class AuthRobot extends Signals.EventEmitter {
 /* eof client.js  */
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
-        this._indicator = this._addIndicator();
+        this._indicator = this.add_indicator();
         this._indicator.icon_name = 'thunderbolt-symbolic';
 
         this._client = new Client();

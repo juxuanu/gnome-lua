@@ -1,9 +1,9 @@
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as PanelMenu from '../panelMenu.js';
 
 const MOUSE_A11Y_SCHEMA       = 'org.gnome.desktop.a11y.mouse';
 const KEY_DWELL_CLICK_ENABLED = 'dwell-click-enabled';
@@ -33,9 +33,12 @@ const DWELL_CLICK_MODES = {
 };
 
 export const DwellClickIndicator = GObject.registerClass(
-class DwellClickIndicator extends PanelMenu.Button {
+class DwellClickIndicator extends Shell.PanelMenuButton {
     _init() {
-        super._init(0.5, _('Dwell Click'));
+        super._init({
+            menu_alignment: 0.5,
+            accessible_name: _('Dwell Click'),
+        });
 
         this._icon = new St.Icon({
             style_class: 'system-status-icon',

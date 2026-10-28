@@ -876,28 +876,3 @@ export class QuickSettingsMenu extends Shell.PopupMenu {
         this._dimEffect.enabled = true;
     }
 }
-
-export const SystemIndicator = GObject.registerClass(
-class SystemIndicator extends St.BoxLayout {
-    _init() {
-        super._init({
-            style_class: 'panel-status-indicators-box',
-            reactive: true,
-            visible: false,
-        });
-
-        this.quickSettingsItems = [];
-    }
-
-    _syncIndicatorsVisible() {
-        this.visible = this.get_children().some(a => a.visible);
-    }
-
-    _addIndicator() {
-        const icon = new St.Icon({style_class: 'system-status-icon'});
-        this.add_child(icon);
-        icon.connect('notify::visible', () => this._syncIndicatorsVisible());
-        this._syncIndicatorsVisible();
-        return icon;
-    }
-});

@@ -51,7 +51,7 @@ available.
 Additional modules can be loaded using dynamic imports:
 ```js
 Util = await import('../misc/util.js')
-{Panel} = await import('./panel.js')
+{createPanelItem} = await import('./panelItems.js')
 {default: Pango} = await import('gi://Pango')
 ```
 

@@ -10,7 +10,7 @@
  *    #ShellLayoutManager::hot-corner-activated
  *  - Main.overview.runStartupAnimation (): #ShellLayoutManager::startup-animation-requested
  *    and shell_layout_manager_startup_animation_finished ()
- *  - BackgroundMenu.addBackgroundMenu (): #ShellLayoutManager::background-added
+ *  - Shell.BackgroundMenu.add_to (): #ShellLayoutManager::background-added
  *
  * Main.sessionMode and Main.actionMode are read from #ShellMain.
  *
@@ -1630,7 +1630,7 @@ emit_background_added (ShellLayoutManager     *self,
   if (!g_ptr_array_find (self->bg_managers, manager, &index))
     return;
 
-  /* _addBackgroundMenu () */
+  /* Shell.BackgroundMenu.add_to () */
   g_signal_emit (self, signals[BACKGROUND_ADDED], 0,
                  shell_background_manager_get_background_actor (manager),
                  (int) index);
@@ -3047,7 +3047,7 @@ shell_layout_manager_class_init (ShellLayoutManagerClass *klass)
    *
    * Emitted when the background of a monitor was created, or replaced because
    * the user changed it. main.js adds the background menu to it
-   * (`BackgroundMenu.addBackgroundMenu ()`). The backgrounds which exist
+   * (`Shell.BackgroundMenu.add_to ()`). The backgrounds which exist
    * before main.js connects are announced again by
    * shell_layout_manager_begin_startup ().
    */

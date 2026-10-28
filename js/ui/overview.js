@@ -11,10 +11,8 @@ import * as Signals from '../misc/signals.js';
 // this is defined here to make it available in imports.
 export const ANIMATION_TIME = 250;
 
-import * as DND from './dnd.js';
 import * as Main from './main.js';
 import * as OverviewControls from './overviewControls.js';
-import * as SwipeTracker from './swipeTracker.js';
 import * as WindowManager from './windowManager.js';
 import * as WorkspaceThumbnail from './workspaceThumbnail.js';
 
@@ -168,10 +166,7 @@ export class Overview extends Signals.EventEmitter {
         this._coverPane.hide();
 
         // XDND
-        this._dragMonitor = {
-            dragMotion: this._onDragMotion.bind(this),
-        };
-
+        this._dragMonitor = 0;
 
         Main.layoutManager.overview_group.connect('scroll-event',
             this._onScrollEvent.bind(this));
@@ -222,16 +217,15 @@ export class Overview extends Signals.EventEmitter {
             Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
             this.toggle.bind(this));
 
-        const swipeTracker = new SwipeTracker.SwipeTracker(global.stage,
-            Clutter.Orientation.VERTICAL,
-            Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
-            {
-                allowDrag: false,
-                allowScroll: false,
-                name: 'Overview swipe tracker',
-                phase: Clutter.EventPhase.CAPTURE,
-            });
-        swipeTracker.orientation = Clutter.Orientation.VERTICAL;
+        const swipeTracker = new Shell.SwipeTracker({
+            actor: global.stage,
+            orientation: Clutter.Orientation.VERTICAL,
+            allowed_modes: Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
+            allow_drag: false,
+            allow_scroll: false,
+            name: 'Overview swipe tracker',
+            phase: Clutter.EventPhase.CAPTURE,
+        });
         swipeTracker.connect('begin', this._gestureBegin.bind(this));
         swipeTracker.connect('update', this._gestureUpdate.bind(this));
         swipeTracker.connect('end', this._gestureEnd.bind(this));
@@ -259,7 +253,10 @@ export class Overview extends Signals.EventEmitter {
     _onDragBegin() {
         this._inXdndDrag = true;
 
-        DND.addDragMonitor(this._dragMonitor);
+        if (!this._dragMonitor) {
+            this._dragMonitor = Shell.dnd_add_drag_monitor(
+                this._onDragMotion.bind(this), null);
+        }
         // Remember the workspace we started from
         const workspaceManager = global.workspace_manager;
         this._lastActiveWorkspaceIndex = workspaceManager.get_active_workspace_index();
@@ -279,7 +276,8 @@ export class Overview extends Signals.EventEmitter {
         }
         this._resetWindowSwitchTimeout();
         this._lastHoveredWindow = null;
-        DND.removeDragMonitor(this._dragMonitor);
+        Shell.dnd_remove_drag_monitor(this._dragMonitor);
+        this._dragMonitor = 0;
         this.endItemDrag();
     }
 
@@ -291,29 +289,29 @@ export class Overview extends Signals.EventEmitter {
     }
 
     _onDragMotion(dragEvent) {
-        const targetIsWindow = dragEvent.targetActor &&
-                             dragEvent.targetActor._delegate &&
-                             dragEvent.targetActor._delegate.metaWindow &&
-                             !(dragEvent.targetActor._delegate instanceof WorkspaceThumbnail.WindowClone);
+        const targetIsWindow = dragEvent.target_actor &&
+                             dragEvent.target_actor._delegate &&
+                             dragEvent.target_actor._delegate.metaWindow &&
+                             !(dragEvent.target_actor._delegate instanceof WorkspaceThumbnail.WindowClone);
 
         this._windowSwitchTimestamp = global.get_current_time();
 
         if (targetIsWindow &&
-            dragEvent.targetActor._delegate.metaWindow === this._lastHoveredWindow)
-            return DND.DragMotionResult.CONTINUE;
+            dragEvent.target_actor._delegate.metaWindow === this._lastHoveredWindow)
+            return Shell.DragMotionResult.CONTINUE;
 
         this._lastHoveredWindow = null;
 
         this._resetWindowSwitchTimeout();
 
         if (targetIsWindow) {
-            this._lastHoveredWindow = dragEvent.targetActor._delegate.metaWindow;
+            this._lastHoveredWindow = dragEvent.target_actor._delegate.metaWindow;
             this._windowSwitchTimeoutId = GLib.timeout_add_once(
                 GLib.PRIORITY_DEFAULT,
                 DND_WINDOW_SWITCH_TIMEOUT,
                 () => {
                     this._windowSwitchTimeoutId = 0;
-                    Main.activateWindow(dragEvent.targetActor._delegate.metaWindow,
+                    Main.activateWindow(dragEvent.target_actor._delegate.metaWindow,
                         this._windowSwitchTimestamp);
                     this.hide();
                     this._lastHoveredWindow = null;
@@ -321,7 +319,7 @@ export class Overview extends Signals.EventEmitter {
             GLib.Source.set_name_by_id(this._windowSwitchTimeoutId, '[gnome-shell] Main.activateWindow');
         }
 
-        return DND.DragMotionResult.CONTINUE;
+        return Shell.DragMotionResult.CONTINUE;
     }
 
     _onScrollEvent(actor, event) {

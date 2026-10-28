@@ -8,7 +8,6 @@ import St from 'gi://St';
 
 import * as AppDisplay from './appDisplay.js';
 import * as AppFavorites from './appFavorites.js';
-import * as DND from './dnd.js';
 import * as IconGrid from './iconGrid.js';
 import * as Main from './main.js';
 import * as Overview from './overview.js';
@@ -36,7 +35,7 @@ class DashIcon extends AppDisplay.AppIcon {
     }
 
     handleDragOver() {
-        return DND.DragMotionResult.CONTINUE;
+        return Shell.DragMotionResult.CONTINUE;
     }
 
     acceptDrop() {
@@ -185,8 +184,9 @@ class DashItemContainer extends St.Widget {
     }
 });
 
-export const ShowAppsIcon = GObject.registerClass(
-class ShowAppsIcon extends DashItemContainer {
+export const ShowAppsIcon = GObject.registerClass({
+    Implements: [Shell.DragTarget],
+}, class ShowAppsIcon extends DashItemContainer {
     _init() {
         super._init();
 
@@ -205,7 +205,6 @@ class ShowAppsIcon extends DashItemContainer {
         this.icon.y_align = Clutter.ActorAlign.CENTER;
 
         this.toggleButton.child = this.icon;
-        this.toggleButton._delegate = this;
 
         this.setChild(this.toggleButton);
         this.setDragApp(null);
@@ -246,14 +245,14 @@ class ShowAppsIcon extends DashItemContainer {
             this.setLabelText(_('Show Apps'));
     }
 
-    handleDragOver(source, _actor, _x, _y, _time) {
+    vfunc_handle_drag_over(source, _actor, _x, _y, _time) {
         if (!this._canRemoveApp(Dash.getAppFromSource(source)))
-            return DND.DragMotionResult.NO_DROP;
+            return Shell.DragMotionResult.NO_DROP;
 
-        return DND.DragMotionResult.MOVE_DROP;
+        return Shell.DragMotionResult.MOVE_DROP;
     }
 
-    acceptDrop(source, _actor, _x, _y, _time) {
+    vfunc_accept_drop(source, _actor, _x, _y, _time) {
         const app = Dash.getAppFromSource(source);
         if (!this._canRemoveApp(app))
             return false;
@@ -302,6 +301,26 @@ class DashIconsLayout extends Clutter.BoxLayout {
 
 const baseIconSizes = [16, 22, 24, 32, 48, 64];
 
+// The drop target of the icons box of the dash. The dash itself is not
+// registered as a target: the positions it is given are relative to the box,
+// and dropping next to the box is not accepted
+const DashDragTarget = GObject.registerClass({
+    Implements: [Shell.DragTarget],
+}, class DashDragTarget extends GObject.Object {
+    _init(dash) {
+        super._init();
+        this._dash = dash;
+    }
+
+    vfunc_handle_drag_over(source, actor, x, y, time) {
+        return this._dash.handleDragOver(source, actor, x, y, time);
+    }
+
+    vfunc_accept_drop(source, actor, x, y, time) {
+        return this._dash.acceptDrop(source, actor, x, y, time);
+    }
+});
+
 export const Dash = GObject.registerClass({
     Signals: {'icon-size-changed': {}},
 }, class Dash extends St.Widget {
@@ -346,7 +365,8 @@ export const Dash = GObject.registerClass({
             layout_manager: new DashIconsLayout(),
             y_expand: true,
         });
-        this._box._delegate = this;
+        this._dragTarget = new DashDragTarget(this);
+        Shell.dnd_set_drag_target(this._box, this._dragTarget);
 
         this._dashContainer.add_child(this._box);
 
@@ -403,10 +423,8 @@ export const Dash = GObject.registerClass({
 
     _onItemDragBegin() {
         this._dragCancelled = false;
-        this._dragMonitor = {
-            dragMotion: this._onItemDragMotion.bind(this),
-        };
-        DND.addDragMonitor(this._dragMonitor);
+        this._dragMonitor = Shell.dnd_add_drag_monitor(
+            this._onItemDragMotion.bind(this), null);
 
         if (this._box.get_n_children() === 0) {
             this._emptyDropTarget = new EmptyDropTargetItem();
@@ -431,18 +449,19 @@ export const Dash = GObject.registerClass({
         this._clearDragPlaceholder();
         this._clearEmptyDropTarget();
         this._showAppsIcon.setDragApp(null);
-        DND.removeDragMonitor(this._dragMonitor);
+        Shell.dnd_remove_drag_monitor(this._dragMonitor ?? 0);
+        this._dragMonitor = 0;
     }
 
     _onItemDragMotion(dragEvent) {
         const app = Dash.getAppFromSource(dragEvent.source);
         if (app == null)
-            return DND.DragMotionResult.CONTINUE;
+            return Shell.DragMotionResult.CONTINUE;
 
         const showAppsHovered =
-                this._showAppsIcon.contains(dragEvent.targetActor);
+                this._showAppsIcon.contains(dragEvent.target_actor);
 
-        if (!this._box.contains(dragEvent.targetActor) || showAppsHovered)
+        if (!this._box.contains(dragEvent.target_actor) || showAppsHovered)
             this._clearDragPlaceholder();
 
         if (showAppsHovered)
@@ -450,7 +469,7 @@ export const Dash = GObject.registerClass({
         else
             this._showAppsIcon.setDragApp(null);
 
-        return DND.DragMotionResult.CONTINUE;
+        return Shell.DragMotionResult.CONTINUE;
     }
 
     _onWindowDragBegin() {
@@ -863,10 +882,10 @@ export const Dash = GObject.registerClass({
 
         // Don't allow favoriting of transient apps
         if (app == null || app.is_window_backed())
-            return DND.DragMotionResult.NO_DROP;
+            return Shell.DragMotionResult.NO_DROP;
 
         if (!global.settings.is_writable('favorite-apps'))
-            return DND.DragMotionResult.NO_DROP;
+            return Shell.DragMotionResult.NO_DROP;
 
         const favorites = AppFavorites.getAppFavorites().getFavorites();
         const numFavorites = favorites.length;
@@ -910,7 +929,7 @@ export const Dash = GObject.registerClass({
             // Don't allow positioning before or after self
             if (favPos !== -1 && (pos === favPos || pos === favPos + 1)) {
                 this._clearDragPlaceholder();
-                return DND.DragMotionResult.CONTINUE;
+                return Shell.DragMotionResult.CONTINUE;
             }
 
             // If the placeholder already exists, we just move
@@ -934,9 +953,9 @@ export const Dash = GObject.registerClass({
         }
 
         if (!this._dragPlaceholder)
-            return DND.DragMotionResult.NO_DROP;
+            return Shell.DragMotionResult.NO_DROP;
 
-        return DND.DragMotionResult.MOVE_DROP;
+        return Shell.DragMotionResult.MOVE_DROP;
     }
 
     // Draggable target interface

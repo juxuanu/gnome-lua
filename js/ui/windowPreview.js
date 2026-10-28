@@ -8,7 +8,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as DND from './dnd.js';
 import * as OverviewControls from './overviewControls.js';
 
 const WINDOW_DND_SIZE = 256;
@@ -27,6 +26,8 @@ const ICON_OVERLAP = 0.7;
 const ICON_TITLE_SPACING = 6;
 
 export class WindowPreview extends Shell.WindowPreview {
+    static [GObject.interfaces] = [Shell.DragTarget];
+
     static [GObject.properties] = {
         'overlay-enabled': GObject.ParamSpec.boolean(
             'overlay-enabled', null, null,
@@ -118,10 +119,11 @@ export class WindowPreview extends Shell.WindowPreview {
 
         this.connect('destroy', this._onDestroy.bind(this));
 
-        this._draggable = DND.makeDraggable(this, {
-            restoreOnSuccess: true,
-            dragActorMaxSize: WINDOW_DND_SIZE,
-            dragActorOpacity: DRAGGING_WINDOW_OPACITY,
+        this._draggable = new Shell.Draggable({
+            actor: this,
+            restore_on_success: true,
+            drag_actor_max_size: WINDOW_DND_SIZE,
+            drag_actor_opacity: DRAGGING_WINDOW_OPACITY,
         });
         this._draggable.connectObject(
             'drag-begin', this._onDragBegin.bind(this),
@@ -138,7 +140,7 @@ export class WindowPreview extends Shell.WindowPreview {
         longPressGesture.connect('recognize', () => this.showOverlay(true));
         this.add_action(longPressGesture);
 
-        longPressGesture.can_not_cancel(this._draggable.startGesture);
+        longPressGesture.can_not_cancel(this._draggable.start_gesture);
 
         this._overlayEnabled = true;
         this._overlayShown = false;
@@ -648,12 +650,12 @@ export class WindowPreview extends Shell.WindowPreview {
         this.emit('drag-begin');
     }
 
-    handleDragOver(source, actor, x, y, time) {
-        return this._workspace.handleDragOver(source, actor, x, y, time);
+    vfunc_handle_drag_over(source, actor, x, y, time) {
+        return this._workspace.handle_drag_over(source, actor, x, y, time);
     }
 
-    acceptDrop(source, actor, x, y, time) {
-        return this._workspace.acceptDrop(source, actor, x, y, time);
+    vfunc_accept_drop(source, actor, x, y, time) {
+        return this._workspace.accept_drop(source, actor, x, y, time);
     }
 
     _onDragCancelled(_draggable, _time) {

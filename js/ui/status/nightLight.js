@@ -1,8 +1,9 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 
-import {QuickToggle, SystemIndicator} from '../quickSettings.js';
+import {QuickToggle} from '../quickSettings.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
@@ -36,14 +37,14 @@ class NightLightToggle extends QuickToggle {
 });
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
-        this._indicator = this._addIndicator();
+        this._indicator = this.add_indicator();
         this._indicator.icon_name = 'night-light-symbolic';
 
-        this.quickSettingsItems.push(new NightLightToggle());
+        this.add_quick_settings_item(new NightLightToggle());
 
         this._proxy = new Gio.DBusProxy({
             g_connection: Gio.DBus.session,

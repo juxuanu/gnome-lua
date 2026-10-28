@@ -9,7 +9,6 @@ import St from 'gi://St';
 
 import * as Main from './main.js';
 import * as OverviewControls from './overviewControls.js';
-import * as SwipeTracker from './swipeTracker.js';
 import * as Util from '../misc/util.js';
 import * as Workspace from './workspace.js';
 import {ThumbnailsBox} from './workspaceThumbnail.js';
@@ -864,15 +863,14 @@ export class WorkspacesDisplay extends St.Widget {
         global.window_manager.connectObject('switch-workspace',
             this._activeWorkspaceChanged.bind(this), this);
 
-        this._swipeTracker = new SwipeTracker.SwipeTracker(
-            Main.layoutManager.overview_group,
-            Clutter.Orientation.HORIZONTAL,
-            Shell.ActionMode.OVERVIEW,
-            {
-                allowDrag: false,
-                name: 'WorkspacesView swipe tracker',
-            });
-        this._swipeTracker.allowLongSwipes = true;
+        this._swipeTracker = new Shell.SwipeTracker({
+            actor: Main.layoutManager.overview_group,
+            orientation: Clutter.Orientation.HORIZONTAL,
+            allowed_modes: Shell.ActionMode.OVERVIEW,
+            allow_drag: false,
+            name: 'WorkspacesView swipe tracker',
+            allow_long_swipes: true,
+        });
         this._swipeTracker.connect('begin', this._switchWorkspaceBegin.bind(this));
         this._swipeTracker.connect('update', this._switchWorkspaceUpdate.bind(this));
         this._swipeTracker.connect('end', this._switchWorkspaceEnd.bind(this));
@@ -975,7 +973,7 @@ export class WorkspacesDisplay extends St.Widget {
         const points = Array.from(
             {length: workspaceManager.n_workspaces}, (v, i) => i);
 
-        tracker.confirmSwipe(distance, points, progress, Math.round(progress));
+        tracker.confirm_swipe(distance, points, progress, Math.round(progress));
 
         this._gestureActive = true;
     }
@@ -1112,7 +1110,7 @@ export class WorkspacesDisplay extends St.Widget {
     }
 
     _onScrollEvent(actor, event) {
-        if (this._swipeTracker.canHandleScrollEvent(event))
+        if (this._swipeTracker.can_handle_scroll_event(event))
             return Clutter.EVENT_PROPAGATE;
 
         if (!this.mapped)

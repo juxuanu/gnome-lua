@@ -35,12 +35,12 @@ export async function run() {
 
     console.debug('Navigate through top bar');
     Scripting.scriptEvent('topBarNavStart');
-    Main.panel.statusArea.quickSettings.menu.open();
+    Main.panel.get_status_area_indicator('quickSettings').menu.open();
     await Scripting.sleep(400);
 
-    const {menuManager} = Main.panel;
-    while (menuManager.activeMenu &&
-        Main.panel.navigate_focus(menuManager.activeMenu.sourceActor,
+    const {menu_manager: menuManager} = Main.panel;
+    while (menuManager.active_menu &&
+        Main.panel.navigate_focus(menuManager.active_menu.source_actor,
             St.DirectionType.TAB_BACKWARD, false))
         await Scripting.sleep(400);
     Scripting.scriptEvent('topBarNavDone');
@@ -63,7 +63,7 @@ export async function run() {
     await Scripting.sleep(400);
 
     console.debug('Show date menu');
-    Main.panel.statusArea.dateMenu.menu.open();
+    Main.panel.get_status_area_indicator('dateMenu').menu.open();
     await Scripting.sleep(400);
 
     Scripting.scriptEvent('notificationCloseStart');
@@ -75,7 +75,7 @@ export async function run() {
     await Scripting.sleep(400);
 
     console.debug('Close date menu');
-    Main.panel.statusArea.dateMenu.menu.close();
+    Main.panel.get_status_area_indicator('dateMenu').menu.close();
     await Scripting.waitLeisure();
 
     await Scripting.sleep(1000);

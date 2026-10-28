@@ -860,6 +860,6 @@ class ExtensionUpdateSource extends MessageTray.Source {
     open() {
         this._app.activate();
         Main.overview.hide();
-        Main.panel.closeCalendar();
+        Main.panel.close_calendar();
     }
 });

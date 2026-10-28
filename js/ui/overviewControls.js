@@ -767,7 +767,7 @@ class ControlsManager extends St.Widget {
             : Math.round(progress);
         this._stateAdjustment.remove_transition('value');
 
-        tracker.confirmSwipe(baseDistance, points, progress, cancelProgress);
+        tracker.confirm_swipe(baseDistance, points, progress, cancelProgress);
         this.prepareToEnterOverview();
         this._stateAdjustment.gestureInProgress = true;
     }

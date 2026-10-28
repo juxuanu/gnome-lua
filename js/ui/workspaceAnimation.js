@@ -4,7 +4,6 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as SwipeTracker from './swipeTracker.js';
 import * as Util from '../misc/util.js';
 
 import * as Main from './main.js';
@@ -369,14 +368,14 @@ export class WorkspaceAnimationController {
             this._swipeTracker.enabled = true;
         });
 
-        const swipeTracker = new SwipeTracker.SwipeTracker(global.stage,
-            Clutter.Orientation.HORIZONTAL,
-            Shell.ActionMode.NORMAL,
-            {
-                allowDrag: false,
-                phase: Clutter.EventPhase.CAPTURE,
-                name: 'WorkspaceAnimation swipe tracker',
-            });
+        const swipeTracker = new Shell.SwipeTracker({
+            actor: global.stage,
+            orientation: Clutter.Orientation.HORIZONTAL,
+            allowed_modes: Shell.ActionMode.NORMAL,
+            allow_drag: false,
+            phase: Clutter.EventPhase.CAPTURE,
+            name: 'WorkspaceAnimation swipe tracker',
+        });
         swipeTracker.connect('begin', this._switchWorkspaceBegin.bind(this));
         swipeTracker.connect('update', this._switchWorkspaceUpdate.bind(this));
         swipeTracker.connect('end', this._switchWorkspaceEnd.bind(this));
@@ -499,7 +498,7 @@ export class WorkspaceAnimationController {
     }
 
     canHandleScrollEvent(event) {
-        return this._swipeTracker.canHandleScrollEvent(event);
+        return this._swipeTracker.can_handle_scroll_event(event);
     }
 
     _findMonitorGroup(monitorIndex) {
@@ -534,7 +533,7 @@ export class WorkspaceAnimationController {
 
         this._switchData.baseMonitorGroup = monitorGroup;
 
-        tracker.confirmSwipe(baseDistance, points, progress, cancelProgress);
+        tracker.confirm_swipe(baseDistance, points, progress, cancelProgress);
     }
 
     _switchWorkspaceUpdate(tracker, progress) {

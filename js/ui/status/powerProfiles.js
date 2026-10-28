@@ -3,7 +3,7 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
 
-import {QuickMenuToggle, SystemIndicator} from '../quickSettings.js';
+import {QuickMenuToggle} from '../quickSettings.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
@@ -134,11 +134,11 @@ class PowerProfilesToggle extends QuickMenuToggle {
 });
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
-        this._indicator = this._addIndicator();
+        this._indicator = this.add_indicator();
 
         this._powerProfilesToggle = new PowerProfilesToggle();
 
@@ -149,6 +149,6 @@ class Indicator extends SystemIndicator {
             this._indicator, 'visible',
             GObject.BindingFlags.SYNC_CREATE);
 
-        this.quickSettingsItems.push(this._powerProfilesToggle);
+        this.add_quick_settings_item(this._powerProfilesToggle);
     }
 });

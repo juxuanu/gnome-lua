@@ -49,13 +49,11 @@
     <file>ui/appFavorites.js</file>
     <file>ui/appMenu.js</file>
     <file>ui/audioDeviceSelection.js</file>
-    <file>ui/backgroundMenu.js</file>
     <file>ui/calendar.js</file>
     <file>ui/closeDialog.js</file>
     <file>ui/ctrlAltTab.js</file>
     <file>ui/dash.js</file>
     <file>ui/dateMenu.js</file>
-    <file>ui/dnd.js</file>
     <file>ui/endSessionDialog.js</file>
     <file>ui/environment.js</file>
     <file>ui/extensionDownloader.js</file>
@@ -78,8 +76,7 @@
     <file>ui/overview.js</file>
     <file>ui/overviewControls.js</file>
     <file>ui/padOsd.js</file>
-    <file>ui/panel.js</file>
-    <file>ui/panelMenu.js</file>
+    <file>ui/panelItems.js</file>
     <file>ui/quickSettings.js</file>
     <file>ui/qrCode.js</file>
     <file>ui/remoteSearch.js</file>
@@ -92,7 +89,6 @@
     <file>ui/shellDBus.js</file>
     <file>ui/shellEntry.js</file>
     <file>ui/shellMountOperation.js</file>
-    <file>ui/swipeTracker.js</file>
     <file>ui/switcherPopup.js</file>
     <file>ui/switchMonitor.js</file>
     <file>ui/unlockDialog.js</file>

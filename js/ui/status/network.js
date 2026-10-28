@@ -14,7 +14,7 @@ import * as MessageTray from '../messageTray.js';
 import * as Signals from '../../misc/signals.js';
 import * as Util from '../../misc/util.js';
 
-import {QuickMenuToggle, SystemIndicator} from '../quickSettings.js';
+import {QuickMenuToggle} from '../quickSettings.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
 import {registerDestroyableType} from '../../misc/signalTracker.js';
@@ -2036,7 +2036,7 @@ class CaptivePortalHandler extends Signals.EventEmitter {
             Gio.AppInfo.launch_default_for_uri(this._checkUri, context);
 
         Main.overview.hide();
-        Main.panel.closeCalendar();
+        Main.panel.close_calendar();
     }
 
     _portalHelperStatusChanged(parameters) {
@@ -2095,7 +2095,7 @@ class CaptivePortalHandler extends Signals.EventEmitter {
 }
 
 export const Indicator = GObject.registerClass(
-class Indicator extends SystemIndicator {
+class Indicator extends Shell.SystemIndicator {
     _init() {
         super._init();
 
@@ -2117,17 +2117,18 @@ class Indicator extends SystemIndicator {
             [NM.DeviceType.MODEM, this._modemToggle],
             [NM.DeviceType.BT, this._btToggle],
         ]);
-        this.quickSettingsItems.push(...this._deviceToggles.values());
-        this.quickSettingsItems.push(this._vpnToggle);
+        for (const toggle of this._deviceToggles.values())
+            this.add_quick_settings_item(toggle);
+        this.add_quick_settings_item(this._vpnToggle);
 
-        this.quickSettingsItems.forEach(toggle => {
+        this.get_quick_settings_items().forEach(toggle => {
             toggle.connectObject(
                 'activation-failed', () => this._onActivationFailed(),
                 this);
         });
 
-        this._primaryIndicator = this._addIndicator();
-        this._vpnIndicator = this._addIndicator();
+        this._primaryIndicator = this.add_indicator();
+        this._vpnIndicator = this.add_indicator();
 
         this._primaryIndicatorBinding = new GObject.BindingGroup();
         this._primaryIndicatorBinding.bind('icon-name',
@@ -2147,7 +2148,7 @@ class Indicator extends SystemIndicator {
     async _getClient() {
         this._client = await NM.Client.new_async(null);
 
-        this.quickSettingsItems.forEach(
+        this.get_quick_settings_items().forEach(
             toggle => toggle.setClient(this._client));
 
         this._client.bind_property('nm-running',
@@ -2175,7 +2176,7 @@ class Indicator extends SystemIndicator {
             this._configPermission = await Polkit.Permission.new(
                 'org.freedesktop.NetworkManager.network-control', null, null);
 
-            this.quickSettingsItems.forEach(toggle => {
+            this.get_quick_settings_items().forEach(toggle => {
                 this._configPermission.bind_property('allowed',
                     toggle, 'reactive',
                     GObject.BindingFlags.SYNC_CREATE);
