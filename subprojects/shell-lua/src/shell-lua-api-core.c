@@ -898,6 +898,27 @@ l_settings_get (lua_State *L)
   return 1;
 }
 
+/* Does the schema's range / choices / enum for @key accept @value? */
+static gboolean
+settings_value_acceptable (GSettings  *settings,
+                           const char *key,
+                           GVariant   *value)
+{
+  GSettingsSchema *schema = NULL;
+  GSettingsSchemaKey *schema_key;
+  gboolean ok = FALSE;
+
+  g_object_get (settings, "settings-schema", &schema, NULL);
+  if (schema == NULL)
+    return FALSE;
+
+  schema_key = g_settings_schema_get_key (schema, key);
+  ok = g_settings_schema_key_range_check (schema_key, value);
+  g_settings_schema_key_unref (schema_key);
+  g_settings_schema_unref (schema);
+  return ok;
+}
+
 static void
 settings_store (lua_State          *L,
                 GSettings          *settings,
@@ -911,7 +932,12 @@ settings_store (lua_State          *L,
     luaL_error (L, "key '%s' is not writable", key);
 
   value = shell_lua_to_variant (L, idx, type);
-  if (!g_settings_set_value (settings, key, value))
+
+  /* g_settings_set_value() logs a g_warning for a value outside the key's
+   * range, which is fatal under G_DEBUG=fatal-warnings: check beforehand so
+   * that Lua code can only ever cause a Lua error. */
+  if (!settings_value_acceptable (settings, key, value) ||
+      !g_settings_set_value (settings, key, value))
     {
       g_variant_unref (value);
       luaL_error (L, "value rejected for key '%s' (out of range or not allowed)", key);

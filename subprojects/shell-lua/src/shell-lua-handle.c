@@ -834,6 +834,22 @@ handle_index (lua_State *L)
   return 1;
 }
 
+/* TRUE if @pspec accepts @value as it is (g_param_value_validate() would not
+ * have to modify it). */
+static gboolean
+value_passes_validation (GParamSpec  *pspec,
+                         const GValue *value)
+{
+  GValue copy = G_VALUE_INIT;
+  gboolean modified;
+
+  g_value_init (&copy, G_VALUE_TYPE (value));
+  g_value_copy (value, &copy);
+  modified = g_param_value_validate (pspec, &copy);
+  g_value_unset (&copy);
+  return !modified;
+}
+
 static int
 handle_newindex (lua_State *L)
 {
@@ -875,7 +891,10 @@ handle_newindex (lua_State *L)
       lua_concat (L, 2);
       return lua_error (L);
     }
-  if (!g_param_value_is_valid (pspec, &value))
+  /* g_param_value_is_valid() is not usable here: for object properties it
+   * reports NULL as invalid, so `handle.prop = nil` could never clear one.
+   * Validate a copy instead, the same check g_object_set_property() makes. */
+  if (!value_passes_validation (pspec, &value))
     {
       g_value_unset (&value);
       return luaL_error (L, "value out of range for property '%s' on %s", key, h->type->name);

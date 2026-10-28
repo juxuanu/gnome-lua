@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Minimal stand-in for the keys of org.gnome.shell that the extension
+     manager syncs with (test-extension only). -->
+<schemalist>
+  <schema id="org.gnome.shell" path="/org/gnome/shell/">
+    <key name="enabled-extensions" type="as">
+      <default>[]</default>
+      <summary>Uuids of extensions to enable</summary>
+    </key>
+    <key name="disabled-extensions" type="as">
+      <default>[]</default>
+      <summary>Uuids of extensions to disable</summary>
+    </key>
+    <key name="disable-user-extensions" type="b">
+      <default>false</default>
+      <summary>Disable all extensions</summary>
+    </key>
+  </schema>
+</schemalist>

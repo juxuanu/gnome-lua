@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schema used by test-api-core and test-extension (compiled at build time
+     by tests/meson.build; GSETTINGS_SCHEMA_DIR points at the result). -->
+<schemalist>
+  <schema id="org.gnome-lua.test" path="/org/gnome-lua/test/">
+    <key name="flag" type="b">
+      <default>false</default>
+      <summary>A boolean</summary>
+    </key>
+    <key name="count" type="i">
+      <range min="0" max="100"/>
+      <default>5</default>
+      <summary>A ranged integer</summary>
+    </key>
+    <key name="ratio" type="d">
+      <default>0.5</default>
+      <summary>A double</summary>
+    </key>
+    <key name="name" type="s">
+      <default>'default'</default>
+      <summary>A string</summary>
+    </key>
+    <key name="list" type="as">
+      <default>['a', 'b']</default>
+      <summary>A string array</summary>
+    </key>
+  </schema>
+</schemalist>

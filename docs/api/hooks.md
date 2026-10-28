@@ -6,7 +6,7 @@ listened to from Lua with `shell.hooks.on(name, fn)` (after phase) or
 Payloads are `a{sv}` dictionaries delivered to Lua as tables.
 
 Naming rules (see `docs/CONVENTIONS.md`): `<subject>.<event>`, lower case,
-one dot, hyphens inside a part. Hooks named with a present participle
+one dot by convention (the registry accepts more segments), hyphens inside a part. Hooks named with a present participle
 (`overview.showing`) are cancellable; past-tense hooks (`window.focused`)
 are informational. Payloads carry ids and names, never pointers.
 

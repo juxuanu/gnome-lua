@@ -20,7 +20,28 @@
 
 /* ===== GVariant -> Lua ================================================== */
 
-static void push_variant (lua_State *L, GVariant *v, int depth);
+/* push_variant() may raise a Lua error (nesting cap, stack or memory) at any
+ * point, and the longjmp would skip the g_variant_unref() of every child
+ * reference held by the C frames in between. Child references are therefore
+ * kept in @refs, a stack that outlives the raise: shell_lua_push_variant()
+ * runs the conversion under lua_pcall(), frees whatever is left in @refs and
+ * re-raises. */
+typedef struct
+{
+  GVariant  *variant;
+  GPtrArray *refs;     /* GVariant *, freed with g_variant_unref */
+} PushJob;
+
+static void push_variant (lua_State *L, GVariant *v, int depth, GPtrArray *refs);
+
+/* Takes a reference that is released by g_ptr_array_set_size (refs, mark). */
+static GVariant *
+hold (GPtrArray *refs,
+      GVariant  *ref)
+{
+  g_ptr_array_add (refs, ref);
+  return ref;
+}
 
 static void
 push_string_variant (lua_State *L,
@@ -35,17 +56,19 @@ push_string_variant (lua_State *L,
 static void
 push_sequence (lua_State *L,
                GVariant  *v,
-               int        depth)
+               int        depth,
+               GPtrArray *refs)
 {
   gsize n = g_variant_n_children (v);
+  guint mark = refs->len;
 
   lua_createtable (L, (int) MIN (n, (gsize) G_MAXINT), 0);
   for (gsize i = 0; i < n; i++)
     {
-      GVariant *child = g_variant_get_child_value (v, i);
+      GVariant *child = hold (refs, g_variant_get_child_value (v, i));
 
-      push_variant (L, child, depth + 1);
-      g_variant_unref (child);
+      push_variant (L, child, depth + 1, refs);
+      g_ptr_array_set_size (refs, mark);
       lua_rawseti (L, -2, (lua_Integer) (i + 1));
     }
 }
@@ -53,32 +76,34 @@ push_sequence (lua_State *L,
 static void
 push_table (lua_State *L,
             GVariant  *v,
-            int        depth)
+            int        depth,
+            GPtrArray *refs)
 {
   gsize n = g_variant_n_children (v);
+  guint mark = refs->len;
 
   lua_createtable (L, 0, (int) MIN (n, (gsize) G_MAXINT));
   for (gsize i = 0; i < n; i++)
     {
-      GVariant *entry = g_variant_get_child_value (v, i);
-      GVariant *key = g_variant_get_child_value (entry, 0);
-      GVariant *value = g_variant_get_child_value (entry, 1);
+      GVariant *entry = hold (refs, g_variant_get_child_value (v, i));
+      GVariant *key = hold (refs, g_variant_get_child_value (entry, 0));
+      GVariant *value = hold (refs, g_variant_get_child_value (entry, 1));
 
       push_string_variant (L, key);
-      push_variant (L, value, depth + 1);
+      push_variant (L, value, depth + 1, refs);
+      g_ptr_array_set_size (refs, mark);
       lua_rawset (L, -3);
-
-      g_variant_unref (value);
-      g_variant_unref (key);
-      g_variant_unref (entry);
     }
 }
 
 static void
 push_variant (lua_State *L,
               GVariant  *v,
-              int        depth)
+              int        depth,
+              GPtrArray *refs)
 {
+  guint mark = refs->len;
+
   if (depth > MAX_DEPTH)
     luaL_error (L, "variant is nested too deeply (limit %d)", MAX_DEPTH);
   if (!lua_checkstack (L, 8))
@@ -132,10 +157,10 @@ push_variant (lua_State *L,
       break;
     case G_VARIANT_CLASS_VARIANT:
       {
-        GVariant *inner = g_variant_get_variant (v);
+        GVariant *inner = hold (refs, g_variant_get_variant (v));
 
-        push_variant (L, inner, depth + 1);
-        g_variant_unref (inner);
+        push_variant (L, inner, depth + 1, refs);
+        g_ptr_array_set_size (refs, mark);
         break;
       }
     case G_VARIANT_CLASS_MAYBE:
@@ -146,8 +171,9 @@ push_variant (lua_State *L,
           lua_pushnil (L);
         else
           {
-            push_variant (L, inner, depth + 1);
-            g_variant_unref (inner);
+            hold (refs, inner);
+            push_variant (L, inner, depth + 1, refs);
+            g_ptr_array_set_size (refs, mark);
           }
         break;
       }
@@ -168,30 +194,55 @@ push_variant (lua_State *L,
 
             if (g_variant_type_equal (key, G_VARIANT_TYPE_STRING) ||
                 g_variant_type_equal (key, G_VARIANT_TYPE_OBJECT_PATH))
-              push_table (L, v, depth);
+              push_table (L, v, depth, refs);
             else
-              push_sequence (L, v, depth);
+              push_sequence (L, v, depth, refs);
           }
         else
-          push_sequence (L, v, depth);
+          push_sequence (L, v, depth, refs);
         break;
       }
     case G_VARIANT_CLASS_TUPLE:
     case G_VARIANT_CLASS_DICT_ENTRY:
-      push_sequence (L, v, depth);
+      push_sequence (L, v, depth, refs);
       break;
     default:
       g_assert_not_reached ();
     }
 }
 
+static int
+push_job (lua_State *L)
+{
+  PushJob *job = lua_touserdata (L, 1);
+
+  lua_settop (L, 0);
+  push_variant (L, job->variant, 0, job->refs);
+  return 1;
+}
+
 void
 shell_lua_push_variant (lua_State *L,
                         GVariant  *variant)
 {
+  PushJob job;
+  int status;
+
   g_return_if_fail (variant != NULL);
 
-  push_variant (L, variant, 0);
+  luaL_checkstack (L, 3, "pushing a variant");
+  job.variant = variant;
+  job.refs = g_ptr_array_new_with_free_func ((GDestroyNotify) g_variant_unref);
+
+  lua_pushcfunction (L, push_job);
+  lua_pushlightuserdata (L, &job);
+  status = lua_pcall (L, 1, 1, 0);
+
+  /* whatever the failure left behind */
+  g_ptr_array_unref (job.refs);
+
+  if (status != LUA_OK)
+    lua_error (L);
 }
 
 /* ===== Lua -> GVariant ================================================== */

@@ -130,3 +130,5 @@ that called into Lua outside a protected call and aborts via `g_error`.
 callbacks is deferred until the outermost pcall returns; the pcall then
 reports `DEAD`. Teardown callbacks run LIFO before `lua_close()`;
 `shell_lua_state_remove_teardown()` unregisters without calling.
+
+`coroutine.wrap` and `coroutine.close` are sandbox-specific replacements: a coroutine whose budget expired is never closed (its `__close` handlers would run with the watchdog disabled), and `close()` on it re-raises the watchdog error.

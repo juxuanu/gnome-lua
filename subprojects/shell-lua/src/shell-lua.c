@@ -24,6 +24,8 @@
  *    env       the environment chunks run in (sandbox env, or the globals)
  *    loaded    private module cache of our require()
  *    orig_require (privileged only) the stock require, used as fallback
+ *    killed    weak-keyed set of the threads in which the watchdog raised its
+ *              error (see "coroutine.wrap() and coroutine.close()" below)
  */
 
 #ifndef G_LOG_DOMAIN
@@ -48,6 +50,7 @@
 #define KEY_ENV          "shell.lua.env"
 #define KEY_LOADED       "shell.lua.loaded"
 #define KEY_ORIG_REQUIRE "shell.lua.orig_require"
+#define KEY_KILLED       "shell.lua.killed"
 
 #define WATCHDOG_PREFIX "watchdog: "
 #define SANDBOX_PREFIX  "sandbox: "
@@ -194,28 +197,64 @@ lua_warn (void       *ud,
 /* Watchdog                                                                  */
 /* ------------------------------------------------------------------------ */
 
+static void watchdog_hook (lua_State *L, lua_Debug *ar);
+
+/* True once any deadline on the state's pcall stack has passed. */
+static gboolean
+watchdog_expired (ShellLuaState *self)
+{
+  gint64 earliest = G_MAXINT64;
+  int i;
+
+  if (self == NULL || self->depth == 0)
+    return FALSE;
+
+  for (i = 0; i < self->depth; i++)
+    earliest = MIN (earliest, self->deadlines[i]);
+  return g_get_monotonic_time () >= earliest;
+}
+
+/* Remembers that the watchdog raised its error in thread @L. */
+static void
+mark_thread_killed (lua_State *L)
+{
+  if (!lua_checkstack (L, 3))
+    return;
+
+  if (lua_getfield (L, LUA_REGISTRYINDEX, KEY_KILLED) == LUA_TTABLE)
+    {
+      lua_pushthread (L);
+      lua_pushboolean (L, 1);
+      lua_rawset (L, -3);
+    }
+  lua_pop (L, 1);
+}
+
+/* Raises the watchdog error in @L. From now on the hook fires at every
+ * instruction so that a script that catches the error with its own pcall()
+ * cannot keep running. */
+static int
+watchdog_raise (lua_State     *L,
+                ShellLuaState *self)
+{
+  self->watchdog_trips++;
+  mark_thread_killed (L);
+  lua_sethook (L, watchdog_hook, LUA_MASKCOUNT, 1);
+  lua_pushfstring (L, WATCHDOG_PREFIX "callback exceeded its time budget (%I ms)",
+                   (lua_Integer) (self->limits.callback_budget_us / 1000));
+  return lua_error (L);
+}
+
 static void
 watchdog_hook (lua_State *L,
                lua_Debug *ar)
 {
   ShellLuaState *self = shell_lua_state_from_L (L);
-  gint64 now, earliest;
-  int i;
-  gboolean expired = FALSE;
 
   if (self == NULL)
     return;
 
-  if (self->depth > 0)
-    {
-      now = g_get_monotonic_time ();
-      earliest = G_MAXINT64;
-      for (i = 0; i < self->depth; i++)
-        earliest = MIN (earliest, self->deadlines[i]);
-      expired = now >= earliest;
-    }
-
-  if (!expired)
+  if (!watchdog_expired (self))
     {
       /* Undo an escalation left over from a previous expiry (coroutine
        * threads keep their own count). */
@@ -224,13 +263,7 @@ watchdog_hook (lua_State *L,
       return;
     }
 
-  /* From now on fire at every instruction so that a script that catches the
-   * error with its own pcall() cannot keep running. */
-  self->watchdog_trips++;
-  lua_sethook (L, watchdog_hook, LUA_MASKCOUNT, 1);
-  lua_pushfstring (L, WATCHDOG_PREFIX "callback exceeded its time budget (%I ms)",
-                   (lua_Integer) (self->limits.callback_budget_us / 1000));
-  lua_error (L);
+  watchdog_raise (L, self);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -751,6 +784,138 @@ copy_table (lua_State *L,
     }
 }
 
+/* coroutine.wrap() and coroutine.close() of the sandbox.
+ *
+ * Lua runs with debug hooks disabled from the moment an error is raised by a
+ * hook until the protected call that catches it has restored them. The
+ * watchdog raises its error from a hook; in the main thread that is the
+ * pcall of shell_lua_state_pcall() or of the script, which restore the hooks
+ * before they run any pending __close metamethods. A coroutine that dies of
+ * the watchdog error, however, stays dead with hooks disabled, and both the
+ * stock wrap() (which closes the to-be-closed variables of a coroutine that
+ * failed) and close() (on a coroutine that died of an error) would run their
+ * __close metamethods in that thread, where the watchdog cannot interrupt
+ * them: `local x <close> = setmetatable({}, {__close = function()
+ * while true do end end})` inside a coroutine would hang the shell. The
+ * threads in which the watchdog raised its error are therefore recorded
+ * (mark_thread_killed()), and these two never close such a thread (wrap()
+ * just propagates the error, close() reports a failure). Once the budget
+ * has expired, close() raises the watchdog error and wrap() does not close
+ * anything. Everything else is the stock code. */
+
+/* Is the thread at @idx one in which the watchdog raised its error? */
+static gboolean
+thread_was_killed (lua_State *L,
+                   int        idx)
+{
+  gboolean killed = FALSE;
+
+  idx = lua_absindex (L, idx);
+  if (lua_getfield (L, LUA_REGISTRYINDEX, KEY_KILLED) == LUA_TTABLE)
+    {
+      lua_pushvalue (L, idx);
+      killed = lua_rawget (L, -2) != LUA_TNIL;
+      lua_pop (L, 1);
+    }
+  lua_pop (L, 1);
+  return killed;
+}
+
+static int
+co_auxresume (lua_State *L,
+              lua_State *co,
+              int        narg)
+{
+  int status, nres;
+
+  if (!lua_checkstack (co, narg))
+    {
+      lua_pushliteral (L, "too many arguments to resume");
+      return -1;
+    }
+  lua_xmove (L, co, narg);
+  status = lua_resume (co, L, narg, &nres);
+  if (status == LUA_OK || status == LUA_YIELD)
+    {
+      if (!lua_checkstack (L, nres + 1))
+        {
+          lua_pop (co, nres);
+          lua_pushliteral (L, "too many results to resume");
+          return -1;
+        }
+      lua_xmove (co, L, nres);
+      return nres;
+    }
+
+  lua_xmove (co, L, 1);   /* the error message */
+  return -1;
+}
+
+static int
+l_cowrap_call (lua_State *L)
+{
+  ShellLuaState *self = shell_lua_state_from_L (L);
+  lua_State *co = lua_tothread (L, lua_upvalueindex (1));
+  int r = co_auxresume (L, co, lua_gettop (L));
+
+  if (r < 0)
+    {
+      int stat = lua_status (co);
+
+      /* The message is on top of L already. Closing the dead thread also
+       * replaces it by the final error object, after running __close. */
+      if (stat != LUA_OK && stat != LUA_YIELD &&
+          !watchdog_expired (self) &&
+          !thread_was_killed (L, lua_upvalueindex (1)))
+        {
+          stat = lua_closethread (co, L);
+          lua_xmove (co, L, 1);
+        }
+      if (stat != LUA_ERRMEM && lua_type (L, -1) == LUA_TSTRING)
+        {
+          luaL_where (L, 1);
+          lua_insert (L, -2);
+          lua_concat (L, 2);
+        }
+      return lua_error (L);
+    }
+  return r;
+}
+
+static int
+l_cowrap (lua_State *L)
+{
+  lua_State *NL;
+
+  luaL_checktype (L, 1, LUA_TFUNCTION);
+  NL = lua_newthread (L);
+  lua_pushvalue (L, 1);
+  lua_xmove (L, NL, 1);
+  lua_pushcclosure (L, l_cowrap_call, 1);
+  return 1;
+}
+
+/* upvalue 1: the stock coroutine.close */
+static int
+l_coclose (lua_State *L)
+{
+  ShellLuaState *self = shell_lua_state_from_L (L);
+
+  if (watchdog_expired (self))
+    return watchdog_raise (L, self);
+  if (lua_isthread (L, 1) && thread_was_killed (L, 1))
+    {
+      lua_pushboolean (L, 0);
+      lua_pushliteral (L, WATCHDOG_PREFIX "the coroutine was stopped by the watchdog");
+      return 2;
+    }
+
+  lua_pushvalue (L, lua_upvalueindex (1));
+  lua_insert (L, 1);
+  lua_call (L, lua_gettop (L) - 1, LUA_MULTRET);
+  return lua_gettop (L);
+}
+
 static void
 build_sandbox_env (lua_State *L)
 {
@@ -804,6 +969,15 @@ build_sandbox_env (lua_State *L)
         table_idx = lua_gettop (L);
 
       copy_table (L, -1);
+
+      if (strcmp (lib_names[i], LUA_COLIBNAME) == 0)
+        {
+          lua_pushcfunction (L, l_cowrap);
+          lua_setfield (L, -2, "wrap");
+          lua_getfield (L, -2, "close");       /* the stock one, from the original table */
+          lua_pushcclosure (L, l_coclose, 1);
+          lua_setfield (L, -2, "close");
+        }
 
       if (strcmp (lib_names[i], LUA_STRLIBNAME) == 0)
         {
@@ -873,6 +1047,13 @@ setup_state (lua_State *L)
 
   lua_newtable (L);
   lua_setfield (L, LUA_REGISTRYINDEX, KEY_LOADED);
+
+  lua_newtable (L);
+  lua_createtable (L, 0, 1);
+  lua_pushliteral (L, "k");
+  lua_setfield (L, -2, "__mode");
+  lua_setmetatable (L, -2);
+  lua_setfield (L, LUA_REGISTRYINDEX, KEY_KILLED);
 
   if (is_sandboxed (self))
     {
