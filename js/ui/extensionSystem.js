@@ -14,7 +14,6 @@ import {
 } from '../misc/extensionUtils.js';
 import * as FileUtils from '../misc/fileUtils.js';
 import * as Main from './main.js';
-import * as MessageTray from './messageTray.js';
 
 const ENABLED_EXTENSIONS_KEY = 'enabled-extensions';
 const DISABLED_EXTENSIONS_KEY = 'disabled-extensions';
@@ -351,14 +350,14 @@ export class ExtensionManager extends Signals.EventEmitter {
             const source = new ExtensionUpdateSource();
             Main.messageTray.add(source);
 
-            const notification = new MessageTray.Notification({
+            const notification = new Shell.Notification({
                 source,
                 title: _('Extension Updates Available'),
                 body: _('Extension updates are ready to be installed'),
             });
             notification.connect('activated',
                 () => source.open());
-            source.addNotification(notification);
+            source.add_notification(notification);
         }
     }
 
@@ -841,23 +840,23 @@ export class ExtensionManager extends Signals.EventEmitter {
 }
 
 const ExtensionUpdateSource = GObject.registerClass(
-class ExtensionUpdateSource extends MessageTray.Source {
-    constructor() {
+class ExtensionUpdateSource extends Shell.Source {
+    _init() {
         const appSys = Shell.AppSystem.get_default();
         const app =
             appSys.lookup_app('org.gnome.Extensions.desktop') ||
             appSys.lookup_app('com.mattjakeman.ExtensionManager.desktop');
 
-        super({
+        super._init({
             title: app.get_name(),
             icon: app.get_icon(),
-            policy: MessageTray.NotificationPolicy.newForApp(app),
+            policy: Shell.NotificationPolicy.new_for_app(app),
         });
 
         this._app = app;
     }
 
-    open() {
+    vfunc_open() {
         this._app.activate();
         Main.overview.hide();
         Main.panel.close_calendar();

@@ -30,7 +30,6 @@ import Shell from 'gi://Shell';
 
 import * as Gettext from 'gettext';
 import * as Main from '../ui/main.js';
-import * as MessageTray from '../ui/messageTray.js';
 
 const TimerChildIface = Shell.dbus_load_interface_xml('org.freedesktop.MalcontentTimer1.Child');
 const TimerChildProxy = Gio.DBusProxy.makeProxyWrapper(TimerChildIface);
@@ -1267,12 +1266,12 @@ class TimeLimitsDispatcher extends GObject.Object {
     }
 });
 
-/* This can’t directly extend MessageTray.Source (even though it conceptually
- * does) because the Shell will automatically destroy a MessageTray.Source when
+/* This can’t directly extend Shell.Source (even though it conceptually
+ * does) because the Shell will automatically destroy a Shell.Source when
  * it becomes empty, and that destroys the state which we need for correctly
  * showing the next notification (e.g. on a timer).
  *
- * So instead this is a normal GObject which closely wraps a MessageTray.Source.
+ * So instead this is a normal GObject which closely wraps a Shell.Source.
  */
 const TimeLimitsNotificationSource = GObject.registerClass(
 class TimeLimitsNotificationSource extends GObject.Object {
@@ -1314,10 +1313,10 @@ class TimeLimitsNotificationSource extends GObject.Object {
 
     _ensureNotification(params) {
         if (!this._source) {
-            this._source = new MessageTray.Source({
+            this._source = new Shell.Source({
                 title: this._app.get_name(),
                 icon: this._app.get_icon(),
-                policy: MessageTray.NotificationPolicy.newForApp(this._app),
+                policy: Shell.NotificationPolicy.new_for_app(this._app),
             });
             this._source.connect('destroy', () => (this._source = null));
             Main.messageTray.add(this._source);
@@ -1420,9 +1419,9 @@ class TimeLimitsNotificationSource extends GObject.Object {
                 this._ensureNotification({
                     title: titleText,
                     body: bodyText,
-                    urgency: MessageTray.Urgency.HIGH,
+                    urgency: Shell.NotificationUrgency.HIGH,
                 });
-                this._source.addNotification(this._notification);
+                this._source.add_notification(this._notification);
             }
 
             break;
@@ -1437,9 +1436,9 @@ class TimeLimitsNotificationSource extends GObject.Object {
                 this._ensureNotification({
                     title: _('Screen Time Limit Reached'),
                     body: _('It’s time to stop using the device'),
-                    urgency: MessageTray.Urgency.HIGH,
+                    urgency: Shell.NotificationUrgency.HIGH,
                 });
-                this._source.addNotification(this._notification);
+                this._source.add_notification(this._notification);
             }
 
             break;
@@ -1453,9 +1452,9 @@ class TimeLimitsNotificationSource extends GObject.Object {
 });
 
 const TimeLimitsNotification = GObject.registerClass(
-class TimeLimitsNotification extends MessageTray.Notification {
-    constructor(source, app) {
-        super({
+class TimeLimitsNotification extends Shell.Notification {
+    _init(source, app) {
+        super._init({
             source,
             resident: true,
         });
@@ -1463,8 +1462,8 @@ class TimeLimitsNotification extends MessageTray.Notification {
         this._app = app;
     }
 
-    activate() {
+    vfunc_activate() {
         this._app.activate();
-        super.activate();
+        super.vfunc_activate();
     }
 });

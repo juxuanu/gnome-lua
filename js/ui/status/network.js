@@ -10,7 +10,6 @@ import St from 'gi://St';
 
 import * as Config from '../../misc/config.js';
 import * as Main from '../main.js';
-import * as MessageTray from '../messageTray.js';
 import * as Signals from '../../misc/signals.js';
 import * as Util from '../../misc/util.js';
 
@@ -2001,9 +2000,9 @@ class CaptivePortalHandler extends Signals.EventEmitter {
         if (this._connectivityQueue.has(path) || this._notifications.has(path))
             return;
 
-        const source = MessageTray.getSystemSource();
+        const source = Main.messageTray.get_system_source();
 
-        const notification = new MessageTray.Notification({
+        const notification = new Shell.Notification({
             title: _('Sign in to Network'),
             body: name,
             source,
@@ -2013,7 +2012,7 @@ class CaptivePortalHandler extends Signals.EventEmitter {
         notification.connect('destroy',
             () => this._notifications.delete(path));
         this._notifications.set(path, notification);
-        source.addNotification(notification);
+        source.add_notification(notification);
     }
 
 
@@ -2021,7 +2020,7 @@ class CaptivePortalHandler extends Signals.EventEmitter {
         if (this._connectivityQueue.delete(path))
             this._portalHelperProxy?.CloseAsync(path);
         this._notifications.get(path)?.destroy(
-            MessageTray.NotificationDestroyedReason.SOURCE_CLOSED);
+            Shell.NotificationDestroyedReason.SOURCE_CLOSED);
         this._notifications.delete(path);
     }
 
@@ -2088,7 +2087,7 @@ class CaptivePortalHandler extends Signals.EventEmitter {
         this._connectivityQueue.clear();
 
         for (const n of this._notifications.values())
-            n.destroy(MessageTray.NotificationDestroyedReason.SOURCE_CLOSED);
+            n.destroy(Shell.NotificationDestroyedReason.SOURCE_CLOSED);
         this._notifications.clear();
     }
 }
@@ -2189,19 +2188,19 @@ class Indicator extends Shell.SystemIndicator {
     _onActivationFailed() {
         this._notification?.destroy();
 
-        const source = MessageTray.getSystemSource();
-        this._notification = new MessageTray.Notification({
+        const source = Main.messageTray.get_system_source();
+        this._notification = new Shell.Notification({
             source,
             title: _('Connection failed'),
             body: _('Activation of network connection failed'),
-            iconName: 'network-error-symbolic',
-            urgency: MessageTray.Urgency.HIGH,
-            isTransient: true,
+            icon_name: 'network-error-symbolic',
+            urgency: Shell.NotificationUrgency.HIGH,
+            is_transient: true,
         });
         this._notification.connect('destroy',
             () => (this._notification = null));
 
-        source.addNotification(this._notification);
+        source.add_notification(this._notification);
     }
 
     _syncMainConnection() {

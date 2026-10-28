@@ -10,7 +10,6 @@ import St from 'gi://St';
 import * as Signals from '../../misc/signals.js';
 
 import * as Main from '../main.js';
-import * as MessageTray from '../messageTray.js';
 
 Gio._promisify(Shell.NetworkAgent.prototype, 'init_async');
 Gio._promisify(Shell.NetworkAgent.prototype, 'search_vpn_plugin');
@@ -765,9 +764,9 @@ class NetworkAgent {
             return;
         }
 
-        const source = MessageTray.getSystemSource();
-        const notification = new MessageTray.Notification({source, title, body});
-        notification.iconName = 'dialog-password-symbolic';
+        const source = Main.messageTray.get_system_source();
+        const notification = new Shell.Notification({source, title, body});
+        notification.icon_name = 'dialog-password-symbolic';
 
         notification.connect('activated', () => {
             notification.answered = true;
@@ -781,7 +780,7 @@ class NetworkAgent {
             delete this._notifications[requestId];
         });
 
-        source.addNotification(notification);
+        source.add_notification(notification);
     }
 
     _newRequest(agent, requestId, connection, settingName, hints, flags) {

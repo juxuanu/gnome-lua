@@ -6,7 +6,7 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as MessageTray from './messageTray.js';
+import * as Main from './main.js';
 import * as Params from '../misc/params.js';
 
 const LIST_ITEM_ICON_SIZE = 48;
@@ -203,17 +203,17 @@ export class ShellMountOperation {
     _createNotification(title, body) {
         this._notification?.destroy();
 
-        const source = MessageTray.getSystemSource();
-        this._notification = new MessageTray.Notification({
+        const source = Main.messageTray.get_system_source();
+        this._notification = new Shell.Notification({
             source,
             title,
             body,
-            isTransient: true,
-            iconName: 'media-removable-symbolic',
+            is_transient: true,
+            icon_name: 'media-removable-symbolic',
         });
 
         this._notification.connect('destroy', () => delete this._notification);
-        source.addNotification(this._notification);
+        source.add_notification(this._notification);
     }
 
     _showUnmountNotificationDone(message) {

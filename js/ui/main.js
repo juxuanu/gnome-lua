@@ -15,7 +15,6 @@ import * as ExtensionSystem from './extensionSystem.js';
 import * as ExtensionDownloader from './extensionDownloader.js';
 import * as ExtensionUtils from '../misc/extensionUtils.js';
 import * as InputSourceManager from './status/keyboard.js';
-import * as MessageTray from './messageTray.js';
 import * as Overview from './overview.js';
 import * as PanelItems from './panelItems.js';
 import * as WelcomeDialog from './welcomeDialog.js';
@@ -216,16 +215,16 @@ function _connectAppFavorites() {
     const favorites = Shell.AppFavorites.get_default();
 
     const showNotification = (title, undoCallback) => {
-        const source = MessageTray.getSystemSource();
-        const notification = new MessageTray.Notification({
+        const source = messageTray.get_system_source();
+        const notification = new Shell.Notification({
             source,
             title,
             body: null,
-            isTransient: true,
-            forFeedback: true,
+            is_transient: true,
+            for_feedback: true,
         });
-        notification.addAction(_('Undo'), () => undoCallback());
-        source.addNotification(notification);
+        notification.add_action(_('Undo'), () => undoCallback());
+        source.add_notification(notification);
     };
 
     favorites.connect('favorite-added', (_favorites, app) => {
@@ -238,6 +237,40 @@ function _connectAppFavorites() {
         showNotification(_('%s Unpinned From Dash').format(app.get_name()),
             () => favorites.add_favorite_silently(appId, pos));
     });
+}
+
+/**
+ * Connects the message tray (Shell.MessageTray) to the parts of the shell that
+ * are still JS: the tray is hidden from the pick while something is dragged
+ * in the overview or from another application, and the keybinding that moves
+ * the focus to the banner.
+ *
+ * @private
+ */
+function _connectMessageTray() {
+    const dragBegin = () => {
+        messageTray.dragging = true;
+    };
+    const dragEnd = () => {
+        messageTray.dragging = false;
+    };
+
+    overview.connect('window-drag-begin', dragBegin);
+    overview.connect('window-drag-cancelled', dragEnd);
+    overview.connect('window-drag-end', dragEnd);
+
+    overview.connect('item-drag-begin', dragBegin);
+    overview.connect('item-drag-cancelled', dragEnd);
+    overview.connect('item-drag-end', dragEnd);
+
+    xdndHandler.connect('drag-begin', dragBegin);
+    xdndHandler.connect('drag-end', dragEnd);
+
+    wm.add_keybinding('focus-active-notification',
+        new Gio.Settings({schema_id: 'org.gnome.shell.keybindings'}),
+        Meta.KeyBindingFlags.NONE,
+        Shell.ActionMode.NORMAL | Shell.ActionMode.OVERVIEW,
+        () => messageTray.expand_active_notification());
 }
 
 /**
@@ -447,7 +480,8 @@ async function _initializeUI() {
     });
     brightnessDBus = new Shell.BrightnessService({manager: brightnessManager});
 
-    messageTray = new MessageTray.MessageTray();
+    messageTray = new Shell.MessageTray();
+    _connectMessageTray();
     panel = _createPanel();
     _shellMain.panel = panel;
     keyboard = new Shell.OskManager({input_method: inputMethod});
@@ -495,16 +529,16 @@ async function _initializeUI() {
         if (lookingGlass?.isOpen)
             return; // assume user action
 
-        const source = MessageTray.getSystemSource();
-        const notification = new MessageTray.Notification({
+        const source = messageTray.get_system_source();
+        const notification = new Shell.Notification({
             source,
             title: _('System was put in unsafe mode'),
             body: _('Apps now have unrestricted access'),
-            isTransient: true,
+            is_transient: true,
         });
-        notification.addAction(_('Undo'),
+        notification.add_action(_('Undo'),
             () => (global.context.unsafe_mode = false));
-        source.addNotification(notification);
+        source.add_notification(notification);
     });
 
     // Provide the bus object for gnome-session to
@@ -651,14 +685,14 @@ function _createPanel() {
     // Banners are aligned with the date menu, and hidden while a menu is
     // open in the same box of the top bar
     newPanel.connect('notify::banner-alignment', () => {
-        messageTray.bannerAlignment = newPanel.banner_alignment;
+        messageTray.banner_alignment = newPanel.banner_alignment;
     });
     newPanel.connect('notify::banner-blocked', () => {
-        messageTray.bannerBlocked = newPanel.banner_blocked;
+        messageTray.banner_blocked = newPanel.banner_blocked;
     });
 
     newPanel.begin_startup();
-    messageTray.bannerAlignment = newPanel.banner_alignment;
+    messageTray.banner_alignment = newPanel.banner_alignment;
 
     return newPanel;
 }
@@ -867,14 +901,14 @@ export function loadTheme() {
  * @param {string=} details Additional information
  */
 export function notify(msg, details = null) {
-    const source = MessageTray.getSystemSource();
-    const notification = new MessageTray.Notification({
+    const source = messageTray.get_system_source();
+    const notification = new Shell.Notification({
         source,
         title: msg,
         body: details,
-        isTransient: true,
+        is_transient: true,
     });
-    source.addNotification(notification);
+    source.add_notification(notification);
 }
 
 /**

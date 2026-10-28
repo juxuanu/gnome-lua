@@ -34,7 +34,6 @@ import {ConflictingSessionDialog} from './conflictingSessionDialog.js';
 import * as GdmUtil from './util.js';
 import * as Settings from './settings.js';
 import * as Main from '../ui/main.js';
-import * as MessageTray from '../ui/messageTray.js';
 import * as Realmd from './realmd.js';
 import * as UserWidget from '../ui/userWidget.js';
 import {QuickSettingsMenu} from '../ui/quickSettings.js';
@@ -1145,20 +1144,20 @@ export const LoginDialog = GObject.registerClass({
     }
 
     _notifyConflictingSessionDialogClosed() {
-        const source = new MessageTray.getSystemSource();
+        const source = Main.messageTray.get_system_source();
 
-        this._conflictingSessionNotification = new MessageTray.Notification({
+        this._conflictingSessionNotification = new Shell.Notification({
             source,
             title: _('Login Attempt Timed Out'),
             body: _('Login took too long, please try again'),
-            urgency: MessageTray.Urgency.CRITICAL,
-            isTransient: true,
+            urgency: Shell.NotificationUrgency.CRITICAL,
+            is_transient: true,
         });
         this._conflictingSessionNotification.connect('destroy', () => {
             this._conflictingSessionNotification = null;
         });
 
-        source.addNotification(this._conflictingSessionNotification);
+        source.add_notification(this._conflictingSessionNotification);
     }
 
     _showConflictingSessionDialog(serviceName, conflictingSession) {

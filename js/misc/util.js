@@ -1,36 +1,8 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 import GnomeDesktop from 'gi://GnomeDesktop';
-
-// http://daringfireball.net/2010/07/improved_regex_for_matching_urls
-const _balancedParens = '\\([^\\s()<>]+\\)';
-const _leadingJunk = '[\\s`(\\[{\'\\"<\u00AB\u201C\u2018]';
-const _notTrailingJunk = '[^\\s`!()\\[\\]{};:\'\\".,<>?\u00AB\u00BB\u200E\u200F\u201C\u201D\u2018\u2019\u202A\u202C]';
-
-const _urlRegexp = new RegExp(
-    `(^|${_leadingJunk})` +
-    '(' +
-        '(?:' +
-            '(?:http|https|ftp)://' +             // scheme://
-            '|' +
-            'www\\d{0,3}[.]' +                    // www.
-            '|' +
-            '([a-z0-9\\-]+[.])+[a-z]{2,4}/' +     // foo.xx/
-        ')' +
-        '(?:' +                                   // one or more:
-            '[^\\s()<>]+' +                       // run of non-space non-()
-            '|' +                                 // or
-            `${_balancedParens}` +                // balanced parens
-        ')+' +
-        '(?:' +                                   // end with:
-            `${_balancedParens}` +                // balanced parens
-            '|' +                                 // or
-            `${_notTrailingJunk}` +               // last non-junk char
-        ')' +
-    ')', 'gi');
 
 let _desktopSettings = null;
 
@@ -43,14 +15,13 @@ let _desktopSettings = null;
  * properties showing the matched URL string, and %pos properties indicating
  * the position within `str` where the URL was found.
  *
+ * This forwards to {@link Shell.util_find_urls} (src/misc/text-utils.c); the
+ * boxed matches are copied to plain objects.
+ *
  * @returns {{url: string, pos: number}[]} the list of match objects, as described above
  */
 export function findUrls(str) {
-    const res = [];
-    let match;
-    while ((match = _urlRegexp.exec(str)))
-        res.push({url: match[2], pos: match.index + match[1].length});
-    return res;
+    return Shell.util_find_urls(str).map(({url, pos}) => ({url, pos}));
 }
 
 /**
@@ -180,23 +151,7 @@ function _handleSpawnError(command, err) {
  * @returns the escaped string
  */
 export function fixMarkup(text, allowMarkup) {
-    if (allowMarkup) {
-        // Support &amp;, &quot;, &apos;, &lt; and &gt;, escape all other
-        // occurrences of '&'.
-        let _text = text.replace(/&(?!amp;|quot;|apos;|lt;|gt;)/g, '&amp;');
-
-        // Support <b>, <i>, and <u>, escape anything else
-        // so it displays as raw markup.
-        _text = _text.replace(/<(?!\/?[biu]>)/g, '&lt;');
-
-        try {
-            Pango.parse_markup(_text, -1, '');
-            return _text;
-        } catch {}
-    }
-
-    // !allowMarkup, or invalid markup
-    return GLib.markup_escape_text(text, -1);
+    return Shell.util_fix_markup(text, !!allowMarkup);
 }
 
 /**

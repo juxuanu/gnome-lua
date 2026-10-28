@@ -32,7 +32,6 @@ import St from 'gi://St';
 
 import * as Gettext from 'gettext';
 import * as Main from '../ui/main.js';
-import * as MessageTray from '../ui/messageTray.js';
 
 export const MIN_BREAK_LENGTH_SECONDS = 10;
 
@@ -895,12 +894,12 @@ class BreakDispatcher extends GObject.Object {
     }
 });
 
-/* This can’t directly extend MessageTray.Source (even though it conceptually
- * does) because the Shell will automatically destroy a MessageTray.Source when
+/* This can’t directly extend Shell.Source (even though it conceptually
+ * does) because the Shell will automatically destroy a Shell.Source when
  * it becomes empty, and that destroys the state which we need for correctly
  * showing the next notification (e.g. on a timer).
  *
- * So instead this is a normal GObject which closely wraps a MessageTray.Source.
+ * So instead this is a normal GObject which closely wraps a Shell.Source.
  */
 const BreakNotificationSource = GObject.registerClass(
 class BreakNotificationSource extends GObject.Object {
@@ -942,10 +941,10 @@ class BreakNotificationSource extends GObject.Object {
 
     _ensureNotification(params) {
         if (!this._source) {
-            this._source = new MessageTray.Source({
+            this._source = new Shell.Source({
                 title: this._app.get_name(),
                 icon: this._app.get_icon(),
-                policy: MessageTray.NotificationPolicy.newForApp(this._app),
+                policy: Shell.NotificationPolicy.new_for_app(this._app),
             });
             this._source.connect('destroy', () => (this._source = null));
             Main.messageTray.add(this._source);
@@ -1025,9 +1024,9 @@ class BreakNotificationSource extends GObject.Object {
         // notify. This means the notification remains, but is not presented to
         // the user — it’s just visible if they expand the message tray.
         if (this._manager.breakTypeShouldNotify(breakType))
-            return MessageTray.Urgency.HIGH;
+            return Shell.NotificationUrgency.HIGH;
         else
-            return MessageTray.Urgency.LOW;
+            return Shell.NotificationUrgency.LOW;
     }
 
     _scheduleUpdateState(timeout) {
@@ -1059,7 +1058,7 @@ class BreakNotificationSource extends GObject.Object {
         case BreakState.ACTIVE: {
             if (this._previousState === BreakState.IN_BREAK) {
                 // Break is complete.
-                this._notification?.destroy(MessageTray.NotificationDestroyedReason.SOURCE_CLOSED);
+                this._notification?.destroy(Shell.NotificationDestroyedReason.SOURCE_CLOSED);
             } else {
                 // Work out when the next break is due, and display some warnings
                 // that it’s impending.
@@ -1108,7 +1107,7 @@ class BreakNotificationSource extends GObject.Object {
                                 allowSkip: true,
                                 allowTake: false,
                             });
-                            this._source.addNotification(this._notification);
+                            this._source.add_notification(this._notification);
 
                             // Continue to the next iteration, to schedule an update
                             // for the next-biggest notification.
@@ -1177,11 +1176,11 @@ class BreakNotificationSource extends GObject.Object {
                     allowSkip: false,
                     allowTake: false,
                 });
-                this._source.addNotification(this._notification);
+                this._source.add_notification(this._notification);
 
                 this._scheduleUpdateState(updateTimeoutSeconds);
             } else {
-                this._notification?.destroy(MessageTray.NotificationDestroyedReason.SOURCE_CLOSED);
+                this._notification?.destroy(Shell.NotificationDestroyedReason.SOURCE_CLOSED);
             }
             break;
         }
@@ -1237,7 +1236,7 @@ class BreakNotificationSource extends GObject.Object {
                     allowSkip: false,
                     allowTake: true,
                 });
-                this._source.addNotification(this._notification);
+                this._source.add_notification(this._notification);
 
                 this._scheduleUpdateState(BREAK_OVERDUE_TIME_SECONDS);
             } else if (breakDueAgo >= BREAK_OVERDUE_TIME_SECONDS &&
@@ -1259,7 +1258,7 @@ class BreakNotificationSource extends GObject.Object {
                     allowSkip: false,
                     allowTake: true,
                 });
-                this._source.addNotification(this._notification);
+                this._source.add_notification(this._notification);
 
                 this._scheduleUpdateState(updateTimeoutSeconds);
             } else if (this._previousState === BreakState.IN_BREAK) {
@@ -1281,7 +1280,7 @@ class BreakNotificationSource extends GObject.Object {
                     allowSkip: false,
                     allowTake: false,
                 });
-                this._source.addNotification(this._notification);
+                this._source.add_notification(this._notification);
 
                 this._scheduleUpdateState(updateTimeoutSeconds);
             }
@@ -1311,9 +1310,9 @@ const BreakNotification = GObject.registerClass({
             GObject.ParamFlags.READWRITE,
             false),
     },
-}, class BreakNotification extends MessageTray.Notification {
-    constructor(source, manager, app) {
-        super({
+}, class BreakNotification extends Shell.Notification {
+    _init(source, manager, app) {
+        super._init({
             source,
             resident: true,
         });
@@ -1327,15 +1326,15 @@ const BreakNotification = GObject.registerClass({
         this._takeAction = null;
     }
 
-    activate() {
+    vfunc_activate() {
         this._app.activate();
-        super.activate();
+        super.vfunc_activate();
     }
 
     _onDestroy(_notification, destroyedReason) {
         // If it was destroyed by the user (by pressing the close button), skip
         // the current break.
-        if (destroyedReason === MessageTray.NotificationDestroyedReason.DISMISSED)
+        if (destroyedReason === Shell.NotificationDestroyedReason.DISMISSED)
             this._manager.skipBreak();
 
         this._manager = null;
@@ -1351,16 +1350,16 @@ const BreakNotification = GObject.registerClass({
 
         if (allowDelay) {
             /* Translators: As in "Delay the break" */
-            this._delayAction = this.addAction(_('Delay'), this._onDelayAction.bind(this));
+            this._delayAction = this.add_action(_('Delay'), this._onDelayAction.bind(this));
         } else {
-            this.removeAction(this._delayAction);
+            this.remove_action(this._delayAction);
             this._delayAction = null;
         }
     }
 
     _onDelayAction() {
         this._manager.delayBreak();
-        this.destroy(MessageTray.NotificationDestroyedReason.SOURCE_CLOSED);
+        this.destroy(Shell.NotificationDestroyedReason.SOURCE_CLOSED);
     }
 
     get allowSkip() {
@@ -1373,16 +1372,16 @@ const BreakNotification = GObject.registerClass({
 
         if (allowSkip) {
             /* Translators: As in "Skip the break" */
-            this._skipAction = this.addAction(_('Skip'), this._onSkipAction.bind(this));
+            this._skipAction = this.add_action(_('Skip'), this._onSkipAction.bind(this));
         } else {
-            this.removeAction(this._skipAction);
+            this.remove_action(this._skipAction);
             this._skipAction = null;
         }
     }
 
     _onSkipAction() {
         this._manager.skipBreak();
-        this.destroy(MessageTray.NotificationDestroyedReason.SOURCE_CLOSED);
+        this.destroy(Shell.NotificationDestroyedReason.SOURCE_CLOSED);
     }
 
     get allowTake() {
@@ -1395,16 +1394,16 @@ const BreakNotification = GObject.registerClass({
 
         if (allowTake) {
             /* Translators: As in "Take the break" */
-            this._takeAction = this.addAction(_('Take'), this._onTakeAction.bind(this));
+            this._takeAction = this.add_action(_('Take'), this._onTakeAction.bind(this));
         } else {
-            this.removeAction(this._takeAction);
+            this.remove_action(this._takeAction);
             this._takeAction = null;
         }
     }
 
     _onTakeAction() {
         this._manager.takeBreak();
-        this.destroy(MessageTray.NotificationDestroyedReason.SOURCE_CLOSED);
+        this.destroy(Shell.NotificationDestroyedReason.SOURCE_CLOSED);
     }
 });
 

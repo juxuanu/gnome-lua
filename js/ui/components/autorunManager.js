@@ -1,7 +1,7 @@
 import Gio from 'gi://Gio';
 import Shell from 'gi://Shell';
 
-import * as MessageTray from '../messageTray.js';
+import * as Main from '../main.js';
 
 Gio._promisify(Gio.Mount.prototype, 'guess_content_type');
 
@@ -183,11 +183,11 @@ class AutorunDispatcher {
         if (this._notifications.has(mount))
             return;
 
-        const source = MessageTray.getSystemSource();
+        const source = Main.messageTray.get_system_source();
         /* Translators: %s is the name of a partition on a external drive */
         const title = _('“%s” connected'.format(mount.get_name()));
         const body = _('Disk can now be used');
-        const notification = new MessageTray.Notification({
+        const notification = new Shell.Notification({
             source,
             title,
             body,
@@ -197,14 +197,14 @@ class AutorunDispatcher {
             startAppForMount(app, mount);
         });
         apps.forEach(app => {
-            notification.addAction(
+            notification.add_action(
                 _('Open with %s').format(app.get_name()),
                 () => startAppForMount(app, mount)
             );
         });
         notification.connect('destroy', () => this._notifications.delete(mount));
         this._notifications.set(mount, notification);
-        source.addNotification(notification);
+        source.add_notification(notification);
     }
 
     addMount(mount, apps, contentTypes) {

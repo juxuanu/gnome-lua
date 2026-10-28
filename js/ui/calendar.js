@@ -6,7 +6,8 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as MessageList from './messageList.js';
+import * as Main from './main.js';
+import {MediaMessage, MprisSource} from './mpris.js';
 
 const SHOW_WEEKDATE_KEY = 'show-weekdate';
 const WEEK_START_DAY_KEY = 'week-start-day';
@@ -810,7 +811,8 @@ class CalendarMessageList extends St.Widget {
         });
         this.add_child(box);
 
-        this._messageView = new MessageList.MessageView();
+        this._messageView = new Shell.MessageView({message_tray: Main.messageTray});
+        this._setupMpris();
 
         this._scrollView = new St.ScrollView({
             overlay_scrollbars: true,
@@ -860,7 +862,7 @@ class CalendarMessageList extends St.Widget {
                   !this._messageView.contains(targetActor);
 
             // Collapse expanded group when the user clicks outside
-            return !this._messageView.expandedGroup.contains(targetActor) &&
+            return !this._messageView.expanded_group.contains(targetActor) &&
                 !onScrollbar;
         });
         this._clickGesture.connect('recognize', () => {
@@ -888,6 +890,31 @@ class CalendarMessageList extends St.Widget {
             GObject.BindingFlags.SYNC_CREATE,
             (_bind, value) => [true, value !== null],
             null);
+    }
+
+    _setupMpris() {
+        this._playerToMessage = new Map();
+        this._mediaSource = new MprisSource();
+        this._mediaSource.connectObject(
+            'player-added', (_, player) => this._addPlayer(player),
+            'player-removed', (_, player) => this._removePlayer(player),
+            this);
+
+        this._mediaSource.players.forEach(player => {
+            this._addPlayer(player);
+        });
+    }
+
+    _addPlayer(player) {
+        const message = new MediaMessage(player);
+        this._playerToMessage.set(player, message);
+        this._messageView.add_media_message(message);
+    }
+
+    _removePlayer(player) {
+        const message = this._playerToMessage.get(player);
+        this._messageView.remove_media_message(message);
+        this._playerToMessage.delete(player);
     }
 
     setCaptureContainer(container) {

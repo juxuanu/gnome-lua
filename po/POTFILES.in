@@ -41,8 +41,6 @@ js/ui/extensionSystem.js
 js/ui/kbdA11yDialog.js
 js/ui/lookingGlass.js
 js/ui/main.js
-js/ui/messageList.js
-js/ui/messageTray.js
 js/ui/mpris.js
 js/ui/notificationDaemon.js
 js/ui/osdWindow.js
@@ -93,6 +91,8 @@ src/ui/close-dialog.c
 src/ui/ctrl-alt-tab.c
 src/ui/inhibit-shortcuts-dialog.c
 src/ui/keyboard.c
+src/ui/message-list.c
+src/ui/message-tray.c
 src/ui/pad-osd.c
 src/ui/run-dialog.c
 src/ui/search-controller.c

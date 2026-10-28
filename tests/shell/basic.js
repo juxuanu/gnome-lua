@@ -1,9 +1,9 @@
 /* eslint camelcase: ["error", { properties: "never", allow: ["^script_"] }] */
 
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as MessageTray from 'resource:///org/gnome/shell/ui/messageTray.js';
 import * as Scripting from 'resource:///org/gnome/shell/ui/scripting.js';
 
 // This script tests the most important (basic) functionality of the shell.
@@ -49,17 +49,17 @@ export async function run() {
 
     // notification
     console.debug('Show notification message');
-    const source = new MessageTray.getSystemSource();
+    const source = Main.messageTray.get_system_source();
 
     Scripting.scriptEvent('notificationShowStart');
     source.connect('notification-request-banner',
         () => Scripting.scriptEvent('notificationShowDone'));
 
-    const notification = new MessageTray.Notification({
+    const notification = new Shell.Notification({
         source,
         title: 'A test notification',
     });
-    source.addNotification(notification);
+    source.add_notification(notification);
     await Scripting.sleep(400);
 
     console.debug('Show date menu');

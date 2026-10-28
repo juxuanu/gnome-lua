@@ -2,7 +2,7 @@ import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
-import * as MessageList from './messageList.js';
+import * as Main from './main.js';
 
 const DBusIface = Shell.dbus_load_interface_xml('org.freedesktop.DBus');
 const DBusProxy = Gio.DBusProxy.makeProxyWrapper(DBusIface);
@@ -41,7 +41,7 @@ export const MprisPlayer = GObject.registerClass({
         this._trackTitle = '';
         this._trackCoverUrl = '';
         this._busName = busName;
-        this.source = new MessageList.Source();
+        this.source = new Shell.MessageSource();
     }
 
     get canPlay() {
@@ -252,5 +252,94 @@ export const MprisSource = GObject.registerClass({
 
         if (newOwner)
             this._addPlayer(name);
+    }
+});
+
+export const MediaMessage = GObject.registerClass(
+class MediaMessage extends Shell.Message {
+    _init(player) {
+        super._init({source: player.source});
+
+        this._player = player;
+        this.add_style_class_name('media-message');
+
+        this._prevButton = this.add_media_control('media-skip-backward-symbolic');
+        this._prevButton.connect('clicked', () => {
+            this._player.previous();
+        });
+
+        this._playPauseButton = this.add_media_control('');
+        this._playPauseButton.connect('clicked', () => {
+            this._player.playPause();
+        });
+
+        this._nextButton = this.add_media_control('media-skip-forward-symbolic');
+        this._nextButton.connect('clicked', () => {
+            this._player.next();
+        });
+
+        Main.sessionMode.connectObject('updated',
+            () => this._applyPolicy(), this);
+        this._player.connectObject('changed', this._update.bind(this), this);
+        this._update();
+    }
+
+    vfunc_clicked() {
+        if (Main.sessionMode.is_locked)
+            return;
+
+        this._player.raise();
+        Main.panel.close_calendar();
+    }
+
+    _applyPolicy() {
+        this.visible =
+            this._policy.enable &&
+            (!Main.sessionMode.is_locked || this._policy.show_in_lock_screen);
+    }
+
+    _updateNavButton(button, sensitive) {
+        button.reactive = sensitive;
+    }
+
+    _update() {
+        let icon;
+        if (this._player.trackCoverUrl) {
+            const file = Gio.File.new_for_uri(this._player.trackCoverUrl);
+            icon = new Gio.FileIcon({file});
+        } else {
+            icon = new Gio.ThemedIcon({name: 'audio-x-generic-symbolic'});
+        }
+
+        this.set({
+            title: this._player.trackTitle,
+            body: this._player.trackArtists.join(', '),
+            icon,
+        });
+
+        const isPlaying = this._player.status === 'Playing';
+        const iconName = isPlaying
+            ? 'media-playback-pause-symbolic'
+            : 'media-playback-start-symbolic';
+        this._playPauseButton.child.icon_name = iconName;
+
+        this._updateNavButton(this._prevButton, this._player.canGoPrevious);
+        this._updateNavButton(this._nextButton, this._player.canGoNext);
+
+        const appId = this._player.app?.id.replace(/\.desktop$/, '') ?? 'generic';
+        if (this._policy?.id !== appId) {
+            this._policy?.disconnectObject(this);
+
+            this._policy = Shell.NotificationPolicy.new_for_app(this._player.app);
+
+            // Register notification source
+            this._policy.store();
+
+            this._policy.connectObject(
+                'notify::enable', () => this._applyPolicy(),
+                'notify::show-in-lock-screen', () => this._applyPolicy(),
+                this);
+            this._applyPolicy();
+        }
     }
 });

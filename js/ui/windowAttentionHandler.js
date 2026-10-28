@@ -2,7 +2,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 
 import * as Main from './main.js';
-import * as MessageTray from './messageTray.js';
 
 export class WindowAttentionHandler {
     constructor() {
@@ -37,17 +36,17 @@ export class WindowAttentionHandler {
 
         let [title, body] = this._getTitleAndBanner(app, window);
 
-        const notification = new MessageTray.Notification({
+        const notification = new Shell.Notification({
             source,
             title,
             body,
-            forFeedback: true,
+            for_feedback: true,
         });
         notification.connect('activated', () => {
             source.open();
         });
 
-        source.addNotification(notification);
+        source.add_notification(notification);
 
         window.connectObject('notify::title', () => {
             [title, body] = this._getTitleAndBanner(app, window);
@@ -57,12 +56,12 @@ export class WindowAttentionHandler {
 }
 
 const WindowAttentionSource = GObject.registerClass(
-class WindowAttentionSource extends MessageTray.Source {
-    constructor(app, window) {
-        super({
+class WindowAttentionSource extends Shell.Source {
+    _init(app, window) {
+        super._init({
             title: app.get_name(),
             icon: app.get_icon(),
-            policy: MessageTray.NotificationPolicy.newForApp(app),
+            policy: Shell.NotificationPolicy.new_for_app(app),
         });
 
         this._window = window;
@@ -79,13 +78,13 @@ class WindowAttentionSource extends MessageTray.Source {
         this.destroy();
     }
 
-    destroy(params) {
+    vfunc_destroy(reason) {
         this._window.disconnectObject(this);
 
-        super.destroy(params);
+        super.vfunc_destroy(reason);
     }
 
-    open() {
+    vfunc_open() {
         Main.activateWindow(this._window);
     }
 });

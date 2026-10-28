@@ -12,7 +12,6 @@ import * as Signals from '../misc/signals.js';
 import * as OVirt from '../gdm/oVirt.js';
 import * as Main from './main.js';
 import * as Overview from './overview.js';
-import * as MessageTray from './messageTray.js';
 import * as SmartcardManager from '../gdm/smartcardManager.js';
 
 
@@ -48,7 +47,7 @@ export class ScreenShield extends Signals.EventEmitter {
 
         this.actor = Main.layoutManager.screen_shield_group;
 
-        this._lockScreenState = MessageTray.State.HIDDEN;
+        this._lockScreenState = Shell.NotificationState.HIDDEN;
         this._lockScreenGroup = new St.Widget({
             x_expand: true,
             y_expand: true,
@@ -349,7 +348,7 @@ export class ScreenShield extends Signals.EventEmitter {
     }
 
     _hideLockScreenComplete() {
-        this._lockScreenState = MessageTray.State.HIDDEN;
+        this._lockScreenState = Shell.NotificationState.HIDDEN;
         this._lockScreenGroup.hide();
 
         if (this._dialog) {
@@ -384,10 +383,10 @@ export class ScreenShield extends Signals.EventEmitter {
     }
 
     _hideLockScreen(animate) {
-        if (this._lockScreenState === MessageTray.State.HIDDEN)
+        if (this._lockScreenState === Shell.NotificationState.HIDDEN)
             return;
 
-        this._lockScreenState = MessageTray.State.HIDING;
+        this._lockScreenState = Shell.NotificationState.HIDING;
 
         this._lockDialogGroup.remove_all_transitions();
 
@@ -461,11 +460,11 @@ export class ScreenShield extends Signals.EventEmitter {
         // This prevents the shield going down if the lock-delay timeout
         // fires while the user is dragging (which has the potential
         // to confuse our state)
-        if (this._lockScreenState !== MessageTray.State.HIDDEN)
+        if (this._lockScreenState !== Shell.NotificationState.HIDDEN)
             return;
 
         this._lockScreenGroup.show();
-        this._lockScreenState = MessageTray.State.SHOWING;
+        this._lockScreenState = Shell.NotificationState.SHOWING;
 
         const fadeToBlack = params.fadeToBlack;
 
@@ -506,7 +505,7 @@ export class ScreenShield extends Signals.EventEmitter {
     _lockScreenShown(params) {
         this._hidePointerUntilMotion();
 
-        this._lockScreenState = MessageTray.State.SHOWN;
+        this._lockScreenState = Shell.NotificationState.SHOWN;
 
         if (params.fadeToBlack && params.animateFade) {
             // Take a beat

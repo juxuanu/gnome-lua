@@ -10,13 +10,11 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from './main.js';
-import * as MessageTray from './messageTray.js';
 import {fixMarkup} from '../misc/util.js';
 import * as AuthMenuButton from '../gdm/authMenuButton.js';
 import * as AuthPrompt from '../gdm/authPrompt.js';
 import {AuthPromptStatus} from '../gdm/authPrompt.js';
-import {MprisSource} from './mpris.js';
-import {MediaMessage} from './messageList.js';
+import {MediaMessage, MprisSource} from './mpris.js';
 
 const PRIMARY_UNLOCK_METHOD_SECTION_NAME = _('Unlock Options');
 
@@ -69,7 +67,7 @@ const NotificationsBox = GObject.registerClass({
         });
 
         this._sources = new Map();
-        Main.messageTray.getSources().forEach(source => {
+        Main.messageTray.get_sources().forEach(source => {
             this._sourceAdded(Main.messageTray, source, true);
         });
         this._updateVisibility();
@@ -121,7 +119,7 @@ const NotificationsBox = GObject.registerClass({
             GObject.BindingFlags.SYNC_CREATE);
         textBox.add_child(title);
 
-        const count = source.unseenCount;
+        const count = source.unseen_count;
         const countLabel = new St.Label({
             text: `${count}`,
             visible: count > 1,
@@ -157,16 +155,14 @@ const NotificationsBox = GObject.registerClass({
         textBox.add_child(title);
 
         let visible = false;
-        for (let i = 0; i < source.notifications.length; i++) {
-            const n = source.notifications[i];
-
+        for (const n of source.get_notifications()) {
             if (n.acknowledged)
                 continue;
 
             let body = '';
             if (n.body) {
                 const bodyText = n.body.replace(/\n/g, ' ');
-                body = fixMarkup(bodyText, n.useBodyMarkup);
+                body = fixMarkup(bodyText, n.use_body_markup);
             }
 
             const escapedTitle = fixMarkup(n.title, false);
@@ -183,13 +179,13 @@ const NotificationsBox = GObject.registerClass({
     }
 
     _shouldShowDetails(source) {
-        return source.policy.detailsInLockScreen ||
-               source.narrowestPrivacyScope === MessageTray.PrivacyScope.SYSTEM;
+        return source.policy.details_in_lock_screen ||
+               source.get_narrowest_privacy_scope() === Shell.NotificationPrivacyScope.SYSTEM;
     }
 
     _updateSourceBoxStyle(source, obj, box) {
         const hasCriticalNotification =
-            source.notifications.some(n => n.urgency === MessageTray.Urgency.CRITICAL);
+            source.get_notifications().some(n => n.urgency === Shell.NotificationUrgency.CRITICAL);
 
         if (hasCriticalNotification !== obj.hasCriticalNotification) {
             obj.hasCriticalNotification = hasCriticalNotification;
@@ -207,7 +203,7 @@ const NotificationsBox = GObject.registerClass({
         else
             [obj.titleLabel, obj.countLabel] = this._makeNotificationSource(source, box);
 
-        box.visible = obj.visible && (source.unseenCount > 0);
+        box.visible = obj.visible && (source.unseen_count > 0);
 
         this._updateSourceBoxStyle(source, obj, box);
     }
@@ -236,7 +232,7 @@ const NotificationsBox = GObject.registerClass({
 
     _sourceAdded(tray, source, initial) {
         const obj = {
-            visible: source.policy.showInLockScreen,
+            visible: source.policy.show_in_lock_screen,
             detailed: this._shouldShowDetails(source),
             sourceBox: null,
             titleLabel: null,
@@ -311,23 +307,23 @@ const NotificationsBox = GObject.registerClass({
             obj.titleLabel = obj.countLabel = null;
             this._showSource(source, obj, obj.sourceBox);
         } else {
-            const count = source.unseenCount;
+            const count = source.unseen_count;
             obj.countLabel.text = `${count}`;
             obj.countLabel.visible = count > 1;
         }
 
-        obj.sourceBox.visible = obj.visible && (source.unseenCount > 0);
+        obj.sourceBox.visible = obj.visible && (source.unseen_count > 0);
 
         this._updateVisibility();
         this._wakeUpScreenForSource(source);
     }
 
     _visibleChanged(source, obj) {
-        if (obj.visible === source.policy.showInLockScreen)
+        if (obj.visible === source.policy.show_in_lock_screen)
             return;
 
-        obj.visible = source.policy.showInLockScreen;
-        obj.sourceBox.visible = obj.visible && source.unseenCount > 0;
+        obj.visible = source.policy.show_in_lock_screen;
+        obj.sourceBox.visible = obj.visible && source.unseen_count > 0;
 
         this._updateVisibility();
         this._wakeUpScreenForSource(source);

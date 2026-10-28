@@ -757,7 +757,7 @@ class MessagesIndicator extends St.Icon {
         Main.messageTray.connect('source-removed', this._onSourceRemoved.bind(this));
         Main.messageTray.connect('queue-changed', this._updateCount.bind(this));
 
-        const sources = Main.messageTray.getSources();
+        const sources = Main.messageTray.get_sources();
         sources.forEach(source => this._onSourceAdded(null, source));
 
         this._sync();
@@ -781,8 +781,8 @@ class MessagesIndicator extends St.Icon {
 
     _updateCount() {
         let count = 0;
-        this._sources.forEach(source => (count += source.unseenCount));
-        this._count = count - Main.messageTray.queueCount;
+        this._sources.forEach(source => (count += source.unseen_count));
+        this._count = count - Main.messageTray.queue_count;
 
         this._sync();
     }

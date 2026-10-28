@@ -3,14 +3,15 @@
 Scope: showing notifications through the shell's own message tray, with
 actions and a dismissal callback, either one-off (`shell.notify{...}`) or
 grouped under a persistent source (`shell.notify.source{...}`). Models
-`MessageTray.Notification`, `Source`, `Action` (`js/ui/messageTray.js`,
-`Source` base in `js/ui/messageList.js`) and `Main.notify`
+`ShellNotification`, `ShellSource` and `ShellNotificationAction`
+(`src/ui/message-tray.c`, ported from `js/ui/messageTray.js` and the `Source`
+base of `js/ui/messageList.js`) and `Main.notify`
 (`js/ui/main.js`). Observing *other* applications' notifications is hooks only
 (`notification.*`, hooks.md) and never carries title or body.
 
 Not in v1:
 - `urgency = "critical"`: critical notifications bypass do-not-disturb and are
-  never auto-hidden (`MessageTray._onNotificationRequestBanner`); needs a
+  never auto-hidden (`tray_on_notification_request_banner ()` in `src/ui/message-tray.c`); needs a
   capability, so not before a minor release.
 - Custom banners/widgets inside a notification, images beyond an icon, sounds
   (`Notification.sound`), `privacy_scope` (fixed to the user scope, so the lock
@@ -29,7 +30,7 @@ Not in v1:
 extension's **default source**: title = metadata `name`, icon
 `application-x-addon-symbolic`; the shell creates it on first use and drops it
 when it holds no notification, as `Source` does when its last notification is
-destroyed (`Source._onNotificationDestroy`).
+destroyed (`source_notification_destroy_cb ()` in `src/ui/message-tray.c`).
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
@@ -61,10 +62,10 @@ Methods: `n:show()` (request the banner again; no-op for `low`),
 `n:destroy()` (withdraw; suppresses `on_dismissed`), `n:on_activate(fn)`,
 `n:on_dismissed(fn)`.
 
-Semantics, from `messageTray.js`:
-- **Activation** (`Notification.activate`, lines ~478-492): `on_activate` runs,
+Semantics, from `src/ui/message-tray.c`:
+- **Activation** (`shell_notification_real_activate ()`): `on_activate` runs,
   then a non-resident notification is destroyed.
-- **Actions** (`addAction`, ~431-445): the action's `on_activate(notification)`
+- **Actions** (`shell_notification_action_activate ()`): the action's `on_activate(notification)`
   runs, then a non-resident notification is destroyed.
 - **`on_dismissed(self, reason)`** runs once, when the notification goes away
   for a reason the extension did not cause by `destroy()`, source `destroy()`

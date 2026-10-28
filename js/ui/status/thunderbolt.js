@@ -8,7 +8,6 @@ import Shell from 'gi://Shell';
 import * as Signals from '../../misc/signals.js';
 
 import * as Main from '../main.js';
-import * as MessageTray from '../messageTray.js';
 
 /* Keep in sync with data/org.freedesktop.bolt.xml */
 
@@ -254,13 +253,13 @@ class Indicator extends Shell.SystemIndicator {
         if (this._notification)
             this._notification.destroy();
 
-        const source = MessageTray.getSystemSource();
-        this._notification = new MessageTray.Notification({
+        const source = Main.messageTray.get_system_source();
+        this._notification = new Shell.Notification({
             source,
             title,
             body,
-            iconName: 'thunderbolt-symbolic',
-            urgency: MessageTray.Urgency.HIGH,
+            icon_name: 'thunderbolt-symbolic',
+            urgency: Shell.NotificationUrgency.HIGH,
         });
         this._notification.connect('destroy', () => {
             this._notification = null;
@@ -269,7 +268,7 @@ class Indicator extends Shell.SystemIndicator {
             const app = Shell.AppSystem.get_default().lookup_app('gnome-thunderbolt-panel.desktop');
             app?.activate();
         });
-        source.addNotification(this._notification);
+        source.add_notification(this._notification);
     }
 
     /* Session callbacks */

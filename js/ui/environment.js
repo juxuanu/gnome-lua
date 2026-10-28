@@ -180,6 +180,8 @@ GObject.Object.prototype.disconnect_object = function (...args) {
 };
 
 SignalTracker.registerDestroyableType(Clutter.Actor);
+SignalTracker.registerDestroyableType(Shell.Source);
+SignalTracker.registerDestroyableType(Shell.Notification);
 
 Cairo.Context.prototype.setSourceColor = function (color) {
     const {red, green, blue, alpha} = color;
@@ -253,6 +255,18 @@ Clutter.Actor.prototype[Symbol.iterator] = function* () {
     defaultAnimate(Shell.PopupDummyMenu, 'close');
     defaultAnimate(Shell.BoxPointer, 'open', [null]);
     defaultAnimate(Shell.BoxPointer, 'close', [null]);
+}
+
+// gnome-lua: the reason of the destruction of notifications and sources was
+// optional and defaulted to DISMISSED.
+{
+    for (const klass of [Shell.Notification, Shell.Source]) {
+        const orig = klass.prototype.destroy;
+        klass.prototype.destroy = function (
+            reason = Shell.NotificationDestroyedReason.DISMISSED) {
+            return orig.call(this, reason);
+        };
+    }
 }
 
 Clutter.Actor.prototype.toString = function () {

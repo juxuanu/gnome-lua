@@ -6,7 +6,6 @@ import Shell from 'gi://Shell';
 
 import * as Config from '../misc/config.js';
 import * as Main from './main.js';
-import * as MessageTray from './messageTray.js';
 
 import {NotificationErrors, NotificationError} from '../misc/dbusErrors.js';
 
@@ -175,19 +174,19 @@ class FdoNotificationDaemon {
                 ? this._getSourceForApp(sender, app)
                 : this._getSourceForPidAndName(sender, pid, appName);
 
-            notification = new MessageTray.Notification({source});
+            notification = new Shell.Notification({source});
             this._notifications.set(id, notification);
             notification.connect('destroy', (n, reason) => {
                 this._notifications.delete(id);
                 let notificationClosedReason;
                 switch (reason) {
-                case MessageTray.NotificationDestroyedReason.EXPIRED:
+                case Shell.NotificationDestroyedReason.EXPIRED:
                     notificationClosedReason = NotificationClosedReason.EXPIRED;
                     break;
-                case MessageTray.NotificationDestroyedReason.DISMISSED:
+                case Shell.NotificationDestroyedReason.DISMISSED:
                     notificationClosedReason = NotificationClosedReason.DISMISSED;
                     break;
-                case MessageTray.NotificationDestroyedReason.SOURCE_CLOSED:
+                case Shell.NotificationDestroyedReason.SOURCE_CLOSED:
                     notificationClosedReason = NotificationClosedReason.APP_CLOSED;
                     break;
                 default:
@@ -208,11 +207,14 @@ class FdoNotificationDaemon {
             title: summary,
             body,
             gicon,
-            useBodyMarkup: true,
-            sound: new MessageTray.Sound(soundFile, hints['sound-name']),
+            use_body_markup: true,
+            sound: new Shell.NotificationSound({
+                file: soundFile,
+                name: hints['sound-name'] ?? null,
+            }),
             acknowledged: false,
         });
-        notification.clearActions();
+        notification.clear_actions();
         notification.disconnectObject(this);
 
         let hasDefaultAction = false;
@@ -223,7 +225,7 @@ class FdoNotificationDaemon {
                 if (actionId === 'default') {
                     hasDefaultAction = true;
                 } else {
-                    notification.addAction(label, () => {
+                    notification.add_action(label, () => {
                         this._emitActivationToken(source, id, invocation);
                         this._emitActionInvoked(id, actionId, invocation);
                     });
@@ -244,24 +246,24 @@ class FdoNotificationDaemon {
 
         switch (hints.urgency) {
         case Urgency.LOW:
-            notification.urgency = MessageTray.Urgency.LOW;
+            notification.urgency = Shell.NotificationUrgency.LOW;
             break;
         case Urgency.NORMAL:
-            notification.urgency = MessageTray.Urgency.NORMAL;
+            notification.urgency = Shell.NotificationUrgency.NORMAL;
             break;
         case Urgency.CRITICAL:
-            notification.urgency = MessageTray.Urgency.CRITICAL;
+            notification.urgency = Shell.NotificationUrgency.CRITICAL;
             break;
         }
         notification.resident = !!hints.resident;
         // 'transient' is a reserved keyword in JS, so we have to retrieve the value
         // of the 'transient' hint with hints['transient'] rather than hints.transient
-        notification.isTransient = !!hints['transient'];
+        notification.is_transient = !!hints['transient'];
 
         const privacyScope = hints['x-gnome-privacy-scope'] || 'user';
-        notification.privacyScope = privacyScope === 'system'
-            ? MessageTray.PrivacyScope.SYSTEM
-            : MessageTray.PrivacyScope.USER;
+        notification.privacy_scope = privacyScope === 'system'
+            ? Shell.NotificationPrivacyScope.SYSTEM
+            : Shell.NotificationPrivacyScope.USER;
 
         // Only fallback to 'app-icon' when the source doesn't have a valid app
         const sourceGIcon = source.app ? null : this._iconForNotificationData(appIcon);
@@ -272,7 +274,7 @@ class FdoNotificationDaemon {
 
     CloseNotification(id) {
         const notification = this._notifications.get(id);
-        notification?.destroy(MessageTray.NotificationDestroyedReason.SOURCE_CLOSED);
+        notification?.destroy(Shell.NotificationDestroyedReason.SOURCE_CLOSED);
     }
 
     GetCapabilities() {
@@ -321,10 +323,12 @@ class FdoNotificationDaemon {
 }
 
 export const FdoNotificationDaemonSource = GObject.registerClass(
-class FdoNotificationDaemonSource extends MessageTray.Source {
-    constructor(sender, app) {
-        super({
-            policy: MessageTray.NotificationPolicy.newForApp(app),
+class FdoNotificationDaemonSource extends Shell.Source {
+    _init(sender, app) {
+        super._init({
+            policy: Shell.NotificationPolicy.new_for_app(app),
+            title: app?.get_name() ?? null,
+            icon: app?.get_icon() ?? null,
         });
 
         this.app = app;
@@ -348,18 +352,18 @@ class FdoNotificationDaemonSource extends MessageTray.Source {
         // Sender being removed from DBus would normally result in a tray icon being removed,
         // so allow the code path that handles the tray icon being removed to handle that case.
         if (this.app)
-            this.destroy();
+            this.destroy(Shell.NotificationDestroyedReason.DISMISSED);
     }
 
     processNotification(notification, appName, appIcon) {
         if (!this.app && appName) {
             this._appName = appName;
-            this.notify('title');
+            this.title = appName;
         }
 
         if (!this.app && appIcon) {
             this._appIcon = appIcon;
-            this.notify('icon');
+            this.icon = appIcon;
         }
 
         const tracker = Shell.WindowTracker.get_default();
@@ -368,12 +372,12 @@ class FdoNotificationDaemonSource extends MessageTray.Source {
         if (notification.resident && this.app && tracker.focus_app === this.app)
             notification.acknowledged = true;
 
-        this.addNotification(notification);
+        this.add_notification(notification);
     }
 
-    open() {
+    vfunc_open() {
         this.openApp();
-        this.destroyNonResidentNotifications();
+        this.destroy_non_resident_notifications();
     }
 
     openApp() {
@@ -385,35 +389,27 @@ class FdoNotificationDaemonSource extends MessageTray.Source {
         Main.panel.close_calendar();
     }
 
-    destroy() {
+    vfunc_destroy(reason) {
         if (this._nameWatcherId) {
             Gio.DBus.session.unwatch_name(this._nameWatcherId);
             this._nameWatcherId = 0;
         }
 
-        super.destroy();
-    }
-
-    get title() {
-        return this.app?.get_name() ?? this._appName;
-    }
-
-    get icon() {
-        return this.app?.get_icon() ?? this._appIcon;
+        super.vfunc_destroy(reason);
     }
 });
 
 const PRIORITY_URGENCY_MAP = {
-    low: MessageTray.Urgency.LOW,
-    normal: MessageTray.Urgency.NORMAL,
-    high: MessageTray.Urgency.HIGH,
-    urgent: MessageTray.Urgency.CRITICAL,
+    low: Shell.NotificationUrgency.LOW,
+    normal: Shell.NotificationUrgency.NORMAL,
+    high: Shell.NotificationUrgency.HIGH,
+    urgent: Shell.NotificationUrgency.CRITICAL,
 };
 
 const GtkNotificationDaemonNotification = GObject.registerClass(
-class GtkNotificationDaemonNotification extends MessageTray.Notification {
-    constructor(source, id, notification) {
-        super({source});
+class GtkNotificationDaemonNotification extends Shell.Notification {
+    _init(source, id, notification) {
+        super._init({source});
         this._serialized = GLib.Variant.new('a{sv}', notification);
         this.id = id;
 
@@ -431,18 +427,18 @@ class GtkNotificationDaemonNotification extends MessageTray.Notification {
 
         if (priority) {
             const urgency = PRIORITY_URGENCY_MAP[priority.unpack()];
-            this.urgency = urgency !== undefined ? urgency : MessageTray.Urgency.NORMAL;
+            this.urgency = urgency !== undefined ? urgency : Shell.NotificationUrgency.NORMAL;
         } else if (urgent) {
             this.urgency = urgent.unpack()
-                ? MessageTray.Urgency.CRITICAL
-                : MessageTray.Urgency.NORMAL;
+                ? Shell.NotificationUrgency.CRITICAL
+                : Shell.NotificationUrgency.NORMAL;
         } else {
-            this.urgency = MessageTray.Urgency.NORMAL;
+            this.urgency = Shell.NotificationUrgency.NORMAL;
         }
 
         if (buttons) {
             buttons.deepUnpack().forEach(button => {
-                this.addAction(button.label.unpack(), () => {
+                this.add_action(button.label.unpack(), () => {
                     this._onButtonClicked(button);
                 });
             });
@@ -476,13 +472,13 @@ class GtkNotificationDaemonNotification extends MessageTray.Notification {
         this._activateAction(action.unpack(), target);
     }
 
-    activate() {
+    vfunc_activate() {
         if (this._defaultAction)
             this._activateAction(this._defaultAction, this._defaultActionTarget);
         else
             this.source.open();
 
-        super.activate();
+        super.vfunc_activate();
     }
 
     serialize() {
@@ -493,8 +489,8 @@ class GtkNotificationDaemonNotification extends MessageTray.Notification {
 function InvalidAppError() {}
 
 export const GtkNotificationDaemonAppSource = GObject.registerClass(
-class GtkNotificationDaemonAppSource extends MessageTray.Source {
-    constructor(appId, dbusImpl) {
+class GtkNotificationDaemonAppSource extends Shell.Source {
+    _init(appId, dbusImpl) {
         if (!Gio.Application.id_is_valid(appId))
             throw new InvalidAppError();
 
@@ -502,10 +498,10 @@ class GtkNotificationDaemonAppSource extends MessageTray.Source {
         if (!app)
             throw new InvalidAppError();
 
-        super({
+        super._init({
             title: app.get_name(),
             icon: app.get_icon(),
-            policy: new MessageTray.NotificationApplicationPolicy(appId),
+            policy: new Shell.NotificationApplicationPolicy({id: appId}),
         });
 
         this._appId = appId;
@@ -539,37 +535,37 @@ class GtkNotificationDaemonAppSource extends MessageTray.Source {
         );
     }
 
-    open() {
+    vfunc_open() {
         this._app.activate();
         Main.overview.hide();
         Main.panel.close_calendar();
     }
 
-    addNotification(notification) {
+    add_notification(notification) {
         this._notificationPending = true;
 
         this._notifications[notification.id]?.destroy(
-            MessageTray.NotificationDestroyedReason.REPLACED);
+            Shell.NotificationDestroyedReason.REPLACED);
 
         notification.connect('destroy', () => {
             delete this._notifications[notification.id];
         });
         this._notifications[notification.id] = notification;
 
-        super.addNotification(notification);
+        super.add_notification(notification);
 
         this._notificationPending = false;
     }
 
-    destroy(reason) {
+    vfunc_destroy(reason) {
         if (this._notificationPending)
             return;
-        super.destroy(reason);
+        super.vfunc_destroy(reason);
     }
 
     removeNotification(notificationId) {
         if (this._notifications[notificationId])
-            this._notifications[notificationId].destroy(MessageTray.NotificationDestroyedReason.SOURCE_CLOSED);
+            this._notifications[notificationId].destroy(Shell.NotificationDestroyedReason.SOURCE_CLOSED);
     }
 
     serialize() {
@@ -641,7 +637,7 @@ class GtkNotificationDaemon {
                             notificationPacked.deepUnpack());
                         // Acknowledge all stored notification so that we don't show a banner again
                         notification.acknowledged = true;
-                        source.addNotification(notification);
+                        source.add_notification(notification);
                     });
                 });
             }
@@ -690,7 +686,7 @@ class GtkNotificationDaemon {
         const notification = new GtkNotificationDaemonNotification(source,
             notificationId,
             notificationSerialized);
-        source.addNotification(notification);
+        source.add_notification(notification);
 
         invocation.return_value(null);
     }
