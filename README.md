@@ -9,3 +9,5 @@ existing C core; no GObject Introspection binding is involved on the Lua side.
 * [docs/PORT_STATUS.md](docs/PORT_STATUS.md): per-module JS → C tracking.
 
 Status: planning. No code yet.
+
+This is a fork of [GNOME Shell](https://gitlab.gnome.org/GNOME/gnome-shell) at tag 51.1; the upstream README is kept at [docs/UPSTREAM_README.md](docs/UPSTREAM_README.md).
