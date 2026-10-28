@@ -237,6 +237,25 @@ Clutter.Actor.prototype[Symbol.iterator] = function* () {
         yield c;
 };
 
+// gnome-lua: GI methods cannot default trailing arguments, so keep the
+// historical JS call shapes `menu.open()` / `menu.close()` (no animation)
+// working for the C popup menus and box pointers.
+{
+    const defaultAnimate = (klass, name, extraDefaults = []) => {
+        const orig = klass.prototype[name];
+        klass.prototype[name] = function (animate = Shell.PopupAnimation.NONE, ...args) {
+            const rest = extraDefaults.map((d, i) => args[i] === undefined ? d : args[i]);
+            return orig.call(this, animate, ...rest);
+        };
+    };
+    defaultAnimate(Shell.PopupMenuBase, 'open');
+    defaultAnimate(Shell.PopupMenuBase, 'close');
+    defaultAnimate(Shell.PopupDummyMenu, 'open');
+    defaultAnimate(Shell.PopupDummyMenu, 'close');
+    defaultAnimate(Shell.BoxPointer, 'open', [null]);
+    defaultAnimate(Shell.BoxPointer, 'close', [null]);
+}
+
 Clutter.Actor.prototype.toString = function () {
     return St.describe_actor(this);
 };

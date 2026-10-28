@@ -71,6 +71,10 @@ struct _ShellMain
   ShellActionMode action_mode;
   ShellSessionMode *session_mode;
   ShellLayoutManager *layout_manager;
+  MetaCompositor *compositor;     /* weak; same reason as @stage */
+  ClutterStage *stage;            /* weak; set on the first push_modal so that
+                                   * pops during shell teardown (after ShellGlobal
+                                   * is gone) still work */
 };
 
 G_DEFINE_FINAL_TYPE (ShellMain, shell_main, G_TYPE_OBJECT)
@@ -234,6 +238,8 @@ shell_main_dispose (GObject *object)
 {
   ShellMain *self = SHELL_MAIN (object);
 
+  g_clear_weak_pointer (&self->stage);
+  g_clear_weak_pointer (&self->compositor);
   g_clear_pointer (&self->modal_stack, g_ptr_array_unref);
   g_clear_object (&self->session_mode);
   g_clear_object (&self->layout_manager);
@@ -416,6 +422,11 @@ shell_main_push_modal (ShellMain       *self,
   ClutterGrab *grab;
 
   g_return_val_if_fail (SHELL_IS_MAIN (self), NULL);
+
+  if (self->stage != stage)
+    g_set_weak_pointer (&self->stage, stage);
+  if (self->compositor != shell_global_get_compositor (global))
+    g_set_weak_pointer (&self->compositor, shell_global_get_compositor (global));
   g_return_val_if_fail (CLUTTER_IS_ACTOR (actor), NULL);
 
   grab = clutter_stage_grab (stage, actor);
@@ -473,8 +484,7 @@ shell_main_pop_modal (ShellMain    *self,
                       ClutterGrab  *grab,
                       GError      **error)
 {
-  ShellGlobal *global = shell_global_get ();
-  ClutterStage *stage = shell_global_get_stage (global);
+  ClutterStage *stage = self->stage;
   g_autoptr (ClutterGrab) grab_ref = NULL;
   g_autoptr (ClutterActor) prev_focus = NULL;
   ModalRecord *record;
@@ -484,6 +494,15 @@ shell_main_pop_modal (ShellMain    *self,
   int focus_index;
 
   g_return_val_if_fail (SHELL_IS_MAIN (self), FALSE);
+
+  if (stage == NULL)
+    {
+      /* Nothing was ever pushed, or the stage is already gone (shell
+       * teardown): there is nothing to restore. */
+      g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_FAILED,
+                           "incorrect pop");
+      return FALSE;
+    }
 
   /* The record can go away while the grab is being dismissed */
   if (grab != NULL)
@@ -581,7 +600,8 @@ shell_main_pop_modal (ShellMain    *self,
     return TRUE;
 
   g_signal_emit (self, signals[MODAL_ENDED], 0);
-  meta_compositor_enable_unredirect (shell_global_get_compositor (global));
+  if (self->compositor != NULL)
+    meta_compositor_enable_unredirect (self->compositor);
   set_action_mode (self, SHELL_ACTION_MODE_NORMAL);
 
   return TRUE;

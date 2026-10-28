@@ -1416,7 +1416,10 @@ item_notify_sensitive_cb (GObject            *object,
     }
   else if (sensitive && priv->active_menu_item == NULL)
     {
-      if (clutter_stage_get_key_focus (get_stage ()) == priv->actor)
+      ClutterActor *stage_actor = clutter_actor_get_stage (priv->actor);
+
+      if (stage_actor != NULL &&
+          clutter_stage_get_key_focus (CLUTTER_STAGE (stage_actor)) == priv->actor)
         clutter_actor_grab_key_focus (CLUTTER_ACTOR (item));
     }
 }
@@ -6259,6 +6262,7 @@ struct _ShellPopupMenuManager
   ClutterMotionController *motion_controller;
 
   gulong key_focus_id;
+  ClutterStage *key_focus_stage;  /* weak; the stage key_focus_id is on */
 };
 
 G_DEFINE_FINAL_TYPE (ShellPopupMenuManager, shell_popup_menu_manager, G_TYPE_OBJECT)
@@ -6357,7 +6361,13 @@ manager_remove_actions (ShellPopupMenuManager *self,
 static void
 manager_disconnect_key_focus (ShellPopupMenuManager *self)
 {
-  g_clear_signal_handler (&self->key_focus_id, get_stage ());
+  /* Runs from dispose too, possibly after ShellGlobal is gone: only use
+   * the stage we connected to, never look it up again. */
+  if (self->key_focus_stage != NULL)
+    g_clear_signal_handler (&self->key_focus_id, self->key_focus_stage);
+  else
+    self->key_focus_id = 0;
+  g_clear_weak_pointer (&self->key_focus_stage);
 }
 
 static GObject *
@@ -6537,10 +6547,15 @@ manager_menu_open_state_changed_cb (GObject               *menu,
                                      CLUTTER_ACTION (self->motion_controller));
 
       if (self->key_focus_id == 0)
-        self->key_focus_id =
-          g_signal_connect_object (get_stage (), "notify::key-focus",
-                                   G_CALLBACK (manager_key_focus_changed_cb),
-                                   self, 0);
+        {
+          ClutterStage *stage = get_stage ();
+
+          g_set_weak_pointer (&self->key_focus_stage, stage);
+          self->key_focus_id =
+            g_signal_connect_object (stage, "notify::key-focus",
+                                     G_CALLBACK (manager_key_focus_changed_cb),
+                                     self, 0);
+        }
     }
   else if (self->active_menu == menu)
     {
