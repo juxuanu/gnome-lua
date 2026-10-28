@@ -179,6 +179,19 @@ set_search_active (ShellSearchController *self,
   g_object_notify_by_pspec (G_OBJECT (self), props[PROP_SEARCH_ACTIVE]);
 }
 
+
+/* The stage is held weakly and keeps its address while destroyed but not yet
+ * finalized, when its actions are already gone: only remove what is still
+ * attached, removing a detached action is a fatal Clutter warning. */
+static void
+remove_stage_action (ShellSearchController *self,
+                     ClutterAction         *action)
+{
+  if (self->stage != NULL && action != NULL &&
+      clutter_actor_meta_get_actor (CLUTTER_ACTOR_META (action)) == CLUTTER_ACTOR (self->stage))
+    clutter_actor_remove_action (CLUTTER_ACTOR (self->stage), action);
+}
+
 static void
 search_cancelled (ShellSearchController *self)
 {
@@ -293,9 +306,8 @@ shell_search_controller_overview_hiding (ShellSearchController *self)
 
   clutter_text_set_input_interceptor (self->text, NULL);
 
-  if (self->stage_key_controller_added && self->stage != NULL)
-    clutter_actor_remove_action (CLUTTER_ACTOR (self->stage),
-                                 CLUTTER_ACTION (self->stage_key_controller));
+  if (self->stage_key_controller_added)
+    remove_stage_action (self, CLUTTER_ACTION (self->stage_key_controller));
   self->stage_key_controller_added = FALSE;
 }
 
@@ -446,8 +458,7 @@ entry_mapped_cb (GObject               *object,
     {
       /* Disable 'find-as-you-type' */
       if (self->click_gesture_added)
-        clutter_actor_remove_action (CLUTTER_ACTOR (self->stage),
-                                     CLUTTER_ACTION (self->click_gesture));
+        remove_stage_action (self, CLUTTER_ACTION (self->click_gesture));
       self->click_gesture_added = FALSE;
     }
 }
@@ -851,15 +862,10 @@ shell_search_controller_dispose (GObject *object)
 
   self->destroyed = TRUE;
 
-  if (self->stage != NULL)
-    {
-      if (self->stage_key_controller_added)
-        clutter_actor_remove_action (CLUTTER_ACTOR (self->stage),
-                                     CLUTTER_ACTION (self->stage_key_controller));
-      if (self->click_gesture_added)
-        clutter_actor_remove_action (CLUTTER_ACTOR (self->stage),
-                                     CLUTTER_ACTION (self->click_gesture));
-    }
+  if (self->stage_key_controller_added)
+    remove_stage_action (self, CLUTTER_ACTION (self->stage_key_controller));
+  if (self->click_gesture_added)
+    remove_stage_action (self, CLUTTER_ACTION (self->click_gesture));
   self->stage_key_controller_added = FALSE;
   self->click_gesture_added = FALSE;
 
@@ -933,7 +939,7 @@ shell_search_controller_class_init (ShellSearchControllerClass *klass)
    * ShellSearchController:application-provider:
    *
    * The provider of the applications, which is searched first
-   * (`AppDisplay.AppSearchProvider`).
+   * (#ShellAppSearchProvider, `AppDisplay.AppSearchProvider`).
    */
   props[PROP_APPLICATION_PROVIDER] =
     g_param_spec_object ("application-provider", NULL, NULL,
