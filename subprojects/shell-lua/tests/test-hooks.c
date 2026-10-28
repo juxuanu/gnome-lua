@@ -190,7 +190,7 @@ test_declare_bad_names (void)
   ShellHookRegistry *reg = g_object_new (SHELL_TYPE_HOOK_REGISTRY, NULL);
   static const char *const bad[] = {
     "", "nodot", "Foo.bar", "foo.Bar", ".x", "x.", "x..y", "1x.y", "x.1y", "x_y.z", "x.y_z",
-    "-x.y", "x.-y", "x-y.z", "x y.z", "x.y z", "window.focused!", "über.x",
+    "-x.y", "x.-y", "x y.z", "x.y z", "window.focused!", "über.x",
   };
   g_auto (GStrv) names = NULL;
   guint i;

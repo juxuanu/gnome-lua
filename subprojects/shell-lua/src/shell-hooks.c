@@ -119,7 +119,8 @@ hook_point_free (HookPoint *hp)
   g_free (hp);
 }
 
-/* ^[a-z][a-z0-9]*(\.[a-z][a-z0-9-]*)+$ */
+/* ^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)+$: hyphenated segments on both sides
+ * of the dot (`quick-settings.opened`, `window.title-changed`) */
 static gboolean
 hook_name_is_valid (const char *name)
 {
@@ -131,13 +132,10 @@ hook_name_is_valid (const char *name)
 
   while (TRUE)
     {
-      gboolean first = (segments == 0);
-
       if (!(*p >= 'a' && *p <= 'z'))
         return FALSE;
       p++;
-      while ((*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') ||
-             (!first && *p == '-'))
+      while ((*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') || *p == '-')
         p++;
       segments++;
 
