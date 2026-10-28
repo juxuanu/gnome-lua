@@ -2026,6 +2026,31 @@ list_expanded_group_to_enabled (GBinding     *binding,
   return TRUE;
 }
 
+/* Removes the capture actions from the container they were added to. The
+ * container is a weak pointer that is only cleared when the actor is
+ * finalized: a destroyed container has already dropped its actions, and
+ * removing them again warns, so check what the actions are attached to. */
+static void
+message_list_detach_capture_actions (ShellCalendarMessageList *self)
+{
+  ClutterActorMeta *metas[2] = {
+    CLUTTER_ACTOR_META (self->click_gesture),
+    CLUTTER_ACTOR_META (self->key_controller),
+  };
+  guint i;
+
+  for (i = 0; i < G_N_ELEMENTS (metas); i++)
+    {
+      if (metas[i] != NULL &&
+          self->capture_container != NULL &&
+          clutter_actor_meta_get_actor (metas[i]) == self->capture_container)
+        clutter_actor_remove_action (self->capture_container,
+                                     CLUTTER_ACTION (metas[i]));
+    }
+
+  g_clear_weak_pointer (&self->capture_container);
+}
+
 /**
  * shell_calendar_message_list_set_capture_container:
  * @self: a #ShellCalendarMessageList
@@ -2045,14 +2070,7 @@ shell_calendar_message_list_set_capture_container (ShellCalendarMessageList *sel
   if (container == self->capture_container)
     return;
 
-  if (self->capture_container != NULL)
-    {
-      clutter_actor_remove_action (self->capture_container,
-                                   CLUTTER_ACTION (self->click_gesture));
-      clutter_actor_remove_action (self->capture_container,
-                                   CLUTTER_ACTION (self->key_controller));
-      g_clear_weak_pointer (&self->capture_container);
-    }
+  message_list_detach_capture_actions (self);
 
   if (container != NULL)
     {
@@ -2249,14 +2267,7 @@ shell_calendar_message_list_dispose (GObject *object)
 {
   ShellCalendarMessageList *self = SHELL_CALENDAR_MESSAGE_LIST (object);
 
-  if (self->capture_container != NULL)
-    {
-      clutter_actor_remove_action (self->capture_container,
-                                   CLUTTER_ACTION (self->click_gesture));
-      clutter_actor_remove_action (self->capture_container,
-                                   CLUTTER_ACTION (self->key_controller));
-      g_clear_weak_pointer (&self->capture_container);
-    }
+  message_list_detach_capture_actions (self);
 
   g_clear_weak_pointer (&self->placeholder);
   g_clear_weak_pointer (&self->scroll_view);
