@@ -107,7 +107,6 @@
     <file>ui/pageIndicators.js</file>
     <file>ui/panel.js</file>
     <file>ui/panelMenu.js</file>
-    <file>ui/pointerA11yTimeout.js</file>
     <file>ui/popupMenu.js</file>
     <file>ui/quickSettings.js</file>
     <file>ui/qrCode.js</file>
@@ -138,7 +137,6 @@
     <file>ui/workspacesView.js</file>
     <file>ui/workspaceSwitcherPopup.js</file>
     <file>ui/workspaceThumbnail.js</file>
-    <file>ui/xdndHandler.js</file>
 
     <file>ui/components.js</file>
     <file>ui/components/automountManager.js</file>

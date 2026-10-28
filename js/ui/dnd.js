@@ -73,6 +73,51 @@ export function addDragMonitor(monitor) {
 }
 
 /**
+ * Dispatches the motion of a drag coming from an X11 client (see
+ * Shell.XdndHandler::drag-motion) to the drag monitors and to the
+ * `handleDragOver` delegates of the actors under the pointer.
+ *
+ * @param {Shell.XdndHandler} source - the source of the drag
+ * @param {number} x - pointer X position in stage coordinates
+ * @param {number} y - pointer Y position in stage coordinates
+ * @param {Clutter.Actor} dragActor - actor standing for the dragged item
+ * @param {Clutter.Actor} targetActor - reactive actor under the pointer
+ */
+export function handleXdndMotion(source, x, y, dragActor, targetActor) {
+    const dragEvent = {
+        x,
+        y,
+        dragActor,
+        source,
+        targetActor,
+    };
+
+    for (let i = 0; i < dragMonitors.length; i++) {
+        const motionFunc = dragMonitors[i].dragMotion;
+        if (motionFunc) {
+            const result = motionFunc(dragEvent);
+            if (result !== DragMotionResult.CONTINUE)
+                return;
+        }
+    }
+
+    let pickedActor = targetActor;
+    while (pickedActor) {
+        if (pickedActor._delegate && pickedActor._delegate.handleDragOver) {
+            const [r_, targX, targY] = pickedActor.transform_stage_point(x, y);
+            const result = pickedActor._delegate.handleDragOver(source,
+                dragEvent.dragActor,
+                targX,
+                targY,
+                global.get_current_time());
+            if (result !== DragMotionResult.CONTINUE)
+                return;
+        }
+        pickedActor = pickedActor.get_parent();
+    }
+}
+
+/**
  * @param {DragMonitor} monitor
  */
 export function removeDragMonitor(monitor) {

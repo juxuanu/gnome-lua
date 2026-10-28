@@ -13,6 +13,7 @@ import * as BrightnessManager from '../misc/brightnessManager.js';
 import * as Config from '../misc/config.js';
 import * as Components from './components.js';
 import * as CtrlAltTab from './ctrlAltTab.js';
+import * as DND from './dnd.js';
 import * as EndSessionDialog from './endSessionDialog.js';
 import * as ExtensionSystem from './extensionSystem.js';
 import * as ExtensionDownloader from './extensionDownloader.js';
@@ -40,10 +41,8 @@ import * as ShellMountOperation from './shellMountOperation.js';
 import * as TimeLimitsManager from '../misc/timeLimitsManager.js';
 import * as WindowManager from './windowManager.js';
 import * as Magnifier from './magnifier.js';
-import * as XdndHandler from './xdndHandler.js';
 import * as KbdA11yDialog from './kbdA11yDialog.js';
 import * as LocatePointer from './locatePointer.js';
-import * as PointerA11yTimeout from './pointerA11yTimeout.js';
 import {formatError} from '../misc/errorUtils.js';
 import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as Util from '../misc/util.js';
@@ -84,6 +83,7 @@ export const modalActorFocusStack = [];
 export let uiGroup = null;
 export let magnifier = null;
 export let xdndHandler = null;
+export let pointerA11yTimeout = null;
 export let keyboard = null;
 export let layoutManager = null;
 export let kbdA11yDialog = null;
@@ -224,7 +224,15 @@ async function _initializeUI() {
     uiGroup = layoutManager.uiGroup;
 
     padOsdService = new PadOsd.PadOsdService();
-    xdndHandler = new XdndHandler.XdndHandler();
+    xdndHandler = new Shell.XdndHandler({
+        ui_group: uiGroup,
+        session_locked: sessionMode.isLocked,
+    });
+    xdndHandler.connect('drag-motion', (handler, x, y, dragActor, targetActor) =>
+        DND.handleXdndMotion(handler, x, y, dragActor, targetActor));
+    sessionMode.connect('updated', () => {
+        xdndHandler.session_locked = sessionMode.isLocked;
+    });
     ctrlAltTabManager = new CtrlAltTab.CtrlAltTabManager();
     osdWindowManager = new OsdWindow.OsdWindowManager();
     osdMonitorLabeler = new OsdMonitorLabeler.OsdMonitorLabeler();
@@ -280,7 +288,7 @@ async function _initializeUI() {
     layoutManager.init();
     overview.init();
 
-    new PointerA11yTimeout.PointerA11yTimeout();
+    pointerA11yTimeout = new Shell.PointerA11yTimeout({ui_group: uiGroup});
 
     global.connect('locate-pointer', () => {
         locatePointer.show();

@@ -52,14 +52,14 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/ui/osdWindow.js` | 199 | todo | |
 | `js/ui/panelMenu.js` | 199 | todo | |
 | `js/misc/extensionUtils.js` | 172 | todo | |
-| `js/ui/pointerA11yTimeout.js` | 136 | todo | |
-| `js/ui/xdndHandler.js` | 127 | todo | |
+| `js/ui/pointerA11yTimeout.js` | 136 | ported | `src/ui/pointer-a11y-timeout.[ch]` (`ShellPointerA11yTimeout`, final; the pie timer actor is private to the C file). main.js now does `Main.pointerA11yTimeout = new Shell.PointerA11yTimeout({ui_group: uiGroup})` and must keep the reference (the JS class lived on through its seat signal closures). |
+| `js/ui/xdndHandler.js` | 127 | ported | `src/ui/xdnd-handler.[ch]` (`ShellXdndHandler`, final). Signals `drag-begin (time)`, `drag-end`, new `drag-motion (x, y, drag-actor, target-actor)`; the drag-monitor / `_delegate.handleDragOver` dispatch is now `DND.handleXdndMotion()` in dnd.js, wired in main.js. `Main.sessionMode.isLocked` is mirrored into the `session-locked` property by main.js. |
 | `js/misc/animationUtils.js` | 124 | wip | adjustAnimationTime in C |
 | `js/ui/osdMonitorLabeler.js` | 119 | todo | |
 | `js/ui/ripples.js` | 112 | todo | |
 | `js/misc/history.js` | 111 | todo | |
 | `js/misc/errorUtils.js` | 91 | todo | |
-| `js/ui/windowAttentionHandler.js` | 91 | todo | |
+| `js/ui/windowAttentionHandler.js` | 91 | todo | blocked on messageTray (M4): ~85% of the file is the `MessageTray.Source`/`Notification` glue, the C-able signal filter is about ten lines |
 | `js/misc/dbusUtils.js` | 86 | todo | |
 | `js/misc/fileUtils.js` | 86 | todo | |
 | `js/ui/animation.js` | 81 | todo | |
