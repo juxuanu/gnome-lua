@@ -71,6 +71,15 @@ export async function run() {
     await Scripting.sleep(1000);
     await Scripting.waitLeisure();
 
+    // The session starts with the overview shown (the startup animation
+    // leaves it visible): hide it first
+    if (overview.visible) {
+        console.debug('Hiding the overview shown at startup');
+        const hiddenAtStart = waitForSignal(overview, 'hidden');
+        overview.hide();
+        await hiddenAtStart;
+        await Scripting.waitLeisure();
+    }
     results.hiddenAtStart = !overview.visible;
 
     // show the overview (window picker)
