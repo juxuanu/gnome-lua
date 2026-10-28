@@ -1,9 +1,9 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as BarLevel from './barLevel.js';
 import * as Layout from './layout.js';
 import * as Main from './main.js';
 
@@ -42,7 +42,7 @@ class OsdWindow extends Clutter.Actor {
         this._label = new St.Label();
         this._vbox.add_child(this._label);
 
-        this._level = new BarLevel.BarLevel({
+        this._level = new Shell.BarLevel({
             style_class: 'level',
             value: 0,
         });

@@ -240,9 +240,9 @@ const StreamSlider = GObject.registerClass({
             ? this.getMaxLevel() : 1;
         this.slider.maximum_value = maxLevel;
 
-        this.slider.clearMarks();
+        this.slider.clear_marks();
         if (this._allowAmplified)
-            this.slider.addMark(1);
+            this.slider.add_mark(1);
 
         if (this._stream)
             this._updateVolume();

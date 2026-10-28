@@ -66,7 +66,6 @@
     <file>ui/audioDeviceSelection.js</file>
     <file>ui/background.js</file>
     <file>ui/backgroundMenu.js</file>
-    <file>ui/barLevel.js</file>
     <file>ui/boxpointer.js</file>
     <file>ui/calendar.js</file>
     <file>ui/checkBox.js</file>
@@ -124,7 +123,6 @@
     <file>ui/shellDBus.js</file>
     <file>ui/shellEntry.js</file>
     <file>ui/shellMountOperation.js</file>
-    <file>ui/slider.js</file>
     <file>ui/swipeTracker.js</file>
     <file>ui/switcherPopup.js</file>
     <file>ui/switchMonitor.js</file>

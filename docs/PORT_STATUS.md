@@ -40,13 +40,13 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/misc/modemManager.js` | 302 | todo | |
 | `js/misc/signalTracker.js` | 287 | todo | |
 | `js/misc/loginManager.js` | 279 | todo | |
-| `js/ui/barLevel.js` | 271 | todo | |
+| `js/ui/barLevel.js` | 271 | ported | `src/ui/bar-level.[ch]` (`ShellBarLevel`, derivable). `overdrive-start` above the maximum now logs a warning instead of throwing. |
 | `js/misc/parentalControlsManager.js` | 267 | todo | |
 | `js/ui/modalDialog.js` | 266 | todo | |
 | `js/ui/grabHelper.js` | 242 | todo | |
 | `js/misc/objectManager.js` | 241 | todo | |
 | `js/misc/dateUtils.js` | 230 | todo | |
-| `js/ui/slider.js` | 230 | todo | |
+| `js/ui/slider.js` | 230 | ported | `src/ui/slider.[ch]` (`ShellSlider`, final). `new Slider(v)` is now `new Shell.Slider({value: v})`. |
 | `js/misc/introspect.js` | 218 | todo | |
 | `js/ui/sessionMode.js` | 209 | todo | |
 | `js/ui/osdWindow.js` | 199 | todo | |

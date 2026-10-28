@@ -15,7 +15,6 @@ import * as History from '../misc/history.js';
 import {ExtensionState} from '../misc/extensionUtils.js';
 import * as PopupMenu from './popupMenu.js';
 import * as ShellEntry from './shellEntry.js';
-import {Slider} from './slider.js';
 import * as Main from './main.js';
 import * as JsParse from '../misc/jsParse.js';
 
@@ -1454,8 +1453,8 @@ class SlowDownFactorDebugFlag extends St.Button {
             y_align: Clutter.ActorAlign.CENTER,
         });
 
-        const slider = new Slider(0);
-        slider.addMark(1 / MAX_SLOWDOWN);
+        const slider = new Shell.Slider({value: 0});
+        slider.add_mark(1 / MAX_SLOWDOWN);
         box.add_child(slider);
 
         const settings = St.Settings.get();

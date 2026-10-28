@@ -1,11 +1,11 @@
 import Clutter from 'gi://Clutter';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import {QuickSlider, SystemIndicator} from '../quickSettings.js';
 import * as Main from '../main.js';
 import * as PopupMenu from '../popupMenu.js';
-import {Slider} from '../slider.js';
 
 const BRIGHTNESS_NAME = _('Brightness');
 
@@ -14,7 +14,7 @@ class BrightnessSliderMenu extends PopupMenu.PopupMenuSection {
         const text = new PopupMenu.PopupMenuItem(scale.name, {reactive: false});
         this.addMenuItem(text);
 
-        const slider = new Slider(0);
+        const slider = new Shell.Slider({value: 0});
         slider.accessible_name = scale.name;
 
         const sliderBin = new St.Bin({

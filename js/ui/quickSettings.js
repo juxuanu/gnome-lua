@@ -7,11 +7,11 @@ import GObject from 'gi://GObject';
 import Graphene from 'gi://Graphene';
 import Meta from 'gi://Meta';
 import Pango from 'gi://Pango';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from './main.js';
 import * as PopupMenu from './popupMenu.js';
-import {Slider} from './slider.js';
 
 const DIM_BRIGHTNESS = -0.4;
 export const POPUP_ANIMATION_TIME = 400;
@@ -320,7 +320,7 @@ export const QuickSlider = GObject.registerClass({
             GObject.BindingFlags.SYNC_CREATE |
             GObject.BindingFlags.BIDIRECTIONAL);
 
-        this.slider = new Slider(0);
+        this.slider = new Shell.Slider({value: 0});
 
         // for focus indication
         const sliderBin = new St.Bin({

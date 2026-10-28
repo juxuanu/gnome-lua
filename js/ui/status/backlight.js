@@ -3,12 +3,12 @@
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import {QuickMenuToggle, SystemIndicator} from '../quickSettings.js';
 
 import * as PopupMenu from '../popupMenu.js';
-import {Slider} from '../slider.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
 
@@ -32,7 +32,7 @@ const SliderItem = GObject.registerClass({
             style_class: 'keyboard-brightness-item',
         });
 
-        this._slider = new Slider(0);
+        this._slider = new Shell.Slider({value: 0});
 
         this._sliderChangedId = this._slider.connect('notify::value',
             () => this.notify('value'));
