@@ -9,7 +9,6 @@ import St from 'gi://St';
 import * as AccessDialog from './accessDialog.js';
 import * as AudioDeviceSelection from './audioDeviceSelection.js';
 import * as BreakManager from '../misc/breakManager.js';
-import * as BrightnessManager from '../misc/brightnessManager.js';
 import * as Config from '../misc/config.js';
 import * as Components from './components.js';
 import * as CtrlAltTab from './ctrlAltTab.js';
@@ -17,7 +16,6 @@ import * as DND from './dnd.js';
 import * as EndSessionDialog from './endSessionDialog.js';
 import * as ExtensionSystem from './extensionSystem.js';
 import * as ExtensionDownloader from './extensionDownloader.js';
-import * as Introspect from '../misc/introspect.js';
 import * as Keyboard from './keyboard.js';
 import * as MessageTray from './messageTray.js';
 import * as Overview from './overview.js';
@@ -316,7 +314,12 @@ async function _initializeUI() {
 
     screenshotUI = new Screenshot.ScreenshotUI();
 
-    brightnessManager = new BrightnessManager.BrightnessManager();
+    brightnessManager = new Shell.BrightnessManager();
+    for (const name of Shell.BrightnessManager.get_keybinding_names())
+        wm.allowKeybinding(name, Shell.ActionMode.ALL);
+    brightnessManager.connect('osd-requested', (_manager, icon, levels) => {
+        osdWindowManager.show(icon, null, levels);
+    });
     brightnessDBus = new ShellDBus.BrightnessDBus(brightnessManager);
 
     messageTray = new MessageTray.MessageTray();
@@ -326,7 +329,7 @@ async function _initializeUI() {
     windowAttentionHandler = new WindowAttentionHandler.WindowAttentionHandler();
     componentManager = new Components.ComponentManager();
 
-    introspectService = new Introspect.IntrospectService();
+    introspectService = new Shell.IntrospectService();
 
     // Set up the global default break reminder manager and its D-Bus interface
     breakManager = new BreakManager.BreakManager();

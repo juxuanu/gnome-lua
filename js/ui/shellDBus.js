@@ -607,7 +607,7 @@ export class BrightnessDBus {
     }
 
     _sync() {
-        const hasBrightnessControl = !!this._manager.globalScale;
+        const hasBrightnessControl = !!this._manager.global_scale;
         if (hasBrightnessControl === this._hasBrightnessControl)
             return;
 
@@ -625,7 +625,7 @@ export class BrightnessDBus {
     }
 
     SetAutoBrightnessTarget(target) {
-        this._manager.autoBrightnessTarget = target;
+        this._manager.auto_brightness_target = target;
     }
 
     get HasBrightnessControl() {

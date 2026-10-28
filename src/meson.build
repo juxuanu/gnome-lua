@@ -150,6 +150,8 @@ libshell_public_headers = [
   'misc/dbus-object-manager.h',
   'misc/parental-controls-manager.h',
   'misc/weather.h',
+  'misc/brightness-manager.h',
+  'misc/introspect.h',
   'shell-mount-operation.h',
   'shell-perf-log.h',
   'shell-screenshot.h',
@@ -230,6 +232,8 @@ libshell_sources = [
   'misc/dbus-object-manager.c',
   'misc/parental-controls-manager.c',
   'misc/weather.c',
+  'misc/brightness-manager.c',
+  'misc/introspect.c',
   'shell-edge-drag-gesture.c',
   'shell-global.c',
   'shell-invert-lightness-effect.c',
@@ -329,9 +333,16 @@ dbus_generated += gnome.gdbus_codegen('switcheroo-control',
   namespace: 'Shell'
 )
 
-# Private proxies of misc/weather.c and misc/modem-manager.c
+# Private proxies of misc/weather.c and misc/modem-manager.c, and the
+# skeleton of misc/introspect.c
 dbus_generated += gnome.gdbus_codegen('weather-integration-dbus',
   sources: '../data/dbus-interfaces/org.gnome.Shell.WeatherIntegration.xml',
+  interface_prefix: 'org.gnome.Shell.',
+  namespace: 'Shell'
+)
+
+dbus_generated += gnome.gdbus_codegen('introspect-dbus',
+  sources: '../data/dbus-interfaces/org.gnome.Shell.Introspect.xml',
   interface_prefix: 'org.gnome.Shell.',
   namespace: 'Shell'
 )

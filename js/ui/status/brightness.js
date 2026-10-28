@@ -5,6 +5,10 @@ import St from 'gi://St';
 
 import {QuickSlider, SystemIndicator} from '../quickSettings.js';
 import * as Main from '../main.js';
+import {registerDestroyableType} from '../../misc/signalTracker.js';
+
+// The scales emit 'destroy' when the brightness manager drops them
+registerDestroyableType(Shell.BrightnessScale);
 
 const BRIGHTNESS_NAME = _('Brightness');
 
@@ -67,10 +71,11 @@ class BrightnessItem extends QuickSlider {
     }
 
     _sync() {
-        const {globalScale} = this._manager;
+        const globalScale = this._manager.global_scale;
+        const scales = this._manager.get_scales();
         this.set({
-            visible: globalScale,
-            menuEnabled: this._manager.scales.length > 1,
+            visible: !!globalScale,
+            menuEnabled: scales.length > 1,
         });
 
         if (!this.visible)
@@ -79,7 +84,7 @@ class BrightnessItem extends QuickSlider {
         this._monitorBrightnessSection.remove_all();
 
         this._connectSlider(this.slider, globalScale);
-        for (const scale of this._manager.scales) {
+        for (const scale of scales) {
             const slider = this._monitorBrightnessSection.addSlider(scale);
             this._connectSlider(slider, scale);
         }

@@ -28,7 +28,6 @@
     <file>misc/asyncMutex.js</file>
     <file>misc/animationUtils.js</file>
     <file>misc/breakManager.js</file>
-    <file>misc/brightnessManager.js</file>
     <file>misc/config.js</file>
     <file>misc/dateUtils.js</file>
     <file>misc/dbusErrors.js</file>
@@ -37,7 +36,6 @@
     <file>misc/errorUtils.js</file>
     <file>misc/extensionUtils.js</file>
     <file>misc/fileUtils.js</file>
-    <file>misc/introspect.js</file>
     <file>misc/jsParse.js</file>
     <file>misc/params.js</file>
     <file>misc/signals.js</file>
