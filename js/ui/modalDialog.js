@@ -4,7 +4,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Dialog from './dialog.js';
 import * as Layout from './layout.js';
 import * as Main from './main.js';
 import * as Params from '../misc/params.js';
@@ -76,9 +75,12 @@ export const ModalDialog = GObject.registerClass({
         this._backgroundBin.add_constraint(this._monitorConstraint);
         this.add_child(this._backgroundBin);
 
-        this.dialogLayout = new Dialog.Dialog(this.backgroundStack, params.styleClass);
-        this.contentLayout = this.dialogLayout.contentLayout;
-        this.buttonLayout = this.dialogLayout.buttonLayout;
+        this.dialogLayout = new Shell.Dialog({
+            parent_actor: this.backgroundStack,
+            dialog_style_class: params.styleClass,
+        });
+        this.contentLayout = this.dialogLayout.content_layout;
+        this.buttonLayout = this.dialogLayout.button_layout;
 
         if (!this._shellReactive) {
             this._lightbox = new Shell.Lightbox({
@@ -111,7 +113,7 @@ export const ModalDialog = GObject.registerClass({
     }
 
     clearButtons() {
-        this.dialogLayout.clearButtons();
+        this.dialogLayout.clear_buttons();
     }
 
     setButtons(buttons) {
@@ -122,7 +124,9 @@ export const ModalDialog = GObject.registerClass({
     }
 
     addButton(buttonInfo) {
-        return this.dialogLayout.addButton(buttonInfo);
+        const {label, action, key} = buttonInfo;
+        return this.dialogLayout.add_button(label, key || 0,
+            !!buttonInfo['default'], action);
     }
 
     _fadeOpen() {
@@ -228,7 +232,7 @@ export const ModalDialog = GObject.registerClass({
             this._savedKeyFocus.grab_key_focus();
             this._savedKeyFocus = null;
         } else {
-            const focus = this._initialKeyFocus || this.dialogLayout.initialKeyFocus;
+            const focus = this._initialKeyFocus || this.dialogLayout.initial_key_focus;
             focus.grab_key_focus();
         }
 

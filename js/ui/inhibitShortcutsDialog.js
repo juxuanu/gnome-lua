@@ -5,7 +5,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Dialog from './dialog.js';
 import * as ModalDialog from './modalDialog.js';
 import * as PermissionStore from '../misc/permissionStore.js';
 
@@ -66,7 +65,7 @@ export const InhibitShortcutsDialog = GObject.registerClass({
     _buildLayout() {
         const name = this._app?.get_name() ?? this._window.title;
 
-        const content = new Dialog.MessageDialogContent({
+        const content = new Shell.MessageDialogContent({
             title: _('Allow inhibiting shortcuts'),
             description: name
                 /* Translators: %s is an application name like "Settings" */

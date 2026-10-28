@@ -9,7 +9,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import * as Signals from '../../misc/signals.js';
 
-import * as Dialog from '../dialog.js';
 import * as Main from '../main.js';
 import * as MessageTray from '../messageTray.js';
 import * as ModalDialog from '../modalDialog.js';
@@ -36,7 +35,7 @@ class NetworkSecretDialog extends ModalDialog.ModalDialog {
         else
             this._content = this._getContent();
 
-        const contentBox = new Dialog.MessageDialogContent({
+        const contentBox = new Shell.MessageDialogContent({
             title: this._content.title,
             description: this._content.message,
         });

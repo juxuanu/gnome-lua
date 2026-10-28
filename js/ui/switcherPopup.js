@@ -184,7 +184,7 @@ export const SwitcherPopup = GObject.registerClass({
         GLib.source_remove(this._initialDelayTimeoutId);
         this._initialDelayTimeoutId = 0;
 
-        Main.osdWindowManager.hideAll();
+        Main.osdWindowManager.hide_all();
         this.opacity = 255;
     }
 

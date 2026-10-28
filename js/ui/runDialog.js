@@ -5,7 +5,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Dialog from './dialog.js';
 import * as Main from './main.js';
 import * as ModalDialog from './modalDialog.js';
 import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
@@ -73,7 +72,7 @@ export class RunDialog extends ModalDialog.ModalDialog {
 
         const title = _('Run a Command');
 
-        const content = new Dialog.MessageDialogContent({title});
+        const content = new Shell.MessageDialogContent({title});
         this.contentLayout.add_child(content);
         const [labelActor] = content;
 

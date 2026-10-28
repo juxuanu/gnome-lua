@@ -6,7 +6,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Dialog from './dialog.js';
 import * as MessageTray from './messageTray.js';
 import * as ModalDialog from './modalDialog.js';
 import * as Params from '../misc/params.js';
@@ -47,7 +46,7 @@ function _setButtonsForChoices(dialog, oldChoices, choices) {
 }
 
 /**
- * @param {Dialog.MessageDialogContent} content
+ * @param {Shell.MessageDialogContent} content
  * @param {string} message
  **/
 function _setLabelsForMessage(content, message) {
@@ -250,7 +249,7 @@ class ShellMountQuestionDialog extends ModalDialog.ModalDialog {
 
         this._oldChoices = [];
 
-        this._content = new Dialog.MessageDialogContent();
+        this._content = new Shell.MessageDialogContent();
         this.contentLayout.add_child(this._content);
     }
 
@@ -283,7 +282,7 @@ const ShellMountPasswordDialog = GObject.registerClass({
 
         const disksApp = Shell.AppSystem.get_default().lookup_app('org.gnome.DiskUtility.desktop');
 
-        const content = new Dialog.MessageDialogContent({title, description});
+        const content = new Shell.MessageDialogContent({title, description});
 
         const passwordGridLayout = new Clutter.GridLayout({orientation: Clutter.Orientation.VERTICAL});
         const passwordGrid = new St.Widget({
@@ -507,10 +506,10 @@ class ShellProcessesDialog extends ModalDialog.ModalDialog {
 
         this._oldChoices = [];
 
-        this._content = new Dialog.MessageDialogContent();
+        this._content = new Shell.MessageDialogContent();
         this.contentLayout.add_child(this._content);
 
-        this._applicationSection = new Dialog.ListSection();
+        this._applicationSection = new Shell.ListSection();
         this._applicationSection.hide();
         this.contentLayout.add_child(this._applicationSection);
     }
@@ -526,7 +525,7 @@ class ShellProcessesDialog extends ModalDialog.ModalDialog {
             if (!app)
                 return;
 
-            const listItem = new Dialog.ListSectionItem({
+            const listItem = new Shell.ListSectionItem({
                 icon_actor: app.create_icon_texture(LIST_ITEM_ICON_SIZE),
                 title: app.get_name(),
             });

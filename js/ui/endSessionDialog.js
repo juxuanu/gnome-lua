@@ -25,7 +25,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import UPower from 'gi://UPowerGlib';
 
-import * as Dialog from './dialog.js';
 import * as GnomeSession from '../misc/gnomeSession.js';
 import * as LoginManager from '../misc/loginManager.js';
 import * as Main from './main.js';
@@ -251,7 +250,7 @@ class EndSessionDialog extends ModalDialog.ModalDialog {
             'notify::is-loaded', this._sync.bind(this),
             'changed', this._sync.bind(this), this);
 
-        this._messageDialogContent = new Dialog.MessageDialogContent();
+        this._messageDialogContent = new Shell.MessageDialogContent();
 
         this._checkBox = new Shell.CheckBox();
         this._checkBox.connect('clicked', this._sync.bind(this));
@@ -267,12 +266,12 @@ class EndSessionDialog extends ModalDialog.ModalDialog {
 
         this.contentLayout.add_child(this._messageDialogContent);
 
-        this._applicationSection = new Dialog.ListSection({
+        this._applicationSection = new Shell.ListSection({
             title: _('Some applications are busy or have unsaved work'),
         });
         this.contentLayout.add_child(this._applicationSection);
 
-        this._sessionSection = new Dialog.ListSection({
+        this._sessionSection = new Shell.ListSection({
             title: _('Other users are logged in'),
         });
         this.contentLayout.add_child(this._sessionSection);
@@ -582,7 +581,7 @@ class EndSessionDialog extends ModalDialog.ModalDialog {
 
         if (app && flags & GnomeSession.InhibitFlags.LOGOUT) {
             const [description] = inhibitor.GetReasonSync();
-            const listItem = new Dialog.ListSectionItem({
+            const listItem = new Shell.ListSectionItem({
                 icon_actor: app.create_icon_texture(_ITEM_ICON_SIZE),
                 title: app.get_name(),
                 description,
@@ -644,7 +643,7 @@ class EndSessionDialog extends ModalDialog.ModalDialog {
             else
                 userLabelText = userName;
 
-            const listItem = new Dialog.ListSectionItem({
+            const listItem = new Shell.ListSectionItem({
                 icon_actor: userAvatar,
                 title: userLabelText,
             });

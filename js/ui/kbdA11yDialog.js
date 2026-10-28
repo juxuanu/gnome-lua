@@ -2,8 +2,8 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
 import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 
-import * as Dialog from './dialog.js';
 import * as ModalDialog from './modalDialog.js';
 
 const KEYBOARD_A11Y_SCHEMA    = 'org.gnome.desktop.a11y.keyboard';
@@ -50,7 +50,7 @@ class KbdA11yDialog extends GObject.Object {
             return;
         }
 
-        const content = new Dialog.MessageDialogContent({title, description});
+        const content = new Shell.MessageDialogContent({title, description});
         dialog.contentLayout.add_child(content);
 
         dialog.addButton({

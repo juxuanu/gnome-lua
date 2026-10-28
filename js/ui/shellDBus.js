@@ -146,9 +146,9 @@ export class GnomeShell {
             const monitorManager = global.backend.get_monitor_manager();
             const monitorIndex =
                 monitorManager.get_monitor_for_connector(connector);
-            Main.osdWindowManager.showOne(monitorIndex, icon, label, level, maxLevel);
+            Main.osdWindowManager.show_one(monitorIndex, icon, label ?? null, level ?? NaN, maxLevel ?? 1);
         } else {
-            Main.osdWindowManager.showAll(icon, label, level, maxLevel);
+            Main.osdWindowManager.show_all(icon, label ?? null, level ?? NaN, maxLevel ?? 1);
         }
         invocation.return_value(null);
     }
@@ -370,7 +370,7 @@ export class GnomeShell {
 
         const sender = invocation.get_sender();
         const [dict] = params;
-        Main.osdMonitorLabeler.show(sender, dict);
+        Main.osdMonitorLabeler.show(sender, new GLib.Variant('a{sv}', dict));
         invocation.return_value(null);
     }
 

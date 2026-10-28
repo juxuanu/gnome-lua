@@ -6,7 +6,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Dialog from '../dialog.js';
 import * as ModalDialog from '../modalDialog.js';
 import * as ShellEntry from '../shellEntry.js';
 import {wiggle} from '../../misc/animationUtils.js';
@@ -21,7 +20,7 @@ class KeyringDialog extends ModalDialog.ModalDialog {
         this.prompt.connect('show-confirm', this._onShowConfirm.bind(this));
         this.prompt.connect('prompt-close', this._onHidePrompt.bind(this));
 
-        const content = new Dialog.MessageDialogContent();
+        const content = new Shell.MessageDialogContent();
 
         this.prompt.bind_property('message',
             content, 'title', GObject.BindingFlags.SYNC_CREATE);

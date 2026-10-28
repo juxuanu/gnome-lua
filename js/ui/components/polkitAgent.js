@@ -8,7 +8,6 @@ import Polkit from 'gi://Polkit';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Dialog from '../dialog.js';
 import * as Main from '../main.js';
 import * as ModalDialog from '../modalDialog.js';
 import * as ShellEntry from '../shellEntry.js';
@@ -43,10 +42,10 @@ const AuthenticationDialog = GObject.registerClass({
 
         const title = _('Authentication Required');
 
-        const headerContent = new Dialog.MessageDialogContent({title, description});
+        const headerContent = new Shell.MessageDialogContent({title, description});
         this.contentLayout.add_child(headerContent);
 
-        const bodyContent = new Dialog.MessageDialogContent();
+        const bodyContent = new Shell.MessageDialogContent();
 
         if (userNames.length > 1) {
             log(`polkitAuthenticationAgent: Received ${userNames.length} ` +

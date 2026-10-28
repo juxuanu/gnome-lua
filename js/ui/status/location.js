@@ -5,7 +5,6 @@ import GObject from 'gi://GObject';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Dialog from '../dialog.js';
 import * as ModalDialog from '../modalDialog.js';
 import * as PermissionStore from '../../misc/permissionStore.js';
 import {SystemIndicator} from '../quickSettings.js';
@@ -333,7 +332,7 @@ export const GeolocationDialog = GObject.registerClass({
         super._init({styleClass: 'geolocation-dialog'});
         this.reqAccuracyLevel = reqAccuracyLevel;
 
-        const content = new Dialog.MessageDialogContent({
+        const content = new Shell.MessageDialogContent({
             title: _('Allow location access'),
             /* Translators: %s is an application name */
             description: _('The app %s wants to access your location').format(name),

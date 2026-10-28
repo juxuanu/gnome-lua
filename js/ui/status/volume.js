@@ -286,7 +286,7 @@ const StreamSlider = GObject.registerClass({
         const gicon = new Gio.ThemedIcon({name: this.getIcon()});
         const level = this.getLevel();
         const maxLevel = this.getMaxLevel();
-        Main.osdWindowManager.showAll(gicon, null, level, maxLevel);
+        Main.osdWindowManager.show_all(gicon, null, level, maxLevel);
     }
 });
 

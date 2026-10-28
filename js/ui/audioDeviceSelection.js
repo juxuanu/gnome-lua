@@ -6,7 +6,6 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Dialog from './dialog.js';
 import * as ModalDialog from './modalDialog.js';
 
 import * as Main from './main.js';
@@ -43,7 +42,7 @@ const AudioDeviceSelectionDialog = GObject.registerClass({
     }
 
     _buildLayout() {
-        const content = new Dialog.MessageDialogContent({
+        const content = new Shell.MessageDialogContent({
             title: _('Select Audio Device'),
         });
 

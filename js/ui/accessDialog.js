@@ -6,7 +6,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Dialog from './dialog.js';
 import * as ModalDialog from './modalDialog.js';
 
 import {DBusSenderChecker} from '../misc/util.js';
@@ -51,7 +50,7 @@ class AccessDialog extends ModalDialog.ModalDialog {
         const grantLabel = options['grant_label'] || _('Allow');
         const choices = options['choices'] || [];
 
-        const content = new Dialog.MessageDialogContent({title, description});
+        const content = new Shell.MessageDialogContent({title, description});
         this.contentLayout.add_child(content);
 
         this._choices = new Map();

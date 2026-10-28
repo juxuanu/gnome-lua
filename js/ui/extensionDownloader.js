@@ -3,10 +3,10 @@ import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GnomeAutoar from 'gi://GnomeAutoar';
 import GObject from 'gi://GObject';
+import Shell from 'gi://Shell';
 import Soup from 'gi://Soup';
 
 import * as Config from '../misc/config.js';
-import * as Dialog from './dialog.js';
 import * as ExtensionUtils from '../misc/extensionUtils.js';
 import * as FileUtils from '../misc/fileUtils.js';
 import * as Main from './main.js';
@@ -314,7 +314,7 @@ class InstallExtensionDialog extends ModalDialog.ModalDialog {
             default: true,
         }]);
 
-        const content = new Dialog.MessageDialogContent({
+        const content = new Shell.MessageDialogContent({
             title: _('Install Extension'),
             description: _('Download and install “%s” from extensions.gnome.org?').format(info.name),
         });

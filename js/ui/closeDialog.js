@@ -5,8 +5,6 @@ import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as Dialog from './dialog.js';
-
 const FROZEN_WINDOW_BRIGHTNESS = -0.3;
 const DIALOG_TRANSITION_TIME = 150;
 const ALIVE_TIMEOUT = 5000;
@@ -40,7 +38,7 @@ export const CloseDialog = GObject.registerClass({
         const title = _('“%s” Is Not Responding').format(windowApp.get_name());
         const description = _('You may choose to wait a short while for it to ' +
                             'continue or force the app to quit entirely');
-        return new Dialog.MessageDialogContent({title, description});
+        return new Shell.MessageDialogContent({title, description});
     }
 
     _updateScale() {
@@ -60,21 +58,18 @@ export const CloseDialog = GObject.registerClass({
             return;
 
         const windowActor = this._window.get_compositor_private();
-        this._dialog = new Dialog.Dialog(windowActor, 'close-dialog');
+        this._dialog = new Shell.Dialog({
+            parent_actor: windowActor,
+            dialog_style_class: 'close-dialog',
+        });
         this._dialog.width = windowActor.width;
         this._dialog.height = windowActor.height;
 
-        this._dialog.contentLayout.add_child(this._createDialogContent());
-        this._dialog.addButton({
-            label: _('Force Quit'),
-            action: this._onClose.bind(this),
-            default: true,
-        });
-        this._dialog.addButton({
-            label: _('Wait'),
-            action: this._onWait.bind(this),
-            key: Clutter.KEY_Escape,
-        });
+        this._dialog.content_layout.add_child(this._createDialogContent());
+        this._dialog.add_button(_('Force Quit'), 0, true,
+            this._onClose.bind(this));
+        this._dialog.add_button(_('Wait'), Clutter.KEY_Escape, false,
+            this._onWait.bind(this));
 
         global.focus_manager.add_group(this._dialog);
 
@@ -127,11 +122,11 @@ export const CloseDialog = GObject.registerClass({
         global.connectObject(
             'shutdown', () => this._onWait(), this._dialog);
 
-        this._dialog._dialog.set_pivot_point(0.5, 0.5);
-        this._dialog._dialog.scale_x = 0.8;
-        this._dialog._dialog.scale_y = 0.8;
+        this._dialog.frame.set_pivot_point(0.5, 0.5);
+        this._dialog.frame.scale_x = 0.8;
+        this._dialog.frame.scale_y = 0.8;
 
-        this._dialog._dialog.ease({
+        this._dialog.frame.ease({
             scale_x: 1,
             scale_y: 1,
             mode: Clutter.AnimationMode.EASE_OUT_BACK,
@@ -151,14 +146,14 @@ export const CloseDialog = GObject.registerClass({
         global.display.disconnectObject(this);
         global.stage.disconnectObject(this);
 
-        this._dialog._dialog.remove_all_transitions();
+        this._dialog.frame.remove_all_transitions();
 
         const dialog = this._dialog;
         this._dialog = null;
         this._removeWindowEffect();
 
-        dialog.makeInactive();
-        dialog._dialog.ease({
+        dialog.make_inactive();
+        dialog.frame.ease({
             opacity: 0,
             scale_x: 0.8,
             scale_y: 0.8,
@@ -174,6 +169,6 @@ export const CloseDialog = GObject.registerClass({
 
         const keyFocus = global.stage.key_focus;
         if (!keyFocus || !this._dialog.contains(keyFocus))
-            this._dialog.initialKeyFocus.grab_key_focus();
+            this._dialog.initial_key_focus.grab_key_focus();
     }
 });

@@ -392,16 +392,15 @@ export const BrightnessManager = GObject.registerClass({
     }
 
     _showOSD(monitorScales) {
-        const osdMonitors = {};
-        for (const scale of monitorScales) {
-            const level = scale.value;
-            osdMonitors[scale.monitor.get_number()] = {level};
-        }
+        // (monitor, level, max level); a max level below 1 means 1
+        const osdMonitors = [];
+        for (const scale of monitorScales)
+            osdMonitors.push([scale.monitor.get_number(), scale.value, -1]);
 
         Main.osdWindowManager.show(
             Gio.Icon.new_for_string('display-brightness-symbolic'),
             null,
-            osdMonitors
+            new GLib.Variant('a(idd)', osdMonitors)
         );
     }
 });

@@ -6,7 +6,6 @@ import St from 'gi://St';
 
 import * as Config from '../misc/config.js';
 import * as Main from './main.js';
-import * as Dialog from './dialog.js';
 import * as ModalDialog from './modalDialog.js';
 
 /** @enum {number} */
@@ -50,7 +49,7 @@ class WelcomeDialog extends ModalDialog.ModalDialog {
     _buildLayout() {
         const title = _('Welcome to %s').format(this._getOSName());
         const description = _('If you want to learn your way around, check out the tour');
-        const content = new Dialog.MessageDialogContent({title, description});
+        const content = new Shell.MessageDialogContent({title, description});
 
         const icon = new St.Widget({style_class: 'welcome-dialog-image'});
         content.insert_child_at_index(icon, 0);

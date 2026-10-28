@@ -33,7 +33,7 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/misc/util.js` | 471 | todo | |
 | `js/ui/environment.js` | 464 | wip | ease helpers in C; remaining JS is the GJS bootstrap, deleted in M6 |
 | `js/misc/ibusManager.js` | 372 | todo | |
-| `js/ui/dialog.js` | 352 | todo | |
+| `js/ui/dialog.js` | 352 | ported | `src/ui/dialog.[ch]`: `ShellDialog` and `ShellMessageDialogContent` (derivable), final `ShellListSection`/`ShellListSectionItem`. `new Dialog.Dialog(parent, cls)` is `new Shell.Dialog({parent_actor, dialog_style_class})`; `addButton({label, action, key, default})` is `add_button(label, key || 0, !!default, action)` (returns the St.Button, no `buttonInfo.button` back-reference); `contentLayout`/`buttonLayout`/`initialKeyFocus`/`clearButtons`/`makeInactive` are `content_layout`/`button_layout`/`initial_key_focus`/`clear_buttons`/`make_inactive`; the private `_dialog` frame is the read-only `frame` property. `ModalDialog.addButton(buttonInfo)` is unchanged. |
 | `js/misc/weather.js` | 327 | todo | |
 | `js/misc/keyboardManager.js` | 309 | todo | |
 | `js/misc/jsParse.js` | 302 | dropped | JS tokenizer for the Looking Glass JS evaluator; the Lua REPL replaces it. Removed in M6. |
@@ -49,13 +49,13 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/ui/slider.js` | 230 | ported | `src/ui/slider.[ch]` (`ShellSlider`, final). `new Slider(v)` is now `new Shell.Slider({value: v})`. |
 | `js/misc/introspect.js` | 218 | todo | |
 | `js/ui/sessionMode.js` | 209 | todo | |
-| `js/ui/osdWindow.js` | 199 | todo | |
+| `js/ui/osdWindow.js` | 199 | ported | `src/ui/osd-window.[ch]` (`ShellOsdWindow`, final St.Widget per monitor; `ShellOsdWindowManager`, final GObject). `new OsdWindowManager()` is now `new Shell.OsdWindowManager({ui_group: uiGroup})`. `showOne`/`showAll`/`hideAll` are `show_one`/`show_all`/`hide_all`; "no level" is a NaN `level` (was undefined/null), a max level below 1 means 1; `show(icon, label, levels)` takes a `GLib.Variant('a(idd)')` of `[monitor, level, maxLevel]` instead of an object. Windows go straight into `uiGroup` (no addChrome), so no JS shim; the `Layout.MonitorConstraint` is an `allocate` override and the box is centered by a `BinLayout`. |
 | `js/ui/panelMenu.js` | 199 | todo | |
 | `js/misc/extensionUtils.js` | 172 | dropped | JS extension loading; replaced by ShellLuaExtensionManager (M5). Removed in M6. |
 | `js/ui/pointerA11yTimeout.js` | 136 | ported | `src/ui/pointer-a11y-timeout.[ch]` (`ShellPointerA11yTimeout`, final; the pie timer actor is private to the C file). main.js now does `Main.pointerA11yTimeout = new Shell.PointerA11yTimeout({ui_group: uiGroup})` and must keep the reference (the JS class lived on through its seat signal closures). |
 | `js/ui/xdndHandler.js` | 127 | ported | `src/ui/xdnd-handler.[ch]` (`ShellXdndHandler`, final). Signals `drag-begin (time)`, `drag-end`, new `drag-motion (x, y, drag-actor, target-actor)`; the drag-monitor / `_delegate.handleDragOver` dispatch is now `DND.handleXdndMotion()` in dnd.js, wired in main.js. `Main.sessionMode.isLocked` is mirrored into the `session-locked` property by main.js. |
 | `js/misc/animationUtils.js` | 124 | wip | adjustAnimationTime in C |
-| `js/ui/osdMonitorLabeler.js` | 119 | todo | |
+| `js/ui/osdMonitorLabeler.js` | 119 | ported | `src/ui/osd-monitor-labeler.[ch]` (`ShellOsdMonitorLabeler`, final; the per-monitor label actor is private to the C file). `new Shell.OsdMonitorLabeler({ui_group: uiGroup})`; `show(client, params)` takes the `a{sv}` as a `GLib.Variant` (shellDBus.js rebuilds it from the unpacked dict). |
 | `js/ui/ripples.js` | 112 | ported | `src/ui/ripples.[ch]` (`ShellRipples`, final GObject). `new Ripples(px, py, cls, req)` is now `Shell.Ripples.new(px, py, cls, req)`; `addTo`/`playAnimation` are `add_to`/`play_animation`. Calling `add_to` twice or `play_animation` before `add_to` logs a critical instead of throwing. |
 | `js/misc/history.js` | 111 | todo | |
 | `js/misc/errorUtils.js` | 91 | dropped | JS error formatting for GJS exceptions. Removed in M6. |

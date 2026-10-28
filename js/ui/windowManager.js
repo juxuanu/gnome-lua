@@ -10,7 +10,6 @@ import St from 'gi://St';
 
 import * as AltTab from './altTab.js';
 import * as AppFavorites from './appFavorites.js';
-import * as Dialog from './dialog.js';
 import * as InhibitShortcutsDialog from './inhibitShortcutsDialog.js';
 import * as ModalDialog from './modalDialog.js';
 import * as WindowMenu from './windowMenu.js';
@@ -59,7 +58,7 @@ class DisplayChangeDialog extends ModalDialog.ModalDialog {
         const title = _('Keep these display settings?');
         const description = this._formatCountDown();
 
-        this._content = new Dialog.MessageDialogContent({title, description});
+        this._content = new Shell.MessageDialogContent({title, description});
         this.contentLayout.add_child(this._content);
 
         /* Translators: this and the following message should be limited in length,
@@ -884,7 +883,7 @@ export class WindowManager {
         global.display.connect('show-pad-osd', this._showPadOsd.bind(this));
         global.display.connect('show-osd', (display, monitorIndex, iconName, label) => {
             const icon = Gio.Icon.new_for_string(iconName);
-            Main.osdWindowManager.showOne(monitorIndex, icon, label);
+            Main.osdWindowManager.show_one(monitorIndex, icon, label, NaN, 1);
         });
 
         global.display.connect('init-xserver', (display, task) => {
