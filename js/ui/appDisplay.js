@@ -18,7 +18,6 @@ import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as PopupMenu from './popupMenu.js';
 import * as Search from './search.js';
 import * as SwipeTracker from './swipeTracker.js';
-import * as SystemActions from '../misc/systemActions.js';
 
 import * as Main from './main.js';
 
@@ -1758,7 +1757,7 @@ export class AppSearchProvider {
         this.canLaunchSearch = false;
         this.maxResults = 6;
 
-        this._systemActions = new SystemActions.getDefault();
+        this._systemActions = Shell.SystemActions.get_default();
 
         this._parentalControlsManager = ParentalControlsManager.getDefault();
     }
@@ -1776,8 +1775,8 @@ export class AppSearchProvider {
                     createIcon: size => app.create_icon_texture(size),
                 });
             } else {
-                const name = this._systemActions.getName(id);
-                const iconName = this._systemActions.getIconName(id);
+                const name = this._systemActions.get_name(id);
+                const iconName = this._systemActions.get_icon_name(id);
 
                 const createIcon = size => new St.Icon({
                     icon_name: iconName,
@@ -1825,7 +1824,7 @@ export class AppSearchProvider {
                 (a, b) => usage.compare(a, b)));
         });
 
-        results = results.concat(this._systemActions.getMatchingActions(terms));
+        results = results.concat(this._systemActions.get_matching_actions(terms));
         return new Promise(resolve => resolve(results));
     }
 
@@ -3154,7 +3153,7 @@ export const AppIcon = GObject.registerClass({
 const SystemActionIcon = GObject.registerClass(
 class SystemActionIcon extends Search.GridSearchResult {
     activate() {
-        SystemActions.getDefault().activateAction(this.metaInfo['id']);
+        Shell.SystemActions.get_default().activate_action(this.metaInfo['id']);
         Main.overview.hide();
     }
 });

@@ -6,7 +6,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as ModalDialog from '../modalDialog.js';
-import * as PermissionStore from '../../misc/permissionStore.js';
 import {SystemIndicator} from '../quickSettings.js';
 
 import {loadInterfaceXML} from '../../misc/fileUtils.js';
@@ -192,18 +191,14 @@ const GeoclueAgent = GObject.registerClass({
             this.notify('in-use');
     }
 
-    _connectToPermissionStore() {
+    async _connectToPermissionStore() {
         this._permStoreProxy = null;
-        new PermissionStore.PermissionStore(this._onPermStoreProxyReady.bind(this));
-    }
 
-    _onPermStoreProxyReady(proxy, error) {
-        if (error != null) {
+        try {
+            this._permStoreProxy = await Shell.permission_store_new(null);
+        } catch (error) {
             log(error.message);
-            return;
         }
-
-        this._permStoreProxy = proxy;
     }
 });
 
@@ -241,9 +236,11 @@ class AppAuthorizer {
             return this._completeAuth();
 
         try {
-            [this._permissions] = await this._permStoreProxy.LookupAsync(
+            const [permissions] = await this._permStoreProxy.call_lookup(
                 APP_PERMISSIONS_TABLE,
-                APP_PERMISSIONS_ID);
+                APP_PERMISSIONS_ID,
+                null);
+            this._permissions = permissions.deepUnpack();
         } catch (error) {
             if (error.domain === Gio.DBusError) {
                 // Likely no xdg-app installed, just authorize the app
@@ -310,15 +307,16 @@ class AppAuthorizer {
         const dateStr = Math.round(Date.now() / 1000).toString();
         this._permissions[this.desktopId] = [levelStr, dateStr];
 
-        const data = GLib.Variant.new('av', {});
+        const data = new GLib.Variant('av', []);
 
         try {
-            await this._permStoreProxy.SetAsync(
+            await this._permStoreProxy.call_set(
                 APP_PERMISSIONS_TABLE,
                 true,
                 APP_PERMISSIONS_ID,
-                this._permissions,
-                data);
+                new GLib.Variant('a{sas}', this._permissions),
+                data,
+                null);
         } catch (error) {
             log(error.message);
         }

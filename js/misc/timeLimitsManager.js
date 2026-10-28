@@ -32,7 +32,6 @@ import * as Gettext from 'gettext';
 import * as Main from '../ui/main.js';
 import * as MessageTray from '../ui/messageTray.js';
 import * as ParentalControlsManager from './parentalControlsManager.js';
-import * as SystemActions from './systemActions.js';
 
 import {loadInterfaceXML} from './fileUtils.js';
 
@@ -1172,7 +1171,7 @@ class TimeLimitsDispatcher extends GObject.Object {
     constructor(manager) {
         super();
 
-        this._systemActions = new SystemActions.getDefault();
+        this._systemActions = Shell.SystemActions.get_default();
 
         this._manager = manager;
         this._manager.connectObject(
@@ -1242,8 +1241,8 @@ class TimeLimitsDispatcher extends GObject.Object {
                 // available. This happens when admin disables lock screen,
                 // or when not running under GDM/logind. Those are corner cases
                 // which don’t need to be handled.
-                if (this._systemActions.canLockScreen)
-                    this._systemActions.activateLockScreen();
+                if (this._systemActions.can_lock_screen)
+                    this._systemActions.activate_lock_screen();
                 break;
             }
 

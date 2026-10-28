@@ -46,6 +46,10 @@ Gio._promisify(Shell.SessionManager.prototype, 'call_logout');
 Gio._promisify(Shell.SessionManager.prototype, 'call_shutdown');
 Gio._promisify(Shell.SessionManager.prototype, 'call_reboot');
 Gio._promisify(Shell.SessionManager.prototype, 'call_suspend');
+Gio._promisify(Shell, 'permission_store_new', 'permission_store_new_finish');
+Gio._promisify(Shell.PortalPermissionStore.prototype, 'call_lookup');
+Gio._promisify(Shell.PortalPermissionStore.prototype, 'call_set');
+Gio._promisify(Shell.PortalPermissionStore.prototype, 'call_set_permission');
 Gio._promisify(Meta.Backend.prototype, 'set_keymap_async');
 
 // We can't import shell JS modules yet, because they may have

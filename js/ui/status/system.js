@@ -8,7 +8,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import UPower from 'gi://UPowerGlib';
 
-import * as SystemActions from '../../misc/systemActions.js';
 import * as Main from '../main.js';
 import * as PopupMenu from '../popupMenu.js';
 
@@ -174,35 +173,35 @@ class ShutdownItem extends QuickSettingsItem {
             accessible_name: _('Power Off Menu'),
         });
 
-        this._systemActions = new SystemActions.getDefault();
+        this._systemActions = Shell.SystemActions.get_default();
         this._items = [];
 
         this.menu.setHeader('system-shutdown-symbolic', C_('title', 'Power Off'));
 
         this._addSystemAction(_('Suspend'), 'can-suspend', () => {
-            this._systemActions.activateSuspend();
+            this._systemActions.activate_suspend();
             Main.panel.closeQuickSettings();
         });
 
         this._addSystemAction(_('Restart…'), 'can-restart', () => {
-            this._systemActions.activateRestart();
+            this._systemActions.activate_restart();
             Main.panel.closeQuickSettings();
         });
 
         this._addSystemAction(_('Power Off…'), 'can-power-off', () => {
-            this._systemActions.activatePowerOff();
+            this._systemActions.activate_power_off();
             Main.panel.closeQuickSettings();
         });
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         this._addSystemAction(_('Log Out…'), 'can-logout', () => {
-            this._systemActions.activateLogout();
+            this._systemActions.activate_logout();
             Main.panel.closeQuickSettings();
         });
 
         this._addSystemAction(_('Switch User…'), 'can-switch-user', () => {
-            this._systemActions.activateSwitchUser();
+            this._systemActions.activate_switch_user();
             Main.panel.closeQuickSettings();
         });
 
@@ -214,7 +213,7 @@ class ShutdownItem extends QuickSettingsItem {
             if (!this.mapped)
                 return;
 
-            this._systemActions.forceUpdate();
+            this._systemActions.force_update();
         });
 
         this.connect('clicked', () => this.menu.open());
@@ -239,7 +238,7 @@ class ShutdownItem extends QuickSettingsItem {
 const LockItem = GObject.registerClass(
 class LockItem extends QuickSettingsItem {
     _init() {
-        this._systemActions = new SystemActions.getDefault();
+        this._systemActions = Shell.SystemActions.get_default();
 
         super._init({
             style_class: 'icon-button',
@@ -254,7 +253,7 @@ class LockItem extends QuickSettingsItem {
             GObject.BindingFlags.SYNC_CREATE);
 
         this.connect('clicked',
-            () => this._systemActions.activateLockScreen());
+            () => this._systemActions.activate_lock_screen());
     }
 });
 

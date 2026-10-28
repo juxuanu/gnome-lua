@@ -11,7 +11,6 @@ import St from 'gi://St';
 import * as Signals from '../misc/signals.js';
 import System from 'system';
 
-import * as History from '../misc/history.js';
 import {ExtensionState} from '../misc/extensionUtils.js';
 import * as PopupMenu from './popupMenu.js';
 import * as ShellEntry from './shellEntry.js';
@@ -378,7 +377,7 @@ class LuaConsole extends St.BoxLayout {
         this._entryArea.add_child(this._entry);
 
         // In-memory only: Lua input is not mixed into the JS history
-        this._history = new History.HistoryManager({
+        this._history = new Shell.HistoryManager({
             entry: this._entry.clutter_text,
         });
 
@@ -390,7 +389,7 @@ class LuaConsole extends St.BoxLayout {
     }
 
     _evaluate(command) {
-        command = this._history.addItem(command); // trims command
+        command = this._history.add_item(command); // trims command
         if (!command)
             return;
 
@@ -1707,8 +1706,8 @@ export class LookingGlass extends St.BoxLayout {
             return true;
         });
 
-        this._history = new History.HistoryManager({
-            gsettingsKey: HISTORY_KEY,
+        this._history = new Shell.HistoryManager({
+            gsettings_key: HISTORY_KEY,
             entry: this._entry.clutter_text,
         });
 
@@ -1801,7 +1800,7 @@ export class LookingGlass extends St.BoxLayout {
     }
 
     async _evaluate(command) {
-        command = this._history.addItem(command); // trims command
+        command = this._history.add_item(command); // trims command
         if (!command)
             return;
 
@@ -1886,7 +1885,7 @@ export class LookingGlass extends St.BoxLayout {
         this._grab = grab;
         this.show();
         this._open = true;
-        this._history.lastItem();
+        this._history.last_item();
 
         this.remove_all_transitions();
 

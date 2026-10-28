@@ -33,7 +33,6 @@ import St from 'gi://St';
 import * as Gettext from 'gettext';
 import * as Main from '../ui/main.js';
 import * as MessageTray from '../ui/messageTray.js';
-import * as SystemActions from './systemActions.js';
 
 export const MIN_BREAK_LENGTH_SECONDS = 10;
 
@@ -721,7 +720,7 @@ class BreakDispatcher extends GObject.Object {
             'notify::next-break-due-time', this._onStateChanged.bind(this),
             this);
 
-        this._systemActions = SystemActions.getDefault();
+        this._systemActions = Shell.SystemActions.get_default();
 
         this._notificationSource = null;
         this._brightnessEffect = null;
@@ -842,7 +841,7 @@ class BreakDispatcher extends GObject.Object {
 
             if (this._manager.breakTypeShouldLockScreen(this._manager.currentBreakType) &&
                 this._previousState !== BreakState.IN_BREAK)
-                this._systemActions.activateLockScreen();
+                this._systemActions.activate_lock_screen();
             else if (this._manager.breakTypeShouldFadeScreen(this._manager.currentBreakType))
                 this._brightnessEffectOn();
 
@@ -868,7 +867,7 @@ class BreakDispatcher extends GObject.Object {
 
     _onTakeBreak() {
         if (this._manager.breakTypeShouldLockScreen(this._manager.currentBreakType))
-            this._systemActions.activateLockScreen();
+            this._systemActions.activate_lock_screen();
         else if (this._manager.breakTypeShouldFadeScreen(this._manager.currentBreakType))
             this._brightnessEffectOn();
     }

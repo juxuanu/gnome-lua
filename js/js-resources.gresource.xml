@@ -37,7 +37,6 @@
     <file>misc/errorUtils.js</file>
     <file>misc/extensionUtils.js</file>
     <file>misc/fileUtils.js</file>
-    <file>misc/history.js</file>
     <file>misc/ibusManager.js</file>
     <file>misc/inputMethod.js</file>
     <file>misc/introspect.js</file>
@@ -47,10 +46,8 @@
     <file>misc/objectManager.js</file>
     <file>misc/params.js</file>
     <file>misc/parentalControlsManager.js</file>
-    <file>misc/permissionStore.js</file>
     <file>misc/signals.js</file>
     <file>misc/signalTracker.js</file>
-    <file>misc/systemActions.js</file>
     <file>misc/timeLimitsManager.js</file>
     <file>misc/util.js</file>
     <file>misc/weather.js</file>

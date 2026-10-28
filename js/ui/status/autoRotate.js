@@ -1,14 +1,13 @@
 import Gio from 'gi://Gio';
 import GObject from 'gi://GObject';
-
-import * as SystemActions from '../../misc/systemActions.js';
+import Shell from 'gi://Shell';
 
 import {QuickToggle, SystemIndicator} from '../quickSettings.js';
 
 const RotationToggle = GObject.registerClass(
 class RotationToggle extends QuickToggle {
     _init() {
-        this._systemActions = new SystemActions.getDefault();
+        this._systemActions = Shell.SystemActions.get_default();
 
         super._init({
             title: _('Auto Rotate'),
@@ -31,7 +30,7 @@ class RotationToggle extends QuickToggle {
             Gio.SettingsBindFlags.INVERT_BOOLEAN);
 
         this.connect('clicked',
-            () => this._systemActions.activateLockOrientation());
+            () => this._systemActions.activate_lock_orientation());
     }
 });
 

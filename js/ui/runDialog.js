@@ -10,7 +10,6 @@ import * as ModalDialog from './modalDialog.js';
 import * as ParentalControlsManager from '../misc/parentalControlsManager.js';
 import * as ShellEntry from './shellEntry.js';
 import * as Util from '../misc/util.js';
-import * as History from '../misc/history.js';
 
 const HISTORY_KEY = 'command-history';
 
@@ -101,8 +100,8 @@ export class RunDialog extends ModalDialog.ModalDialog {
 
         this._pathCompleter = new Gio.FilenameCompleter();
 
-        this._history = new History.HistoryManager({
-            gsettingsKey: HISTORY_KEY,
+        this._history = new Shell.HistoryManager({
+            gsettings_key: HISTORY_KEY,
             entry: this._entryText,
         });
 
@@ -201,7 +200,7 @@ export class RunDialog extends ModalDialog.ModalDialog {
     }
 
     _run(input, inTerminal) {
-        input = this._history.addItem(input); // trims input
+        input = this._history.add_item(input); // trims input
         let command = input;
 
         this._commandError = false;
@@ -258,7 +257,7 @@ export class RunDialog extends ModalDialog.ModalDialog {
 
 
     open() {
-        this._history.lastItem();
+        this._history.last_item();
         this._entryText.set_text('');
         this._commandError = false;
 

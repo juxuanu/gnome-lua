@@ -169,6 +169,24 @@ export async function start() {
     sessionMode = new Shell.SessionMode();
     sessionMode.connect('updated', _sessionUpdated);
 
+    // The system actions live in C and ask for the JS-only parts of the shell
+    const systemActions = Shell.SystemActions.get_default();
+    systemActions.session_mode = sessionMode;
+    systemActions.connect('lock-screen-requested',
+        (_actions, animate) => screenShield?.lock(animate));
+    systemActions.connect('hide-overview-requested', () => overview.hide());
+    let screenshotOverviewHiddenId = 0;
+    systemActions.connect('screenshot-ui-requested', () => {
+        if (screenshotOverviewHiddenId)
+            return;
+
+        screenshotOverviewHiddenId = overview.connect('hidden', () => {
+            overview.disconnect(screenshotOverviewHiddenId);
+            screenshotOverviewHiddenId = 0;
+            Screenshot.showScreenshotUI();
+        });
+    });
+
     St.Settings.get().connect('notify::high-contrast', _loadDefaultStylesheet);
     St.Settings.get().connect('notify::color-scheme', _loadDefaultStylesheet);
 

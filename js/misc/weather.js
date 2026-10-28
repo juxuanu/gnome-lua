@@ -5,8 +5,6 @@ import GWeather from 'gi://GWeather';
 import Shell from 'gi://Shell';
 import * as Signals from './signals.js';
 
-import * as PermissionStore from './permissionStore.js';
-
 import {loadInterfaceXML} from './fileUtils.js';
 
 Gio._promisify(Geoclue.Simple, 'new');
@@ -40,32 +38,7 @@ export class WeatherClient extends Signals.EventEmitter {
 
         this._needsAuth = true;
         this._weatherAuthorized = false;
-        this._permStore = new PermissionStore.PermissionStore(async (proxy, error) => {
-            if (error) {
-                log(`Failed to connect to permissionStore: ${error.message}`);
-                return;
-            }
-
-            if (this._permStore.g_name_owner == null) {
-                // Failed to auto-start, likely because xdg-desktop-portal
-                // isn't installed; don't restrict access to location service
-                this._weatherAuthorized = true;
-                this._updateAutoLocation();
-                return;
-            }
-
-            let [perms, data] = [{}, null];
-            try {
-                [perms, data] = await this._permStore.LookupAsync('gnome', 'geolocation');
-            } catch (err) {
-                log(`Error looking up permission: ${err.message}`);
-            }
-
-            const params = ['gnome', 'geolocation', false, data, perms];
-            this._onPermStoreChanged(this._permStore, '', params);
-        });
-        this._permStore.connectSignal('Changed',
-            this._onPermStoreChanged.bind(this));
+        this._connectToPermissionStore();
 
         this._locationSettings = new Gio.Settings({schema_id: 'org.gnome.system.location'});
         this._locationSettings.connect('changed::enabled',
@@ -312,9 +285,39 @@ export class WeatherClient extends Signals.EventEmitter {
             this._setLocation(this._mostRecentLocation);
     }
 
-    _onPermStoreChanged(proxy, sender, params) {
-        const [table, id, deleted_, data_, perms] = params;
+    async _connectToPermissionStore() {
+        try {
+            this._permStore = await Shell.permission_store_new(null);
+        } catch (error) {
+            log(`Failed to connect to permissionStore: ${error.message}`);
+            return;
+        }
 
+        this._permStore.connect('changed',
+            (proxy, table, id, deleted_, data_, perms) =>
+                this._onPermStoreChanged(table, id, perms.deepUnpack()));
+
+        if (this._permStore.g_name_owner == null) {
+            // Failed to auto-start, likely because xdg-desktop-portal
+            // isn't installed; don't restrict access to location service
+            this._weatherAuthorized = true;
+            this._updateAutoLocation();
+            return;
+        }
+
+        let perms = {};
+        try {
+            const [permsVariant] =
+                await this._permStore.call_lookup('gnome', 'geolocation', null);
+            perms = permsVariant.deepUnpack();
+        } catch (err) {
+            log(`Error looking up permission: ${err.message}`);
+        }
+
+        this._onPermStoreChanged('gnome', 'geolocation', perms);
+    }
+
+    _onPermStoreChanged(table, id, perms) {
         if (table !== 'gnome' || id !== 'geolocation')
             return;
 

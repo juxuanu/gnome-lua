@@ -64,6 +64,11 @@ jobs:
       - name: Mark workspace as safe for git
         run: git config --global --add safe.directory '*'
 
+      # Headers the JS->C port links that the mutter CI image does not carry
+      # (the JS used these libraries through their typelibs only).
+      - name: Install extra build dependencies
+        run: dnf install -y --setopt=install_weak_deps=False accountsservice-devel gdm-devel ibus-devel
+
       # Replaces .gitlab-ci/checkout-mutter.sh. That script picks a mutter
       # branch from CI_* variables (MR source/target branch, tag, ...) and
       # otherwise uses mutter HEAD; none of these exist here and this fork

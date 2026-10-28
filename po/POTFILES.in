@@ -22,7 +22,6 @@ js/gdm/userVerifier.js
 js/gdm/webLogin.js
 js/misc/breakManager.js
 js/misc/brightnessManager.js
-js/misc/systemActions.js
 js/misc/timeLimitsManager.js
 js/misc/util.js
 js/misc/dateUtils.js
@@ -96,6 +95,7 @@ js/ui/windowManager.js
 js/ui/windowMenu.js
 src/calendar-server/reminder-watcher.c
 src/main.c
+src/misc/system-actions.c
 src/shell-app.c
 src/shell-app-system.c
 src/shell-global.c

@@ -6,7 +6,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as ModalDialog from './modalDialog.js';
-import * as PermissionStore from '../misc/permissionStore.js';
 
 const APP_ALLOWLIST = ['org.gnome.Settings.desktop'];
 const APP_PERMISSIONS_TABLE = 'gnome';
@@ -52,11 +51,12 @@ export const InhibitShortcutsDialog = GObject.registerClass({
             return;
 
         try {
-            await this._permStore.SetPermissionAsync(APP_PERMISSIONS_TABLE,
+            await this._permStore.call_set_permission(APP_PERMISSIONS_TABLE,
                 true,
                 APP_PERMISSIONS_ID,
                 this._app.get_id(),
-                [grant]);
+                [grant],
+                null);
         } catch (error) {
             log(error.message);
         }
@@ -124,28 +124,33 @@ export const InhibitShortcutsDialog = GObject.registerClass({
 
         /* Check with the permission store */
         const appId = this._app.get_id();
-        this._permStore = new PermissionStore.PermissionStore(async (proxy, error) => {
-            if (error) {
-                log(error.message);
-                this._dialog.open();
-                return;
-            }
+        this._checkPermissionStore(appId);
+    }
 
-            try {
-                const [permissions] = await this._permStore.LookupAsync(
-                    APP_PERMISSIONS_TABLE, APP_PERMISSIONS_ID);
+    async _checkPermissionStore(appId) {
+        try {
+            this._permStore = await Shell.permission_store_new(null);
+        } catch (error) {
+            log(error.message);
+            this._dialog.open();
+            return;
+        }
 
-                if (permissions[appId] === undefined) // Not found
-                    this._dialog.open();
-                else if (permissions[appId][0] === GRANTED)
-                    this._emitResponse(DialogResponse.ALLOW);
-                else
-                    this._emitResponse(DialogResponse.DENY);
-            } catch (err) {
+        try {
+            const [permissionsVariant] = await this._permStore.call_lookup(
+                APP_PERMISSIONS_TABLE, APP_PERMISSIONS_ID, null);
+            const permissions = permissionsVariant.deepUnpack();
+
+            if (permissions[appId] === undefined) // Not found
                 this._dialog.open();
-                log(err.message);
-            }
-        });
+            else if (permissions[appId][0] === GRANTED)
+                this._emitResponse(DialogResponse.ALLOW);
+            else
+                this._emitResponse(DialogResponse.DENY);
+        } catch (err) {
+            this._dialog.open();
+            log(err.message);
+        }
     }
 
     vfunc_hide() {

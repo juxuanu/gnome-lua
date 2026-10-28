@@ -138,6 +138,9 @@ libshell_public_headers = [
   'shell-action-modes.h',
   'misc/gnome-session.h',
   'misc/login-manager.h',
+  'misc/history.h',
+  'misc/permission-store.h',
+  'misc/system-actions.h',
   'shell-mount-operation.h',
   'shell-perf-log.h',
   'shell-screenshot.h',
@@ -206,6 +209,9 @@ libshell_sources = [
   'shell-camera-monitor.c',
   'misc/gnome-session.c',
   'misc/login-manager.c',
+  'misc/history.c',
+  'misc/permission-store.c',
+  'misc/system-actions.c',
   'shell-edge-drag-gesture.c',
   'shell-global.c',
   'shell-invert-lightness-effect.c',
@@ -271,11 +277,21 @@ libshell_gnome_session_dbus = gnome.gdbus_codegen('gnome-session-dbus',
   namespace: 'Shell'
 )
 
+# The interface prefix is org.freedesktop.impl. (type ShellPortalPermissionStore)
+# so that shell_permission_store_new () is a function of the namespace, not a
+# constructor GIR would attach to the interface type.
+libshell_permission_store_dbus = gnome.gdbus_codegen('permission-store-dbus',
+  sources: '../data/dbus-interfaces/org.freedesktop.impl.portal.PermissionStore.xml',
+  interface_prefix: 'org.freedesktop.impl.',
+  namespace: 'Shell'
+)
+
 libshell_gir_sources = [
   libshell_enums,
   libshell_public_headers,
   libshell_login1_dbus,
   libshell_gnome_session_dbus,
+  libshell_permission_store_dbus,
   libshell_sources
 ]
 
@@ -304,7 +320,7 @@ endif
 
 libshell = library('shell-' + mutter_api_version,
   sources: libshell_gir_sources + libshell_no_gir_sources,
-  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, glycin_dep, m_dep, cairo_dep],
+  dependencies: gnome_shell_deps + [libshell_menu_dep, libshell_lua_dep, libst_dep, mutter_dep, gnome_desktop_dep, gnome_bg_dep, glycin_dep, m_dep, cairo_dep, accountsservice_dep, gdm_dep],
   include_directories: [conf_inc, include_directories('tray')],
   c_args: gnome_shell_cflags,
   link_with: libshell_link_with,
