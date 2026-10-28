@@ -36,9 +36,9 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/ui/dialog.js` | 352 | todo | |
 | `js/misc/weather.js` | 327 | todo | |
 | `js/misc/keyboardManager.js` | 309 | todo | |
-| `js/misc/jsParse.js` | 302 | todo | |
+| `js/misc/jsParse.js` | 302 | dropped | JS tokenizer for the Looking Glass JS evaluator; the Lua REPL replaces it. Removed in M6. |
 | `js/misc/modemManager.js` | 302 | todo | |
-| `js/misc/signalTracker.js` | 287 | todo | |
+| `js/misc/signalTracker.js` | 287 | dropped | GJS connectObject tracking; C uses g_signal_connect_object. Removed in M6. |
 | `js/misc/loginManager.js` | 279 | todo | |
 | `js/ui/barLevel.js` | 271 | ported | `src/ui/bar-level.[ch]` (`ShellBarLevel`, derivable). `overdrive-start` above the maximum now logs a warning instead of throwing. |
 | `js/misc/parentalControlsManager.js` | 267 | todo | |
@@ -51,25 +51,25 @@ Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this f
 | `js/ui/sessionMode.js` | 209 | todo | |
 | `js/ui/osdWindow.js` | 199 | todo | |
 | `js/ui/panelMenu.js` | 199 | todo | |
-| `js/misc/extensionUtils.js` | 172 | todo | |
+| `js/misc/extensionUtils.js` | 172 | dropped | JS extension loading; replaced by ShellLuaExtensionManager (M5). Removed in M6. |
 | `js/ui/pointerA11yTimeout.js` | 136 | ported | `src/ui/pointer-a11y-timeout.[ch]` (`ShellPointerA11yTimeout`, final; the pie timer actor is private to the C file). main.js now does `Main.pointerA11yTimeout = new Shell.PointerA11yTimeout({ui_group: uiGroup})` and must keep the reference (the JS class lived on through its seat signal closures). |
 | `js/ui/xdndHandler.js` | 127 | ported | `src/ui/xdnd-handler.[ch]` (`ShellXdndHandler`, final). Signals `drag-begin (time)`, `drag-end`, new `drag-motion (x, y, drag-actor, target-actor)`; the drag-monitor / `_delegate.handleDragOver` dispatch is now `DND.handleXdndMotion()` in dnd.js, wired in main.js. `Main.sessionMode.isLocked` is mirrored into the `session-locked` property by main.js. |
 | `js/misc/animationUtils.js` | 124 | wip | adjustAnimationTime in C |
 | `js/ui/osdMonitorLabeler.js` | 119 | todo | |
 | `js/ui/ripples.js` | 112 | ported | `src/ui/ripples.[ch]` (`ShellRipples`, final GObject). `new Ripples(px, py, cls, req)` is now `Shell.Ripples.new(px, py, cls, req)`; `addTo`/`playAnimation` are `add_to`/`play_animation`. Calling `add_to` twice or `play_animation` before `add_to` logs a critical instead of throwing. |
 | `js/misc/history.js` | 111 | todo | |
-| `js/misc/errorUtils.js` | 91 | todo | |
+| `js/misc/errorUtils.js` | 91 | dropped | JS error formatting for GJS exceptions. Removed in M6. |
 | `js/ui/windowAttentionHandler.js` | 91 | todo | blocked on messageTray (M4): ~85% of the file is the `MessageTray.Source`/`Notification` glue, the C-able signal filter is about ten lines |
 | `js/misc/dbusUtils.js` | 86 | todo | |
 | `js/misc/fileUtils.js` | 86 | todo | |
 | `js/ui/animation.js` | 81 | ported | `src/ui/animation.[ch]` (`ShellSpinner`, final; the file only held `Spinner` in 51.1). `new Spinner(16, {hideOnStop: true})` is now `new Shell.Spinner({spinner_size: 16, hide_on_stop: true})` (`size` clashes with `ClutterActor:size`). |
 | `js/misc/gnomeSession.js` | 71 | todo | |
-| `js/misc/dependencies.js` | 68 | todo | |
+| `js/misc/dependencies.js` | 68 | dropped | GJS import guards; C links its dependencies. Removed in M6. |
 | `js/ui/backgroundMenu.js` | 66 | todo | |
-| `js/misc/dbusErrors.js` | 58 | todo | |
-| `js/misc/params.js` | 27 | todo | |
-| `js/misc/asyncMutex.js` | 24 | todo | |
-| `js/misc/signals.js` | 23 | todo | |
+| `js/misc/dbusErrors.js` | 58 | dropped | Maps GJS D-Bus errors; gdbus-codegen handles this in C. Removed in M6. |
+| `js/misc/params.js` | 27 | dropped | GJS-only helper (object spread/validation); no C counterpart needed. Removed with GJS in M6. |
+| `js/misc/asyncMutex.js` | 24 | dropped | JS promise mutex; not needed in C. Removed in M6. |
+| `js/misc/signals.js` | 23 | dropped | GJS EventEmitter shim; C modules use GObject signals. Removed in M6. |
 | `js/ui/init.js` | 21 | todo | |
 | `js/misc/permissionStore.js` | 18 | todo | |
 | `js/ui/listModes.js` | 5 | todo | |
