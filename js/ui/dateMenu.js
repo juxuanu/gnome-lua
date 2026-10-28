@@ -1,3 +1,5 @@
+import * as System from 'system';
+
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -10,8 +12,6 @@ import St from 'gi://St';
 
 import * as Main from './main.js';
 import * as Calendar from './calendar.js';
-
-import {formatDateWithCFormatString, formatTime, clearCachedLocalTimeZone} from '../misc/dateUtils.js';
 
 const NC_ = (context, str) => `${context}\u0004${str}`;
 const T_ = Shell.util_translate_time_string;
@@ -86,7 +86,7 @@ class TodayButton extends St.Button {
     }
 
     setDate(date) {
-        this._dayLabel.set_text(formatDateWithCFormatString(date, '%A'));
+        this._dayLabel.set_text(Shell.date_format_unix_msecs(date.getTime(), '%A'));
 
         /* Translators: This is the date format to use when the calendar popup is
          * shown - it is shown just below the time in the top bar (e.g.,
@@ -94,14 +94,14 @@ class TodayButton extends St.Button {
          * "February 17 2015".
          */
         const dateFormat = Shell.util_translate_time_string(N_('%B %-d %Y'));
-        this._dateLabel.set_text(formatDateWithCFormatString(date, dateFormat));
+        this._dateLabel.set_text(Shell.date_format_unix_msecs(date.getTime(), dateFormat));
 
         /* Translators: This is the accessible name of the date button shown
          * below the time in the shell; it should combine the weekday and the
          * date, e.g. "Tuesday February 17 2015".
          */
         const dateAccessibleNameFormat = Shell.util_translate_time_string(N_('%A %B %e %Y'));
-        this.accessible_name = formatDateWithCFormatString(date, dateAccessibleNameFormat);
+        this.accessible_name = Shell.date_format_unix_msecs(date.getTime(), dateAccessibleNameFormat);
     }
 });
 
@@ -182,9 +182,9 @@ class EventsSection extends St.Button {
         else if (this._startDate > now && this._startDate - now <= timeSpanDay)
             this._title.text = _('Tomorrow');
         else if (this._startDate.getFullYear() === now.getFullYear())
-            this._title.text = formatDateWithCFormatString(this._startDate, sameYearFormat);
+            this._title.text = Shell.date_format_unix_msecs(this._startDate.getTime(), sameYearFormat);
         else
-            this._title.text = formatDateWithCFormatString(this._startDate, otherYearFormat);
+            this._title.text = Shell.date_format_unix_msecs(this._startDate.getTime(), otherYearFormat);
     }
 
     _isAtMidnight(eventTime) {
@@ -201,8 +201,8 @@ class EventsSection extends St.Button {
         const startsBeforeToday = eventStart < this._startDate;
         const endsAfterToday = eventEnd > this._endDate;
 
-        const startTimeOnly = formatTime(eventStart, {timeOnly: true});
-        const endTimeOnly = formatTime(eventEnd, {timeOnly: true});
+        const startTimeOnly = Shell.date_format_time_unix_msecs(eventStart.getTime(), Shell.DateFormatFlags.TIME_ONLY);
+        const endTimeOnly = Shell.date_format_time_unix_msecs(eventEnd.getTime(), Shell.DateFormatFlags.TIME_ONLY);
 
         const rtl = Clutter.get_default_text_direction() === Clutter.TextDirection.RTL;
 
@@ -237,8 +237,8 @@ class EventsSection extends St.Button {
             else
                 format = '%x';
 
-            const startDateOnly = formatDateWithCFormatString(eventStart, format);
-            const endDateOnly = formatDateWithCFormatString(eventEnd, format);
+            const startDateOnly = Shell.date_format_unix_msecs(eventStart.getTime(), format);
+            const endDateOnly = Shell.date_format_unix_msecs(eventEnd.getTime(), format);
 
             if (startsAtMidnight && endsAtMidnight)
                 title = `${rtl ? endDateOnly : startDateOnly} ${EN_CHAR} ${rtl ? startDateOnly : endDateOnly}`;
@@ -506,7 +506,7 @@ class WorldClocksSection extends St.Button {
         for (let i = 0; i < this._locations.length; i++) {
             const l = this._locations[i];
             const now = GLib.DateTime.new_now(l.location.get_timezone());
-            l.timeLabel.text = formatTime(now, {timeOnly: true});
+            l.timeLabel.text = Shell.date_format_time(now, Shell.DateFormatFlags.TIME_ONLY);
         }
     }
 
@@ -634,10 +634,8 @@ class WeatherSection extends St.Button {
         let col = 0;
         infos.forEach(fc => {
             const [valid_, timestamp] = fc.get_value_update();
-            const timeStr = formatTime(new Date(timestamp * 1000), {
-                timeOnly: true,
-                ampm: false,
-            });
+            const timeStr = Shell.date_format_time_unix_msecs(timestamp * 1000,
+                Shell.DateFormatFlags.TIME_ONLY | Shell.DateFormatFlags.NO_AMPM);
             const [, tempValue] = fc.get_value_temp(GWeather.TemperatureUnit.DEFAULT);
             const tempPrefix = Math.round(tempValue) >= 0 ? ' ' : '';
 
@@ -979,7 +977,11 @@ class DateMenuButton extends Shell.PanelMenuButton {
     }
 
     _updateTimeZone() {
-        clearCachedLocalTimeZone();
+        // SpiderMonkey caches the time zone so we must explicitly clear it
+        // before we can update the calendar, see
+        // https://bugzilla.gnome.org/show_bug.cgi?id=678507
+        System.clearDateCaches();
+        Shell.date_clear_cached_local_time_zone();
 
         this._calendar.updateTimeZone();
     }

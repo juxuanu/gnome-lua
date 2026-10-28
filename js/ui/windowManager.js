@@ -8,7 +8,6 @@ import Mtk from 'gi://Mtk';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as AltTab from './altTab.js';
 import * as InhibitShortcutsDialog from './inhibitShortcutsDialog.js';
 import * as PadOsd from './padOsd.js';
 import * as Screenshot from './screenshot.js';
@@ -1701,19 +1700,19 @@ export class WindowManager {
         case 'switch-applications-backward':
         case 'switch-group':
         case 'switch-group-backward':
-            constructor = AltTab.AppSwitcherPopup;
+            constructor = Shell.AppSwitcherPopup;
             break;
         case 'switch-windows':
         case 'switch-windows-backward':
-            constructor = AltTab.WindowSwitcherPopup;
+            constructor = Shell.WindowSwitcherPopup;
             break;
         case 'cycle-windows':
         case 'cycle-windows-backward':
-            constructor = AltTab.WindowCyclerPopup;
+            constructor = Shell.WindowCyclerPopup;
             break;
         case 'cycle-group':
         case 'cycle-group-backward':
-            constructor = AltTab.GroupCyclerPopup;
+            constructor = Shell.GroupCyclerPopup;
             break;
         case 'switch-monitor':
             constructor = Shell.SwitchMonitorPopup;
@@ -1728,6 +1727,24 @@ export class WindowManager {
             this._workspaceSwitcherPopup.destroy();
 
         const tabPopup = new constructor();
+
+        // The popups activate the window themselves, this is the rest of
+        // Main.activateWindow()
+        if (constructor !== Shell.SwitchMonitorPopup) {
+            tabPopup.connect('window-activated', () => {
+                Main.overview.hide();
+                Main.panel.close_calendar();
+            });
+        }
+
+        // The cyclers have no popup to hand the window manager's part of
+        // activating a window to
+        if (tabPopup instanceof Shell.CyclerPopup) {
+            tabPopup.connect('skip-next-effect',
+                (popup, actor) => this.skipNextEffect(actor));
+            tabPopup.connect('move-window',
+                (popup, metaWindow, workspace) => this.actionMoveWindow(metaWindow, workspace));
+        }
 
         if (!tabPopup.show_switcher(binding.is_reversed(), binding.get_name(), binding.get_mask()))
             tabPopup.destroy();

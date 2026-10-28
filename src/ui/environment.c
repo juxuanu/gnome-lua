@@ -2,7 +2,8 @@
 /*
  * Animation helpers ported from js/ui/environment.js (Clutter.Actor.ease(),
  * Clutter.Actor.ease_property(), St.Adjustment.ease()) and
- * js/misc/animationUtils.js (adjustAnimationTime()).
+ * js/misc/animationUtils.js (adjustAnimationTime(),
+ * ensureActorVisibleInScrollView() and wiggle()).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -15,6 +16,8 @@
 #include "ui/environment.h"
 
 #include "shell-global.h"
+
+#define SCROLL_TIME 100
 
 static const ShellEaseParams default_params = {
   .duration = -1,
@@ -863,4 +866,261 @@ fail:
   ease_state_free (state);
   drop_callback (destroy, user_data);
   return FALSE;
+}
+
+/* ------------------------------------------------------------------------ */
+/* js/misc/animationUtils.js                                                 */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * shell_animation_ensure_actor_visible_in_scroll_view:
+ * @scroll_view: the #StScrollView the actor is in
+ * @actor: the actor, a descendant of @scroll_view
+ *
+ * Animates scrolling @scroll_view vertically until @actor is visible,
+ * keeping clear of the fade margins of the view. Does nothing if @actor is
+ * already visible.
+ */
+void
+shell_animation_ensure_actor_visible_in_scroll_view (StScrollView *scroll_view,
+                                                     ClutterActor *actor)
+{
+  g_autoptr (GError) error = NULL;
+  g_auto (GValue) target = G_VALUE_INIT;
+  ShellEaseParams params = default_params;
+  StAdjustment *adjustment;
+  ClutterEffect *vfade;
+  ClutterActor *parent;
+  ClutterActorBox box;
+  double value, upper, page_size;
+  float offset = 0;
+  float y1, y2;
+
+  g_return_if_fail (ST_IS_SCROLL_VIEW (scroll_view));
+  g_return_if_fail (CLUTTER_IS_ACTOR (actor));
+  g_return_if_fail (actor != CLUTTER_ACTOR (scroll_view) &&
+                    clutter_actor_contains (CLUTTER_ACTOR (scroll_view), actor));
+
+  adjustment = st_scroll_view_get_vadjustment (scroll_view);
+  st_adjustment_get_values (adjustment, &value, NULL, &upper, NULL, NULL,
+                            &page_size);
+
+  vfade = clutter_actor_get_effect (CLUTTER_ACTOR (scroll_view), "fade");
+  if (vfade != NULL && ST_IS_SCROLL_VIEW_FADE (vfade))
+    offset = st_scroll_view_fade_get_fade_margins (ST_SCROLL_VIEW_FADE (vfade))->top;
+
+  clutter_actor_get_allocation_box (actor, &box);
+  y1 = box.y1;
+  y2 = box.y2;
+
+  parent = clutter_actor_get_parent (actor);
+  while (parent != CLUTTER_ACTOR (scroll_view))
+    {
+      clutter_actor_get_allocation_box (parent, &box);
+      y1 += box.y1;
+      y2 += box.y1;
+      parent = clutter_actor_get_parent (parent);
+    }
+
+  if (y1 < value + offset)
+    value = MAX (0, y1 - offset);
+  else if (y2 > value + page_size - offset)
+    value = MIN (upper, y2 + offset - page_size);
+  else
+    return;
+
+  params.mode = CLUTTER_EASE_OUT_QUAD;
+  params.duration = SCROLL_TIME;
+
+  g_value_init (&target, G_TYPE_DOUBLE);
+  g_value_set_double (&target, value);
+
+  if (!shell_animatable_ease_property (CLUTTER_ANIMATABLE (adjustment), "value",
+                                       &target, &params, NULL, NULL, NULL,
+                                       &error))
+    g_warning ("%s: %s", G_STRFUNC, error->message);
+}
+
+typedef struct
+{
+  grefcount ref_count;
+
+  ClutterActor *actor;
+  double offset;
+  int duration;
+  int wiggle_count;
+  int step;
+
+  ShellEaseCallback callback;
+  gpointer user_data;
+  GDestroyNotify destroy;
+} WiggleData;
+
+static WiggleData *
+wiggle_data_ref (WiggleData *data)
+{
+  g_ref_count_inc (&data->ref_count);
+  return data;
+}
+
+static void
+wiggle_data_unref (WiggleData *data)
+{
+  if (!g_ref_count_dec (&data->ref_count))
+    return;
+
+  g_object_unref (data->actor);
+  if (data->destroy)
+    data->destroy (data->user_data);
+  g_free (data);
+}
+
+static void
+wiggle_data_finish (WiggleData *data,
+                    gboolean    finished)
+{
+  ShellEaseCallback callback = g_steal_pointer (&data->callback);
+
+  if (callback)
+    callback (finished, data->user_data);
+}
+
+static void wiggle_next_step (WiggleData *data);
+
+/* Stops the chain if a step did not run to completion: the actor was
+ * destroyed or another animation took over its translation, which the JS
+ * version treated as a cancelled promise */
+static void
+on_wiggle_step_done (gboolean finished,
+                     gpointer user_data)
+{
+  WiggleData *data = user_data;
+
+  if (!finished)
+    {
+      wiggle_data_finish (data, FALSE);
+      return;
+    }
+
+  data->step++;
+  wiggle_next_step (data);
+}
+
+static void
+wiggle_next_step (WiggleData *data)
+{
+  ShellEaseParams params = default_params;
+  double translation_x;
+
+  params.duration = data->duration;
+
+  switch (data->step)
+    {
+    case 0:
+      /* Accelerate before wiggling */
+      translation_x = -data->offset;
+      params.mode = CLUTTER_EASE_OUT_QUAD;
+      break;
+
+    case 1:
+      /* Wiggle */
+      translation_x = data->offset;
+      params.mode = CLUTTER_LINEAR;
+      params.repeat_count = data->wiggle_count;
+      params.auto_reverse = TRUE;
+      break;
+
+    case 2:
+      /* Decelerate and return to the original position */
+      translation_x = 0;
+      params.mode = CLUTTER_EASE_IN_QUAD;
+      break;
+
+    default:
+      wiggle_data_finish (data, TRUE);
+      return;
+    }
+
+  shell_actor_ease (data->actor, &params,
+                    on_wiggle_step_done,
+                    wiggle_data_ref (data),
+                    (GDestroyNotify) wiggle_data_unref,
+                    "translation-x", translation_x,
+                    NULL);
+}
+
+/**
+ * shell_animation_wiggle_full:
+ * @actor: an actor to animate
+ * @offset: the offset to move the actor by per wiggle, in pixels
+ *   (%SHELL_WIGGLE_OFFSET by default)
+ * @duration: the time in milliseconds to move the actor per wiggle, 0 to not
+ *   animate at all (%SHELL_WIGGLE_DURATION by default)
+ * @wiggle_count: the number of times to wiggle the actor
+ *   (%SHELL_WIGGLE_COUNT by default)
+ * @callback: (scope async) (nullable) (closure user_data) (destroy destroy):
+ *   called once when the wiggle ends: with %TRUE if it ran to completion or
+ *   did not need to run (animations are disabled, @duration is 0), with
+ *   %FALSE if it was stopped because @actor was destroyed or another
+ *   animation took over its translation
+ * @user_data: data for @callback
+ * @destroy: called on @user_data after @callback, or when the request is
+ *   dropped
+ *
+ * "Wiggles" @actor. A "wiggle" is an animation that moves an actor back and
+ * forth on the X axis a specified amount of times. Does nothing if animations
+ * are disabled. The translation of @actor is reset to 0 first and ends at 0.
+ */
+void
+shell_animation_wiggle_full (ClutterActor      *actor,
+                             double             offset,
+                             int                duration,
+                             int                wiggle_count,
+                             ShellEaseCallback  callback,
+                             gpointer           user_data,
+                             GDestroyNotify     destroy)
+{
+  WiggleData *data;
+
+  g_return_if_fail (CLUTTER_IS_ACTOR (actor));
+  g_return_if_fail (duration >= 0);
+  g_return_if_fail (wiggle_count >= 0);
+
+  data = g_new0 (WiggleData, 1);
+  g_ref_count_init (&data->ref_count);
+  data->actor = g_object_ref (actor);
+  data->offset = offset;
+  data->duration = duration;
+  data->wiggle_count = wiggle_count;
+  data->callback = callback;
+  data->user_data = user_data;
+  data->destroy = destroy;
+
+  if (st_settings_get_enable_animations (st_settings_get ()) && duration != 0)
+    {
+      g_object_set (actor, "translation-x", 0.0, NULL);
+      wiggle_next_step (data);
+    }
+  else
+    {
+      wiggle_data_finish (data, TRUE);
+    }
+
+  wiggle_data_unref (data);
+}
+
+/**
+ * shell_animation_wiggle:
+ * @actor: an actor to animate
+ *
+ * Wiggles @actor with the defaults of `wiggle ()` in animationUtils.js: an
+ * offset of %SHELL_WIGGLE_OFFSET pixels, %SHELL_WIGGLE_DURATION ms per wiggle
+ * and %SHELL_WIGGLE_COUNT wiggles. See shell_animation_wiggle_full ().
+ */
+void
+shell_animation_wiggle (ClutterActor *actor)
+{
+  shell_animation_wiggle_full (actor, SHELL_WIGGLE_OFFSET,
+                               SHELL_WIGGLE_DURATION, SHELL_WIGGLE_COUNT,
+                               NULL, NULL, NULL);
 }

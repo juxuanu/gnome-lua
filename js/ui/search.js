@@ -8,10 +8,8 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as AppDisplay from './appDisplay.js';
-import * as IconGrid from './iconGrid.js';
 import * as Main from './main.js';
 import * as RemoteSearch from './remoteSearch.js';
-import {ensureActorVisibleInScrollView} from '../misc/animationUtils.js';
 
 import {Highlighter} from '../misc/util.js';
 import {logErrorUnlessCancelled} from '../misc/errorUtils.js';
@@ -161,9 +159,8 @@ class GridSearchResult extends SearchResult {
 
         this.style_class = 'grid-search-result';
 
-        this.icon = new IconGrid.BaseIcon(this.metaInfo['name'], {
-            createIcon: this.metaInfo['createIcon'],
-        });
+        this.icon = new Shell.BaseIcon({label_text: this.metaInfo['name']});
+        this.icon.set_create_icon_func(this.metaInfo['createIcon'] ?? null);
         const content = new St.Bin({
             child: this.icon,
             x_align: Clutter.ActorAlign.START,
@@ -797,7 +794,7 @@ export const SearchResultsView = GObject.registerClass({
     }
 
     _focusChildChanged(provider) {
-        ensureActorVisibleInScrollView(this._scrollView, provider.focusChild);
+        Shell.animation_ensure_actor_visible_in_scroll_view(this._scrollView, provider.focusChild);
     }
 
     _ensureProviderDisplay(provider) {
@@ -932,7 +929,7 @@ export const SearchResultsView = GObject.registerClass({
 
         if (selected) {
             result.add_style_pseudo_class('selected');
-            ensureActorVisibleInScrollView(this._scrollView, result);
+            Shell.animation_ensure_actor_visible_in_scroll_view(this._scrollView, result);
         } else {
             result.remove_style_pseudo_class('selected');
         }
@@ -1002,7 +999,7 @@ class ProviderInfo extends St.Button {
         const appSys = Shell.AppSystem.get_default();
         const app = appSys.lookup_app(this.provider.appInfo.get_id());
         if (app.state === Shell.AppState.STOPPED)
-            IconGrid.zoomOutActor(this._content);
+            Shell.IconGrid.zoom_out_actor(this._content);
     }
 
     setMoreCount(count) {

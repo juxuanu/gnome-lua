@@ -8,9 +8,6 @@ import St from 'gi://St';
 
 import * as MessageTray from './messageTray.js';
 import * as Params from '../misc/params.js';
-import * as ShellEntry from './shellEntry.js';
-
-import {wiggle} from '../misc/animationUtils.js';
 
 const LIST_ITEM_ICON_SIZE = 48;
 const WORK_SPINNER_ICON_SIZE = 16;
@@ -335,7 +332,7 @@ const ShellMountPasswordDialog = GObject.registerClass({
                 x_expand: true,
             });
             this._pimEntry.clutter_text.connect('activate', this._onEntryActivate.bind(this));
-            ShellEntry.addContextMenu(this._pimEntry);
+            Shell.entry_add_context_menu(this._pimEntry, Shell.ActionMode.POPUP);
 
             if (rtl)
                 passwordGridLayout.attach(this._pimEntry, 1, curGridRow, 1, 1);
@@ -356,7 +353,7 @@ const ShellMountPasswordDialog = GObject.registerClass({
         });
         this._passwordEntry.clutter_text.connect('activate', this._onEntryActivate.bind(this));
         this.set_initial_key_focus(this._passwordEntry);
-        ShellEntry.addContextMenu(this._passwordEntry);
+        Shell.entry_add_context_menu(this._passwordEntry, Shell.ActionMode.POPUP);
 
         this._workSpinner = new Shell.Spinner({
             spinner_size: WORK_SPINNER_ICON_SIZE,
@@ -374,7 +371,7 @@ const ShellMountPasswordDialog = GObject.registerClass({
 
         const warningBox = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL});
 
-        const capsLockWarning = new ShellEntry.CapsLockWarning();
+        const capsLockWarning = new Shell.CapsLockWarning();
         warningBox.add_child(capsLockWarning);
 
         this._errorMessageLabel = new St.Label({
@@ -437,7 +434,7 @@ const ShellMountPasswordDialog = GObject.registerClass({
         this._errorMessageLabel.text = _('Sorry, that didn’t work. Please try again.');
         this._errorMessageLabel.opacity = 255;
 
-        wiggle(this._passwordEntry);
+        Shell.animation_wiggle(this._passwordEntry);
     }
 
     _onCancelButton() {

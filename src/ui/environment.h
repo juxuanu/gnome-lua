@@ -2,7 +2,8 @@
 /*
  * Animation helpers ported from js/ui/environment.js (Clutter.Actor.ease(),
  * Clutter.Actor.ease_property(), St.Adjustment.ease()) and
- * js/misc/animationUtils.js (adjustAnimationTime()).
+ * js/misc/animationUtils.js (adjustAnimationTime(),
+ * ensureActorVisibleInScrollView() and wiggle()).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -10,6 +11,8 @@
 #pragma once
 
 #include <clutter/clutter.h>
+
+#include "st.h"
 
 G_BEGIN_DECLS
 
@@ -94,6 +97,42 @@ gboolean shell_animatable_ease_property (ClutterAnimatable      *animatable,
                                          gpointer                user_data,
                                          GDestroyNotify          destroy,
                                          GError                **error);
+
+void shell_animation_ensure_actor_visible_in_scroll_view (StScrollView *scroll_view,
+                                                          ClutterActor *actor);
+
+/**
+ * SHELL_WIGGLE_OFFSET:
+ *
+ * Default offset in pixels of shell_animation_wiggle ()
+ * (`Shell.WIGGLE_OFFSET`).
+ */
+#define SHELL_WIGGLE_OFFSET 6
+
+/**
+ * SHELL_WIGGLE_DURATION:
+ *
+ * Default duration in milliseconds of each wiggle of
+ * shell_animation_wiggle () (`Shell.WIGGLE_DURATION`).
+ */
+#define SHELL_WIGGLE_DURATION 65
+
+/**
+ * SHELL_WIGGLE_COUNT:
+ *
+ * Default number of wiggles of shell_animation_wiggle ()
+ * (`Shell.WIGGLE_COUNT`).
+ */
+#define SHELL_WIGGLE_COUNT 3
+
+void shell_animation_wiggle      (ClutterActor      *actor);
+void shell_animation_wiggle_full (ClutterActor      *actor,
+                                  double             offset,
+                                  int                duration,
+                                  int                wiggle_count,
+                                  ShellEaseCallback  callback,
+                                  gpointer           user_data,
+                                  GDestroyNotify     destroy);
 
 /* (skip) private: called by ShellGlobal before ::shutdown */
 void _shell_ease_shutdown (void);

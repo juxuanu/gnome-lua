@@ -6,6 +6,7 @@ import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import Graphene from 'gi://Graphene';
 import Pango from 'gi://Pango';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from './main.js';
@@ -13,7 +14,6 @@ import * as MessageTray from './messageTray.js';
 import * as Mpris from './mpris.js';
 
 import * as Util from '../misc/util.js';
-import {formatTimeSpan} from '../misc/dateUtils.js';
 import {logErrorUnlessCancelled} from '../misc/errorUtils.js';
 
 const MAX_NOTIFICATION_BUTTONS = 3;
@@ -338,7 +338,7 @@ class TimeLabel extends St.Label {
 
     _updateText() {
         if (this._datetime)
-            this.text = formatTimeSpan(this._datetime);
+            this.text = Shell.date_format_time_span(this._datetime);
     }
 
     vfunc_map() {

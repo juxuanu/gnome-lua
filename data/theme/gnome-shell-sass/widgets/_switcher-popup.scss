@@ -53,7 +53,7 @@ $switcher_radius: $modal_radius + $switcher_padding;
 
   // window thumbnail itself
   .thumbnail {
-    width: 256px; // equal to THUMBNAIL_DEFAULT_SIZE in altTab.js
+    width: 256px; // equal to THUMBNAIL_DEFAULT_SIZE in alt-tab.c
     border-radius:$base_border_radius;
   }
 }

@@ -7,7 +7,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as AppDisplay from './appDisplay.js';
-import * as IconGrid from './iconGrid.js';
 import * as Main from './main.js';
 import * as Overview from './overview.js';
 
@@ -196,11 +195,12 @@ export const ShowAppsIcon = GObject.registerClass({
             toggle_mode: true,
         });
         this._iconActor = null;
-        this.icon = new IconGrid.BaseIcon(_('Show Apps'), {
-            setSizeManually: true,
-            showLabel: false,
-            createIcon: this._createIcon.bind(this),
+        this.icon = new Shell.BaseIcon({
+            label_text: _('Show Apps'),
+            set_size_manually: true,
+            show_label: false,
         });
+        this.icon.set_create_icon_func(this._createIcon.bind(this));
         this.icon.y_align = Clutter.ActorAlign.CENTER;
 
         this.toggleButton.child = this.icon;
@@ -371,7 +371,7 @@ export const Dash = GObject.registerClass({
 
         this._showAppsIcon = new ShowAppsIcon();
         this._showAppsIcon.show(false);
-        this._showAppsIcon.icon.setIconSize(this.iconSize);
+        this._showAppsIcon.icon.set_icon_size(this.iconSize);
         this._hookUpLabel(this._showAppsIcon);
         this._dashContainer.add_child(this._showAppsIcon);
 
@@ -535,7 +535,7 @@ export const Dash = GObject.registerClass({
         appIcon.label_actor = null;
         item.setLabelText(app.get_name());
 
-        appIcon.icon.setIconSize(this.iconSize);
+        appIcon.icon.set_icon_size(this.iconSize);
         this._hookUpLabel(item, appIcon);
 
         return item;
@@ -591,7 +591,7 @@ export const Dash = GObject.registerClass({
     /**
      * @param {DashItemContainer} container - a child of the icon box or the
      *   show-apps icon
-     * @returns {IconGrid.BaseIcon} the icon the container shows
+     * @returns {Shell.BaseIcon} the icon the container shows
      */
     _iconOf(container) {
         // The show-apps icon wraps a plain button; app items wrap an AppIcon
@@ -666,7 +666,7 @@ export const Dash = GObject.registerClass({
 
             // Set the new size immediately, to keep the icons' sizes
             // in sync with this.iconSize
-            icon.setIconSize(this.iconSize);
+            icon.set_icon_size(this.iconSize);
 
             // Don't animate the icon size change when the overview
             // is transitioning, not visible or when initially filling

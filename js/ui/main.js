@@ -20,7 +20,6 @@ import * as MessageTray from './messageTray.js';
 import * as Overview from './overview.js';
 import * as PadOsd from './padOsd.js';
 import * as PanelItems from './panelItems.js';
-import * as RunDialog from './runDialog.js';
 import * as WelcomeDialog from './welcomeDialog.js';
 import * as LookingGlass from './lookingGlass.js';
 import * as NotificationDaemon from './notificationDaemon.js';
@@ -1001,8 +1000,24 @@ export function createLookingGlass() {
  * Opens the run dialog
  */
 export function openRunDialog() {
-    if (runDialog == null)
-        runDialog = new RunDialog.RunDialog();
+    if (runDialog == null) {
+        runDialog = new Shell.RunDialog();
+        // The internal commands of the development tools which need JS code
+        runDialog.connect('internal-command', (dialog, name) => {
+            switch (name) {
+            case 'lg':
+                createLookingGlass().open();
+                return true;
+            case 'rt':
+                // rt is short for "reload theme"
+                reloadThemeResource();
+                loadTheme();
+                return true;
+            default:
+                return false;
+            }
+        });
+    }
 
     runDialog.open();
 }

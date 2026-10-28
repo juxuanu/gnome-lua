@@ -26,10 +26,8 @@
     <file>extensions/sharedInternals.js</file>
 
     <file>misc/asyncMutex.js</file>
-    <file>misc/animationUtils.js</file>
     <file>misc/breakManager.js</file>
     <file>misc/config.js</file>
-    <file>misc/dateUtils.js</file>
     <file>misc/dbusErrors.js</file>
     <file>misc/dependencies.js</file>
     <file>misc/errorUtils.js</file>
@@ -43,9 +41,7 @@
     <file>misc/util.js</file>
 
     <file>ui/accessDialog.js</file>
-    <file>ui/altTab.js</file>
     <file>ui/appDisplay.js</file>
-    <file>ui/appMenu.js</file>
     <file>ui/audioDeviceSelection.js</file>
     <file>ui/calendar.js</file>
     <file>ui/dash.js</file>
@@ -56,7 +52,6 @@
     <file>ui/extensionSystem.js</file>
     <file>ui/focusCaretTracker.js</file>
     <file>ui/ibusCandidatePopup.js</file>
-    <file>ui/iconGrid.js</file>
     <file>ui/inhibitShortcutsDialog.js</file>
     <file>ui/init.js</file>
     <file>ui/kbdA11yDialog.js</file>
@@ -76,13 +71,11 @@
     <file>ui/quickSettings.js</file>
     <file>ui/qrCode.js</file>
     <file>ui/remoteSearch.js</file>
-    <file>ui/runDialog.js</file>
     <file>ui/screenShield.js</file>
     <file>ui/screenshot.js</file>
     <file>ui/scripting.js</file>
     <file>ui/search.js</file>
     <file>ui/searchController.js</file>
-    <file>ui/shellEntry.js</file>
     <file>ui/shellMountOperation.js</file>
     <file>ui/unlockDialog.js</file>
     <file>ui/userWidget.js</file>

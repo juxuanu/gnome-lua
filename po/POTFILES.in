@@ -23,11 +23,9 @@ js/gdm/webLogin.js
 js/misc/breakManager.js
 js/misc/timeLimitsManager.js
 js/misc/util.js
-js/misc/dateUtils.js
 js/portalHelper/main.js
 js/ui/accessDialog.js
 js/ui/appDisplay.js
-js/ui/appMenu.js
 js/ui/audioDeviceSelection.js
 js/ui/calendar.js
 js/ui/components/automountManager.js
@@ -55,12 +53,10 @@ js/ui/overview.js
 js/ui/padOsd.js
 js/ui/panelItems.js
 js/ui/quickSettings.js
-js/ui/runDialog.js
 js/ui/screenShield.js
 js/ui/screenshot.js
 js/ui/search.js
 js/ui/searchController.js
-js/ui/shellEntry.js
 js/ui/shellMountOperation.js
 js/ui/status/accessibility.js
 js/ui/status/autoRotate.js
@@ -88,6 +84,7 @@ js/ui/windowManager.js
 src/calendar-server/reminder-watcher.c
 src/main.c
 src/misc/brightness-manager.c
+src/misc/date-utils.c
 src/misc/system-actions.c
 src/shell-app.c
 src/shell-app-system.c
@@ -96,9 +93,12 @@ src/shell-keyring-prompt.c
 src/shell-polkit-authentication-agent.c
 src/shell-util.c
 src/st/st-icon-theme.c
+src/ui/app-menu.c
 src/ui/background-menu.c
 src/ui/close-dialog.c
 src/ui/ctrl-alt-tab.c
+src/ui/run-dialog.c
+src/ui/shell-entry.c
 src/ui/switch-monitor.c
 src/ui/window-menu.c
 subprojects/extensions-tool/src/command-create.c

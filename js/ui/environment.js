@@ -16,7 +16,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as SignalTracker from '../misc/signalTracker.js';
-import {adjustAnimationTime} from '../misc/animationUtils.js';
 import {logErrorUnlessCancelled} from '../misc/errorUtils.js';
 
 setConsoleLogDomain('GNOME Shell');
@@ -201,11 +200,11 @@ _patchLayoutClass(Clutter.BoxLayout, {spacing: 'spacing'});
 
 const origSetEasingDuration = Clutter.Actor.prototype.set_easing_duration;
 Clutter.Actor.prototype.set_easing_duration = function (msecs, params = {}) {
-    origSetEasingDuration.call(this, adjustAnimationTime(msecs, params));
+    origSetEasingDuration.call(this, Shell.adjust_animation_time(msecs, params.animationRequired ?? false));
 };
 const origSetEasingDelay = Clutter.Actor.prototype.set_easing_delay;
 Clutter.Actor.prototype.set_easing_delay = function (msecs, params = {}) {
-    origSetEasingDelay.call(this, adjustAnimationTime(msecs, params));
+    origSetEasingDelay.call(this, Shell.adjust_animation_time(msecs, params.animationRequired ?? false));
 };
 
 Clutter.Actor.prototype.ease = function (props) {

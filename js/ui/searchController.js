@@ -5,7 +5,6 @@ import St from 'gi://St';
 
 import * as Main from './main.js';
 import * as Search from './search.js';
-import * as ShellEntry from './shellEntry.js';
 
 const FocusTrap = GObject.registerClass(
 class FocusTrap extends St.Widget {
@@ -49,7 +48,7 @@ export const SearchController = GObject.registerClass({
         this._searchActive = false;
 
         this._entry = searchEntry;
-        ShellEntry.addContextMenu(this._entry);
+        Shell.entry_add_context_menu(this._entry, Shell.ActionMode.POPUP);
 
         this._text = this._entry.clutter_text;
         this._text.connect('text-changed', this._onTextChanged.bind(this));
@@ -69,7 +68,7 @@ export const SearchController = GObject.registerClass({
             if (!this._searchActive)
                 return;
 
-            this._entry.menu.close(Shell.PopupAnimation.FULL);
+            Shell.entry_get_menu(this._entry).close(Shell.PopupAnimation.FULL);
             this._searchResults.popupMenuDefault();
         });
         this._entry.connect('notify::mapped', this._onMapped.bind(this));

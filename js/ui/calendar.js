@@ -7,9 +7,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as MessageList from './messageList.js';
-import {ensureActorVisibleInScrollView} from '../misc/animationUtils.js';
-
-import {formatDateWithCFormatString} from '../misc/dateUtils.js';
 
 const SHOW_WEEKDATE_KEY = 'show-weekdate';
 const WEEK_START_DAY_KEY = 'week-start-day';
@@ -542,7 +539,7 @@ export const Calendar = GObject.registerClass({
         iter.setSeconds(0); // Leap second protection. Hah!
         iter.setHours(12);
         for (let i = 0; i < 7; i++) {
-            // Could use formatDateWithCFormatString(iter, '%a') but that normally gives three characters
+            // Could use Shell.date_format_unix_msecs(iter.getTime(), '%a') but that normally gives three characters
             // and we want, ideally, a single character for e.g. S M T W T F S
             const customDayAbbrev = _getCalendarDayAbbreviation(iter.getDay());
             const label = new St.Label({
@@ -550,7 +547,7 @@ export const Calendar = GObject.registerClass({
                 text: customDayAbbrev,
                 can_focus: true,
             });
-            label.accessible_name = formatDateWithCFormatString(iter, '%A');
+            label.accessible_name = Shell.date_format_unix_msecs(iter.getTime(), '%A');
             let col;
             if (this.get_text_direction() === Clutter.TextDirection.RTL)
                 col = 6 - (7 + iter.getDay() - this._weekStart) % 7;
@@ -672,7 +669,7 @@ export const Calendar = GObject.registerClass({
         while (row < nRows) {
             const button = new St.Button({
                 // xgettext:no-javascript-format
-                label: formatDateWithCFormatString(iter, C_('date day number format', '%d')),
+                label: Shell.date_format_unix_msecs(iter.getTime(), C_('date day number format', '%d')),
                 can_focus: true,
             });
             const rtl = button.get_text_direction() === Clutter.TextDirection.RTL;
@@ -727,13 +724,13 @@ export const Calendar = GObject.registerClass({
 
             if (this._useWeekdate && iter.getDay() === 4) {
                 const label = new St.Label({
-                    text: formatDateWithCFormatString(iter, '%V'),
+                    text: Shell.date_format_unix_msecs(iter.getTime(), '%V'),
                     style_class: 'calendar-week-number',
                     can_focus: true,
                 });
                 const weekFormat = Shell.util_translate_time_string(N_('Week %V'));
                 label.clutter_text.y_align = Clutter.ActorAlign.CENTER;
-                label.accessible_name = formatDateWithCFormatString(iter, weekFormat);
+                label.accessible_name = Shell.date_format_unix_msecs(iter.getTime(), weekFormat);
                 layout.attach(label, rtl ? 7 : 0, row, 1, 1);
             }
 
@@ -752,9 +749,11 @@ export const Calendar = GObject.registerClass({
         const now = new Date();
 
         if (sameYear(this._selectedDate, now))
-            this._monthLabel.text = formatDateWithCFormatString(this._selectedDate, this._headerFormatWithoutYear);
+            this._monthLabel.text = Shell.date_format_unix_msecs(
+                this._selectedDate.getTime(), this._headerFormatWithoutYear);
         else
-            this._monthLabel.text = formatDateWithCFormatString(this._selectedDate, this._headerFormat);
+            this._monthLabel.text = Shell.date_format_unix_msecs(
+                this._selectedDate.getTime(), this._headerFormat);
 
         if (!this._calendarBegin || !sameMonth(this._selectedDate, this._calendarBegin) || !sameDay(now, this._markedAsToday))
             this._rebuildCalendar();
@@ -842,7 +841,7 @@ class CalendarMessageList extends St.Widget {
 
         this._messageView.connectObject(
             'message-focused', (_s, messageActor) => {
-                ensureActorVisibleInScrollView(this._scrollView, messageActor);
+                Shell.animation_ensure_actor_visible_in_scroll_view(this._scrollView, messageActor);
             }, this);
 
         this._messageView.bind_property('empty',

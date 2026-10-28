@@ -12,7 +12,6 @@ import * as Signals from '../misc/signals.js';
 import System from 'system';
 
 import {ExtensionState} from '../misc/extensionUtils.js';
-import * as ShellEntry from './shellEntry.js';
 import * as Main from './main.js';
 import * as JsParse from '../misc/jsParse.js';
 
@@ -372,7 +371,7 @@ class LuaConsole extends St.BoxLayout {
             can_focus: true,
             x_expand: true,
         });
-        ShellEntry.addContextMenu(this._entry);
+        Shell.entry_add_context_menu(this._entry, Shell.ActionMode.POPUP);
         this._entryArea.add_child(this._entry);
 
         // In-memory only: Lua input is not mixed into the JS history
@@ -1674,7 +1673,7 @@ export class LookingGlass extends St.BoxLayout {
             can_focus: true,
             x_expand: true,
         });
-        ShellEntry.addContextMenu(this._entry);
+        Shell.entry_add_context_menu(this._entry, Shell.ActionMode.POPUP);
         this._entryArea.add_child(this._entry);
 
         // Lua extensions (gnome-lua)

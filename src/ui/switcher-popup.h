@@ -6,10 +6,10 @@
  * keys of the shortcut are released. Port of js/ui/switcherPopup.js.
  *
  * #ShellSwitcherPopup is the popup (abstract) and #ShellSwitcherList the row
- * of items it shows. Both are derivable: altTab.js (the application and
- * window switchers and the window cyclers) and the input source popup of
- * status/keyboard.js are still JS classes registered with
- * GObject.registerClass() that extend them, and so are the C subclasses
+ * of items it shows. Both are derivable: the input source popup of
+ * status/keyboard.js is still a JS class registered with
+ * GObject.registerClass() that extends them, and so are the C subclasses
+ * #ShellAppSwitcherPopup and the other popups of alt-tab.c,
  * #ShellCtrlAltTabPopup and #ShellSwitchMonitorPopup. The methods the
  * subclasses of the JS classes used to override (`_initialSelection`,
  * `_keyPressHandler`, `_scrollHandler`, `_itemActivatedHandler`, `_itemEnteredHandler`,

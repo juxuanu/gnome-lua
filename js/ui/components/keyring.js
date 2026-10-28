@@ -6,8 +6,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import * as ShellEntry from '../shellEntry.js';
-import {wiggle} from '../../misc/animationUtils.js';
 
 const KeyringDialog = GObject.registerClass(
 class KeyringDialog extends Shell.ModalDialog {
@@ -36,7 +34,7 @@ class KeyringDialog extends Shell.ModalDialog {
             can_focus: true,
             x_align: Clutter.ActorAlign.CENTER,
         });
-        ShellEntry.addContextMenu(this._passwordEntry);
+        Shell.entry_add_context_menu(this._passwordEntry, Shell.ActionMode.POPUP);
         this._passwordEntry.clutter_text.connect('activate', this._onPasswordActivate.bind(this));
         this.prompt.bind_property('password-visible',
             this._passwordEntry, 'visible', GObject.BindingFlags.SYNC_CREATE);
@@ -47,7 +45,7 @@ class KeyringDialog extends Shell.ModalDialog {
             can_focus: true,
             x_align: Clutter.ActorAlign.CENTER,
         });
-        ShellEntry.addContextMenu(this._confirmEntry);
+        Shell.entry_add_context_menu(this._confirmEntry, Shell.ActionMode.POPUP);
         this._confirmEntry.clutter_text.connect('activate', this._onConfirmActivate.bind(this));
         this.prompt.bind_property('confirm-visible',
             this._confirmEntry, 'visible', GObject.BindingFlags.SYNC_CREATE);
@@ -58,7 +56,7 @@ class KeyringDialog extends Shell.ModalDialog {
 
         const warningBox = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL});
 
-        const capsLockWarning = new ShellEntry.CapsLockWarning();
+        const capsLockWarning = new Shell.CapsLockWarning();
         const syncCapsLockWarningVisibility = () => {
             capsLockWarning.visible =
                 this.prompt.password_visible || this.prompt.confirm_visible;
@@ -77,7 +75,7 @@ class KeyringDialog extends Shell.ModalDialog {
         });
         this.prompt.connect('notify::warning', () => {
             if (this._passwordEntry && this.prompt.warning !== '')
-                wiggle(this._passwordEntry);
+                Shell.animation_wiggle(this._passwordEntry);
         });
         warningBox.add_child(warning);
 

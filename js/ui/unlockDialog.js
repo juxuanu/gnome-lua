@@ -11,7 +11,6 @@ import St from 'gi://St';
 
 import * as Main from './main.js';
 import * as MessageTray from './messageTray.js';
-import {formatDateWithCFormatString} from '../misc/dateUtils.js';
 import {fixMarkup} from '../misc/util.js';
 import * as AuthMenuButton from '../gdm/authMenuButton.js';
 import * as AuthPrompt from '../gdm/authPrompt.js';
@@ -415,7 +414,7 @@ class UnlockDialogClock extends St.BoxLayout {
         /* Translators: This is a time format for a date in
            long format */
         const dateFormat = Shell.util_translate_time_string(N_('%A %B %-d'));
-        this._date.text = formatDateWithCFormatString(date, dateFormat);
+        this._date.text = Shell.date_format_unix_msecs(date.getTime(), dateFormat);
     }
 
     selectAuthHint(hint) {

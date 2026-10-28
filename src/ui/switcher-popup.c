@@ -16,7 +16,7 @@
  *  - `_select ()` of the JS class is the `select` virtual function and
  *    `_selectedIndex` is the #ShellSwitcherPopup:selected-index property. The
  *    `_select (app, window, forceAppFocus)` of the application switcher is a
- *    method of that JS class of its own.
+ *    function of alt-tab.c of its own.
  *  - `Main.layoutManager.connectObject ('system-modal-opened', ...)` is a
  *    handler of #ShellMain::system-modal-opened, `Main.osdWindowManager` is
  *    #ShellMain:osd-window-manager and `Main.layoutManager.primary_monitor`

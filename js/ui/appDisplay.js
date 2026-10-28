@@ -9,8 +9,6 @@ import Pango from 'gi://Pango';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
 
-import {AppMenu} from './appMenu.js';
-import * as IconGrid from './iconGrid.js';
 import * as Search from './search.js';
 
 import * as Main from './main.js';
@@ -20,9 +18,6 @@ import * as Config from '../misc/config.js';
 const POPDOWN_DIALOG_TIMEOUT = 500;
 
 const FOLDER_SUBICON_FRACTION = .4;
-
-const VIEWS_SWITCH_TIME = 400;
-const VIEWS_SWITCH_ANIMATION_DELAY = 100;
 
 const SCROLL_TIMEOUT_TIME = 150;
 
@@ -141,7 +136,7 @@ export const AppGrid = GObject.registerClass({
             GObject.ParamFlags.READWRITE,
             Clutter.Margin.$gtype),
     },
-}, class AppGrid extends IconGrid.IconGrid {
+}, class AppGrid extends Shell.IconGrid {
     _init(layoutParams) {
         super._init(layoutParams);
 
@@ -158,7 +153,7 @@ export const AppGrid = GObject.registerClass({
             padding[side] += node.get_length(`page-padding-${side}`);
         });
 
-        this.layoutManager.pagePadding = padding;
+        this.layout_manager.page_padding = padding;
     }
 
     vfunc_style_changed() {
@@ -260,7 +255,10 @@ class BaseAppViewGridLayout extends Clutter.BinLayout {
 
         // Always show the next page indicator to allow dropping
         // icons into new pages
-        const {allowIncompletePages, nPages} = this._grid.layoutManager;
+        const {
+            allow_incomplete_pages: allowIncompletePages,
+            n_pages: nPages,
+        } = this._grid.layout_manager;
         const nextIndicatorsVisible = this._showIndicators &&
             (allowIncompletePages ? true : this._currentPage < nPages - 1);
 
@@ -294,7 +292,7 @@ class BaseAppViewGridLayout extends Clutter.BinLayout {
     }
 
     _getEndIcon(icons) {
-        const {columnsPerPage} = this._grid.layoutManager;
+        const {columns_per_page: columnsPerPage} = this._grid.layout_manager;
         const index = Math.min(icons.length, columnsPerPage);
         return icons[Math.max(index - 1, 0)];
     }
@@ -304,12 +302,12 @@ class BaseAppViewGridLayout extends Clutter.BinLayout {
             return;
 
         const previousPage = this._currentPage - 1;
-        const icons = this._grid.getItemsAtPage(previousPage).filter(i => i.visible);
+        const icons = this._grid.get_items_at_page(previousPage).filter(i => i.visible);
         if (icons.length === 0)
             return;
 
         const {left, right} = this._grid.indicatorsPadding;
-        const {columnSpacing} = this._grid.layoutManager;
+        const {column_spacing: columnSpacing} = this._grid.layout_manager;
         const endIcon = this._getEndIcon(icons);
         let iconOffset;
 
@@ -317,7 +315,7 @@ class BaseAppViewGridLayout extends Clutter.BinLayout {
             const currentPageOffset = this._pageWidth * this._currentPage;
             iconOffset = currentPageOffset - endIcon.allocation.x2 + left - columnSpacing;
         } else {
-            const rtlPage = this._grid.nPages - previousPage - 1;
+            const rtlPage = this._grid.n_pages - previousPage - 1;
             const pageOffset = this._pageWidth * rtlPage;
             iconOffset = pageOffset - endIcon.allocation.x1 - right + columnSpacing;
         }
@@ -327,23 +325,23 @@ class BaseAppViewGridLayout extends Clutter.BinLayout {
     }
 
     _translateNextPageIcons(value, ltr) {
-        if (this._currentPage >= this._grid.nPages - 1)
+        if (this._currentPage >= this._grid.n_pages - 1)
             return;
 
         const nextPage = this._currentPage + 1;
-        const icons = this._grid.getItemsAtPage(nextPage).filter(i => i.visible);
+        const icons = this._grid.get_items_at_page(nextPage).filter(i => i.visible);
         if (icons.length === 0)
             return;
 
         const {left, right} = this._grid.indicatorsPadding;
-        const {columnSpacing} = this._grid.layoutManager;
+        const {column_spacing: columnSpacing} = this._grid.layout_manager;
         let iconOffset;
 
         if (ltr) {
             const pageOffset = this._pageWidth * nextPage;
             iconOffset = pageOffset - icons[0].allocation.x1 - right + columnSpacing;
         } else {
-            const rtlPage = this._grid.nPages - this._currentPage - 1;
+            const rtlPage = this._grid.n_pages - this._currentPage - 1;
             const currentPageOffset = this._pageWidth * rtlPage;
             iconOffset = currentPageOffset - icons[0].allocation.x2 + left - columnSpacing;
         }
@@ -380,8 +378,8 @@ class BaseAppViewGridLayout extends Clutter.BinLayout {
         this._translatePreviousPageIcons(value, ltr);
         this._translateNextPageIcons(value, ltr);
 
-        if (this._grid.nPages > 0) {
-            this._grid.getItemsAtPage(this._currentPage).forEach(icon => {
+        if (this._grid.n_pages > 0) {
+            this._grid.get_items_at_page(this._currentPage).forEach(icon => {
                 icon.translationX = 0;
             });
         }
@@ -496,9 +494,9 @@ var BaseAppView = GObject.registerClass({
         // Standard hack for ClutterBinLayout
         this._grid.x_expand = true;
         this._grid.connect('pages-changed', () => {
-            this.goToPage(this._grid.currentPage);
-            this._pageIndicators.set_n_pages(this._grid.nPages);
-            this._pageIndicators.set_current_position(this._grid.currentPage);
+            this.goToPage(this._grid.current_page);
+            this._pageIndicators.set_n_pages(this._grid.n_pages);
+            this._pageIndicators.set_current_position(this._grid.current_page);
         });
 
         // Scroll View
@@ -583,7 +581,7 @@ var BaseAppView = GObject.registerClass({
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._nextPageArrow.connect('clicked',
-            () => this.goToPage(this._grid.currentPage + 1));
+            () => this.goToPage(this._grid.current_page + 1));
 
         this._prevPageArrow = new St.Button({
             style_class: 'page-navigation-arrow',
@@ -596,7 +594,7 @@ var BaseAppView = GObject.registerClass({
             y_align: Clutter.ActorAlign.CENTER,
         });
         this._prevPageArrow.connect('clicked',
-            () => this.goToPage(this._grid.currentPage - 1));
+            () => this.goToPage(this._grid.current_page - 1));
 
         const scrollContainer = new St.Widget({
             clip_to_allocation: true,
@@ -685,7 +683,7 @@ var BaseAppView = GObject.registerClass({
         const rtl = this.get_text_direction() === Clutter.TextDirection.RTL;
         const vertical = this._orientation === Clutter.Orientation.VERTICAL;
 
-        let nextPage = this._grid.currentPage;
+        let nextPage = this._grid.current_page;
         if (dy < 0) {
             nextPage -= 1;
         } else if (dy > 0) {
@@ -720,7 +718,7 @@ var BaseAppView = GObject.registerClass({
         adjustment.remove_transition('value');
 
         const progress = adjustment.value / adjustment.page_size;
-        const points = Array.from({length: this._grid.nPages}, (v, i) => i);
+        const points = Array.from({length: this._grid.n_pages}, (v, i) => i);
         const size = tracker.orientation === Clutter.Orientation.VERTICAL
             ? this._grid.allocation.get_height() : this._grid.allocation.get_width();
 
@@ -784,15 +782,15 @@ var BaseAppView = GObject.registerClass({
         const [page, position, dragLocation] =
             this._getDropTarget(x, y, source);
         const item = position !== -1
-            ? this._grid.getItemAt(page, position) : null;
+            ? this._grid.get_item_at(page, position) : null;
 
 
         // Dragging over invalid parts of the grid cancels the timeout
         if (item === source ||
             this._adjustment.get_transition('value') !== null ||
-            page !== this._grid.currentPage ||
-            dragLocation === IconGrid.DragLocation.INVALID ||
-            dragLocation === IconGrid.DragLocation.ON_ICON) {
+            page !== this._grid.current_page ||
+            dragLocation === Shell.IconGridDragLocation.INVALID ||
+            dragLocation === Shell.IconGridDragLocation.ON_ICON) {
             this._removeDelayedMove();
             return;
         }
@@ -851,7 +849,7 @@ var BaseAppView = GObject.registerClass({
 
         this._dragPageSwitchRepeatTimeoutId =
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, DRAG_PAGE_SWITCH_REPEAT_TIMEOUT, () => {
-                this.goToPage(this._grid.currentPage + direction);
+                this.goToPage(this._grid.current_page + direction);
 
                 return GLib.SOURCE_CONTINUE;
             });
@@ -903,7 +901,7 @@ var BaseAppView = GObject.registerClass({
         if (this.get_text_direction() === Clutter.TextDirection.RTL)
             direction *= -1;
 
-        this.goToPage(this._grid.currentPage + direction);
+        this.goToPage(this._grid.current_page + direction);
         this._setupDragPageSwitchRepeat(direction);
 
         this._lastOvershootCoord = dragCoord;
@@ -921,7 +919,7 @@ var BaseAppView = GObject.registerClass({
             GLib.timeout_add_once(GLib.PRIORITY_DEFAULT, DRAG_PAGE_SWITCH_INITIAL_TIMEOUT, () => {
                 const direction = targetActor === this._prevPageIndicator ? -1 : 1;
 
-                this.goToPage(this._grid.currentPage + direction);
+                this.goToPage(this._grid.current_page + direction);
                 this._setupDragPageSwitchRepeat(direction);
 
                 delete this._dragPageSwitchInitialTimeoutId;
@@ -1010,12 +1008,12 @@ var BaseAppView = GObject.registerClass({
         if (dropTarget === this._prevPageIndicator ||
             dropTarget === this._nextPageIndicator) {
             const increment = dropTarget === this._prevPageIndicator ? -1 : 1;
-            const {currentPage, nPages} = this._grid;
+            const {current_page: currentPage, n_pages: nPages} = this._grid;
             const page = Math.min(currentPage + increment, nPages);
             const position = page < nPages ? -1 : 0;
 
             this._moveItem(source, page, position);
-            const realPage = this._grid.getItemPage(source); // could be the next page, if the requested one was full
+            const realPage = this._grid.get_item_page(source); // could be the next page, if the requested one was full
             this.goToPage(realPage);
         } else if (this._delayedMoveData) {
             // Dropped before the icon was moved
@@ -1029,11 +1027,11 @@ var BaseAppView = GObject.registerClass({
     }
 
     _findBestPageToAppend(startPage = 1) {
-        for (let i = startPage; i < this._grid.nPages; i++) {
+        for (let i = startPage; i < this._grid.n_pages; i++) {
             const pageItems =
-                this._grid.getItemsAtPage(i).filter(c => c.visible);
+                this._grid.get_items_at_page(i).filter(c => c.visible);
 
-            if (pageItems.length < this._grid.itemsPerPage)
+            if (pageItems.length < this._grid.items_per_page)
                 return i;
         }
 
@@ -1041,15 +1039,15 @@ var BaseAppView = GObject.registerClass({
     }
 
     _getLinearPosition(item) {
-        const [page, position] = this._grid.getItemPosition(item);
+        const [page, position] = this._grid.get_item_position(item);
         if (page === -1 || position === -1)
             throw new Error('Item not found in grid');
 
         let itemIndex = 0;
 
-        if (this._grid.nPages > 0) {
+        if (this._grid.n_pages > 0) {
             for (let i = 0; i < page; i++)
-                itemIndex += this._grid.getItemsAtPage(i).filter(c => c.visible).length;
+                itemIndex += this._grid.get_items_at_page(i).filter(c => c.visible).length;
 
             itemIndex += position;
         }
@@ -1059,7 +1057,7 @@ var BaseAppView = GObject.registerClass({
 
     _addItem(item, page, position) {
         this._items.set(item.id, item);
-        this._grid.addItem(item, page, position);
+        this._grid.add_item(item, page, position);
 
         this._orderedItems.splice(this._getLinearPosition(item), 0, item);
     }
@@ -1069,11 +1067,11 @@ var BaseAppView = GObject.registerClass({
 
         this._orderedItems.splice(iconIndex, 1);
         this._items.delete(item.id);
-        this._grid.removeItem(item);
+        this._grid.remove_item(item);
     }
 
     _getItemPosition(item) {
-        const {itemsPerPage} = this._grid;
+        const {items_per_page: itemsPerPage} = this._grid;
 
         let iconIndex = this._orderedItems.indexOf(item);
         if (iconIndex === -1)
@@ -1107,7 +1105,7 @@ var BaseAppView = GObject.registerClass({
             if (addedApps.includes(icon)) {
                 // If there's two pages, newly installed apps should not appear
                 // on page 0
-                if (page === -1 && position === -1 && this._grid.nPages > 1)
+                if (page === -1 && position === -1 && this._grid.n_pages > 1)
                     this._addItem(icon, 1, -1);
                 else
                     this._addItem(icon, page, position);
@@ -1161,8 +1159,8 @@ var BaseAppView = GObject.registerClass({
     }
 
     _getDropTarget(x, y, source) {
-        const [sourcePage, sourcePosition] = this._grid.getItemPosition(source);
-        let [targetPage, targetPosition, dragLocation] = this._grid.getDropTarget(x, y);
+        const [sourcePage, sourcePosition] = this._grid.get_item_position(source);
+        let [targetPage, targetPosition, dragLocation] = this._grid.get_drop_target(x, y);
 
         let reflowDirection = Clutter.ActorAlign.END;
 
@@ -1183,23 +1181,23 @@ var BaseAppView = GObject.registerClass({
         // We must avoid doing that if we're hovering over the first
         // or last column though, in that case there is no adjacent
         // icon we could push away.
-        if (dragLocation === IconGrid.DragLocation.START_EDGE &&
+        if (dragLocation === Shell.IconGridDragLocation.START_EDGE &&
             reflowDirection === Clutter.ActorAlign.START) {
             const nColumns = this._grid.layout_manager.columns_per_page;
             const targetColumn = targetPosition % nColumns;
 
             if (targetColumn > 0) {
                 targetPosition -= 1;
-                dragLocation = IconGrid.DragLocation.END_EDGE;
+                dragLocation = Shell.IconGridDragLocation.END_EDGE;
             }
-        } else if (dragLocation === IconGrid.DragLocation.END_EDGE &&
+        } else if (dragLocation === Shell.IconGridDragLocation.END_EDGE &&
                    reflowDirection === Clutter.ActorAlign.END) {
             const nColumns = this._grid.layout_manager.columns_per_page;
             const targetColumn = targetPosition % nColumns;
 
             if (targetColumn < nColumns - 1) {
                 targetPosition += 1;
-                dragLocation = IconGrid.DragLocation.START_EDGE;
+                dragLocation = Shell.IconGridDragLocation.START_EDGE;
             }
         }
 
@@ -1207,7 +1205,7 @@ var BaseAppView = GObject.registerClass({
     }
 
     _moveItem(item, newPage, newPosition) {
-        this._grid.moveItem(item, newPage, newPosition);
+        this._grid.move_item(item, newPage, newPosition);
 
         // Update the _orderedItems array
         this._orderedItems.splice(this._orderedItems.indexOf(item), 1);
@@ -1227,35 +1225,14 @@ var BaseAppView = GObject.registerClass({
         super.vfunc_unmap();
     }
 
-    animateSwitch(animationDirection) {
-        this.remove_all_transitions();
-        this._grid.remove_all_transitions();
-
-        const params = {
-            duration: VIEWS_SWITCH_TIME,
-            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-        };
-        if (animationDirection === IconGrid.AnimationDirection.IN) {
-            this.show();
-            params.opacity = 255;
-            params.delay = VIEWS_SWITCH_ANIMATION_DELAY;
-        } else {
-            params.opacity = 0;
-            params.delay = 0;
-            params.onComplete = () => this.hide();
-        }
-
-        this._grid.ease(params);
-    }
-
     goToPage(pageNumber, animate = true) {
-        pageNumber = Math.clamp(pageNumber, 0, Math.max(this._grid.nPages - 1, 0));
+        pageNumber = Math.clamp(pageNumber, 0, Math.max(this._grid.n_pages - 1, 0));
 
-        if (this._grid.currentPage === pageNumber)
+        if (this._grid.current_page === pageNumber)
             return;
 
         this._appGridLayout.goToPage(pageNumber, animate);
-        this._grid.goToPage(pageNumber, animate);
+        this._grid.go_to_page(pageNumber, animate);
     }
 });
 
@@ -1329,13 +1306,13 @@ export class AppDisplay extends BaseAppView {
         bindingPool.install_closure(
             'next', Clutter.KEY_Page_Down, 0,
             obj => {
-                obj.goToPage(obj._grid.currentPage + 1);
+                obj.goToPage(obj._grid.current_page + 1);
                 return Clutter.EVENT_STOP;
             });
         bindingPool.install_closure(
             'prev', Clutter.KEY_Page_Up, 0,
             obj => {
-                obj.goToPage(obj._grid.currentPage - 1);
+                obj.goToPage(obj._grid.current_page - 1);
                 return Clutter.EVENT_STOP;
             });
         bindingPool.install_closure(
@@ -1347,7 +1324,7 @@ export class AppDisplay extends BaseAppView {
         bindingPool.install_closure(
             'last', Clutter.KEY_End, 0,
             obj => {
-                obj.goToPage(obj._grid.nPages - 1);
+                obj.goToPage(obj._grid.n_pages - 1);
                 return Clutter.EVENT_STOP;
             });
     }
@@ -1418,9 +1395,9 @@ export class AppDisplay extends BaseAppView {
     _savePages() {
         const pages = [];
 
-        for (let i = 0; i < this._grid.nPages; i++) {
+        for (let i = 0; i < this._grid.n_pages; i++) {
             const pageItems =
-                this._grid.getItemsAtPage(i).filter(c => c.visible);
+                this._grid.get_items_at_page(i).filter(c => c.visible);
             const pageData = {};
 
             pageItems.forEach((item, index) => {
@@ -1492,10 +1469,10 @@ export class AppDisplay extends BaseAppView {
 
     _getItemPosition(item) {
         if (item === this._placeholder) {
-            let [page, position] = this._grid.getItemPosition(item);
+            let [page, position] = this._grid.get_item_position(item);
 
             if (page === -1)
-                page = this._grid.currentPage;
+                page = this._grid.current_page;
 
             return [page, position];
         }
@@ -1594,24 +1571,10 @@ export class AppDisplay extends BaseAppView {
         return appIcons;
     }
 
-    animateSwitch(animationDirection) {
-        super.animateSwitch(animationDirection);
-
-        if (this._currentDialog && this._displayingDialog &&
-            animationDirection === IconGrid.AnimationDirection.OUT) {
-            this._currentDialog.ease({
-                opacity: 0,
-                duration: VIEWS_SWITCH_TIME,
-                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-                onComplete: () => (this.opacity = 255),
-            });
-        }
-    }
-
     goToPage(pageNumber, animate = true) {
-        pageNumber = Math.clamp(pageNumber, 0, Math.max(this._grid.nPages - 1, 0));
+        pageNumber = Math.clamp(pageNumber, 0, Math.max(this._grid.n_pages - 1, 0));
 
-        if (this._grid.currentPage === pageNumber &&
+        if (this._grid.current_page === pageNumber &&
             this._displayingDialog &&
             this._currentDialog)
             return;
@@ -1725,12 +1688,12 @@ export class AppDisplay extends BaseAppView {
         // The hovered AppIcon always passes its own id as the first
         // one, and this is where we want the folder to be created
         let [folderPage, folderPosition] =
-            this._grid.getItemPosition(this._items.get(apps[0]));
+            this._grid.get_item_position(this._items.get(apps[0]));
 
         // Adjust the final position
         folderPosition -= apps.reduce((counter, appId) => {
             const [page, position] =
-                this._grid.getItemPosition(this._items.get(appId));
+                this._grid.get_item_position(this._items.get(appId));
             if (page === folderPage && position < folderPosition)
                 counter++;
             return counter;
@@ -2008,9 +1971,10 @@ export const AppViewItem = GObject.registerClass({
         return Shell.DragMotionResult.CONTINUE;
     }
 
-    _withinLeeways(x) {
-        return x < IconGrid.LEFT_DIVIDER_LEEWAY ||
-            x > this.width - IconGrid.RIGHT_DIVIDER_LEEWAY;
+    _withinLeeways(_x) {
+        // iconGrid.js never exported LEFT_DIVIDER_LEEWAY and
+        // RIGHT_DIVIDER_LEEWAY, so this was always false
+        return false;
     }
 
     vfunc_key_focus_in() {
@@ -2091,12 +2055,8 @@ class FolderGrid extends AppGrid {
             page_valign: Clutter.ActorAlign.CENTER,
         });
 
-        this.setGridModes([
-            {
-                rows: 3,
-                columns: 3,
-            },
-        ]);
+        // (rows, columns)
+        this.set_grid_modes(new GLib.Variant('a(ii)', [[3, 3]]));
     }
 });
 
@@ -2133,7 +2093,7 @@ class FolderView extends BaseAppView {
         if (appIndex === -1)
             return [-1, -1];
 
-        const {itemsPerPage} = this._grid;
+        const {items_per_page: itemsPerPage} = this._grid;
         return [Math.floor(appIndex / itemsPerPage), appIndex % itemsPerPage];
     }
 
@@ -2317,10 +2277,8 @@ export const FolderIcon = GObject.registerClass({
             path,
         });
 
-        this.icon = new IconGrid.BaseIcon('', {
-            createIcon: this._createIcon.bind(this),
-            setSizeManually: true,
-        });
+        this.icon = new Shell.BaseIcon({set_size_manually: true});
+        this.icon.set_create_icon_func(this._createIcon.bind(this));
         this.set_child(this.icon);
         this.label_actor = this.icon.label;
 
@@ -2384,13 +2342,11 @@ export const FolderIcon = GObject.registerClass({
     }
 
     vfunc_get_drag_actor() {
-        const iconParams = {
-            createIcon: this._createIcon.bind(this),
-            showLabel: this.icon.label !== null,
-            setSizeManually: false,
-        };
-
-        const icon = new IconGrid.BaseIcon(this.name, iconParams);
+        const icon = new Shell.BaseIcon({
+            label_text: this.name,
+            show_label: this.icon.label !== null,
+        });
+        icon.set_create_icon_func(this._createIcon.bind(this));
         icon.style_class = this.style_class;
 
         return icon;
@@ -2953,9 +2909,12 @@ export const AppIcon = GObject.registerClass({
 
         this._folderPreviewId = 0;
 
-        iconParams['createIcon'] = this._createIcon.bind(this);
-        iconParams['setSizeManually'] = true;
-        this.icon = new IconGrid.BaseIcon(app.get_name(), iconParams);
+        this.icon = new Shell.BaseIcon({
+            label_text: app.get_name(),
+            show_label: iconParams['showLabel'] ?? true,
+            set_size_manually: true,
+        });
+        this.icon.set_create_icon_func(this._createIcon.bind(this));
         this._iconContainer.add_child(this.icon);
 
         this._dot = new St.Widget({
@@ -3034,11 +2993,12 @@ export const AppIcon = GObject.registerClass({
         this.setForcedHighlight(true);
 
         if (!this._menu) {
-            this._menu = new AppMenu(this, this._popupMenuSide, {
-                favoritesSection: true,
-                showSingleWindows: true,
-            });
-            this._menu.setApp(this.app);
+            this._menu = Shell.AppMenu.new(this, this._popupMenuSide, true, true);
+            this._menu.connect('animate-launch', () => this.animateLaunch());
+            this._menu.connect('overview-hide-requested', () => Main.overview.hide());
+            this._menu.connect('window-activate-requested',
+                (menu, window, time) => Main.activateWindow(window, time));
+            this._menu.set_app(this.app);
             this._menu.connect('open-state-changed', (menu, isPoppedUp) => {
                 if (!isPoppedUp)
                     this._onMenuPoppedDown();
@@ -3084,11 +3044,11 @@ export const AppIcon = GObject.registerClass({
     }
 
     animateLaunch() {
-        this.icon.animateZoomOut();
+        this.icon.animate_zoom_out();
     }
 
     animateLaunchAtPos(x, y) {
-        this.icon.animateZoomOutAtPos(x, y);
+        this.icon.animate_zoom_out_at_pos(x, y);
     }
 
     vfunc_get_drag_actor() {

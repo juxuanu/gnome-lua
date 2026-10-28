@@ -11,7 +11,6 @@ import * as Signals from '../../misc/signals.js';
 
 import * as Main from '../main.js';
 import * as MessageTray from '../messageTray.js';
-import * as ShellEntry from '../shellEntry.js';
 
 Gio._promisify(Shell.NetworkAgent.prototype, 'init_async');
 Gio._promisify(Shell.NetworkAgent.prototype, 'search_vpn_plugin');
@@ -56,7 +55,7 @@ class NetworkSecretDialog extends Shell.ModalDialog {
                 secret.entry = new St.PasswordEntry(entryParams);
             else
                 secret.entry = new St.Entry(entryParams);
-            ShellEntry.addContextMenu(secret.entry);
+            Shell.entry_add_context_menu(secret.entry, Shell.ActionMode.POPUP);
             contentBox.add_child(secret.entry);
 
             if (secret.validate)
@@ -85,7 +84,7 @@ class NetworkSecretDialog extends Shell.ModalDialog {
         }
 
         if (this._content.secrets.some(s => s.password)) {
-            const capsLockWarning = new ShellEntry.CapsLockWarning();
+            const capsLockWarning = new Shell.CapsLockWarning();
             contentBox.add_child(capsLockWarning);
         }
 

@@ -11,11 +11,9 @@ import * as AuthList from './authList.js';
 import * as Batch from './batch.js';
 import {logErrorUnlessCancelled} from '../misc/errorUtils.js';
 import * as Params from '../misc/params.js';
-import * as ShellEntry from '../ui/shellEntry.js';
 import * as UserVerifier from './userVerifier.js';
 import * as UserWidget from '../ui/userWidget.js';
 import * as WebLogin from './webLogin.js';
-import {wiggle} from '../misc/animationUtils.js';
 
 const TimerChildIface = Shell.dbus_load_interface_xml('org.freedesktop.MalcontentTimer1.Child');
 const TimerChildProxy = Gio.DBusProxy.makeProxyWrapper(TimerChildIface);
@@ -210,7 +208,7 @@ export const AuthPrompt = GObject.registerClass({
         const capsLockPlaceholder = new St.Label();
         this._inputWell.add_child(capsLockPlaceholder);
 
-        this._capsLockWarningLabel = new ShellEntry.CapsLockWarning({
+        this._capsLockWarningLabel = new Shell.CapsLockWarning({
             x_expand: true,
             x_align: Clutter.ActorAlign.CENTER,
         });
@@ -324,10 +322,10 @@ export const AuthPrompt = GObject.registerClass({
         this._entry = null;
 
         this._textEntry = new St.Entry(entryParams);
-        ShellEntry.addContextMenu(this._textEntry, {actionMode: Shell.ActionMode.NONE});
+        Shell.entry_add_context_menu(this._textEntry, Shell.ActionMode.NONE);
 
         this._passwordEntry = new St.PasswordEntry(entryParams);
-        ShellEntry.addContextMenu(this._passwordEntry, {actionMode: Shell.ActionMode.NONE});
+        Shell.entry_add_context_menu(this._passwordEntry, Shell.ActionMode.NONE);
 
         this._entry = this._passwordEntry;
         this._entryArea.add_child(this._entry);
@@ -569,7 +567,11 @@ export const AuthPrompt = GObject.registerClass({
         }
 
         const wigglePromise = shouldWiggle
-            ? wiggle(this._message, {duration: 65, wiggleCount: 3})
+            ? new Promise(resolve => {
+                Shell.animation_wiggle_full(this._message,
+                    Shell.WIGGLE_OFFSET, Shell.WIGGLE_DURATION, Shell.WIGGLE_COUNT,
+                    () => resolve());
+            })
             : Promise.resolve();
 
         showMessageResolver?.(wigglePromise);
@@ -650,7 +652,7 @@ export const AuthPrompt = GObject.registerClass({
             this.verificationStatus = AuthPromptStatus.VERIFICATION_FAILED;
 
         if (wasQueryingService)
-            wiggle(this._entryArea);
+            Shell.animation_wiggle(this._entryArea);
     }
 
     _onVerificationComplete() {

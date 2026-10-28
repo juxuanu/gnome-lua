@@ -9,9 +9,7 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from '../main.js';
-import * as ShellEntry from '../shellEntry.js';
 import * as UserWidget from '../userWidget.js';
-import {wiggle} from '../../misc/animationUtils.js';
 
 /** @enum {number} */
 const DialogMode = {
@@ -95,7 +93,7 @@ const AuthenticationDialog = GObject.registerClass({
             visible: false,
             x_align: Clutter.ActorAlign.CENTER,
         });
-        ShellEntry.addContextMenu(this._passwordEntry);
+        Shell.entry_add_context_menu(this._passwordEntry, Shell.ActionMode.POPUP);
         this._passwordEntry.clutter_text.connect('activate', this._onEntryActivate.bind(this));
         this._passwordEntry.bind_property('reactive',
             this._passwordEntry.clutter_text, 'editable',
@@ -104,7 +102,7 @@ const AuthenticationDialog = GObject.registerClass({
 
         const warningBox = new St.BoxLayout({orientation: Clutter.Orientation.VERTICAL});
 
-        const capsLockWarning = new ShellEntry.CapsLockWarning();
+        const capsLockWarning = new Shell.CapsLockWarning();
         this._passwordEntry.bind_property('visible',
             capsLockWarning, 'visible',
             GObject.BindingFlags.SYNC_CREATE);
@@ -257,7 +255,7 @@ const AuthenticationDialog = GObject.registerClass({
                 this._infoMessageLabel.hide();
                 this._nullMessageLabel.hide();
 
-                wiggle(this._passwordEntry);
+                Shell.animation_wiggle(this._passwordEntry);
             }
 
             /* Try and authenticate again */

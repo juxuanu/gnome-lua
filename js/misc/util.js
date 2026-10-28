@@ -5,8 +5,6 @@ import Shell from 'gi://Shell';
 import St from 'gi://St';
 import GnomeDesktop from 'gi://GnomeDesktop';
 
-import {formatTime} from './dateUtils.js';
-
 // http://daringfireball.net/2010/07/improved_regex_for_matching_urls
 const _balancedParens = '\\([^\\s()<>]+\\)';
 const _leadingJunk = '[\\s`(\\[{\'\\"<\u00AB\u201C\u2018]';
@@ -202,20 +200,41 @@ export function fixMarkup(text, allowMarkup) {
 }
 
 /**
+ * Formats a time like {@link Shell.date_format_time}.
+ *
+ * @param {GLib.DateTime | Date} time the time to format
+ * @param {object} [params] style parameters for the output string
+ * @param {boolean=} params.timeOnly whether the string should only contain the time (no date)
+ * @param {boolean=} params.ampm whether to include the "am" or "pm" in the string
+ * @returns {string}
+ */
+function _formatTime(time, {timeOnly = false, ampm = true} = {}) {
+    let flags = Shell.DateFormatFlags.NONE;
+    if (timeOnly)
+        flags |= Shell.DateFormatFlags.TIME_ONLY;
+    if (!ampm)
+        flags |= Shell.DateFormatFlags.NO_AMPM;
+
+    if (time instanceof Date)
+        return Shell.date_format_time_unix_msecs(time.getTime(), flags);
+    return Shell.date_format_time(time, flags);
+}
+
+/**
  * Returns an {@link St.Label} with the date passed formatted
- * using {@link formatTime}
+ * using {@link Shell.date_format_time}
  *
  * @param {Date} date the date to format for the label
- * @param {object} params params for {@link formatTime}
+ * @param {object} params params for {@link Shell.date_format_time}
  * @returns {St.Label}
  */
 export function createTimeLabel(date, params) {
     if (_desktopSettings == null)
         _desktopSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.interface'});
 
-    const label = new St.Label({text: formatTime(date, params)});
+    const label = new St.Label({text: _formatTime(date, params)});
     _desktopSettings.connectObject(
-        'changed::clock-format', () => (label.text = formatTime(date, params)),
+        'changed::clock-format', () => (label.text = _formatTime(date, params)),
         label);
     return label;
 }

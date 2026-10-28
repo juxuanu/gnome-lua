@@ -15,7 +15,6 @@ import * as Overview from './overview.js';
 import * as MessageTray from './messageTray.js';
 import * as SmartcardManager from '../gdm/smartcardManager.js';
 
-import {adjustAnimationTime} from '../misc/animationUtils.js';
 
 const SCREENSAVER_SCHEMA = 'org.gnome.desktop.screensaver';
 const LOCK_ENABLED_KEY = 'lock-enabled';
@@ -282,7 +281,7 @@ export class ScreenShield extends Signals.EventEmitter {
 
         if (shouldLock) {
             const lockTimeout = Math.max(
-                adjustAnimationTime(STANDARD_FADE_TIME),
+                Shell.adjust_animation_time(STANDARD_FADE_TIME, false),
                 this._settings.get_uint(LOCK_DELAY_KEY) * 1000);
             this._lockTimeoutId = GLib.timeout_add_once(
                 GLib.PRIORITY_DEFAULT,
