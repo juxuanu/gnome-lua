@@ -6,10 +6,12 @@
  *
  * Which hook is emitted from where:
  *
- *  - window.mapped, .unmapped, .minimized, .unminimized and workspace.switched
- *    come from #ShellWindowManager (its handlers of the "map", "destroy",
- *    "minimize", "unminimize" and "switch-workspace" signals of #ShellWM),
- *    at the start of the handler, before the animation;
+ *  - window.mapped, .minimized, .unminimized and workspace.switched come
+ *    from #ShellWindowManager (its handlers of the "map", "minimize",
+ *    "unminimize" and "switch-workspace" signals of #ShellWM), at the start
+ *    of the handler, before the animation; window.unmapped from
+ *    #MetaWindow::unmanaging (and from the "destroy" handler, which comes
+ *    later for a window the compositor was showing);
  *  - window.focused from notify::focus-window of #MetaDisplay;
  *  - window.title-changed, .state-changed and .workspace-changed from the
  *    notify::title, notify::maximized-*, notify::fullscreen and
@@ -423,11 +425,24 @@ window_workspace_cb (MetaWindow       *window,
 }
 
 static void
+window_unmanaging_cb (MetaWindow       *window,
+                      ShellWindowHooks *self)
+{
+  /* The first thing of meta_window_unmanage (): the window still has its
+   * workspace and title for the payload, but it is already out of the lists
+   * of the display, so windows.get () no longer finds it. The destroy effect
+   * (on_destroy () of the window manager) reaches here too, but only for a
+   * window the compositor was showing: one closed on another workspace has
+   * no effect, and the workspace removal that follows must not be reported
+   * after window.unmapped. */
+  shell_window_hooks_window_unmapped (self, window);
+}
+
+static void
 window_unmanaged_cb (MetaWindow       *window,
                      ShellWindowHooks *self)
 {
-  /* The handles of extensions die with the window. window.unmapped follows
-   * from the destroy effect and reads the window as it was. */
+  /* The handles of extensions die with the window */
   shell_lua_handle_invalidate (NULL, G_OBJECT (window));
 }
 
@@ -454,6 +469,8 @@ track_window (ShellWindowHooks *self,
                            G_CALLBACK (window_state_cb), self, 0);
   g_signal_connect_object (window, "workspace-changed",
                            G_CALLBACK (window_workspace_cb), self, 0);
+  g_signal_connect_object (window, "unmanaging",
+                           G_CALLBACK (window_unmanaging_cb), self, 0);
   g_signal_connect_object (window, "unmanaged",
                            G_CALLBACK (window_unmanaged_cb), self, 0);
   return info;

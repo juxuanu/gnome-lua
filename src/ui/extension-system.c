@@ -57,6 +57,7 @@
 
 #include "shell-app-system.h"
 #include "shell-global.h"
+#include "shell-test-runner.h"
 #include "shell-lua-extension-private.h"
 #include "st.h"
 #include "ui/extension-downloader.h"
@@ -1957,6 +1958,17 @@ shell_extension_manager_constructed (GObject *object)
         self->lua_manager = g_object_ref (shell_global_get_lua_extension_manager (global));
       else
         self->lua_manager = g_object_ref (shell_lua_extension_manager_get_default ());
+    }
+
+  if (shell_test_runner_is_enabled ())
+    {
+      /* The conformance tests run whole suites of checks in one callback
+       * under AddressSanitizer: the 500 ms budget of docs/api/README.md is
+       * for users, not for that */
+      ShellLuaLimits limits = { 0, };
+
+      limits.callback_budget_us = 10 * G_USEC_PER_SEC;
+      shell_lua_extension_manager_set_limits (self->lua_manager, &limits);
     }
 
   self->downloader = shell_extension_downloader_new (self);
