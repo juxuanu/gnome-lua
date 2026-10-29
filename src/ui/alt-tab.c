@@ -2422,11 +2422,9 @@ shell_cycler_highlight_dispose (GObject *object)
 {
   ShellCyclerHighlight *self = SHELL_CYCLER_HIGHLIGHT (object);
 
-  if (self->window != NULL)
-    {
-      g_signal_handlers_disconnect_by_data (self->window, self);
-      g_clear_object (&self->window);
-    }
+  /* dispose runs before the ::destroy handler, which would find the window
+   * already cleared and never show the window actor again */
+  cycler_highlight_set_window (self, NULL);
   g_clear_weak_pointer (&self->clone);
   g_clear_weak_pointer (&self->highlight);
 
@@ -2642,9 +2640,11 @@ shell_cycler_popup_dispose (GObject *object)
   ShellCyclerPopupPrivate *priv =
     shell_cycler_popup_get_instance_private (SHELL_CYCLER_POPUP (object));
 
-  g_clear_weak_pointer (&priv->highlight);
-
+  /* The ::destroy handler of the popup, run by the parent dispose, destroys
+   * the highlight: only forget it afterwards */
   G_OBJECT_CLASS (shell_cycler_popup_parent_class)->dispose (object);
+
+  g_clear_weak_pointer (&priv->highlight);
 }
 
 static void

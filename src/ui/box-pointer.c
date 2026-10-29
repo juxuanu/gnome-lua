@@ -1508,6 +1508,10 @@ shell_box_pointer_dispose (GObject *object)
   g_clear_object (&priv->arrow_actor);
 
   G_OBJECT_CLASS (shell_box_pointer_parent_class)->dispose (object);
+
+  /* after the chain-up, which destroys the actions with the actor */
+  g_clear_object (&priv->mute_keys);
+  g_clear_object (&priv->mute_input);
 }
 
 static gboolean
@@ -1541,13 +1545,15 @@ shell_box_pointer_init (ShellBoxPointer *self)
                                          CLUTTER_ACTOR (priv->bin),
                                          CLUTTER_ACTOR (priv->border));
 
-  priv->mute_keys = clutter_key_controller_new (NULL);
+  /* Sunk: the actor drops its own reference to the actions when it is
+   * destroyed, while the fields are used until the box pointer is gone */
+  priv->mute_keys = g_object_ref_sink (clutter_key_controller_new (NULL));
   g_signal_connect (priv->mute_keys, "key-press",
                     G_CALLBACK (mute_keys_key_press_cb), NULL);
   clutter_actor_add_action_full (actor, "key-muting",
                                  CLUTTER_PHASE_CAPTURE, priv->mute_keys);
 
-  priv->mute_input = clutter_click_gesture_new ();
+  priv->mute_input = g_object_ref_sink (clutter_click_gesture_new ());
   clutter_click_gesture_set_recognize_on_press (CLUTTER_CLICK_GESTURE (priv->mute_input),
                                                 TRUE);
   clutter_actor_add_action_full (actor, "click-muting",

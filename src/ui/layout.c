@@ -362,17 +362,14 @@ constraint_workareas_changed_cb (MetaDisplay            *display,
 static void
 constraint_disconnect (ShellMonitorConstraint *self)
 {
-  if (self->monitors_changed_id != 0)
-    {
-      g_signal_handler_disconnect (self->monitor_manager, self->monitors_changed_id);
-      self->monitors_changed_id = 0;
-    }
+  /* The instances are weak: they are NULL when they were finalized first */
+  if (self->monitors_changed_id != 0 && self->monitor_manager != NULL)
+    g_signal_handler_disconnect (self->monitor_manager, self->monitors_changed_id);
+  self->monitors_changed_id = 0;
 
-  if (self->workareas_changed_id != 0)
-    {
-      g_signal_handler_disconnect (self->display, self->workareas_changed_id);
-      self->workareas_changed_id = 0;
-    }
+  if (self->workareas_changed_id != 0 && self->display != NULL)
+    g_signal_handler_disconnect (self->display, self->workareas_changed_id);
+  self->workareas_changed_id = 0;
 
   g_clear_weak_pointer (&self->monitor_manager);
   g_clear_weak_pointer (&self->display);
@@ -2409,11 +2406,9 @@ on_shutdown (ShellGlobal        *global,
   if (self->torn_down)
     return;
 
-  if (self->monitors_changed_id != 0)
-    {
-      g_signal_handler_disconnect (self->monitor_manager, self->monitors_changed_id);
-      self->monitors_changed_id = 0;
-    }
+  if (self->monitors_changed_id != 0 && self->monitor_manager != NULL)
+    g_signal_handler_disconnect (self->monitor_manager, self->monitors_changed_id);
+  self->monitors_changed_id = 0;
 
   /* Nothing may complete into the shell while it is going away */
   g_clear_handle_id (&self->startup_prepared_timeout_id, g_source_remove);

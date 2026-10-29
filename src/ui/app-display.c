@@ -1997,6 +1997,16 @@ shell_app_view_item_dispose (GObject *object)
 
   app_view_item_release (self);
 
+  /* dispose runs before the destroy vfunc and clears window_manager, so end
+   * a running drag here */
+  if (priv->is_draggable && priv->dragging)
+    {
+      priv->dragging = FALSE;
+
+      if (priv->window_manager != NULL)
+        shell_window_manager_end_item_drag (priv->window_manager, G_OBJECT (self));
+    }
+
   g_clear_weak_pointer (&priv->window_manager);
   g_clear_weak_pointer (&priv->icon);
 
@@ -2861,7 +2871,17 @@ shell_app_icon_dispose (GObject *object)
   ShellAppIconPrivate *priv = shell_app_icon_get_instance_private (self);
 
   g_clear_handle_id (&priv->folder_preview_id, g_source_remove);
-  g_clear_weak_pointer (&priv->menu);
+
+  /* dispose runs before the destroy vfunc, which would find priv->menu
+   * already cleared and leave the menu alive without its icon */
+  if (priv->menu != NULL)
+    {
+      g_autoptr (ShellPopupMenuBase) menu = g_object_ref (priv->menu);
+
+      g_clear_weak_pointer (&priv->menu);
+      shell_popup_menu_base_destroy (menu);
+    }
+
   g_clear_weak_pointer (&priv->icon_container);
   g_clear_weak_pointer (&priv->dot);
   g_clear_object (&priv->menu_manager);
@@ -6482,6 +6502,15 @@ shell_app_folder_dialog_dispose (GObject *object)
   g_clear_object (&self->grab_helper);
   g_clear_pointer (&self->popdown_callbacks, g_ptr_array_unref);
 
+  /* dispose runs before the destroy vfunc and clears self->source below, so
+   * the vfunc could no longer find the source to disconnect from */
+  if (self->source_mapped_id != 0)
+    {
+      if (self->source != NULL)
+        g_signal_handler_disconnect (self->source, self->source_mapped_id);
+      self->source_mapped_id = 0;
+    }
+
   g_clear_weak_pointer (&self->source);
   g_clear_weak_pointer (&self->view);
   g_clear_weak_pointer (&self->app_display);
@@ -7038,11 +7067,12 @@ shell_folder_icon_dispose (GObject *object)
 {
   ShellFolderIcon *self = SHELL_FOLDER_ICON (object);
 
-  g_clear_weak_pointer (&self->dialog);
   g_clear_weak_pointer (&self->parent_view);
 
   G_OBJECT_CLASS (shell_folder_icon_parent_class)->dispose (object);
 
+  /* after the chain-up: the destroy vfunc, run by it, destroys the dialog */
+  g_clear_weak_pointer (&self->dialog);
   g_clear_object (&self->view);
 }
 
