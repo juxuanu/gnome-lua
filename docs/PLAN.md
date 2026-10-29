@@ -260,30 +260,35 @@ portal helper.
 Illustrative only; the normative text lives in `docs/api/` (M7).
 
 ```lua
--- metadata.json: {"uuid":"clock@example","shell-api":"1","capabilities":["dbus"]}
+-- metadata.json: {"uuid":"clock@example","shell-api":"1","capabilities":["settings"]}
 local shell = require("shell")        -- the only module an extension can load
 local ext = {}
 
 function ext.enable()
-  local ind = shell.panel.add_indicator{ position = "right", index = 0 }
   local label = shell.ui.label{ text = "…", style_class = "clock-label" }
-  ind:set_child(label)
+  local ind = shell.panel.add_indicator{ accessible_name = "Clock", child = label,
+                                         position = "right", index = 1 }
   ind.menu:add_item{ label = "Open Clocks", on_activate = function()
     shell.apps.launch("org.gnome.clocks.desktop")
   end }
 
+  local notifications = shell.settings.open("org.gnome.desktop.notifications")
   shell.quick_settings.add_toggle{
-    title = "Focus", icon = "weather-clear-night-symbolic",
-    on_toggle = function(on) shell.settings.user("org.gnome.desktop.notifications"):set_boolean("show-banners", not on) end,
+    title = "Focus", icon_name = "weather-clear-night-symbolic",
+    on_toggle = function(self, checked) notifications:set_boolean("show-banners", not checked) end,
   }
 
-  shell.dash.add_button{ icon = "utilities-terminal-symbolic", on_click = function()
-    shell.apps.launch("org.gnome.Console.desktop")
-  end }
+  shell.dash.add_button{ label = "Terminal", icon_name = "utilities-terminal-symbolic",
+    on_click = function() shell.apps.launch("org.gnome.Console.desktop") end }
 
-  shell.hooks.on("window.focused", function(w) label.text = w.title end)
-  shell.hooks.on("overview.showing", function(ev) if ev.reason == "hot-corner" then return shell.hooks.CANCEL end end)
-  shell.timer.every(1000, function() label.text = os.date("%H:%M") end)
+  shell.hooks.on("window.focused", function(ev)
+    local w = shell.windows.get(ev["window-id"])
+    if w then label.text = w.title end
+  end)
+  shell.hooks.before("overview.showing", function(ev)
+    if ev.reason == "hot-corner" then return shell.hooks.CANCEL end
+  end)
+  shell.timer.every{ ms = 60000, callback = function() shell.log.info("still running") end }
 end
 
 return ext
@@ -292,14 +297,13 @@ return ext
 
 Design rules for the surface:
 * Constructors take a single table; properties are plain fields; events are
-  `on_*` callbacks or `obj:connect(name, fn)`; handles carry only the methods
+  `on_*` callbacks or `h:on_<event>(fn)`; handles carry only the methods
   documented for their type.
 * Actors are exposed through `shell.ui.*` only at the level of St widgets and
   layout properties (padding, expand, align, visible, style_class, CSS via the
   extension stylesheet). No Clutter/Cogl, no raw allocation/paint.
-* Hooks: `before.*` can cancel or amend (return a table), `after.*` is
-  informational; an `around` form exists only where the shell can safely defer
-  (window animations, notification display).
+* Hooks: `shell.hooks.before` can cancel (`shell.hooks.CANCEL`) or amend (return
+  a table) on cancellable hooks, `shell.hooks.on` is informational (after).
 * Everything else (D-Bus, files, processes, network) is behind capabilities and
   implemented in C with GVariant↔Lua mapping limited to basic types, arrays,
   dictionaries and tuples.

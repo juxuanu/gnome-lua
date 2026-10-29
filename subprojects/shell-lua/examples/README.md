@@ -40,7 +40,7 @@ point `SHELL_LUA_EXTENSION_PATH` at the directory that contains it. The
 variable is a colon-separated list of directories, searched in order, and
 replaces the default search path:
 
-    SHELL_LUA_EXTENSION_PATH=$PWD/subprojects/shell-lua/examples gnome-shell --nested
+    SHELL_LUA_EXTENSION_PATH=$PWD/subprojects/shell-lua/examples dbus-run-session gnome-shell --wayland --devkit
 
 Directories listed there are treated like per-user extensions, and the
 directory name must still equal the uuid, which is why the example lives in
