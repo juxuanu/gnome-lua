@@ -233,3 +233,26 @@ Compared `51.1..gnome-51` of GNOME/gnome-shell on 2026-10-29 (6 commits, 2 touch
 | `19b17b31` | Update Maori translation | skipped: po/ |
 | `7574dd19` | Update Cornish translation | skipped: po/ |
 | `216e6d95` | Update Thai translation | skipped: po/ |
+
+## Lifetime audit of 2026-10-29: sites read and left alone
+
+A pattern audit of every C file (dispose order against the destroy vfunc and
+`::destroy` handlers, borrowed signal returns, GPtrArray free functions,
+disconnect-by-data in actor metas, weak pointers, size reads in
+`constructed ()`, `shell_global_get ()` from dispose, async completions after
+shutdown, GError ownership) fixed what was certain (commits 1aea841ac and
+dcead072d). These sites looked wrong on paper but were left as they are, with
+the reason; a crash report naming one of them should start here:
+
+| Site | Why it was left |
+|---|---|
+| `lightbox.c` `lightbox_destroy_cb` / dispose | `shell_lightbox_highlight (NULL)` runs after dispose cleared the fields, so the stacking is not restored on destroy; restoring it would restack children of a container that is destroying them. |
+| `app-display.c` `shell_app_folder_dialog_destroy` | The `is_open` ungrab never runs (dispose cleared `grab_helper`); the modal stack pops the modal when its owner is destroyed. |
+| `background.c`, `box-pointer.c`, `dialog.c` | Reach `shell_global_get ()` from dispose through `shell_background_destroy ()`, `get_background_cache ()`, `set_unredirect_disabled ()`, `get_laters ()`: a critical only if an object is disposed after the global went without `shutdown`. |
+| `window-manager.c` `shell_window_manager_dispose` | The `ShellWM` handlers stay connected until finalize while the tables are gone; nothing emits between the two. |
+| `brightness-manager.c` `remove_keybindings` | Uses `shell_global_get ()` from dispose unless shutting down. |
+| `unlock-dialog.c` notifications box dispose, `shell_unlock_dialog_destroy` | Dispose empties what the destroy vfunc would clean; the widgets die as children, the swipe tracker releases itself. |
+| `status/network.c` `shell_nm_wireless_device_item_destroy` | `networks` is already empty, so the per-network destroy signal is never emitted; its only listener is the item itself. |
+| `workspace.c` `shell_workspace_dispose` | `bg_manager` cleared before the destroy vfunc's `shell_background_manager_destroy ()`; the manager's dispose does the same work. |
+| `popup-menu.c` `shell_popup_menu_real_destroy` | `clutter_actor_remove_action` guarded by the `source_actor_destroyed` flag only. |
+| `status/remote-access.c` `shell_screen_sharing_indicator_dispose` | A `stopped` signal between dispose and finalize could re-arm the hide timer. |
