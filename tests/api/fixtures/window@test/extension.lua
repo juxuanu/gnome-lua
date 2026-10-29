@@ -87,7 +87,7 @@ end
 
 -- Polls pred () every 50 ms: on_ok () when it holds, a failed check and done ()
 -- after `ms`. Returns "later" for a step handler.
-local function wait_for(pred, what, on_ok, done, ms)
+local function wait_for(pred, what, on_ok, done, ms, detail)
   local waited = 0
 
   shell.timer.every{ ms = 50, callback = function()
@@ -107,7 +107,12 @@ local function wait_for(pred, what, on_ok, done, ms)
       return false
     end
     if waited >= (ms or 8000) then
-      T.report("waiting for " .. what, false, "timed out")
+      local extra = ""
+      if detail then
+        local ok3, text = pcall(detail)
+        extra = ok3 and (": " .. tostring(text)) or ""
+      end
+      T.report("waiting for " .. what, false, "timed out" .. extra)
       done()
       return false
     end
@@ -118,7 +123,8 @@ end
 -- Runs the stages one after the other: each stage is { what =, act = function,
 -- pred = function, check = function [, ms =] }: act () does the call, pred ()
 -- is polled until true, check () then runs (a failed wait is a failed check
--- and the next stage runs anyway). done () at the end.
+-- and the next stage runs anyway; an optional detail () returns text for the
+-- failure of the wait). done () at the end.
 local function chain(stages, done, i)
   i = i or 1
   local stage = stages[i]
@@ -136,7 +142,7 @@ local function chain(stages, done, i)
   end
   wait_for(stage.pred, stage.what, stage.check, function()
     chain(stages, done, i + 1)
-  end, stage.ms)
+  end, stage.ms, stage.detail)
 end
 
 local WINDOW_HOOKS = {
@@ -734,8 +740,27 @@ function ext.enable()
 
       local returned
 
+      -- Mutter applies the size of a Wayland window when the client acks the
+      -- configure (a few frames, slow under ASan) and never below the minimum
+      -- size the client set: the helper window of the script is smaller than
+      -- every rectangle asked here, and the wait of each stage is long.
+      local function describe()
+        local f = w.frame
+
+        return string.format("frame is %d,%d %dx%d, resizable %s, movable %s", f.x, f.y, f.width, f.height,
+                             tostring(w.resizable), tostring(w.movable))
+      end
+      local MS = 12000
+
+      case("the window can be moved and resized", function()
+        truthy(w.movable, "movable")
+        truthy(w.resizable, "resizable")
+        truthy(w.frame.width <= resized.width and w.frame.height <= resized.height,
+               "the window is not bigger than the smallest rectangle asked (" .. describe() .. ")")
+      end)
+
       chain({
-        { what = "move_resize ()",
+        { what = "move_resize ()", ms = MS, detail = describe,
           act = function()
             returned = table.pack(w:move_resize(target))
           end,
@@ -748,7 +773,7 @@ function ext.enable()
               truthy(find_event("window.geometry-changed", id, from).ok, "the payload was consistent with the API")
             end)
           end },
-        { what = "move ()",
+        { what = "move ()", ms = MS, detail = describe,
           act = function()
             returned = table.pack(w:move(moved))
           end,
@@ -765,7 +790,7 @@ function ext.enable()
               eq(w.frame.height, target.height, "height")
             end)
           end },
-        { what = "resize ()",
+        { what = "resize ()", ms = MS, detail = describe,
           act = function()
             returned = table.pack(w:resize(resized))
           end,

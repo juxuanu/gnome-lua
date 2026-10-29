@@ -11,17 +11,30 @@ local uuid = "window@test"
 
 harness.run {
   uuid = uuid,
-  timeout = 30000,
+  -- per wait; the slowest step (geometry) waits up to 3 x 12 s for Mutter
+  timeout = 60000,
   -- the test opens windows: the stage has actors of its own while it runs
   actors = false,
 
   drive = function (c)
+    -- The helper quits, and takes its windows with it, after 30 s without a
+    -- D-Bus call (gnome-shell-perf-helper --idle-timeout); this test runs
+    -- longer than that under ASan. WaitWindows is answered at once for a
+    -- window that was drawn and counts as a call: ping before every step.
+    local function step (name, payload)
+      test.wait_windows ()
+      c.step (name, payload)
+    end
+
     c.wait_done ("main")
 
     -- a window of the perf helper: mapped, drawn, listed. The helper reports
     -- its window shown before the compositor maps it; the fixture reports
-    -- window.mapped as it comes.
-    test.create_window {}
+    -- window.mapped as it comes. The helper sets the size as the window's
+    -- minimum size (gtk_widget_set_size_request): it is small, so that the
+    -- geometry step can resize the window to sizes between this and the
+    -- work area (the default 640x480 would be the least Mutter allows).
+    test.create_window { width = 300, height = 200 }
     test.wait_windows ()
     c.wait_until (function ()
       for _, check in ipairs (test.extension_report (uuid).checks) do
@@ -32,37 +45,37 @@ harness.run {
       return false
     end, "the fixture to see window.mapped")
     test.wait_leisure ()
-    c.step ("opened")
+    step ("opened")
 
     -- minimize () and activate ()
-    c.step ("minimize")
+    step ("minimize")
     test.wait_leisure ()
-    c.step ("activate")
+    step ("activate")
     test.wait_leisure ()
 
     -- 1.1: geometry (move, resize, move_resize, frame, window.geometry-changed),
     -- maximize/unmaximize, fullscreen, above, on_all_workspaces, unminimize
-    c.step ("geometry")
+    step ("geometry")
     test.wait_leisure ()
-    c.step ("maximize")
+    step ("maximize")
     test.wait_leisure ()
-    c.step ("fullscreen")
+    step ("fullscreen")
     test.wait_leisure ()
-    c.step ("above")
+    step ("above")
     test.wait_leisure ()
-    c.step ("sticky")
+    step ("sticky")
     test.wait_leisure ()
-    c.step ("unminimize")
+    step ("unminimize")
     test.wait_leisure ()
 
     -- 1.1: a listener that connects now is told about the window (replay)
-    c.step ("replay")
+    step ("replay")
     test.wait_leisure ()
 
     -- workspace:activate (), window:move_to_workspace ()
-    c.step ("switch")
+    step ("switch")
     test.wait_leisure ()
-    c.step ("move")
+    step ("move")
     test.wait_leisure ()
 
     -- a second monitor appears and goes away
@@ -71,16 +84,16 @@ harness.run {
     local monitor = test.new_monitor (1280, 720, 60.0)
     test.wait (added, 15000)
     test.wait_leisure ()
-    c.step ("monitors-changed", { count = n + 1, width = 1280, height = 720 })
+    step ("monitors-changed", { count = n + 1, width = 1280, height = 720 })
 
     local removed = test.watch (main.layout_manager, "monitors-changed")
     monitor:destroy ()
     test.wait (removed, 15000)
     test.wait_leisure ()
-    c.step ("monitors-changed", { count = n })
+    step ("monitors-changed", { count = n })
 
     -- close (): the window goes, its handle dies
-    c.step ("close")
+    step ("close")
     test.destroy_windows ()
   end,
 
