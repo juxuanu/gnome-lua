@@ -529,6 +529,7 @@ struct _ShellKeyboardBrightnessToggle
   ShellBacklightDiscreteItem *discrete_item;    /* weak */
   gulong slider_item_changed_id;
   gulong discrete_item_changed_id;
+  int saved_brightness;
 };
 
 G_DEFINE_FINAL_TYPE (ShellKeyboardBrightnessToggle, shell_keyboard_brightness_toggle,
@@ -563,6 +564,9 @@ toggle_sync (ShellKeyboardBrightnessToggle *self)
     return;
 
   st_button_set_checked (ST_BUTTON (self), brightness > 0);
+  if (brightness > 0)
+    self->saved_brightness = brightness;
+
   steps = shell_settings_daemon_power_keyboard_get_steps (self->proxy);
   use_slider = steps >= 4;
 
@@ -663,7 +667,7 @@ shell_keyboard_brightness_toggle_clicked (StButton *button,
 {
   ShellKeyboardBrightnessToggle *self = SHELL_KEYBOARD_BRIGHTNESS_TOGGLE (button);
 
-  toggle_set_brightness (self, st_button_get_checked (button) ? 0 : 100);
+  toggle_set_brightness (self, st_button_get_checked (button) ? 0 : self->saved_brightness);
 }
 
 static void
@@ -750,6 +754,7 @@ shell_keyboard_brightness_toggle_class_init (ShellKeyboardBrightnessToggleClass 
 static void
 shell_keyboard_brightness_toggle_init (ShellKeyboardBrightnessToggle *self)
 {
+  self->saved_brightness = 100;
 }
 
 static ShellKeyboardBrightnessToggle *

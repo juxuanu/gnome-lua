@@ -903,7 +903,7 @@ struct _ShellLoginDialog
   ShellLogin1Session *greeter_session_proxy;
   GVariant *selected_auth_mechanism;
 
-  ActUser *user;
+  char *user_name;
   gulong next_signal_id;
   int disable_user_list;          /* -1 until the first update */
   gboolean user_list_loaded;
@@ -1049,10 +1049,21 @@ compare_session_names (gconstpointer a,
   return g_utf8_collate (first_name, second_name);
 }
 
+/* `get _user ()` of the JS: the user is looked up by name, it may not exist (yet) */
+static ActUser *
+login_dialog_get_user (ShellLoginDialog *self)
+{
+  if (self->user_name == NULL || self->user_manager == NULL)
+    return NULL;
+
+  return act_user_manager_get_user (self->user_manager, self->user_name);
+}
+
 /* `_updateSessions ()` */
 static void
 update_sessions (ShellLoginDialog *self)
 {
+  ActUser *user = login_dialog_get_user (self);
   g_autoptr (GVariant) criteria = g_variant_ref_sink (section_criteria (session_type_section_name ()));
   g_auto (GStrv) ids = NULL;
   g_autoptr (GPtrArray) sessions = NULL;
@@ -1061,8 +1072,8 @@ update_sessions (ShellLoginDialog *self)
   shell_auth_menu_button_clear_items (self->auth_menu_button, criteria);
 
   /* User is already logged in, it can't choose a different session */
-  if (self->user != NULL && act_user_is_loaded (self->user) &&
-      act_user_is_logged_in (self->user))
+  if (user != NULL && act_user_is_loaded (user) &&
+      act_user_is_logged_in (user))
     return;
 
   ids = gdm_get_session_ids ();
@@ -1463,8 +1474,8 @@ next_signal_cb (ShellAuthPrompt   *prompt,
   shell_auth_prompt_update_sensitivity (prompt, FALSE);
   answer = shell_auth_prompt_get_answer (prompt);
 
-  g_clear_object (&self->user);
-  self->user = g_object_ref (act_user_manager_get_user (self->user_manager, answer));
+  g_free (self->user_name);
+  self->user_name = g_strdup (answer);
 
   update_sessions (self);
   shell_auth_prompt_clear (prompt, FALSE);
@@ -1539,8 +1550,8 @@ user_list_activate_cb (ShellUserList     *list,
   g_autoptr (ShellConcurrentBatch) batch = NULL;
   ShellBatchTask *tasks[2];
 
-  g_clear_object (&self->user);
-  self->user = g_object_ref (item->user);
+  g_free (self->user_name);
+  self->user_name = g_strdup (act_user_get_user_name (item->user));
 
   update_sessions (self);
 
@@ -2457,12 +2468,12 @@ auth_prompt_reset_cb (ShellAuthPrompt  *prompt,
                       guint             reset_type,
                       ShellLoginDialog *self)
 {
-  g_autoptr (ActUser) previous_user = NULL;
+  g_autofree char *previous_user_name = NULL;
 
   ensure_greeter_proxy (self);
   show_bottom_button_group (self);
 
-  previous_user = g_steal_pointer (&self->user);
+  previous_user_name = g_steal_pointer (&self->user_name);
 
   if (self->next_signal_id != 0)
     {
@@ -2470,11 +2481,11 @@ auth_prompt_reset_cb (ShellAuthPrompt  *prompt,
       self->next_signal_id = 0;
     }
 
-  if (previous_user != NULL && reset_type == SHELL_AUTH_PROMPT_RESET_REUSE_USERNAME)
+  if (previous_user_name != NULL && reset_type == SHELL_AUTH_PROMPT_RESET_REUSE_USERNAME)
     {
-      self->user = g_object_ref (previous_user);
-      shell_auth_prompt_set_user (self->auth_prompt, self->user);
-      shell_auth_prompt_begin (self->auth_prompt, act_user_get_user_name (previous_user), NULL);
+      self->user_name = g_strdup (previous_user_name);
+      shell_auth_prompt_set_user (self->auth_prompt, login_dialog_get_user (self));
+      shell_auth_prompt_begin (self->auth_prompt, self->user_name, NULL);
     }
   else if (reset_type == SHELL_AUTH_PROMPT_RESET_PROVIDE_USERNAME)
     {
@@ -3310,7 +3321,7 @@ shell_login_dialog_dispose (GObject *object)
   g_clear_object (&self->user_manager);
 
   g_clear_object (&self->grab);
-  g_clear_object (&self->user);
+  g_clear_pointer (&self->user_name, g_free);
   g_clear_object (&self->gdm_client);
   g_clear_object (&self->logo_file);
   g_clear_pointer (&self->selected_auth_mechanism, g_variant_unref);

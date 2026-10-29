@@ -220,3 +220,16 @@ Progress (`ported` and `dropped` rows; regenerate with `build-aux/port-progress.
 | `js/dbusServices/screencast/main.js` | 13 | ported | `main ()` of `src/dbus-services/screencast-service.c`: exits with status 0 without owning the name if `can_screencast ()` is false (`pipewiresrc`, `filesink` and the elements of the fallback pipeline must exist). |
 | `js/dbusServices/notifications/main.js` | 10 | ported | `main ()` of `src/dbus-services/notification-service.c`. |
 | `js/dbusServices/screensaver/main.js` | 10 | ported | `main ()` of `src/dbus-services/screensaver-service.c`. |
+
+## Upstream fixes ported after 51.1
+
+Compared `51.1..gnome-51` of GNOME/gnome-shell on 2026-10-29 (6 commits, 2 touch code).
+
+| Upstream | Subject | Here |
+|---|---|---|
+| `f3ed503e` | status/backlight: Restore the last positive keyboard brightness | ported: `src/ui/status/backlight.c` (`saved_brightness` of `ShellKeyboardBrightnessToggle`, 100 at first, updated by `toggle_sync ()`, used by `clicked`) |
+| `d59cc24c` | loginDialog: Don't rely on AccountsService to recover the username | ported: `src/gdm/login-dialog.c` (the `ActUser *user` field is the `char *user_name`; `login_dialog_get_user ()` is the `_user` getter and looks the user up by name when needed) |
+| `0dea3091` | Add Azerbaijani translation | skipped: po/ |
+| `19b17b31` | Update Maori translation | skipped: po/ |
+| `7574dd19` | Update Cornish translation | skipped: po/ |
+| `216e6d95` | Update Thai translation | skipped: po/ |
