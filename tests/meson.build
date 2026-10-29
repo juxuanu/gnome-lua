@@ -173,6 +173,7 @@ api_tests = [
       join_paths(examples_dir, 'dash-launcher@gnome-lua.example'),
       join_paths(examples_dir, 'hooks-log@gnome-lua.example'),
       join_paths(examples_dir, 'prefs@gnome-lua.example'),
+      join_paths(examples_dir, 'clock@gnome-lua.example'),
     ],
   },
 ]

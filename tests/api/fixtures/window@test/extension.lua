@@ -693,9 +693,13 @@ function ext.enable()
       local w, id = kept.w, kept.id
       local work = shell.monitors.get(w.monitor).work_area
       local from = #kept.events
-      local target = { x = work.x + 100, y = work.y + 80, width = 500, height = 340 }
+      -- The helper window's minimum size is what GTK computes for its
+      -- content (wider than the size the script asked for), so every
+      -- rectangle grows from the frame the window has now.
+      local f0 = w.frame
+      local target = { x = work.x + 100, y = work.y + 80, width = f0.width + 100, height = f0.height + 60 }
       local moved = { x = target.x + 60, y = target.y + 40 }
-      local resized = { width = 420, height = 300 }
+      local resized = { width = f0.width + 40, height = f0.height + 30 }
 
       -- the last geometry-changed of the window since `from` says `rect`, and
       -- no two consecutive ones are the same rectangle (only changes are reported)
