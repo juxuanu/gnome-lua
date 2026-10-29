@@ -98,6 +98,80 @@ test_log_domain_follows_state_id (void)
   g_object_unref (s);
 }
 
+/* What an extension logs on purpose never takes the shell down: this program
+ * runs with G_DEBUG=fatal-warnings and g_test_init () makes warnings and
+ * criticals fatal, and these messages are not announced with
+ * g_test_expect_message (), so the test aborts if the logging is fatal. */
+static void
+test_log_is_not_fatal (void)
+{
+  ShellLuaState *s = new_state ("core", SHELL_LUA_STATE_PRIVILEGED);
+  GLogLevelFlags before, after;
+
+  before = g_log_set_always_fatal (G_LOG_FATAL_MASK);
+  g_log_set_always_fatal (before);
+  g_assert_true ((before & (G_LOG_LEVEL_WARNING | G_LOG_LEVEL_CRITICAL)) ==
+                 (G_LOG_LEVEL_WARNING | G_LOG_LEVEL_CRITICAL));
+
+  tu_do (s, "shell.log.warning('on purpose: warning')");
+  tu_do (s, "shell.log.error('on purpose: error')");
+  tu_do (s, "shell.log.warning('%s', 'on purpose again')");
+
+  /* the mask of the shell is back, also after an error in the format */
+  tu_assert_fails (s, "shell.log.error('%d', 'x')", SHELL_LUA_ERROR_RUNTIME, "bad argument");
+  after = g_log_set_always_fatal (before);
+  g_assert_cmphex (after, ==, before);
+
+  g_object_unref (s);
+}
+
+static void
+test_log_fatal (void)
+{
+  ShellLuaState *s = new_state ("core", SHELL_LUA_STATE_PRIVILEGED);
+  g_autoptr (GError) error = NULL;
+
+  g_assert_true (tu_eval_bool (s, "type(shell.log.fatal) == 'function'"));
+
+  /* logged as a critical, then raised with the formatted message */
+  g_test_expect_message ("shell-lua/core", G_LOG_LEVEL_CRITICAL, "boom 3");
+  tu_assert_fails (s, "shell.log.fatal('boom %d', 3)", SHELL_LUA_ERROR_RUNTIME, "boom 3");
+  g_test_assert_expected_messages ();
+
+  /* the message is the error value as is: no position, no prefix */
+  g_test_expect_message ("shell-lua/core", G_LOG_LEVEL_CRITICAL, "plain");
+  tu_assert_eval_str (s, "(select(2, pcall(shell.log.fatal, 'plain')))", "plain");
+  g_test_assert_expected_messages ();
+
+  /* it stops the code that follows */
+  g_test_expect_message ("shell-lua/core", G_LOG_LEVEL_CRITICAL, "stop");
+  tu_do (s, "reached = false; pcall(function() shell.log.fatal('stop'); reached = true end)");
+  g_test_assert_expected_messages ();
+  tu_assert_eval_str (s, "reached", "false");
+
+  /* the arguments are checked like those of the other functions */
+  tu_assert_fails (s, "shell.log.fatal()", SHELL_LUA_ERROR_RUNTIME, "string expected, got no value");
+  tu_assert_fails (s, "shell.log.fatal('%d', 'x')", SHELL_LUA_ERROR_RUNTIME, "bad argument");
+
+  g_object_unref (s);
+}
+
+static void
+test_log_fatal_counts_as_an_error (void)
+{
+  ShellLuaState *s = new_state ("fatal@test", SHELL_LUA_STATE_SANDBOXED);
+
+  /* in a callback of a sandboxed state: logged, then the runtime logs the
+   * error with its traceback */
+  g_test_expect_message ("shell-lua/fatal@test", G_LOG_LEVEL_CRITICAL, "cannot go on");
+  tu_expect_state_warning (s, "cannot go on");
+  tu_do (s, "shell.timer.after{ ms = 1, callback = function() shell.log.fatal('cannot go on') end }");
+  tu_spin (100);
+  g_test_assert_expected_messages ();
+
+  g_object_unref (s);
+}
+
 /* ------------------------------------------------------------------------ */
 /* shell.timer                                                               */
 /* ------------------------------------------------------------------------ */
@@ -662,6 +736,9 @@ main (int argc, char **argv)
 
   g_test_add_func ("/shell-lua/api-core/log/levels", test_log);
   g_test_add_func ("/shell-lua/api-core/log/domain", test_log_domain_follows_state_id);
+  g_test_add_func ("/shell-lua/api-core/log/not-fatal", test_log_is_not_fatal);
+  g_test_add_func ("/shell-lua/api-core/log/fatal", test_log_fatal);
+  g_test_add_func ("/shell-lua/api-core/log/fatal-in-callback", test_log_fatal_counts_as_an_error);
   g_test_add_func ("/shell-lua/api-core/timer/after", test_timer_after_fires_once);
   g_test_add_func ("/shell-lua/api-core/timer/every-stops-on-false", test_timer_every_stops_on_false);
   g_test_add_func ("/shell-lua/api-core/timer/every-and-cancel", test_timer_every_repeats_and_cancel);

@@ -23,7 +23,8 @@ Not in v1 (each exclusion: why):
   model (PLAN §7).
 - `on_key`/key and pointer event hooks on arbitrary widgets: raw input is a
   keylogging channel and ties extensions to Clutter event shapes. Shortcuts
-  are a future `shell.keybindings`; widgets expose `on_activate` instead.
+  are `shell.keybindings` (keybindings.md, 1.1); widgets expose `on_activate`
+  instead.
 - Images by pixel data or `Gio.Icon` objects: `icon_name` and `icon_file` cover
   themed and bundled icons without a GObject handle.
 - Text selection/cursor control, password entries, tooltips, drag-and-drop,

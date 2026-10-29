@@ -85,6 +85,9 @@ shell_lua_api_populate (ShellLuaState *state,
   shell_lua_api_register ("core", shell_lua_api_core_register);
   shell_lua_api_register ("hooks", shell_lua_api_hooks_register);
   shell_lua_api_register ("dbus", shell_lua_api_dbus_register);
+  shell_lua_api_register ("fs", shell_lua_api_fs_register);
+  shell_lua_api_register ("spawn", shell_lua_api_spawn_register);
+  shell_lua_api_register ("time", shell_lua_api_time_register);
 
   /* Deterministic order independent of link order */
   g_array_sort (modules, compare_modules);

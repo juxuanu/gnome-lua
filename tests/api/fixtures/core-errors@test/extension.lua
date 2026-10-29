@@ -1,5 +1,6 @@
 -- Fixture of tests/api/core.lua: errors in callbacks (docs/api/core.md,
--- "Errors"). The step `raise` makes N timers that raise an error each.
+-- "Errors"). The step `raise` makes N timers that raise an error each, the
+-- step `fatal` N timers that call shell.log.fatal (Since 1.1).
 local shell = require("shell")
 local T = shell.test
 
@@ -76,6 +77,15 @@ local ext = {}
 
 function ext.enable()
   steps {
+    -- shell.log.fatal in a callback: logged, raised, counted like any error
+    fatal = function(p)
+      for i = 1, p.n do
+        shell.timer.after{ ms = 10 * i, callback = function()
+          shell.log.fatal("fatal " .. i)
+        end }
+      end
+    end,
+
     raise = function(p)
       for i = 1, p.n do
         shell.timer.after{ ms = 10 * i, callback = function()

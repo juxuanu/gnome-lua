@@ -5,6 +5,7 @@ shell_lua_public_headers = [
   'shell-lua-variant.h',
   'shell-lua-extension.h',
   'shell-lua-inspector.h',
+  'shell-lua-time.h',
 ]
 
 shell_lua_sources = [
@@ -13,6 +14,9 @@ shell_lua_sources = [
   'shell-lua-api-core.c',
   'shell-lua-api-hooks.c',
   'shell-lua-api-dbus.c',
+  'shell-lua-api-fs.c',
+  'shell-lua-api-spawn.c',
+  'shell-lua-api-time.c',
   'shell-lua-objects.c',
   'shell-lua-handle.c',
   'shell-lua-variant.c',

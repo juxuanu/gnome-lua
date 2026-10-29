@@ -1,0 +1,7 @@
+{
+  "uuid": "spawn-nocap@test",
+  "name": "API conformance: spawn without the capability",
+  "description": "Fixture of tests/api/spawn.lua: without the capability shell.spawn raises and nothing runs",
+  "shell-api": "1.1",
+  "version": 1
+}

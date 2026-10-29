@@ -505,10 +505,14 @@ libshell_private_sources = [
   'lua-api/shell-lua-api-ui.c',
   'lua-api/shell-lua-api-menu.c',
   'lua-api/shell-lua-api-dash.c',
+  'lua-api/shell-lua-api-overview.c',
+  'lua-api/shell-lua-api-search.c',
   'lua-api/shell-lua-api-panel.c',
   'lua-api/shell-lua-api-notify.c',
   'lua-api/shell-lua-api-quick-settings.c',
   'lua-api/shell-lua-api-window.c',
+  'lua-api/shell-lua-api-network.c',
+  'lua-api/shell-lua-api-keybindings.c',
   'lua-api/shell-window-hooks.c',
 ]
 

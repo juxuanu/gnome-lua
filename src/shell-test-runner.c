@@ -71,12 +71,20 @@
  *   test.fingerprint ()           {actors = {type = n}, mapped = {type = n},
  *                                 listeners = {hook = n}}: what is on the
  *                                 stage and connected to the hooks
+ *   test.http_server {routes = {["/path"] = body or route}}
+ *                                 a SoupServer on 127.0.0.1 and an ephemeral
+ *                                 port for the tests of shell.network (the
+ *                                 CI has no internet): returns {url, port,
+ *                                 route (), requests (), stop ()}; the
+ *                                 routes are described at the function
  *
  * Other functions: test.timeout (ms, fn), test.now (), test.new (type,
  * {property = value ...}) (a GObject, kept alive by the runner),
  * test.new_monitor (width, height, refresh_rate) (a virtual monitor of
  * Mutter's test library; has :destroy ()), test.create_virtual_device
- * (device type), test.set_boolean (schema, key, value), test.expect_equal
+ * (device type), test.press_accelerator (accelerator) (types a combination
+ * such as "<Super><Alt>j" on a virtual keyboard; it does not wait),
+ * test.set_boolean (schema, key, value), test.expect_equal
  * (a, b, description), test.log (...), test.print (...); and for the
  * performance log (js/ui/scripting.js): test.define_event (name,
  * description [, signature]), test.event (name), test.event_i (name, int),
@@ -106,6 +114,7 @@
 #include <meta/meta-backend.h>
 #include <meta/meta-context.h>
 #include <meta/window.h>
+#include <libsoup/soup.h>
 
 #include "shell-app-system.h"
 #include "shell-app.h"
@@ -1618,6 +1627,127 @@ l_create_virtual_device (lua_State *L)
   return 0;
 }
 
+/* test.press_accelerator (accelerator): types the combination (GTK syntax:
+ * `<Super><Alt>j`, `<Control>F5`; modifiers Shift, Control, Alt, Super; a key
+ * is one ASCII character, `space`, `Return`, `Escape`, `Tab`, `Print` or
+ * `F1`..`F12`) on a virtual keyboard of the default seat: the modifiers go
+ * down, the key goes down and up, the modifiers go up. It does not wait: the
+ * events reach the shell from the main loop, so the script polls for the
+ * effect. The keyboard is made on the first call. */
+static ClutterVirtualInputDevice *accelerator_keyboard = NULL;
+
+static gboolean
+accelerator_keyval (const char *name,
+                    guint      *keyval)
+{
+  static const struct
+  {
+    const char *name;
+    guint keyval;
+  } named[] = {
+    { "space", CLUTTER_KEY_space },
+    { "Return", CLUTTER_KEY_Return },
+    { "Escape", CLUTTER_KEY_Escape },
+    { "Tab", CLUTTER_KEY_Tab },
+    { "Print", CLUTTER_KEY_Print },
+  };
+  guint i;
+
+  if (name[0] != '\0' && name[1] == '\0' && (guchar) name[0] > ' ' && (guchar) name[0] < 0x7f)
+    {
+      *keyval = (guchar) name[0];
+      return TRUE;
+    }
+
+  if (name[0] == 'F' && name[1] >= '1' && name[1] <= '9' &&
+      (name[2] == '\0' || (name[2] >= '0' && name[2] <= '2' && name[3] == '\0')))
+    {
+      int n = atoi (name + 1);
+
+      if (n >= 1 && n <= 12)
+        {
+          *keyval = CLUTTER_KEY_F1 + n - 1;
+          return TRUE;
+        }
+    }
+
+  for (i = 0; i < G_N_ELEMENTS (named); i++)
+    {
+      if (strcmp (name, named[i].name) == 0)
+        {
+          *keyval = named[i].keyval;
+          return TRUE;
+        }
+    }
+
+  return FALSE;
+}
+
+static int
+l_press_accelerator (lua_State *L)
+{
+  Runner *r = the_runner;
+  const char *accelerator = luaL_checkstring (L, 1);
+  guint modifiers[8];
+  guint n_modifiers = 0, keyval = 0, i;
+  const char *p = accelerator;
+  int64_t time_us;
+
+  while (*p == '<')
+    {
+      const char *end = strchr (p, '>');
+      g_autofree char *modifier = end != NULL ? g_ascii_strdown (p + 1, end - p - 1) : NULL;
+      guint modifier_keyval;
+
+      if (modifier == NULL || n_modifiers == G_N_ELEMENTS (modifiers))
+        return luaL_error (L, "'%s' is not an accelerator", accelerator);
+
+      if (strcmp (modifier, "super") == 0)
+        modifier_keyval = CLUTTER_KEY_Super_L;
+      else if (strcmp (modifier, "control") == 0 || strcmp (modifier, "ctrl") == 0)
+        modifier_keyval = CLUTTER_KEY_Control_L;
+      else if (strcmp (modifier, "alt") == 0)
+        modifier_keyval = CLUTTER_KEY_Alt_L;
+      else if (strcmp (modifier, "shift") == 0)
+        modifier_keyval = CLUTTER_KEY_Shift_L;
+      else
+        return luaL_error (L, "'%s': unsupported modifier <%s>", accelerator, modifier);
+
+      modifiers[n_modifiers++] = modifier_keyval;
+      p = end + 1;
+    }
+
+  if (!accelerator_keyval (p, &keyval))
+    return luaL_error (L, "'%s': unsupported key '%s'", accelerator, p);
+
+  if (accelerator_keyboard == NULL)
+    {
+      ClutterStage *stage = shell_global_get_stage (shell_global_get ());
+      ClutterContext *context = clutter_actor_get_context (CLUTTER_ACTOR (stage));
+      ClutterSeat *seat = clutter_backend_get_default_seat (clutter_context_get_backend (context));
+      ClutterVirtualInputDevice *device =
+        clutter_seat_create_virtual_device (seat, CLUTTER_KEYBOARD_DEVICE);
+
+      /* r->keep releases it when the runner goes */
+      g_ptr_array_add (r->keep, device);
+      g_set_weak_pointer (&accelerator_keyboard, device);
+    }
+
+  time_us = g_get_monotonic_time ();
+  for (i = 0; i < n_modifiers; i++)
+    clutter_virtual_input_device_notify_keyval (accelerator_keyboard, time_us++,
+                                                modifiers[i], CLUTTER_KEY_STATE_PRESSED);
+  clutter_virtual_input_device_notify_keyval (accelerator_keyboard, time_us++,
+                                              keyval, CLUTTER_KEY_STATE_PRESSED);
+  clutter_virtual_input_device_notify_keyval (accelerator_keyboard, time_us++,
+                                              keyval, CLUTTER_KEY_STATE_RELEASED);
+  for (i = n_modifiers; i > 0; i--)
+    clutter_virtual_input_device_notify_keyval (accelerator_keyboard, time_us++,
+                                                modifiers[i - 1], CLUTTER_KEY_STATE_RELEASED);
+
+  return 0;
+}
+
 /* Virtual monitors: Mutter's test library is loaded when the first is made,
  * it is not a dependency of the shell */
 
@@ -1850,6 +1980,106 @@ static const luaL_Reg overview_methods[] = {
   { "hide", l_overview_hide },
   { "show_for_reason", l_overview_show_for_reason },
   { "hide_for_reason", l_overview_hide_for_reason },
+  { NULL, NULL }
+};
+
+/* ShellSearchController and ShellSearchResult (tests/api/search.lua) */
+
+/* controller:search (text): types @text in the search entry, as the user
+ * would; the search starts after the debounce of the results view */
+static int
+l_search_controller_search (lua_State *L)
+{
+  ShellSearchController *controller = check_instance (L, 1, SHELL_TYPE_SEARCH_CONTROLLER);
+  StEntry *entry = NULL;
+
+  g_object_get (controller, "search-entry", &entry, NULL);
+  if (entry == NULL)
+    return luaL_error (L, "the search controller has no entry");
+
+  st_entry_set_text (entry, luaL_checkstring (L, 2));
+  g_object_unref (entry);
+  return 0;
+}
+
+/* controller:search_in_progress () -> boolean: a search is starting or a
+ * provider has not answered yet */
+static int
+l_search_controller_search_in_progress (lua_State *L)
+{
+  ShellSearchController *controller = check_instance (L, 1, SHELL_TYPE_SEARCH_CONTROLLER);
+  ShellSearchResultsView *view = shell_search_controller_get_search_results (controller);
+
+  lua_pushboolean (L, view != NULL && shell_search_results_view_get_search_in_progress (view));
+  return 1;
+}
+
+/* controller:n_results (provider_id) -> the number of results the section of
+ * the provider shows */
+static int
+l_search_controller_n_results (lua_State *L)
+{
+  ShellSearchController *controller = check_instance (L, 1, SHELL_TYPE_SEARCH_CONTROLLER);
+  ShellSearchResultsView *view = shell_search_controller_get_search_results (controller);
+
+  lua_pushinteger (L, view != NULL
+                        ? shell_search_results_view_get_n_results (view, luaL_checkstring (L, 2))
+                        : 0);
+  return 1;
+}
+
+/* controller:get_result (provider_id, index) -> the result actor (1-based) or nil */
+static int
+l_search_controller_get_result (lua_State *L)
+{
+  ShellSearchController *controller = check_instance (L, 1, SHELL_TYPE_SEARCH_CONTROLLER);
+  ShellSearchResultsView *view = shell_search_controller_get_search_results (controller);
+  lua_Integer index = luaL_checkinteger (L, 3);
+
+  push_object_or_nil (L, view != NULL && index >= 1
+                           ? shell_search_results_view_get_result (view, luaL_checkstring (L, 2),
+                                                                   (guint) (index - 1))
+                           : NULL);
+  return 1;
+}
+
+static const luaL_Reg search_controller_methods[] = {
+  { "search", l_search_controller_search },
+  { "search_in_progress", l_search_controller_search_in_progress },
+  { "n_results", l_search_controller_n_results },
+  { "get_result", l_search_controller_get_result },
+  { NULL, NULL }
+};
+
+/* result:activate (): activates the result as a click does */
+static int
+l_search_result_activate (lua_State *L)
+{
+  shell_search_result_activate (check_instance (L, 1, SHELL_TYPE_SEARCH_RESULT));
+  return 0;
+}
+
+/* result:launch_search (): what a click on the header of the section of the
+ * provider of the result does (the "launch_search" of the provider, with the
+ * terms of the search) */
+static int
+l_search_result_launch_search (lua_State *L)
+{
+  ShellSearchResult *result = check_instance (L, 1, SHELL_TYPE_SEARCH_RESULT);
+  g_autoptr (ShellSearchResultsView) view = shell_search_result_get_results_view (result);
+  g_auto (GStrv) terms = view != NULL ? shell_search_results_view_get_terms (view) : NULL;
+
+  if (view == NULL)
+    return luaL_error (L, "the result is not shown in a results view");
+
+  shell_search_provider_launch_search (shell_search_result_get_provider (result),
+                                       (const char * const *) terms);
+  return 0;
+}
+
+static const luaL_Reg search_result_methods[] = {
+  { "activate", l_search_result_activate },
+  { "launch_search", l_search_result_launch_search },
   { NULL, NULL }
 };
 
@@ -2146,6 +2376,8 @@ register_object_methods (void)
   shell_lua_inspector_add_object_methods (CLUTTER_TYPE_STAGE, stage_methods);
   shell_lua_inspector_add_object_methods (ST_TYPE_WIDGET, widget_methods);
   shell_lua_inspector_add_object_methods (SHELL_TYPE_OVERVIEW, overview_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_SEARCH_CONTROLLER, search_controller_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_SEARCH_RESULT, search_result_methods);
   shell_lua_inspector_add_object_methods (SHELL_TYPE_PANEL, panel_methods);
   shell_lua_inspector_add_object_methods (SHELL_TYPE_POPUP_MENU_BASE, menu_methods);
   shell_lua_inspector_add_object_methods (SHELL_TYPE_MESSAGE_TRAY, tray_methods);
@@ -2640,6 +2872,515 @@ l_fingerprint (lua_State *L)
 }
 
 /* ------------------------------------------------------------------------ */
+/* test.http_server                                                          */
+/* ------------------------------------------------------------------------ */
+
+/* test.http_server {routes = {["/path"] = route ...}} -> server
+ *
+ * A SoupServer on 127.0.0.1 and an ephemeral port, answering from the main
+ * loop of the shell (the tests of shell.network have no internet). A route is
+ * a string (the body of a 200 answer, text/plain) or a table:
+ *
+ *   status       integer, default 200 (302 with a redirect)
+ *   body         string
+ *   size         integer, a body of that many 'x' (instead of body)
+ *   content_type string, default text/plain
+ *   headers      {Name = "value"} added to the answer; a sequence of values
+ *                instead of a string sends the header once for each
+ *   delay_ms     integer, the answer is sent that long after the request
+ *   echo         boolean, the body of the answer is the body of the request
+ *                (and X-Echo-Method the method)
+ *   redirect     string, a path on this server or an absolute URL: Location
+ *
+ * A path without a route answers 404. The server table has `url`
+ * ("http://127.0.0.1:<port>", no trailing slash) and `port`, and the methods
+ *
+ *   server:route (path, route)   adds or replaces a route
+ *   server:requests ()           the requests so far, in order: {method,
+ *                                path (with the query), headers (names in
+ *                                lower case), body}
+ *   server:stop ()               stops listening and closes the connections
+ *
+ * The servers live until the end of the run. */
+
+#define HTTP_LOG_LIMIT 1000
+
+typedef struct
+{
+  int status;
+  char *content_type;
+  GBytes *body;
+  GPtrArray *headers;   /* name, value, name, value... */
+  guint delay_ms;
+  gboolean echo;
+  char *redirect;
+} HttpRoute;
+
+typedef struct
+{
+  char *method;
+  char *path;
+  GPtrArray *headers;   /* name (lower case), value, ... */
+  GBytes *body;
+} HttpRequestLog;
+
+typedef struct
+{
+  SoupServer *server;
+  GHashTable *routes;   /* path -> HttpRoute */
+  GPtrArray *log;       /* HttpRequestLog */
+  char *url;
+  gboolean stopped;
+} HttpServer;
+
+typedef struct
+{
+  SoupServerMessage *message;   /* strong while the answer is held back */
+  guint source;
+  gulong disconnected_id;
+} HttpDelay;
+
+static GPtrArray *http_servers = NULL;   /* HttpServer, until the end of the run */
+
+static void
+http_route_free (gpointer data)
+{
+  HttpRoute *route = data;
+
+  g_free (route->content_type);
+  g_clear_pointer (&route->body, g_bytes_unref);
+  g_clear_pointer (&route->headers, g_ptr_array_unref);
+  g_free (route->redirect);
+  g_free (route);
+}
+
+static void
+http_request_log_free (gpointer data)
+{
+  HttpRequestLog *entry = data;
+
+  g_free (entry->method);
+  g_free (entry->path);
+  g_clear_pointer (&entry->headers, g_ptr_array_unref);
+  g_clear_pointer (&entry->body, g_bytes_unref);
+  g_free (entry);
+}
+
+static void
+http_server_free (gpointer data)
+{
+  HttpServer *srv = data;
+
+  if (srv->server != NULL)
+    {
+      soup_server_disconnect (srv->server);
+      g_clear_object (&srv->server);
+    }
+  g_hash_table_unref (srv->routes);
+  g_ptr_array_unref (srv->log);
+  g_free (srv->url);
+  g_free (srv);
+}
+
+/* Called when the run ends (runner_free ()) */
+static void
+http_servers_free (void)
+{
+  g_clear_pointer (&http_servers, g_ptr_array_unref);
+}
+
+static void
+http_delay_free (HttpDelay *delay)
+{
+  g_clear_handle_id (&delay->source, g_source_remove);
+  if (delay->disconnected_id != 0)
+    g_signal_handler_disconnect (delay->message, delay->disconnected_id);
+  g_clear_object (&delay->message);
+  g_free (delay);
+}
+
+static gboolean
+http_delay_done_cb (gpointer user_data)
+{
+  HttpDelay *delay = user_data;
+
+  delay->source = 0;
+  soup_server_message_unpause (delay->message);
+  http_delay_free (delay);
+  return G_SOURCE_REMOVE;
+}
+
+/* The client went away (a timeout or a cancel in the test): nothing to answer */
+static void
+http_delay_disconnected_cb (SoupServerMessage *message,
+                            gpointer           user_data)
+{
+  HttpDelay *delay = user_data;
+
+  delay->disconnected_id = 0;   /* the signal handler goes with the emission */
+  http_delay_free (delay);
+}
+
+static void
+http_header_pairs_append (GPtrArray  *pairs,
+                          const char *name,
+                          const char *value)
+{
+  g_ptr_array_add (pairs, g_strdup (name));
+  g_ptr_array_add (pairs, g_strdup (value));
+}
+
+static void
+http_log_header_cb (const char *name,
+                    const char *value,
+                    gpointer    user_data)
+{
+  GPtrArray *pairs = user_data;
+  g_autofree char *lower = g_ascii_strdown (name, -1);
+
+  http_header_pairs_append (pairs, lower, value);
+}
+
+static void
+http_handler_cb (SoupServer        *server,
+                 SoupServerMessage *message,
+                 const char        *path,
+                 GHashTable        *query,
+                 gpointer           user_data)
+{
+  HttpServer *srv = user_data;
+  SoupMessageHeaders *request_headers = soup_server_message_get_request_headers (message);
+  SoupMessageHeaders *response_headers = soup_server_message_get_response_headers (message);
+  SoupMessageBody *request_body = soup_server_message_get_request_body (message);
+  GUri *uri = soup_server_message_get_uri (message);
+  const char *method = soup_server_message_get_method (message);
+  g_autoptr (GBytes) body = g_bytes_new (request_body->data, request_body->length);
+  HttpRequestLog *entry;
+  HttpRoute *route;
+  const char *content_type = "text/plain";
+  g_autoptr (GBytes) answer = NULL;
+  guint i;
+
+  entry = g_new0 (HttpRequestLog, 1);
+  entry->method = g_strdup (method);
+  entry->path = g_uri_get_query (uri) != NULL ?
+    g_strdup_printf ("%s?%s", g_uri_get_path (uri), g_uri_get_query (uri)) : g_strdup (g_uri_get_path (uri));
+  entry->headers = g_ptr_array_new_with_free_func (g_free);
+  soup_message_headers_foreach (request_headers, http_log_header_cb, entry->headers);
+  entry->body = g_bytes_ref (body);
+  if (srv->log->len >= HTTP_LOG_LIMIT)
+    g_ptr_array_remove_index (srv->log, 0);
+  g_ptr_array_add (srv->log, entry);
+
+  route = g_hash_table_lookup (srv->routes, path);
+  if (route == NULL)
+    {
+      soup_server_message_set_status (message, SOUP_STATUS_NOT_FOUND, NULL);
+      soup_server_message_set_response (message, "text/plain", SOUP_MEMORY_COPY, "not found\n", 10);
+      return;
+    }
+
+  soup_server_message_set_status (message, (guint) route->status, NULL);
+  if (route->redirect != NULL)
+    {
+      g_autofree char *location = strstr (route->redirect, "://") != NULL ?
+        g_strdup (route->redirect) : g_strconcat (srv->url, route->redirect, NULL);
+
+      soup_message_headers_replace (response_headers, "Location", location);
+    }
+  for (i = 0; i + 1 < route->headers->len; i += 2)
+    soup_message_headers_append (response_headers, g_ptr_array_index (route->headers, i),
+                                 g_ptr_array_index (route->headers, i + 1));
+
+  if (route->echo)
+    {
+      const char *request_type = soup_message_headers_get_content_type (request_headers, NULL);
+
+      answer = g_bytes_ref (body);
+      if (request_type != NULL)
+        content_type = request_type;
+      soup_message_headers_replace (response_headers, "X-Echo-Method", method);
+    }
+  else
+    {
+      answer = g_bytes_ref (route->body);
+      content_type = route->content_type;
+    }
+
+  /* A HEAD answer has the headers of the GET and no body: libsoup drops it */
+  soup_server_message_set_response (message, content_type, SOUP_MEMORY_COPY,
+                                    g_bytes_get_size (answer) > 0 ? g_bytes_get_data (answer, NULL) : "",
+                                    g_bytes_get_size (answer));
+
+  if (route->delay_ms > 0)
+    {
+      HttpDelay *delay = g_new0 (HttpDelay, 1);
+
+      delay->message = g_object_ref (message);
+      soup_server_message_pause (message);
+      delay->source = g_timeout_add (route->delay_ms, http_delay_done_cb, delay);
+      delay->disconnected_id = g_signal_connect (message, "disconnected",
+                                                 G_CALLBACK (http_delay_disconnected_cb), delay);
+    }
+}
+
+/* The route (a string or a table) at @idx of the stack, to a new HttpRoute
+ * (raises) */
+static HttpRoute *
+http_route_from_lua (lua_State *L,
+                     int        idx)
+{
+  HttpRoute *route;
+  const char *content_type = "text/plain", *redirect = NULL;
+  const char *body = "";
+  size_t body_len = 0;
+  lua_Integer status = 0, delay_ms = 0, size = -1;
+  gboolean echo = FALSE;
+  int headers_idx = 0;
+
+  idx = lua_absindex (L, idx);
+
+  if (lua_type (L, idx) == LUA_TSTRING)
+    {
+      body = lua_tolstring (L, idx, &body_len);
+    }
+  else
+    {
+      luaL_checktype (L, idx, LUA_TTABLE);
+
+      if (lua_getfield (L, idx, "status") != LUA_TNIL)
+        status = luaL_checkinteger (L, -1);
+      lua_pop (L, 1);
+      if (lua_getfield (L, idx, "body") != LUA_TNIL)
+        body = luaL_checklstring (L, -1, &body_len);
+      lua_pop (L, 1);   /* the table keeps the string alive */
+      if (lua_getfield (L, idx, "size") != LUA_TNIL)
+        size = luaL_checkinteger (L, -1);
+      lua_pop (L, 1);
+      if (lua_getfield (L, idx, "content_type") != LUA_TNIL)
+        content_type = luaL_checkstring (L, -1);
+      lua_pop (L, 1);
+      if (lua_getfield (L, idx, "delay_ms") != LUA_TNIL)
+        delay_ms = luaL_checkinteger (L, -1);
+      lua_pop (L, 1);
+      if (lua_getfield (L, idx, "echo") != LUA_TNIL)
+        echo = lua_toboolean (L, -1);
+      lua_pop (L, 1);
+      if (lua_getfield (L, idx, "redirect") != LUA_TNIL)
+        redirect = luaL_checkstring (L, -1);
+      lua_pop (L, 1);
+      if (lua_getfield (L, idx, "headers") != LUA_TNIL)
+        {
+          luaL_checktype (L, -1, LUA_TTABLE);
+          headers_idx = lua_gettop (L);
+        }
+      else
+        {
+          lua_pop (L, 1);
+        }
+    }
+
+  if (status == 0)
+    status = redirect != NULL ? 302 : 200;
+  if (status < 100 || status > 599 || delay_ms < 0 || size > 256 * 1024 * 1024)
+    luaL_error (L, "a route with a status, delay_ms or size out of range");
+
+  route = g_new0 (HttpRoute, 1);
+  route->status = (int) status;
+  route->content_type = g_strdup (content_type);
+  route->delay_ms = (guint) delay_ms;
+  route->echo = echo;
+  route->redirect = g_strdup (redirect);
+  route->headers = g_ptr_array_new_with_free_func (g_free);
+  if (size >= 0)
+    {
+      char *data = g_malloc ((gsize) size + 1);
+
+      memset (data, 'x', (gsize) size);
+      route->body = g_bytes_new_take (data, (gsize) size);
+    }
+  else
+    {
+      route->body = g_bytes_new (body, body_len);
+    }
+
+  if (headers_idx != 0)
+    {
+      lua_pushnil (L);
+      while (lua_next (L, headers_idx) != 0)
+        {
+          if (lua_type (L, -2) == LUA_TSTRING && lua_type (L, -1) == LUA_TSTRING)
+            {
+              http_header_pairs_append (route->headers, lua_tostring (L, -2), lua_tostring (L, -1));
+            }
+          else if (lua_type (L, -2) == LUA_TSTRING && lua_type (L, -1) == LUA_TTABLE)
+            {
+              /* a sequence of values: the header is sent once for each */
+              lua_Unsigned n = lua_rawlen (L, -1), k;
+
+              for (k = 1; k <= n; k++)
+                {
+                  if (lua_rawgeti (L, -1, (lua_Integer) k) == LUA_TSTRING)
+                    http_header_pairs_append (route->headers, lua_tostring (L, -3), lua_tostring (L, -1));
+                  lua_pop (L, 1);
+                }
+            }
+          lua_pop (L, 1);
+        }
+      lua_pop (L, 1);   /* the table */
+    }
+
+  return route;
+}
+
+static HttpServer *
+http_server_upvalue (lua_State *L)
+{
+  return lua_touserdata (L, lua_upvalueindex (1));
+}
+
+/* server:route (path, route) */
+static int
+l_http_route (lua_State *L)
+{
+  HttpServer *srv = http_server_upvalue (L);
+  const char *path = luaL_checkstring (L, 2);
+  HttpRoute *route = http_route_from_lua (L, 3);
+
+  g_hash_table_replace (srv->routes, g_strdup (path), route);
+  return 0;
+}
+
+/* server:requests () */
+static int
+l_http_requests (lua_State *L)
+{
+  HttpServer *srv = http_server_upvalue (L);
+  guint i, j;
+
+  lua_createtable (L, (int) srv->log->len, 0);
+  for (i = 0; i < srv->log->len; i++)
+    {
+      HttpRequestLog *entry = g_ptr_array_index (srv->log, i);
+      gsize size;
+      gconstpointer data = g_bytes_get_data (entry->body, &size);
+
+      lua_createtable (L, 0, 4);
+      lua_pushstring (L, entry->method);
+      lua_setfield (L, -2, "method");
+      lua_pushstring (L, entry->path);
+      lua_setfield (L, -2, "path");
+      lua_newtable (L);
+      for (j = 0; j + 1 < entry->headers->len; j += 2)
+        {
+          const char *name = g_ptr_array_index (entry->headers, j);
+          const char *value = g_ptr_array_index (entry->headers, j + 1);
+
+          if (lua_getfield (L, -1, name) == LUA_TSTRING)
+            lua_pushfstring (L, "%s, %s", lua_tostring (L, -1), value);
+          else
+            lua_pushstring (L, value);
+          lua_setfield (L, -3, name);
+          lua_pop (L, 1);
+        }
+      lua_setfield (L, -2, "headers");
+      lua_pushlstring (L, size > 0 ? data : "", size);
+      lua_setfield (L, -2, "body");
+      lua_rawseti (L, -2, (lua_Integer) i + 1);
+    }
+  return 1;
+}
+
+/* server:stop () */
+static int
+l_http_stop (lua_State *L)
+{
+  HttpServer *srv = http_server_upvalue (L);
+
+  if (!srv->stopped && srv->server != NULL)
+    {
+      srv->stopped = TRUE;
+      soup_server_disconnect (srv->server);
+    }
+  return 0;
+}
+
+/* test.http_server {routes = {...}} */
+static int
+l_http_server (lua_State *L)
+{
+  HttpServer *srv;
+  SoupServer *server;
+  GError *error = NULL;
+  GSList *uris;
+  GUri *uri;
+
+  luaL_checktype (L, 1, LUA_TTABLE);
+
+  server = soup_server_new ("server-header", "gnome-lua-test", NULL);
+  if (!soup_server_listen_local (server, 0, SOUP_SERVER_LISTEN_IPV4_ONLY, &error))
+    {
+      lua_pushfstring (L, "cannot listen on 127.0.0.1: %s", error->message);
+      g_error_free (error);
+      g_object_unref (server);
+      return lua_error (L);
+    }
+  uris = soup_server_get_uris (server);
+  if (uris == NULL)
+    {
+      g_object_unref (server);
+      return luaL_error (L, "the server has no address");
+    }
+  uri = uris->data;
+
+  srv = g_new0 (HttpServer, 1);
+  srv->server = server;
+  srv->routes = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, http_route_free);
+  srv->log = g_ptr_array_new_with_free_func (http_request_log_free);
+  srv->url = g_strdup_printf ("http://127.0.0.1:%d", g_uri_get_port (uri));
+  g_slist_free_full (uris, (GDestroyNotify) g_uri_unref);
+
+  if (http_servers == NULL)
+    http_servers = g_ptr_array_new_with_free_func (http_server_free);
+  g_ptr_array_add (http_servers, srv);
+
+  if (lua_getfield (L, 1, "routes") != LUA_TNIL)
+    {
+      luaL_checktype (L, -1, LUA_TTABLE);
+      lua_pushnil (L);
+      while (lua_next (L, -2) != 0)
+        {
+          const char *path;
+
+          if (lua_type (L, -2) != LUA_TSTRING)
+            return luaL_error (L, "the keys of 'routes' must be paths");
+          path = lua_tostring (L, -2);
+          g_hash_table_replace (srv->routes, g_strdup (path), http_route_from_lua (L, -1));
+          lua_pop (L, 1);
+        }
+    }
+  lua_pop (L, 1);
+
+  soup_server_add_handler (srv->server, NULL, http_handler_cb, srv, NULL);
+
+  lua_createtable (L, 0, 5);
+  lua_pushstring (L, srv->url);
+  lua_setfield (L, -2, "url");
+  lua_pushinteger (L, strtol (strrchr (srv->url, ':') + 1, NULL, 10));
+  lua_setfield (L, -2, "port");
+  lua_pushlightuserdata (L, srv);
+  lua_pushcclosure (L, l_http_route, 1);
+  lua_setfield (L, -2, "route");
+  lua_pushlightuserdata (L, srv);
+  lua_pushcclosure (L, l_http_requests, 1);
+  lua_setfield (L, -2, "requests");
+  lua_pushlightuserdata (L, srv);
+  lua_pushcclosure (L, l_http_stop, 1);
+  lua_setfield (L, -2, "stop");
+  return 1;
+}
+
+/* ------------------------------------------------------------------------ */
 /* The test module and the script                                             */
 /* ------------------------------------------------------------------------ */
 
@@ -2659,6 +3400,7 @@ static const luaL_Reg test_functions[] = {
   { "new", l_new },
   { "new_monitor", l_new_monitor },
   { "create_virtual_device", l_create_virtual_device },
+  { "press_accelerator", l_press_accelerator },
   { "set_boolean", l_set_boolean },
   { "extension_enable", l_extension_enable },
   { "extension_disable", l_extension_disable },
@@ -2666,6 +3408,7 @@ static const luaL_Reg test_functions[] = {
   { "extension_report", l_extension_report },
   { "log_capture", l_log_capture },
   { "fingerprint", l_fingerprint },
+  { "http_server", l_http_server },
   { "print", l_print },
   { "log", l_log },
   { "define_event", l_define_event },
@@ -3003,6 +3746,7 @@ runner_free (Runner *r)
   g_ptr_array_unref (r->waiters);
   g_hash_table_unref (r->reports);
   g_ptr_array_unref (r->captured);
+  http_servers_free ();
   g_free (r->script);
   g_free (r);
 }

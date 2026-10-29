@@ -1,0 +1,7 @@
+{
+  "uuid": "overview@test",
+  "name": "API conformance: overview",
+  "description": "Fixture of tests/api/overview.lua: shell.overview",
+  "shell-api": "1.1",
+  "version": 1
+}

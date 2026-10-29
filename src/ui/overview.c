@@ -124,6 +124,8 @@ struct _ShellOverview
 
   const char *show_reason;
   const char *hide_reason;
+  const char *show_owner;           /* the extension of reason "extension", interned */
+  const char *hide_owner;
   ShellControlsState show_target;
 
   /* During transitions, we raise this to the top to avoid having the overview
@@ -203,6 +205,10 @@ target_name (ShellControlsState state)
 /* The hooks                                                                 */
 /* ------------------------------------------------------------------------ */
 
+/* Number of overview.* hooks being emitted: an extension that asks for the
+ * overview from one of them is deferred (docs/api/overview.md) */
+static guint hook_emit_depth = 0;
+
 static gboolean
 hooks_declared (const char *name)
 {
@@ -224,7 +230,8 @@ hide_reason_is_cancellable (const char *reason)
  * cancelled the showing. @state may be amended */
 static gboolean
 emit_showing_before (ShellControlsState *state,
-                     const char         *reason)
+                     const char         *reason,
+                     const char         *owner)
 {
   ShellHookRegistry *registry = shell_hook_registry_get_default ();
   g_autoptr (GVariant) amendments = NULL;
@@ -237,9 +244,13 @@ emit_showing_before (ShellControlsState *state,
   g_variant_builder_init (&builder, G_VARIANT_TYPE_VARDICT);
   g_variant_builder_add (&builder, "{sv}", "reason", g_variant_new_string (reason));
   g_variant_builder_add (&builder, "{sv}", "target", g_variant_new_string (target_name (*state)));
+  if (owner != NULL)
+    g_variant_builder_add (&builder, "{sv}", "owner", g_variant_new_string (owner));
 
+  hook_emit_depth++;
   verdict = shell_hook_registry_emit_before (registry, "overview.showing",
                                              g_variant_builder_end (&builder), &amendments);
+  hook_emit_depth--;
 
   if (verdict == SHELL_HOOK_VERDICT_CANCEL && g_strcmp0 (reason, "dbus") != 0)
     return FALSE;
@@ -263,7 +274,8 @@ emit_showing_before (ShellControlsState *state,
 /* The "before" phase of overview.hiding. Returns FALSE if an extension
  * cancelled the hiding and it may do so */
 static gboolean
-emit_hiding_before (const char *reason)
+emit_hiding_before (const char *reason,
+                    const char *owner)
 {
   ShellHookRegistry *registry = shell_hook_registry_get_default ();
   GVariantBuilder builder;
@@ -274,9 +286,13 @@ emit_hiding_before (const char *reason)
 
   g_variant_builder_init (&builder, G_VARIANT_TYPE_VARDICT);
   g_variant_builder_add (&builder, "{sv}", "reason", g_variant_new_string (reason));
+  if (owner != NULL)
+    g_variant_builder_add (&builder, "{sv}", "owner", g_variant_new_string (owner));
 
+  hook_emit_depth++;
   verdict = shell_hook_registry_emit_before (registry, "overview.hiding",
                                              g_variant_builder_end (&builder), NULL);
+  hook_emit_depth--;
   if (verdict != SHELL_HOOK_VERDICT_CANCEL)
     return TRUE;
 
@@ -305,6 +321,8 @@ emit_after_hook (ShellOverview *self,
       g_variant_builder_add (&builder, "{sv}", "reason", g_variant_new_string (self->show_reason));
       g_variant_builder_add (&builder, "{sv}", "target",
                              g_variant_new_string (target_name (self->show_target)));
+      if (g_str_equal (self->show_reason, "extension") && self->show_owner != NULL)
+        g_variant_builder_add (&builder, "{sv}", "owner", g_variant_new_string (self->show_owner));
     }
   else if (g_str_equal (name, "overview.shown"))
     {
@@ -314,9 +332,13 @@ emit_after_hook (ShellOverview *self,
   else if (g_str_equal (name, "overview.hiding"))
     {
       g_variant_builder_add (&builder, "{sv}", "reason", g_variant_new_string (self->hide_reason));
+      if (g_str_equal (self->hide_reason, "extension") && self->hide_owner != NULL)
+        g_variant_builder_add (&builder, "{sv}", "owner", g_variant_new_string (self->hide_owner));
     }
 
+  hook_emit_depth++;
   shell_hook_registry_emit_after (registry, name, g_variant_builder_end (&builder));
+  hook_emit_depth--;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -586,6 +608,31 @@ animate_not_visible (ShellOverview *self)
                                                 weak_ref_new (self), weak_ref_free);
 }
 
+static void
+overview_show (ShellOverview      *self,
+               ShellControlsState  state,
+               const char         *reason,
+               const char         *owner)
+{
+  if (self->is_dummy || self->controls == NULL)
+    return;
+  if (self->shown)
+    return;
+
+  if (!emit_showing_before (&state, reason, owner))
+    return;
+
+  self->show_reason = g_intern_string (reason);
+  self->show_owner = owner != NULL ? g_intern_string (owner) : NULL;
+  self->shown = TRUE;
+
+  if (!sync_grab (self))
+    return;
+
+  shell_layout_manager_show_overview (self->layout_manager);
+  animate_visible (self, state);
+}
+
 /**
  * shell_overview_show_for_reason:
  * @self: a #ShellOverview
@@ -605,22 +652,29 @@ shell_overview_show_for_reason (ShellOverview      *self,
   g_return_if_fail (state != SHELL_CONTROLS_STATE_HIDDEN);
   g_return_if_fail (reason != NULL);
 
-  if (self->is_dummy || self->controls == NULL)
-    return;
-  if (self->shown)
-    return;
+  overview_show (self, state, reason, NULL);
+}
 
-  if (!emit_showing_before (&state, reason))
-    return;
+/**
+ * shell_overview_show_for_extension:
+ * @self: a #ShellOverview
+ * @state: the state to show, not %SHELL_CONTROLS_STATE_HIDDEN
+ * @owner: the uuid of the extension that asks
+ *
+ * As shell_overview_show_for_reason () with the reason `extension`: the
+ * "overview.showing" hooks carry @owner in their `owner` key
+ * (docs/api/overview.md).
+ */
+void
+shell_overview_show_for_extension (ShellOverview      *self,
+                                   ShellControlsState  state,
+                                   const char         *owner)
+{
+  g_return_if_fail (SHELL_IS_OVERVIEW (self));
+  g_return_if_fail (state != SHELL_CONTROLS_STATE_HIDDEN);
+  g_return_if_fail (owner != NULL);
 
-  self->show_reason = g_intern_string (reason);
-  self->shown = TRUE;
-
-  if (!sync_grab (self))
-    return;
-
-  shell_layout_manager_show_overview (self->layout_manager);
-  animate_visible (self, state);
+  overview_show (self, state, "extension", owner);
 }
 
 /**
@@ -648,23 +702,12 @@ shell_overview_show_apps (ShellOverview *self)
   shell_overview_show_for_reason (self, SHELL_CONTROLS_STATE_APP_GRID, "other");
 }
 
-/**
- * shell_overview_hide_for_reason:
- * @self: a #ShellOverview
- * @reason: why the overview is hidden, one of the values of the `reason` key
- *   of the "overview.hiding" hook (docs/api/hooks.md), or `other`
- *
- * Reverses the effect of shell_overview_show () (`hide ()`). An extension
- * can cancel it by the "overview.hiding" hook for some reasons.
- */
-void
-shell_overview_hide_for_reason (ShellOverview *self,
-                                const char    *reason)
+static void
+overview_hide (ShellOverview *self,
+               const char    *reason,
+               const char    *owner)
 {
   const ClutterEvent *event;
-
-  g_return_if_fail (SHELL_IS_OVERVIEW (self));
-  g_return_if_fail (reason != NULL);
 
   if (self->is_dummy || self->controls == NULL)
     return;
@@ -683,14 +726,53 @@ shell_overview_hide_for_reason (ShellOverview *self,
         return;
     }
 
-  if (!emit_hiding_before (reason))
+  if (!emit_hiding_before (reason, owner))
     return;
 
   self->hide_reason = g_intern_string (reason);
+  self->hide_owner = owner != NULL ? g_intern_string (owner) : NULL;
   self->shown = FALSE;
 
   animate_not_visible (self);
   sync_grab (self);
+}
+
+/**
+ * shell_overview_hide_for_reason:
+ * @self: a #ShellOverview
+ * @reason: why the overview is hidden, one of the values of the `reason` key
+ *   of the "overview.hiding" hook (docs/api/hooks.md), or `other`
+ *
+ * Reverses the effect of shell_overview_show () (`hide ()`). An extension
+ * can cancel it by the "overview.hiding" hook for some reasons.
+ */
+void
+shell_overview_hide_for_reason (ShellOverview *self,
+                                const char    *reason)
+{
+  g_return_if_fail (SHELL_IS_OVERVIEW (self));
+  g_return_if_fail (reason != NULL);
+
+  overview_hide (self, reason, NULL);
+}
+
+/**
+ * shell_overview_hide_for_extension:
+ * @self: a #ShellOverview
+ * @owner: the uuid of the extension that asks
+ *
+ * As shell_overview_hide_for_reason () with the reason `extension`: the
+ * "overview.hiding" hooks carry @owner in their `owner` key, and an
+ * extension cannot cancel it (docs/api/overview.md).
+ */
+void
+shell_overview_hide_for_extension (ShellOverview *self,
+                                   const char    *owner)
+{
+  g_return_if_fail (SHELL_IS_OVERVIEW (self));
+  g_return_if_fail (owner != NULL);
+
+  overview_hide (self, "extension", owner);
 }
 
 /**
@@ -723,9 +805,32 @@ shell_overview_toggle_for_reason (ShellOverview *self,
     return;
 
   if (self->visible)
-    shell_overview_hide_for_reason (self, reason);
+    overview_hide (self, reason, NULL);
   else
-    shell_overview_show_for_reason (self, SHELL_CONTROLS_STATE_WINDOW_PICKER, reason);
+    overview_show (self, SHELL_CONTROLS_STATE_WINDOW_PICKER, reason, NULL);
+}
+
+/**
+ * shell_overview_toggle_for_extension:
+ * @self: a #ShellOverview
+ * @owner: the uuid of the extension that asks
+ *
+ * As shell_overview_toggle_for_reason () with the reason `extension`.
+ */
+void
+shell_overview_toggle_for_extension (ShellOverview *self,
+                                     const char    *owner)
+{
+  g_return_if_fail (SHELL_IS_OVERVIEW (self));
+  g_return_if_fail (owner != NULL);
+
+  if (self->is_dummy)
+    return;
+
+  if (self->visible)
+    overview_hide (self, "extension", owner);
+  else
+    overview_show (self, SHELL_CONTROLS_STATE_WINDOW_PICKER, "extension", owner);
 }
 
 /**
@@ -1116,7 +1221,7 @@ gesture_begin_cb (ShellSwipeTracker *tracker,
     return;
 
   /* An extension can keep the overview from being shown by a gesture */
-  if (!self->shown && !emit_showing_before (&state, "gesture"))
+  if (!self->shown && !emit_showing_before (&state, "gesture", NULL))
     return;
 
   shell_controls_manager_gesture_begin (self->controls, tracker);
@@ -1890,11 +1995,11 @@ shell_overview_class_init (ShellOverviewClass *klass)
 
   /* Lua extensions (gnome-lua): the hook points of the overview */
   registry = shell_hook_registry_get_default ();
-  shell_hook_registry_declare (registry, "overview.showing", "reason:s target:s", TRUE,
+  shell_hook_registry_declare (registry, "overview.showing", "reason:s target:s owner:s", TRUE,
                                "The overview starts to show");
   shell_hook_registry_declare (registry, "overview.shown", "target:s", FALSE,
                                "The overview is completely shown");
-  shell_hook_registry_declare (registry, "overview.hiding", "reason:s", TRUE,
+  shell_hook_registry_declare (registry, "overview.hiding", "reason:s owner:s", TRUE,
                                "The overview starts to hide");
   shell_hook_registry_declare (registry, "overview.hidden", "", FALSE,
                                "The overview is completely hidden");
@@ -1996,6 +2101,54 @@ shell_overview_get_closing (ShellOverview *self)
   g_return_val_if_fail (SHELL_IS_OVERVIEW (self), FALSE);
 
   return self->animation_in_progress && !self->visible_target;
+}
+
+/**
+ * shell_overview_get_target_state:
+ * @self: a #ShellOverview
+ *
+ * Gets the page the overview is going to or resting on: %SHELL_CONTROLS_STATE_HIDDEN
+ * when it is hidden or on its way out, the window picker or the application
+ * grid otherwise (what a gesture or an animation is nearest to), as
+ * `shell.overview.target` of docs/api/overview.md.
+ *
+ * Returns: the target state
+ */
+ShellControlsState
+shell_overview_get_target_state (ShellOverview *self)
+{
+  ShellOverviewAdjustment *adjustment;
+  ShellStateTransitionParams params;
+  double state;
+
+  g_return_val_if_fail (SHELL_IS_OVERVIEW (self), SHELL_CONTROLS_STATE_HIDDEN);
+
+  if (!self->visible_target || self->controls == NULL)
+    return SHELL_CONTROLS_STATE_HIDDEN;
+
+  adjustment = shell_controls_manager_get_state_adjustment (self->controls);
+  if (adjustment == NULL)
+    return self->show_target;
+
+  shell_overview_adjustment_get_state_transition_params (adjustment, &params);
+  state = params.transitioning ? params.final_state : params.current_state;
+
+  return state >= 1.5 ? SHELL_CONTROLS_STATE_APP_GRID : SHELL_CONTROLS_STATE_WINDOW_PICKER;
+}
+
+/**
+ * shell_overview_hooks_are_emitting: (skip)
+ *
+ * Whether an "overview.*" hook is being emitted by the overview, so that an
+ * extension that calls shell_overview_show_for_extension () and its siblings
+ * from one of the listeners must wait for the hook to return.
+ *
+ * Returns: %TRUE inside an emission of an "overview.*" hook
+ */
+gboolean
+shell_overview_hooks_are_emitting (void)
+{
+  return hook_emit_depth > 0;
 }
 
 /**

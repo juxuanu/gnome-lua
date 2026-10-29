@@ -50,14 +50,43 @@ extension_of (ShellLuaState *state)
 /* shell.log                                                                 */
 /* ------------------------------------------------------------------------ */
 
+/* Writes one message of an extension to the GLib log, domain "shell-lua/<id>".
+ *
+ * G_DEBUG=fatal-warnings (CI, developers) makes GLib abort on any warning or
+ * critical, in every domain. What an extension logs on purpose must not take
+ * the shell down, so for those two levels the global fatal mask is lowered
+ * for the duration of the call; the log of the shell itself stays fatal (the
+ * window is one call on the main thread). g_log () rather than
+ * g_log_structured (): the message must reach the handlers of
+ * g_log_set_handler () and g_test_expect_message (), which the structured
+ * writer path bypasses; the default handler turns it into a structured entry
+ * (MESSAGE, GLIB_DOMAIN, PRIORITY) for the journal anyway. */
+static void
+write_extension_log (const char     *id,
+                     GLogLevelFlags  level,
+                     const char     *message)
+{
+  g_autofree char *domain = g_strconcat ("shell-lua/", id, NULL);
+  GLogLevelFlags fatal = 0;
+  gboolean relax = (level & (G_LOG_LEVEL_WARNING | G_LOG_LEVEL_CRITICAL)) != 0;
+
+  if (relax)
+    fatal = g_log_set_always_fatal (G_LOG_FATAL_MASK);
+
+  g_log (domain, level, "%s", message);
+
+  if (relax)
+    g_log_set_always_fatal (fatal);
+}
+
 /* upvalues: 1 = GLogLevelFlags, 2 = string.format (or nil),
- *           3 = number of leading arguments to drop (1 for the __call form) */
+ *           3 = number of leading arguments to drop (1 for the __call form),
+ *           4 = true for shell.log.fatal: raise the message after logging it */
 static int
 l_log (lua_State *L)
 {
   GLogLevelFlags level = (GLogLevelFlags) lua_tointeger (L, lua_upvalueindex (1));
   ShellLuaState *state = shell_lua_state_from_L (L);
-  g_autofree char *domain = NULL;
   const char *message;
   int n;
 
@@ -82,8 +111,13 @@ l_log (lua_State *L)
     }
 
   message = luaL_checkstring (L, -1);
-  domain = g_strconcat ("shell-lua/", state != NULL ? shell_lua_state_get_id (state) : "?", NULL);
-  g_log (domain, level, "%s", message);
+  write_extension_log (state != NULL ? shell_lua_state_get_id (state) : "?", level, message);
+
+  if (lua_toboolean (L, lua_upvalueindex (4)))
+    {
+      lua_settop (L, 1);
+      return lua_error (L);   /* the formatted message, as is */
+    }
   return 0;
 }
 
@@ -91,12 +125,14 @@ static void
 push_log_function (lua_State     *L,
                    GLogLevelFlags level,
                    int            format_idx,
-                   int            skip)
+                   int            skip,
+                   gboolean       raise)
 {
   lua_pushinteger (L, level);
   lua_pushvalue (L, format_idx);
   lua_pushinteger (L, skip);
-  lua_pushcclosure (L, l_log, 3);
+  lua_pushboolean (L, raise);
+  lua_pushcclosure (L, l_log, 4);
 }
 
 /* Leaves string.format of the sandbox's own `string` table (or nil) on the
@@ -136,19 +172,23 @@ push_log_table (lua_State *L)
   lua_newtable (L);
   log = lua_gettop (L);
 
-  push_log_function (L, G_LOG_LEVEL_DEBUG, format, 0);
+  push_log_function (L, G_LOG_LEVEL_DEBUG, format, 0, FALSE);
   lua_setfield (L, log, "debug");
-  push_log_function (L, G_LOG_LEVEL_INFO, format, 0);
+  push_log_function (L, G_LOG_LEVEL_INFO, format, 0, FALSE);
   lua_setfield (L, log, "info");
-  push_log_function (L, G_LOG_LEVEL_WARNING, format, 0);
+  push_log_function (L, G_LOG_LEVEL_WARNING, format, 0, FALSE);
   lua_setfield (L, log, "warning");
-  /* G_LOG_LEVEL_ERROR is fatal in GLib: "error" maps to CRITICAL. */
-  push_log_function (L, G_LOG_LEVEL_CRITICAL, format, 0);
+  /* G_LOG_LEVEL_ERROR aborts in GLib: "error" maps to CRITICAL (which does
+   * not take the shell down either, see write_extension_log ()). */
+  push_log_function (L, G_LOG_LEVEL_CRITICAL, format, 0, FALSE);
   lua_setfield (L, log, "error");
+  /* Since 1.1: like error, then raises the message */
+  push_log_function (L, G_LOG_LEVEL_CRITICAL, format, 0, TRUE);
+  lua_setfield (L, log, "fatal");
 
   /* shell.log(fmt, ...) == shell.log.info(fmt, ...) */
   lua_newtable (L);
-  push_log_function (L, G_LOG_LEVEL_INFO, format, 1);
+  push_log_function (L, G_LOG_LEVEL_INFO, format, 1, FALSE);
   lua_setfield (L, -2, "__call");
   lua_pushboolean (L, 0);
   lua_setfield (L, -2, "__metatable");
@@ -324,6 +364,9 @@ push_extension_table (lua_State        *L,
     }
   make_readonly (L);
   lua_setfield (L, -2, "capabilities");
+
+  /* data_dir (1.1): resolved on first read, shell-lua-api-fs.c */
+  shell_lua_fs_install_data_dir (L);
 
   make_readonly (L);
 }

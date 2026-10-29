@@ -74,6 +74,8 @@ gboolean       shell_overview_get_visible           (ShellOverview *self);
 gboolean       shell_overview_get_visible_target    (ShellOverview *self);
 gboolean       shell_overview_get_animation_in_progress (ShellOverview *self);
 gboolean       shell_overview_get_closing           (ShellOverview *self);
+ShellControlsState shell_overview_get_target_state  (ShellOverview *self);
+gboolean       shell_overview_hooks_are_emitting    (void);
 gboolean       shell_overview_get_is_dummy          (ShellOverview *self);
 
 /* The parts of the overview */
@@ -93,6 +95,16 @@ void           shell_overview_hide_for_reason       (ShellOverview      *self,
 void           shell_overview_toggle                (ShellOverview      *self);
 void           shell_overview_toggle_for_reason     (ShellOverview      *self,
                                                      const char         *reason);
+
+/* The same for `shell.overview` (docs/api/overview.md): the reason of the
+ * hooks is "extension" and their `owner` key the uuid of the extension */
+void           shell_overview_show_for_extension    (ShellOverview      *self,
+                                                     ShellControlsState  state,
+                                                     const char         *owner);
+void           shell_overview_hide_for_extension    (ShellOverview      *self,
+                                                     const char         *owner);
+void           shell_overview_toggle_for_extension  (ShellOverview      *self,
+                                                     const char         *owner);
 
 void           shell_overview_focus_search          (ShellOverview      *self);
 void           shell_overview_select_app            (ShellOverview      *self,

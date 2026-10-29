@@ -13,11 +13,14 @@
  *    #MetaWindow::unmanaging (and from the "destroy" handler, which comes
  *    later for a window the compositor was showing);
  *  - window.focused from notify::focus-window of #MetaDisplay;
- *  - window.title-changed, .state-changed and .workspace-changed from the
- *    notify::title, notify::maximized-*, notify::fullscreen and
- *    workspace-changed signals of the #MetaWindow, which are connected when
- *    the display creates the window (or here at the start for the windows
- *    that exist already);
+ *  - window.title-changed, .state-changed, .workspace-changed and
+ *    .geometry-changed from the notify::title, notify::maximized-*,
+ *    notify::fullscreen, notify::above, notify::on-all-workspaces,
+ *    workspace-changed, position-changed and size-changed signals of the
+ *    #MetaWindow, which are connected when the display creates the window (or
+ *    here at the start for the windows that exist already); the geometry
+ *    signals only mark the window, one idle per window sends the hook with
+ *    the frame rectangle of that moment;
  *  - window.monitor-changed from window-entered-monitor of #MetaDisplay;
  *  - workspace.added and .removed from the #MetaWorkspaceManager.
  *
@@ -28,6 +31,9 @@
  * window is being set up is folded into the window.mapped payload, and a
  * window that is not listed (skip-taskbar: docks, the shell's own chrome)
  * never shows up.
+ *
+ * window.mapped has a replay (shell_hook_registry_set_replay ()): a new
+ * listener gets one event per announced window, from an idle.
  */
 
 #include "config.h"
@@ -57,6 +63,10 @@ typedef struct
   int       monitor;     /* 1-based, 0: none yet */
   gboolean  maximized;
   gboolean  fullscreen;
+  gboolean  above;
+  gboolean  on_all_workspaces;
+  int       x, y, width, height;   /* the frame rectangle last reported (or seen while not announced) */
+  guint     geometry_idle;         /* source id of the pending window.geometry-changed, 0 */
   gboolean  mapped;      /* the shell saw the window map (or it predates us) */
   gboolean  announced;   /* window.mapped was emitted */
 } WindowInfo;
@@ -76,6 +86,7 @@ window_info_free (gpointer data)
 {
   WindowInfo *info = data;
 
+  g_clear_handle_id (&info->geometry_idle, g_source_remove);
   g_free (info->title);
   g_free (info);
 }
@@ -91,6 +102,11 @@ window_info_get (MetaWindow *window)
 /* ------------------------------------------------------------------------ */
 
 static int emitting_depth = 0;
+
+/* The one ShellWindowHooks of the shell's window manager (weak): the replay of
+ * window.mapped and the idle of window.geometry-changed run without an
+ * instance at hand. */
+static ShellWindowHooks *current_hooks = NULL;
 
 gboolean
 shell_window_hooks_is_emitting (void)
@@ -190,6 +206,10 @@ shell_window_hooks_get_focused_window (MetaDisplay *display)
 /* Emission                                                                 */
 /* ------------------------------------------------------------------------ */
 
+static GPtrArray *replay_window_mapped (ShellHookRegistry *registry,
+                                        const char        *name,
+                                        gpointer           user_data);
+
 void
 shell_window_hooks_declare (void)
 {
@@ -213,14 +233,21 @@ shell_window_hooks_declare (void)
   shell_hook_registry_declare (registry, "window.monitor-changed", W_SCHEMA " from:i to:i", FALSE,
                                "A window moved to another monitor");
   shell_hook_registry_declare (registry, "window.state-changed",
-                               W_SCHEMA " maximized:b fullscreen:b changed:as", FALSE,
-                               "A window was maximized, unmaximized, made fullscreen or left fullscreen");
+                               W_SCHEMA " maximized:b fullscreen:b above:b on-all-workspaces:b changed:as", FALSE,
+                               "A window was maximized, unmaximized, made fullscreen, left fullscreen, "
+                               "made always-on-top or not, or put on all workspaces or not");
+  shell_hook_registry_declare (registry, "window.geometry-changed",
+                               W_SCHEMA " x:i y:i width:i height:i", FALSE,
+                               "A window moved or was resized");
   shell_hook_registry_declare (registry, "workspace.switched", "from:i to:i", FALSE,
                                "The active workspace changed");
   shell_hook_registry_declare (registry, "workspace.added", "index:i", FALSE,
                                "A workspace was added");
   shell_hook_registry_declare (registry, "workspace.removed", "index:i", FALSE,
                                "A workspace was removed");
+
+  /* A new listener of window.mapped is told about the windows that exist */
+  shell_hook_registry_set_replay (registry, "window.mapped", replay_window_mapped, NULL);
 }
 
 static void
@@ -309,6 +336,19 @@ window_ready (ShellWindowHooks *self,
 }
 
 static void
+window_refresh_frame (WindowInfo *info,
+                      MetaWindow *window)
+{
+  MtkRectangle frame;
+
+  meta_window_get_frame_rect (window, &frame);
+  info->x = frame.x;
+  info->y = frame.y;
+  info->width = frame.width;
+  info->height = frame.height;
+}
+
+static void
 window_refresh_info (WindowInfo *info,
                      MetaWindow *window)
 {
@@ -322,6 +362,9 @@ window_refresh_info (WindowInfo *info,
     info->monitor = 0;
   info->maximized = meta_window_is_maximized (window);
   info->fullscreen = meta_window_is_fullscreen (window);
+  info->above = meta_window_is_above (window);
+  info->on_all_workspaces = meta_window_is_on_all_workspaces (window);
+  window_refresh_frame (info, window);
 }
 
 static void
@@ -361,6 +404,8 @@ window_state_cb (MetaWindow       *window,
   WindowInfo *info = window_info_get (window);
   gboolean maximized = meta_window_is_maximized (window);
   gboolean fullscreen = meta_window_is_fullscreen (window);
+  gboolean above = meta_window_is_above (window);
+  gboolean on_all_workspaces = meta_window_is_on_all_workspaces (window);
   GVariantBuilder changed;
   gboolean any = FALSE;
 
@@ -378,8 +423,20 @@ window_state_cb (MetaWindow       *window,
       g_variant_builder_add (&changed, "s", "fullscreen");
       any = TRUE;
     }
+  if (above != info->above)
+    {
+      g_variant_builder_add (&changed, "s", "above");
+      any = TRUE;
+    }
+  if (on_all_workspaces != info->on_all_workspaces)
+    {
+      g_variant_builder_add (&changed, "s", "on-all-workspaces");
+      any = TRUE;
+    }
   info->maximized = maximized;
   info->fullscreen = fullscreen;
+  info->above = above;
+  info->on_all_workspaces = on_all_workspaces;
 
   if (any && window_ready (self, window, info))
     {
@@ -388,6 +445,9 @@ window_state_cb (MetaWindow       *window,
       window_payload_init (&builder, window);
       g_variant_builder_add (&builder, "{sv}", "maximized", g_variant_new_boolean (maximized));
       g_variant_builder_add (&builder, "{sv}", "fullscreen", g_variant_new_boolean (fullscreen));
+      g_variant_builder_add (&builder, "{sv}", "above", g_variant_new_boolean (above));
+      g_variant_builder_add (&builder, "{sv}", "on-all-workspaces",
+                             g_variant_new_boolean (on_all_workspaces));
       g_variant_builder_add (&builder, "{sv}", "changed", g_variant_builder_end (&changed));
       emit_hook ("window.state-changed", &builder);
     }
@@ -395,6 +455,55 @@ window_state_cb (MetaWindow       *window,
     {
       g_variant_builder_clear (&changed);
     }
+}
+
+/* window.geometry-changed: position-changed and size-changed come in bursts
+ * (every configure of a resize), so they only mark the window; one idle per
+ * window reports the frame rectangle it has by then, if it differs from the
+ * last one reported. */
+static gboolean
+geometry_idle_cb (gpointer data)
+{
+  MetaWindow *window = data;
+  WindowInfo *info = window_info_get (window);
+  MtkRectangle frame;
+
+  if (info == NULL)
+    return G_SOURCE_REMOVE;
+  info->geometry_idle = 0;
+
+  meta_window_get_frame_rect (window, &frame);
+  if (frame.x == info->x && frame.y == info->y &&
+      frame.width == info->width && frame.height == info->height)
+    return G_SOURCE_REMOVE;
+
+  info->x = frame.x;
+  info->y = frame.y;
+  info->width = frame.width;
+  info->height = frame.height;
+
+  if (current_hooks != NULL && window_ready (current_hooks, window, info))
+    {
+      GVariantBuilder builder;
+
+      window_payload_init (&builder, window);
+      g_variant_builder_add (&builder, "{sv}", "x", g_variant_new_int32 (frame.x));
+      g_variant_builder_add (&builder, "{sv}", "y", g_variant_new_int32 (frame.y));
+      g_variant_builder_add (&builder, "{sv}", "width", g_variant_new_int32 (frame.width));
+      g_variant_builder_add (&builder, "{sv}", "height", g_variant_new_int32 (frame.height));
+      emit_hook ("window.geometry-changed", &builder);
+    }
+  return G_SOURCE_REMOVE;
+}
+
+static void
+window_geometry_cb (MetaWindow       *window,
+                    ShellWindowHooks *self)
+{
+  WindowInfo *info = window_info_get (window);
+
+  if (info != NULL && info->geometry_idle == 0)
+    info->geometry_idle = g_idle_add_full (G_PRIORITY_DEFAULT_IDLE, geometry_idle_cb, window, NULL);
 }
 
 static void
@@ -467,6 +576,14 @@ track_window (ShellWindowHooks *self,
                            G_CALLBACK (window_state_cb), self, 0);
   g_signal_connect_object (window, "notify::fullscreen",
                            G_CALLBACK (window_state_cb), self, 0);
+  g_signal_connect_object (window, "notify::above",
+                           G_CALLBACK (window_state_cb), self, 0);
+  g_signal_connect_object (window, "notify::on-all-workspaces",
+                           G_CALLBACK (window_state_cb), self, 0);
+  g_signal_connect_object (window, "position-changed",
+                           G_CALLBACK (window_geometry_cb), self, 0);
+  g_signal_connect_object (window, "size-changed",
+                           G_CALLBACK (window_geometry_cb), self, 0);
   g_signal_connect_object (window, "workspace-changed",
                            G_CALLBACK (window_workspace_cb), self, 0);
   g_signal_connect_object (window, "unmanaging",
@@ -702,6 +819,7 @@ shell_window_hooks_window_unmapped (ShellWindowHooks *self,
       emit_hook ("window.unmapped", &builder);
     }
   info->mapped = FALSE;
+  g_clear_handle_id (&info->geometry_idle, g_source_remove);
 }
 
 void
@@ -739,6 +857,36 @@ shell_window_hooks_workspace_switched (ShellWindowHooks *self,
   emit_hook ("workspace.switched", &builder);
 }
 
+/* ---- the replay of window.mapped ---------------------------------------- */
+
+static GPtrArray *
+replay_window_mapped (ShellHookRegistry *registry,
+                      const char        *name,
+                      gpointer           user_data)
+{
+  GPtrArray *payloads = g_ptr_array_new_with_free_func ((GDestroyNotify) g_variant_unref);
+  g_autoptr (GList) windows = NULL;
+  GList *l;
+
+  if (current_hooks == NULL || current_hooks->display == NULL)
+    return payloads;
+
+  /* The windows window.mapped was emitted for, in the order of windows.list () */
+  windows = shell_window_hooks_list_windows (current_hooks->display);
+  for (l = windows; l != NULL; l = l->next)
+    {
+      WindowInfo *info = window_info_get (l->data);
+      GVariantBuilder builder;
+
+      if (info == NULL || !info->announced)
+        continue;
+
+      window_payload_init (&builder, l->data);
+      g_ptr_array_add (payloads, g_variant_ref_sink (g_variant_builder_end (&builder)));
+    }
+  return payloads;
+}
+
 /* ---- life cycle ---------------------------------------------------------- */
 
 static void
@@ -746,6 +894,8 @@ shell_window_hooks_dispose (GObject *object)
 {
   ShellWindowHooks *self = SHELL_WINDOW_HOOKS (object);
 
+  if (current_hooks == self)
+    g_clear_weak_pointer (&current_hooks);
   g_clear_weak_pointer (&self->display);
   g_clear_weak_pointer (&self->workspace_manager);
   g_clear_pointer (&self->workspaces, g_ptr_array_unref);
@@ -786,6 +936,8 @@ shell_window_hooks_new (MetaDisplay          *display,
 
   g_set_weak_pointer (&self->display, display);
   g_set_weak_pointer (&self->workspace_manager, workspace_manager);
+  g_clear_weak_pointer (&current_hooks);
+  g_set_weak_pointer (&current_hooks, self);
 
   shell_window_hooks_declare ();
 

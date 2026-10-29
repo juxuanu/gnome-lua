@@ -1,0 +1,8 @@
+{
+  "uuid": "spawn@test",
+  "name": "API conformance: spawn",
+  "description": "Fixture of tests/api/spawn.lua: shell.spawn",
+  "shell-api": "1.1",
+  "capabilities": ["spawn"],
+  "version": 1
+}

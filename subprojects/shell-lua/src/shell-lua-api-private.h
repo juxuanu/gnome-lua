@@ -60,6 +60,13 @@ void        shell_lua_check_fields (lua_State         *L,
 void shell_lua_api_core_register  (ShellLuaState *state, lua_State *L);
 void shell_lua_api_hooks_register (ShellLuaState *state, lua_State *L);
 void shell_lua_api_dbus_register  (ShellLuaState *state, lua_State *L);
+void shell_lua_api_fs_register    (ShellLuaState *state, lua_State *L);
+void shell_lua_api_spawn_register (ShellLuaState *state, lua_State *L);
+
+/* shell.extension.data_dir (shell-lua-api-fs.c): lazily created on first read.
+ * Called with the table behind shell.extension on top of the stack. */
+void shell_lua_fs_install_data_dir (lua_State *L);
+void shell_lua_api_time_register  (ShellLuaState *state, lua_State *L);
 
 
 /* ======================================================================== *

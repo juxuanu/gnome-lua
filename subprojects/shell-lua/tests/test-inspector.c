@@ -222,7 +222,7 @@ test_reset (void)
   shell_lua_inspector_reset (inspector);
   ASSERT_EVAL (inspector, "x", "nil");
   ASSERT_EVAL (inspector, "f", "nil");
-  ASSERT_EVAL (inspector, "shell.api_version.minor", "0");
+  ASSERT_EVAL (inspector, "shell.api_version.minor", "1");
 
   g_object_unref (inspector);
 }

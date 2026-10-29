@@ -47,6 +47,7 @@
 #include "shell-lua.h"
 #include "shell-lua-extension.h"
 #include "shell-lua-inspector.h"
+#include "shell-lua-time.h"
 #include "shell-perf-log.h"
 #include "shell-window-tracker.h"
 #include "shell-app-usage.h"
@@ -598,6 +599,8 @@ shell_global_declare_hooks (void)
                                "The shell is shutting down");
   shell_hook_registry_declare (registry, "session.mode-changed", "mode:s", FALSE,
                                "The session mode changed (e.g. user, unlock-dialog, gdm)");
+  /* time.timezone-changed (declares the hook and watches the zone files) */
+  shell_lua_time_watch (registry);
 }
 
 /*

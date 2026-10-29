@@ -1,5 +1,7 @@
 -- Fixture of tests/api/window.lua: every function, field, property and error
--- kind of docs/api/window.md, and the window.*, workspace.* and monitors.changed
+-- kind of docs/api/window.md (1.0 and the 1.1 additions: frame, above,
+-- on_all_workspaces, resizable, movable, the geometry and state actions, the
+-- replay of window.mapped), and the window.*, workspace.* and monitors.changed
 -- hooks of docs/api/hooks.md as the shell emits them. enable () runs the checks
 -- that are synchronous and connects a listener to every hook; the script of
 -- the test opens a window, changes the monitors and asks for the verdicts with
@@ -113,9 +115,34 @@ local function wait_for(pred, what, on_ok, done, ms)
   return "later"
 end
 
+-- Runs the stages one after the other: each stage is { what =, act = function,
+-- pred = function, check = function [, ms =] }: act () does the call, pred ()
+-- is polled until true, check () then runs (a failed wait is a failed check
+-- and the next stage runs anyway). done () at the end.
+local function chain(stages, done, i)
+  i = i or 1
+  local stage = stages[i]
+
+  if not stage then
+    done()
+    return
+  end
+  local ok, err = pcall(stage.act)
+
+  if not ok then
+    T.report("calling for " .. stage.what, false, tostring(err))
+    done()
+    return
+  end
+  wait_for(stage.pred, stage.what, stage.check, function()
+    chain(stages, done, i + 1)
+  end, stage.ms)
+end
+
 local WINDOW_HOOKS = {
   "window.mapped", "window.unmapped", "window.focused", "window.minimized", "window.unminimized",
   "window.title-changed", "window.workspace-changed", "window.monitor-changed", "window.state-changed",
+  "window.geometry-changed",
 }
 local WORKSPACE_HOOKS = { "workspace.switched", "workspace.added", "workspace.removed" }
 
@@ -208,13 +235,28 @@ local function check_event(name, p)
     elseif name == "window.state-changed" then
       eq(type(p.maximized), "boolean", "maximized")
       eq(type(p.fullscreen), "boolean", "fullscreen")
+      eq(type(p.above), "boolean", "above")
+      eq(type(p["on-all-workspaces"]), "boolean", "on-all-workspaces")
       eq(type(p.changed), "table", "changed")
       truthy(#p.changed >= 1, "changed lists what changed")
       eq(w.maximized, p.maximized, "maximized in window.state-changed")
       eq(w.fullscreen, p.fullscreen, "fullscreen in window.state-changed")
+      eq(w.above, p.above, "above in window.state-changed")
+      eq(w.on_all_workspaces, p["on-all-workspaces"], "on-all-workspaces in window.state-changed")
       for _, what in ipairs(p.changed) do
-        truthy(what == "maximized" or what == "fullscreen", "changed: " .. tostring(what))
+        truthy(what == "maximized" or what == "fullscreen" or what == "above" or what == "on-all-workspaces",
+               "changed: " .. tostring(what))
       end
+    elseif name == "window.geometry-changed" then
+      for _, key in ipairs({ "x", "y", "width", "height" }) do
+        eq(is_int(p[key]), true, key)
+      end
+      truthy(p.width >= 1 and p.height >= 1, "the size is positive")
+      local frame = w.frame
+      eq(frame.x, p.x, "x is frame.x in window.geometry-changed")
+      eq(frame.y, p.y, "y is frame.y")
+      eq(frame.width, p.width, "width is frame.width")
+      eq(frame.height, p.height, "height is frame.height")
     end
   elseif name == "workspace.switched" then
     eq(is_int(p.from), true, "from")
@@ -491,9 +533,31 @@ function ext.enable()
         eq(w.no_such_property, nil, "unknown properties are nil")
       end)
 
+      case("a Window has the properties of window.md, Since 1.1", function()
+        local frame = w.frame
+
+        eq(type(frame), "table", "frame is a table")
+        for _, key in ipairs({ "x", "y", "width", "height" }) do
+          eq(is_int(frame[key]), true, "frame." .. key .. " is an integer")
+        end
+        truthy(frame.width > 0 and frame.height > 0, "the size of the frame")
+        -- a fresh table every time: changing it changes nothing
+        truthy(w.frame ~= frame, "frame is a new table on every read")
+        frame.x = -12345
+        frame.width = -1
+        eq(w.frame.x ~= -12345 and w.frame.width > 0, true, "frame is a snapshot")
+        eq(w.above, false, "above")
+        eq(w.on_all_workspaces, false, "on_all_workspaces")
+        eq(w.on_all_workspaces, w.workspace == nil, "on_all_workspaces is the case where workspace is nil")
+        eq(type(w.resizable), "boolean", "resizable")
+        eq(type(w.movable), "boolean", "movable")
+        eq(w.movable, true, "a plain window is movable")
+      end)
+
       case("a Window is a read-only handle, the same one every time", function()
         for _, key in ipairs({ "id", "title", "wm_class", "app_id", "workspace", "monitor", "minimized",
-                               "maximized", "fullscreen", "focused", "pid", "alive" }) do
+                               "maximized", "fullscreen", "focused", "pid", "alive", "frame", "above",
+                               "on_all_workspaces", "resizable", "movable" }) do
           raises(function() w[key] = 1 end, nil, "assigning " .. key)
         end
         raises(function() w.no_such_property = 1 end, nil, "assigning an unknown property")
@@ -516,6 +580,36 @@ function ext.enable()
         raises(function() w:move_to_monitor(#shell.monitors.list() + 1) end, nil, "move_to_monitor (count + 1)")
         raises(function() w:move_to_monitor("x") end, nil, "move_to_monitor ('x')")
         raises(function() w:no_such_method() end, nil, "an unknown method")
+      end)
+
+      case("the 1.1 actions check their arguments", function()
+        raises(function() w:move() end, nil, "move ()")
+        raises(function() w:move(1) end, nil, "move (1)")
+        raises(function() w:move{} end, "'x'", "move {}")
+        raises(function() w:move{ x = 10 } end, "'y'", "move {x}")
+        raises(function() w:move{ x = "a", y = 1 } end, "'x'", "move {x = 'a'}")
+        raises(function() w:move{ x = 1.5, y = 1 } end, "'x'", "move {x = 1.5}")
+        raises(function() w:move{ x = 1, y = {} } end, "'y'", "move {y = {}}")
+        raises(function() w:move{ x = 1, y = 2, z = 3 } end, "'z'", "move {z = 3}")
+        raises(function() w:move{ x = 1e12, y = 2 } end, "'x'", "move {x = 1e12}")
+        raises(function() w:move{ x = 1, y = -1e12 } end, "'y'", "move {y = -1e12}")
+        raises(function() w:resize{} end, "'width'", "resize {}")
+        raises(function() w:resize{ width = 100 } end, "'height'", "resize {width}")
+        raises(function() w:resize{ width = 0, height = 100 } end, "'width'", "resize {width = 0}")
+        raises(function() w:resize{ width = 100, height = -5 } end, "'height'", "resize {height = -5}")
+        raises(function() w:resize{ width = 100, height = 100, x = 1 } end, "'x'", "resize {x}: a field of move")
+        raises(function() w:move_resize{ x = 1, y = 2, width = 3 } end, "'height'", "move_resize {no height}")
+        raises(function() w:move_resize{ x = 1, y = 2, width = "3", height = 4 } end, "'width'", "move_resize {width = '3'}")
+        raises(function() w:set_fullscreen() end, nil, "set_fullscreen ()")
+        raises(function() w:set_fullscreen(1) end, nil, "set_fullscreen (1)")
+        raises(function() w:set_above("yes") end, nil, "set_above ('yes')")
+        raises(function() w:set_above(nil) end, nil, "set_above (nil)")
+        raises(function() w:set_on_all_workspaces() end, nil, "set_on_all_workspaces ()")
+        raises(function() w:set_on_all_workspaces({}) end, nil, "set_on_all_workspaces ({})")
+        -- none of the failed calls did anything
+        eq(w.above, false, "above is still false")
+        eq(w.fullscreen, false, "fullscreen is still false")
+        eq(w.on_all_workspaces, false, "on_all_workspaces is still false")
       end)
 
       case("the window is in the list of its workspace", function()
@@ -585,6 +679,416 @@ function ext.enable()
           eq(w.focused, true, "focused")
         end)
       end, done)
+    end,
+
+    -- w:move (), w:resize (), w:move_resize (), window.frame and
+    -- window.geometry-changed
+    ["geometry"] = function(p, done)
+      local w, id = kept.w, kept.id
+      local work = shell.monitors.get(w.monitor).work_area
+      local from = #kept.events
+      local target = { x = work.x + 100, y = work.y + 80, width = 500, height = 340 }
+      local moved = { x = target.x + 60, y = target.y + 40 }
+      local resized = { width = 420, height = 300 }
+
+      -- the last geometry-changed of the window since `from` says `rect`, and
+      -- no two consecutive ones are the same rectangle (only changes are reported)
+      local function reported(rect)
+        local last
+        local previous
+
+        for _, ev in ipairs(kept.events) do
+          if _ > from and ev.hook == "window.geometry-changed" and ev.p["window-id"] == id then
+            if previous then
+              local same = true
+              for _, key in ipairs({ "x", "y", "width", "height" }) do
+                same = same and previous[key] == ev.p[key]
+              end
+              truthy(not same, "window.geometry-changed twice for the same frame")
+            end
+            previous = ev.p
+            last = ev
+          end
+        end
+        if not last then
+          return false
+        end
+        for key, value in pairs(rect) do
+          if last.p[key] ~= value then
+            return false
+          end
+        end
+        return true
+      end
+
+      local function frame_is(rect)
+        local frame = w.frame
+
+        for key, value in pairs(rect) do
+          if frame[key] ~= value then
+            return false
+          end
+        end
+        return true
+      end
+
+      local returned
+
+      chain({
+        { what = "move_resize ()",
+          act = function()
+            returned = table.pack(w:move_resize(target))
+          end,
+          pred = function() return frame_is(target) and reported(target) end,
+          check = function()
+            case("move_resize () returns nothing, frame and window.geometry-changed show the rectangle", function()
+              eq(returned.n, 0, "values returned")
+              truthy(frame_is(target), "frame is the requested rectangle")
+              truthy(reported(target), "window.geometry-changed carries it")
+              truthy(find_event("window.geometry-changed", id, from).ok, "the payload was consistent with the API")
+            end)
+          end },
+        { what = "move ()",
+          act = function()
+            returned = table.pack(w:move(moved))
+          end,
+          pred = function()
+            return frame_is({ x = moved.x, y = moved.y, width = target.width, height = target.height })
+              and reported({ x = moved.x, y = moved.y, width = target.width, height = target.height })
+          end,
+          check = function()
+            case("move () moves and keeps the size", function()
+              eq(returned.n, 0, "values returned")
+              eq(w.frame.x, moved.x, "x")
+              eq(w.frame.y, moved.y, "y")
+              eq(w.frame.width, target.width, "width")
+              eq(w.frame.height, target.height, "height")
+            end)
+          end },
+        { what = "resize ()",
+          act = function()
+            returned = table.pack(w:resize(resized))
+          end,
+          pred = function()
+            local rect = { x = moved.x, y = moved.y, width = resized.width, height = resized.height }
+            return frame_is(rect) and reported(rect)
+          end,
+          check = function()
+            case("resize () resizes and keeps the position", function()
+              eq(returned.n, 0, "values returned")
+              eq(w.frame.x, moved.x, "x")
+              eq(w.frame.y, moved.y, "y")
+              eq(w.frame.width, resized.width, "width")
+              eq(w.frame.height, resized.height, "height")
+            end)
+          end },
+      }, done)
+      return "later"
+    end,
+
+    -- w:maximize (), w:unmaximize ()
+    ["maximize"] = function(p, done)
+      local w, id = kept.w, kept.id
+      local from = #kept.events
+      local before = w.frame
+      local returned
+
+      chain({
+        { what = "maximize ()",
+          act = function()
+            returned = table.pack(w:maximize())
+            w:maximize()                        -- a no-op when asked again
+          end,
+          pred = function() return w.maximized and find_event("window.state-changed", id, from) ~= nil end,
+          check = function()
+            case("maximize (): maximized, window.state-changed, the frame grows", function()
+              local ev = find_event("window.state-changed", id, from)
+
+              eq(returned.n, 0, "values returned")
+              eq(w.maximized, true, "maximized")
+              eq(ev.p.maximized, true, "maximized in window.state-changed")
+              eq(ev.p.fullscreen, false, "fullscreen in window.state-changed")
+              truthy(ev.ok, "the payload was consistent with the API")
+              local found = false
+              for _, what in ipairs(ev.p.changed) do
+                found = found or what == "maximized"
+              end
+              truthy(found, "changed lists maximized")
+              truthy(w.frame.width > before.width and w.frame.height > before.height, "the maximized frame is bigger")
+              eq(w.resizable, false, "a maximized window is not resizable")
+            end)
+          end },
+        { what = "unmaximize ()",
+          act = function()
+            from = #kept.events
+            returned = table.pack(w:unmaximize())
+            w:unmaximize()                      -- a no-op when asked again
+          end,
+          pred = function() return not w.maximized and find_event("window.state-changed", id, from) ~= nil end,
+          check = function()
+            case("unmaximize (): not maximized, window.state-changed", function()
+              local ev = find_event("window.state-changed", id, from)
+
+              eq(returned.n, 0, "values returned")
+              eq(w.maximized, false, "maximized")
+              eq(ev.p.maximized, false, "maximized in window.state-changed")
+              truthy(ev.ok, "the payload was consistent with the API")
+              eq(w.resizable, true, "the window is resizable again")
+            end)
+          end },
+      }, done)
+      return "later"
+    end,
+
+    -- w:set_fullscreen ()
+    ["fullscreen"] = function(p, done)
+      local w, id = kept.w, kept.id
+      local from = #kept.events
+      local returned
+
+      chain({
+        { what = "set_fullscreen (true)",
+          act = function()
+            returned = table.pack(w:set_fullscreen(true))
+          end,
+          pred = function() return w.fullscreen and find_event("window.state-changed", id, from) ~= nil end,
+          check = function()
+            case("set_fullscreen (true): fullscreen, window.state-changed", function()
+              local ev = find_event("window.state-changed", id, from)
+
+              eq(returned.n, 0, "values returned")
+              eq(w.fullscreen, true, "fullscreen")
+              eq(ev.p.fullscreen, true, "fullscreen in window.state-changed")
+              truthy(ev.ok, "the payload was consistent with the API")
+              eq(w.movable, false, "a fullscreen window is not movable")
+              eq(w.resizable, false, "a fullscreen window is not resizable")
+            end)
+          end },
+        { what = "set_fullscreen (false)",
+          act = function()
+            from = #kept.events
+            w:set_fullscreen(true)              -- a no-op when asked again
+            returned = table.pack(w:set_fullscreen(false))
+          end,
+          pred = function() return not w.fullscreen and find_event("window.state-changed", id, from) ~= nil end,
+          check = function()
+            case("set_fullscreen (false): not fullscreen, window.state-changed", function()
+              local ev = find_event("window.state-changed", id, from)
+
+              eq(returned.n, 0, "values returned")
+              eq(w.fullscreen, false, "fullscreen")
+              eq(ev.p.fullscreen, false, "fullscreen in window.state-changed")
+              truthy(ev.ok, "the payload was consistent with the API")
+              eq(w.movable, true, "the window is movable again")
+              w:set_fullscreen(false)           -- a no-op when asked again
+            end)
+          end },
+      }, done)
+      return "later"
+    end,
+
+    -- w:set_above (), window.above and the keys of window.state-changed
+    ["above"] = function(p, done)
+      local w, id = kept.w, kept.id
+      local from = #kept.events
+      local returned
+
+      chain({
+        { what = "set_above (true)",
+          act = function()
+            returned = table.pack(w:set_above(true))
+          end,
+          pred = function() return w.above and find_event("window.state-changed", id, from) ~= nil end,
+          check = function()
+            case("set_above (true): above, window.state-changed", function()
+              local ev = find_event("window.state-changed", id, from)
+              local found = false
+
+              eq(returned.n, 0, "values returned")
+              eq(w.above, true, "above")
+              eq(ev.p.above, true, "above in window.state-changed")
+              truthy(ev.ok, "the payload was consistent with the API")
+              for _, what in ipairs(ev.p.changed) do
+                found = found or what == "above"
+              end
+              truthy(found, "changed lists above")
+              eq(w.maximized, ev.p.maximized, "maximized is reported with it")
+            end)
+          end },
+        { what = "set_above (false)",
+          act = function()
+            from = #kept.events
+            w:set_above(true)                   -- a no-op when asked again
+            returned = table.pack(w:set_above(false))
+          end,
+          pred = function() return not w.above and find_event("window.state-changed", id, from) ~= nil end,
+          check = function()
+            case("set_above (false): not above, window.state-changed", function()
+              local ev = find_event("window.state-changed", id, from)
+
+              eq(returned.n, 0, "values returned")
+              eq(w.above, false, "above")
+              eq(ev.p.above, false, "above in window.state-changed")
+              truthy(ev.ok, "the payload was consistent with the API")
+            end)
+          end },
+      }, done)
+      return "later"
+    end,
+
+    -- w:set_on_all_workspaces ()
+    ["sticky"] = function(p, done)
+      local w, id = kept.w, kept.id
+      local from = #kept.events
+      local returned
+
+      chain({
+        { what = "set_on_all_workspaces (true)",
+          act = function()
+            returned = table.pack(w:set_on_all_workspaces(true))
+          end,
+          pred = function() return w.on_all_workspaces and find_event("window.state-changed", id, from) ~= nil end,
+          check = function()
+            case("set_on_all_workspaces (true): on_all_workspaces, workspace is nil, window.state-changed", function()
+              local ev = find_event("window.state-changed", id, from)
+              local found = false
+
+              eq(returned.n, 0, "values returned")
+              eq(w.on_all_workspaces, true, "on_all_workspaces")
+              eq(w.workspace, nil, "workspace is nil")
+              eq(ev.p["on-all-workspaces"], true, "on-all-workspaces in window.state-changed")
+              truthy(ev.ok, "the payload was consistent with the API")
+              for _, what in ipairs(ev.p.changed) do
+                found = found or what == "on-all-workspaces"
+              end
+              truthy(found, "changed lists on-all-workspaces")
+              for _, ws in ipairs(shell.workspaces.list()) do
+                local listed = false
+
+                for _, x in ipairs(ws:windows()) do
+                  listed = listed or rawequal(x, w)
+                end
+                truthy(listed, "workspace " .. ws.index .. " lists the window")
+              end
+            end)
+          end },
+        { what = "set_on_all_workspaces (false)",
+          act = function()
+            from = #kept.events
+            w:set_on_all_workspaces(true)       -- a no-op when asked again
+            returned = table.pack(w:set_on_all_workspaces(false))
+          end,
+          pred = function() return not w.on_all_workspaces and find_event("window.state-changed", id, from) ~= nil end,
+          check = function()
+            case("set_on_all_workspaces (false): on one workspace again, window.state-changed", function()
+              local ev = find_event("window.state-changed", id, from)
+
+              eq(returned.n, 0, "values returned")
+              eq(w.on_all_workspaces, false, "on_all_workspaces")
+              truthy(w.workspace ~= nil, "workspace is a number again")
+              eq(ev.p["on-all-workspaces"], false, "on-all-workspaces in window.state-changed")
+              truthy(ev.ok, "the payload was consistent with the API")
+            end)
+          end },
+      }, done)
+      return "later"
+    end,
+
+    -- w:unminimize () (and minimize () to have something to undo)
+    ["unminimize"] = function(p, done)
+      local w, id = kept.w, kept.id
+      local from = #kept.events
+      local returned
+
+      case("unminimize () of a window that is not minimized does nothing", function()
+        local r = table.pack(w:unminimize())
+
+        eq(r.n, 0, "values returned")
+        eq(w.minimized, false, "minimized")
+      end)
+      chain({
+        { what = "minimize ()",
+          act = function() w:minimize() end,
+          pred = function() return w.minimized end,
+          check = function() end },
+        { what = "unminimize ()",
+          act = function()
+            from = #kept.events
+            returned = table.pack(w:unminimize())
+          end,
+          pred = function() return not w.minimized and find_event("window.unminimized", id, from) ~= nil end,
+          check = function()
+            case("unminimize (): not minimized, window.unminimized", function()
+              eq(returned.n, 0, "values returned")
+              eq(w.minimized, false, "minimized")
+              truthy(find_event("window.unminimized", id, from).ok, "the payload was consistent with the API")
+            end)
+          end },
+      }, done)
+      return "later"
+    end,
+
+    -- the replay of window.mapped: a listener that connects now is told about
+    -- the window that exists, from an idle, and the other listeners are not
+    ["replay"] = function(p, done)
+      local expected = {}
+      local first, second = {}, {}
+      local mapped_before = 0
+      local conn, cancelled
+      local scheduled = false
+
+      for _, w in ipairs(shell.windows.list()) do
+        expected[#expected + 1] = w.id
+      end
+      truthy(#expected >= 1, "a window to be replayed")
+      for _, ev in ipairs(kept.events) do
+        if ev.hook == "window.mapped" then
+          mapped_before = mapped_before + 1
+        end
+      end
+
+      conn = shell.hooks.on("window.mapped", function(ev)
+        first[#first + 1] = ev
+      end)
+      cancelled = shell.hooks.on("window.mapped", function(ev)
+        second[#second + 1] = ev
+      end)
+      cancelled:disconnect()
+      case("the replay is not synchronous", function()
+        eq(#first, 0, "events delivered inside hooks.on ()")
+      end)
+
+      return wait_for(function() return #first >= #expected end, "the replayed window.mapped", function()
+        scheduled = true
+        -- a moment longer: nothing else comes, nothing to the disconnected listener
+        shell.timer.after{ ms = 300, callback = function()
+          case("window.mapped is replayed: one event per window, in windows.list () order", function()
+            eq(#first, #expected, "events")
+            for i, id in ipairs(expected) do
+              eq(first[i]["window-id"], id, "window of the event " .. i)
+              check_event("window.mapped", first[i])
+            end
+          end)
+          case("the replay goes to the new listener only", function()
+            local mapped_now = 0
+
+            for _, ev in ipairs(kept.events) do
+              if ev.hook == "window.mapped" then
+                mapped_now = mapped_now + 1
+              end
+            end
+            eq(mapped_now, mapped_before, "window.mapped events of the older listener")
+            eq(#second, 0, "events of a listener disconnected before the idle")
+          end)
+          conn:disconnect()
+          done()
+        end }
+      end, function()
+        if not scheduled then
+          conn:disconnect()
+          done()
+        end
+      end)
     end,
 
     -- workspace:activate () and workspace.switched

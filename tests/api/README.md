@@ -10,8 +10,13 @@ change together.
 |---|---|---|
 | `core.lua` | core.md (and README.md for what concerns the core) | `core@test`, `core-bare@test`, `core-errors@test`, `core-minor@test`, `core-future@test`, `core-v2@test`, `core-modes@test` |
 | `hooks.lua` | hooks.md, `shell.hooks` of core.md | `hooks@test`, `hooks-search@test` |
+| `network.lua` | network.md | `network@test`, `network-nocap@test` (the script serves the requests with `test.http_server`) |
+| `fs.lua` | fs.md | `fs@test`, `fs-nocap@test` (the script reads back what the extension left in its data directory) |
+| `spawn.lua` | spawn.md | `spawn@test`, `spawn-nocap@test` (only `/bin/sh` and coreutils; the script checks that a process left running is killed at disable) |
 | `examples.lua` | the reference extensions of `subprojects/shell-lua/examples` | (the examples themselves) |
-| `ui`, `menu`, `panel`, `dash`, `quick-settings`, `notify`, `window`, `dbus` | the other documents | `<area>@test` |
+| `ui`, `menu`, `panel`, `dash`, `quick-settings`, `notify`, `window`, `dbus`, `keybindings`, `time` | the other documents | `<area>@test` |
+| `overview` | overview.md | `overview@test` |
+| `search` | search.md | `search@test`, `search-nocap@test` |
 
 ## How a test runs
 
@@ -85,17 +90,26 @@ run. A failing check in a step fails the step at once.
 What the script can do besides the harness (all in `src/shell-test-runner.c`,
 documented at its head): `test.sleep`, `test.wait_leisure`, `main.*` (the
 objects of the shell, with `overview:show_for_reason (reason [, state])` and
-`hide_for_reason (reason)`), `test.set_boolean (schema, key, value)`,
+`hide_for_reason (reason)`; on `main.overview.search_controller`: `search (text)`,
+`search_in_progress ()`, `n_results (provider_id)` and `get_result (provider_id, index)`,
+whose result has `activate ()` and `launch_search ()`), `test.set_boolean (schema, key, value)`,
+`test.press_accelerator ("<Super><Alt>j")` (types the combination on a
+virtual keyboard; it does not wait, poll for the effect),
 `test.log_capture (uuid, on)` (`c.capture_log (fn)`: the log of the extension,
 and the errors of its callbacks, as `{level, message}`; warnings are not
-fatal inside), `test.extension_report (uuid)`.
+fatal inside), `test.extension_report (uuid)`, and
+`test.http_server {routes = {["/path"] = "body" or {status =, body =,
+headers =, delay_ms =, echo =, redirect =, size =}}}` (a SoupServer on
+127.0.0.1 and an ephemeral port: the CI has no internet; returns `{url, port,
+route (), requests (), stop ()}`, documented at its function in the runner).
 
 ## Rules
 
-- The shell tests run with `G_DEBUG=fatal-warnings`. An error in a callback,
-  `shell.log.warning` and `shell.log.error` are warnings in the runtime: run
-  them inside `c.capture_log`, and declare the errors you cause on purpose with
-  `expect_errors`. A metadata that the loader refuses (an unknown capability)
+- The shell tests run with `G_DEBUG=fatal-warnings`. An error in a callback
+  is a warning of the runtime: run it inside `c.capture_log`, and declare the
+  errors you cause on purpose with `expect_errors`. The messages written with
+  `shell.log.*` (also `warning`, `error` and `fatal`) are never fatal, but
+  capture them if the test checks them. A metadata that the loader refuses (an unknown capability)
   is a warning at startup, before the script runs: it cannot be a fixture
   (`subprojects/shell-lua/tests/test-extension.c` covers it).
 - A step handler or a callback cannot wait (`test.sleep` yields the script, not

@@ -25,8 +25,8 @@ Not in v1:
 - Settings of schemas other than `settings-schema`, and relocatable schemas.
 - Per-row validation callbacks; validation is the schema's type and range.
 - Registering the keybinding (the `keybinding` row only edits the `as` key;
-  the global shortcut registration API is not in 1.0, a future
-  `shell.keybindings`).
+  the extension registers it with `shell.keybindings.add{ name = <key> }`,
+  keybindings.md, API 1.1).
 - Live preview in the shell, window size, window title other than `title`,
   `Adw.PreferencesWindow` search configuration, custom styling.
 

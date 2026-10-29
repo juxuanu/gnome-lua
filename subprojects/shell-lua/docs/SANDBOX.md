@@ -22,7 +22,18 @@ Globals (nothing else exists):
 | `_G` | the sandbox environment itself |
 | `shell` | the API table; `require("shell")` returns the same table |
 
-`shell.api_version` is `{major=1, minor=0}` behind a read-only proxy.
+`shell.api_version` is `{major=1, minor=1}` behind a read-only proxy.
+
+`shell.log.debug/info/warning/error/fatal` write to the GLib log with the
+domain `shell-lua/<state id>`; `error` and `fatal` are `G_LOG_LEVEL_CRITICAL`
+(`G_LOG_LEVEL_ERROR` would abort the process). Warnings and criticals written
+this way are never fatal: the runtime lowers GLib's fatal mask around the call,
+so `G_DEBUG=fatal-warnings` (CI) does not let an extension abort the shell with
+its own log. `shell.log.fatal` also raises the message as a Lua error, which
+counts against the error policy like any other. `shell.time` (the wall and
+monotonic clocks, calendar fields, `GDateTime` formatting) is how a sandboxed
+extension reads the time, since `os` does not exist; it needs no capability and
+reaches nothing else.
 API modules may add further globals (`_`, `ngettext`, ...) with
 `lua_pushglobaltable()`, which returns the sandbox environment in sandboxed
 states.
@@ -43,6 +54,32 @@ states.
   `string.find` with a pathological pattern or `table.sort` on a huge table.
   The watchdog is a VM instruction-count hook. Memory growth in such calls is
   still bounded by the memory limit.
+
+**Files and processes (API 1.1).** The Lua standard library stays closed:
+there is still no `io`, `os` or `package`. What an extension can do with
+files and programs goes through the API, which checks it:
+
+- `shell.fs` (docs/api/fs.md) without the `fs` capability reaches only the
+  extension's own directory (read only) and its private data directory
+  `$XDG_DATA_HOME/gnome-lua/<uuid>` (read and write). Every path is absolute,
+  canonicalised, and, for an extension without the capability, resolved
+  through the file system (symbolic links followed) before it is compared with
+  those two directories; a path outside them raises
+  `shell.fs.<function>() requires the "fs" capability` before any I/O. With
+  the capability any path the shell process can reach is open, which is the
+  whole home of the user. All data I/O is asynchronous, bounded
+  (`max_bytes`, at most 64 MiB; at most 100000 entries in a listing) and
+  cancelled at disable.
+- `shell.spawn` (docs/api/spawn.md) needs the `spawn` capability and then runs
+  any program as the user, with the environment of the shell. It is not a
+  sandbox boundary: an extension with `spawn` has the rights of the user.
+  `argv` is executed without a shell; output is bounded (`max_output`); a
+  process still running at disable is killed (SIGTERM, SIGKILL after two
+  seconds) and its callback never runs.
+
+Both capabilities are shown to the user by the extensions app; the Lua state
+itself is unchanged (same watchdog, same memory limit: the callbacks of these
+modules run under both).
 
 Every chunk loaded through `shell_lua_state_load_*()` or `require()` gets the
 sandbox environment as its `_ENV` upvalue. Modules of one state share that

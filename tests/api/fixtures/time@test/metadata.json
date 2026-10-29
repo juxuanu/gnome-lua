@@ -1,0 +1,7 @@
+{
+  "uuid": "time@test",
+  "name": "API conformance: time",
+  "description": "Fixture of tests/api/time.lua: shell.time and the hook time.timezone-changed (API 1.1)",
+  "shell-api": "1.1",
+  "version": 1
+}

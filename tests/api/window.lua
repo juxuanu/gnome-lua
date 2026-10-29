@@ -1,5 +1,6 @@
--- Conformance test of docs/api/window.md and of the window.*, workspace.* and
--- monitors.changed hooks of docs/api/hooks.md: see tests/api/README.md. The
+-- Conformance test of docs/api/window.md (1.0 and 1.1) and of the window.*,
+-- workspace.* and monitors.changed hooks of docs/api/hooks.md: see
+-- tests/api/README.md. The
 -- assertions of the API are in the fixture tests/api/fixtures/window@test,
 -- run by the extension manager of the shell; this script opens a window,
 -- changes the monitors and asks the fixture for its verdicts with steps.
@@ -37,6 +38,25 @@ harness.run {
     c.step ("minimize")
     test.wait_leisure ()
     c.step ("activate")
+    test.wait_leisure ()
+
+    -- 1.1: geometry (move, resize, move_resize, frame, window.geometry-changed),
+    -- maximize/unmaximize, fullscreen, above, on_all_workspaces, unminimize
+    c.step ("geometry")
+    test.wait_leisure ()
+    c.step ("maximize")
+    test.wait_leisure ()
+    c.step ("fullscreen")
+    test.wait_leisure ()
+    c.step ("above")
+    test.wait_leisure ()
+    c.step ("sticky")
+    test.wait_leisure ()
+    c.step ("unminimize")
+    test.wait_leisure ()
+
+    -- 1.1: a listener that connects now is told about the window (replay)
+    c.step ("replay")
     test.wait_leisure ()
 
     -- workspace:activate (), window:move_to_workspace ()

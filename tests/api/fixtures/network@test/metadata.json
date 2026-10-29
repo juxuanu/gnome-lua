@@ -1,0 +1,8 @@
+{
+  "uuid": "network@test",
+  "name": "API conformance: network",
+  "description": "Fixture of tests/api/network.lua: shell.network (docs/api/network.md)",
+  "shell-api": "1.1",
+  "capabilities": ["network"],
+  "version": 1
+}

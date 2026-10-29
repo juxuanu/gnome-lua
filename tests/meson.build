@@ -135,8 +135,33 @@ api_tests = [
     'name': 'window',
   },
   {
+    'name': 'keybindings',
+  },
+  {
+    'name': 'overview',
+  },
+  {
+    'name': 'search',
+    'fixtures': ['search@test', 'search-nocap@test'],
+  },
+  {
     'name': 'dbus',
     'fixtures': ['dbus@test', 'dbus-nocap@test'],
+  },
+  {
+    'name': 'fs',
+    'fixtures': ['fs@test', 'fs-nocap@test'],
+  },
+  {
+    'name': 'spawn',
+    'fixtures': ['spawn@test', 'spawn-nocap@test'],
+  },
+  {
+    'name': 'network',
+    'fixtures': ['network@test', 'network-nocap@test'],
+  },
+  {
+    'name': 'time',
   },
   {
     'name': 'examples',

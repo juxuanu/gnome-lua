@@ -14,6 +14,13 @@
  *    part of the snapshot and so are not called by it.
  *  - Payloads passed to emit_* are consumed if floating (g_variant_ref_sink),
  *    following the usual GLib convention.
+ *  - Replay (shell_hook_registry_set_replay): a listener of the "after" phase
+ *    of a hook with a replay is "replay pending" from its connection until an
+ *    idle source ran the replay function and delivered its payloads to it.
+ *    Emissions skip a pending listener (the replay reflects the state they
+ *    describe). The idle source belongs to the listener (it is removed when
+ *    the listener is freed), so a registry that goes away with a pending
+ *    replay leaves nothing behind.
  */
 
 #include "shell-hooks.h"
@@ -41,6 +48,8 @@ typedef struct
   HookPoint         *point;
   ShellHookPhase     phase;
   gboolean           removed;
+  gboolean           replay_pending;
+  guint              replay_source;
   int                ref_count;
 } Listener;
 
@@ -52,6 +61,9 @@ struct _HookPoint
   gboolean    cancellable;
   GPtrArray  *listeners[N_PHASES]; /* Listener *, each holding one ref */
   guint       emission_depth;
+  ShellHookRegistry   *registry;     /* not owning: the registry owns the point */
+  ShellHookReplayFunc  replay;
+  gpointer             replay_data;
 };
 
 struct _ShellHookRegistry
@@ -89,6 +101,8 @@ listener_unref (Listener *l)
   if (--l->ref_count > 0)
     return;
 
+  if (l->replay_source != 0)
+    g_source_remove (l->replay_source);
   if (l->destroy)
     l->destroy (l->user_data);
   g_free (l);
@@ -287,6 +301,7 @@ shell_hook_registry_declare (ShellHookRegistry *self,
   hp->schema = g_strdup (schema);
   hp->doc = g_strdup (doc);
   hp->cancellable = cancellable;
+  hp->registry = self;
   for (int i = 0; i < N_PHASES; i++)
     hp->listeners[i] = g_ptr_array_new ();
 
@@ -398,6 +413,67 @@ shell_hook_registry_get_schema (ShellHookRegistry *self,
 
 /* ---- connect / disconnect --------------------------------------------- */
 
+/* ---- replay ------------------------------------------------------------ */
+
+static gboolean
+replay_idle_cb (gpointer data)
+{
+  Listener *l = listener_ref (data);
+  HookPoint *hp = l->point;
+  GPtrArray *payloads = NULL;
+
+  l->replay_source = 0;
+  l->replay_pending = FALSE;
+
+  if (!l->removed && hp->replay != NULL)
+    {
+      g_object_ref (hp->registry);
+      payloads = hp->replay (hp->registry, hp->name, hp->replay_data);
+
+      for (guint i = 0; payloads != NULL && i < payloads->len && !l->removed; i++)
+        {
+          GVariant *payload = g_ptr_array_index (payloads, i);
+
+          if (payload == NULL || !g_variant_is_of_type (payload, G_VARIANT_TYPE ("a{sv}")))
+            {
+              g_warning ("Replay of hook '%s' returned a payload that is not a{sv}", hp->name);
+              continue;
+            }
+          if (g_variant_is_floating (payload))
+            g_variant_ref_sink (payload);   /* the array owns it */
+
+          l->fn (hp->name, SHELL_HOOK_PHASE_AFTER, payload, NULL, l->user_data);
+        }
+      g_clear_pointer (&payloads, g_ptr_array_unref);
+      g_object_unref (hp->registry);
+    }
+
+  listener_unref (l);
+  return G_SOURCE_REMOVE;
+}
+
+/* shell_hook_registry_set_replay (): see shell-hooks.h */
+void
+shell_hook_registry_set_replay (ShellHookRegistry   *self,
+                                const char          *name,
+                                ShellHookReplayFunc  func,
+                                gpointer             user_data)
+{
+  HookPoint *hp;
+
+  g_return_if_fail (SHELL_IS_HOOK_REGISTRY (self));
+
+  hp = lookup_point (self, name);
+  if (hp == NULL)
+    {
+      g_warning ("Cannot set the replay of undeclared hook '%s'", name ? name : "(null)");
+      return;
+    }
+
+  hp->replay = func;
+  hp->replay_data = func != NULL ? user_data : NULL;
+}
+
 /**
  * shell_hook_registry_connect: (skip)
  * @self: the registry
@@ -458,6 +534,15 @@ shell_hook_registry_connect (ShellHookRegistry *self,
 
   g_ptr_array_add (hp->listeners[phase], l);
   g_hash_table_insert (self->by_id, GUINT_TO_POINTER (l->id), l);
+
+  if (phase == SHELL_HOOK_PHASE_AFTER && hp->replay != NULL)
+    {
+      /* The replay runs after this returns: the listener is told about what
+       * exists, not from inside the call that connected it. The source is
+       * the listener's own (removed when it is freed). */
+      l->replay_pending = TRUE;
+      l->replay_source = g_idle_add_full (G_PRIORITY_DEFAULT_IDLE, replay_idle_cb, l, NULL);
+    }
 
   return l->id;
 }
@@ -701,7 +786,9 @@ shell_hook_registry_emit_after (ShellHookRegistry *self,
     {
       Listener *l = g_ptr_array_index (snap, i);
 
-      if (l->removed)
+      /* A listener whose replay is pending gets the state it describes from
+       * the replay */
+      if (l->removed || l->replay_pending)
         continue;
 
       l->fn (hp->name, SHELL_HOOK_PHASE_AFTER, pl, NULL, l->user_data);

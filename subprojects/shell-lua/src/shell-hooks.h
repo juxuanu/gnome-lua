@@ -92,6 +92,48 @@ guint              shell_hook_registry_count_listeners (ShellHookRegistry *self,
                                                         ShellHookPhase     phase);
 
 /**
+ * ShellHookReplayFunc:
+ * @registry: the registry
+ * @name: the hook name
+ * @user_data: (closure): the data given to shell_hook_registry_set_replay()
+ *
+ * Called by the registry, from an idle, for a listener that connected to the
+ * "after" phase of a hook that has a replay. Returns the events that describe
+ * what exists now, in the order they are to be delivered. The function must
+ * answer from the state as it is when called, including everything that was
+ * emitted already, because the new listener does not receive live emissions
+ * that happen between its connection and the replay.
+ *
+ * Returns: (transfer full) (element-type GVariant) (nullable): an array of
+ *   a{sv} payloads, owned by the array (no floating references); %NULL for
+ *   none
+ */
+typedef GPtrArray * (*ShellHookReplayFunc) (ShellHookRegistry *registry,
+                                            const char        *name,
+                                            gpointer           user_data);
+
+/**
+ * shell_hook_registry_set_replay: (skip)
+ * @self: the registry
+ * @name: a declared hook
+ * @func: (nullable): the replay function, %NULL removes it
+ * @user_data: data for @func; must stay valid as long as the replay is set
+ *
+ * Makes @name a hook with a replay: whenever a listener connects to its
+ * "after" phase, @func is called from an idle (never from inside
+ * shell_hook_registry_connect()) and each payload it returns is delivered to
+ * that one listener, as an "after" emission that no other listener sees (the
+ * "emitted" signal is not emitted). Until the replay has run, the listener
+ * is skipped by the live emissions of the hook, since the replay covers them.
+ * A listener that is disconnected before the idle runs gets nothing. Listeners
+ * that were connected before the replay was set get none.
+ */
+void               shell_hook_registry_set_replay  (ShellHookRegistry *self,
+                                                    const char        *name,
+                                                    ShellHookReplayFunc func,
+                                                    gpointer           user_data);
+
+/**
  * shell_hook_registry_emit_before:
  * @payload: (nullable): a{sv}, NULL for an empty dictionary
  * @amendments: (out) (optional) (transfer full) (nullable): merged a{sv} of all amendments, NULL if none

@@ -1,0 +1,7 @@
+{
+  "uuid": "search-nocap@test",
+  "name": "API conformance: search without the capability",
+  "description": "Fixture of tests/api/search.lua: shell.search.add_provider raises without the search capability",
+  "shell-api": "1.1",
+  "version": 1
+}

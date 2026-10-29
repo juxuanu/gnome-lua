@@ -110,19 +110,58 @@ typedef enum
   ACTION_MOVE_TO_WORKSPACE,
   ACTION_MOVE_TO_MONITOR,
   ACTION_ACTIVATE_WORKSPACE,
+  /* 1.1 */
+  ACTION_MOVE,
+  ACTION_RESIZE,
+  ACTION_MOVE_RESIZE,
+  ACTION_MAXIMIZE,
+  ACTION_UNMAXIMIZE,
+  ACTION_SET_FULLSCREEN,
+  ACTION_SET_ABOVE,
+  ACTION_SET_ON_ALL_WORKSPACES,
+  ACTION_UNMINIMIZE,
 } ActionKind;
+
+/* x, y, width, height of the rectangle of a geometry action */
+typedef struct
+{
+  int x;
+  int y;
+  int width;
+  int height;
+} ActionRect;
 
 typedef struct
 {
   GWeakRef   object;
   ActionKind kind;
-  int        arg;      /* 0-based workspace or monitor */
+  int        arg;      /* 0-based workspace or monitor; the boolean of set_* */
+  ActionRect rect;
 } Action;
 
+/* The 1.1 actions call Mutter functions that g_return_if_fail () on an
+ * override-redirect window, and on one that is being unmanaged (an action
+ * that was deferred to idle can find the window gone: the handle died with
+ * it, but the weak reference to the object holds until it is finalized). That
+ * is a critical, so check first: Mutter "may ignore" the actions anyway. */
+static gboolean
+window_accepts_actions (MetaWindow *window)
+{
+  MetaDisplay *display = meta_window_get_display (window);
+  g_autoptr (GList) all = NULL;
+
+  if (display == NULL || meta_window_is_override_redirect (window))
+    return FALSE;
+
+  all = meta_display_list_all_windows (display);
+  return g_list_find (all, window) != NULL;
+}
+
 static void
-perform_action (GObject   *object,
-                ActionKind kind,
-                int        arg)
+perform_action (GObject          *object,
+                ActionKind        kind,
+                int               arg,
+                const ActionRect *rect)
 {
   ShellGlobal *global = shell_global_get ();
   ShellMain *main = shell_main_get_default ();
@@ -180,6 +219,94 @@ perform_action (GObject   *object,
       meta_workspace_activate (META_WORKSPACE (object), shell_global_get_current_time (global));
       break;
 
+    case ACTION_MOVE:
+      if (window_accepts_actions (META_WINDOW (object)))
+        meta_window_move_frame (META_WINDOW (object), FALSE, rect->x, rect->y);
+      break;
+
+    case ACTION_RESIZE:
+      if (window_accepts_actions (META_WINDOW (object)))
+        {
+          MtkRectangle frame;
+
+          meta_window_get_frame_rect (META_WINDOW (object), &frame);
+          meta_window_move_resize_frame (META_WINDOW (object), FALSE, frame.x, frame.y,
+                                         rect->width, rect->height);
+        }
+      break;
+
+    case ACTION_MOVE_RESIZE:
+      if (window_accepts_actions (META_WINDOW (object)))
+        meta_window_move_resize_frame (META_WINDOW (object), FALSE, rect->x, rect->y,
+                                       rect->width, rect->height);
+      break;
+
+    case ACTION_MAXIMIZE:
+      {
+        MetaWindow *window = META_WINDOW (object);
+
+        if (window_accepts_actions (window) && meta_window_can_maximize (window) &&
+            !meta_window_is_maximized (window))
+          meta_window_maximize (window);
+      }
+      break;
+
+    case ACTION_UNMAXIMIZE:
+      {
+        MetaWindow *window = META_WINDOW (object);
+        gboolean horizontal = FALSE, vertical = FALSE;
+
+        /* also a window maximized on one axis only (by its client) */
+        g_object_get (object, "maximized-horizontally", &horizontal,
+                      "maximized-vertically", &vertical, NULL);
+        if (window_accepts_actions (window) && (horizontal || vertical))
+          meta_window_unmaximize (window);
+      }
+      break;
+
+    case ACTION_SET_FULLSCREEN:
+      if (window_accepts_actions (META_WINDOW (object)) &&
+          arg != meta_window_is_fullscreen (META_WINDOW (object)))
+        {
+          if (arg)
+            meta_window_make_fullscreen (META_WINDOW (object));
+          else
+            meta_window_unmake_fullscreen (META_WINDOW (object));
+        }
+      break;
+
+    case ACTION_SET_ABOVE:
+      if (window_accepts_actions (META_WINDOW (object)) &&
+          arg != meta_window_is_above (META_WINDOW (object)))
+        {
+          if (arg)
+            meta_window_make_above (META_WINDOW (object));
+          else
+            meta_window_unmake_above (META_WINDOW (object));
+        }
+      break;
+
+    case ACTION_SET_ON_ALL_WORKSPACES:
+      if (window_accepts_actions (META_WINDOW (object)) &&
+          arg != meta_window_is_on_all_workspaces (META_WINDOW (object)))
+        {
+          if (arg)
+            meta_window_stick (META_WINDOW (object));
+          else
+            meta_window_unstick (META_WINDOW (object));
+        }
+      break;
+
+    case ACTION_UNMINIMIZE:
+      {
+        gboolean minimized = FALSE;
+
+        g_object_get (object, "minimized", &minimized, NULL);
+        if (minimized && window_accepts_actions (META_WINDOW (object)))
+          meta_window_unminimize (META_WINDOW (object));
+      }
+      break;
+
     default:
       g_assert_not_reached ();
     }
@@ -192,7 +319,7 @@ action_idle_cb (gpointer data)
   g_autoptr (GObject) object = g_weak_ref_get (&action->object);
 
   if (object != NULL)
-    perform_action (object, action->kind, action->arg);
+    perform_action (object, action->kind, action->arg, &action->rect);
   return G_SOURCE_REMOVE;
 }
 
@@ -207,10 +334,16 @@ action_free (gpointer data)
 
 /* "Takes effect on the next frame": run now, unless a hook is being emitted */
 static void
-run_action (GObject   *object,
-            ActionKind kind,
-            int        arg)
+run_action_rect (GObject          *object,
+                 ActionKind        kind,
+                 int               arg,
+                 const ActionRect *rect)
 {
+  static const ActionRect no_rect = { 0 };
+
+  if (rect == NULL)
+    rect = &no_rect;
+
   if (shell_window_hooks_is_emitting ())
     {
       Action *action = g_new0 (Action, 1);
@@ -218,11 +351,20 @@ run_action (GObject   *object,
       g_weak_ref_init (&action->object, object);
       action->kind = kind;
       action->arg = arg;
+      action->rect = *rect;
       g_idle_add_full (G_PRIORITY_DEFAULT_IDLE, action_idle_cb, action, action_free);
       return;
     }
 
-  perform_action (object, kind, arg);
+  perform_action (object, kind, arg, rect);
+}
+
+static void
+run_action (GObject   *object,
+            ActionKind kind,
+            int        arg)
+{
+  run_action_rect (object, kind, arg, NULL);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -317,6 +459,49 @@ window_get_pid (lua_State *L, GObject *object)
     lua_pushnil (L);
 }
 
+/* 1.1 */
+
+static void
+window_get_frame (lua_State *L, GObject *object)
+{
+  MtkRectangle frame;
+
+  meta_window_get_frame_rect (META_WINDOW (object), &frame);
+  lua_createtable (L, 0, 4);
+  lua_pushinteger (L, frame.x);
+  lua_setfield (L, -2, "x");
+  lua_pushinteger (L, frame.y);
+  lua_setfield (L, -2, "y");
+  lua_pushinteger (L, frame.width);
+  lua_setfield (L, -2, "width");
+  lua_pushinteger (L, frame.height);
+  lua_setfield (L, -2, "height");
+}
+
+static void
+window_get_above (lua_State *L, GObject *object)
+{
+  lua_pushboolean (L, meta_window_is_above (META_WINDOW (object)));
+}
+
+static void
+window_get_on_all_workspaces (lua_State *L, GObject *object)
+{
+  lua_pushboolean (L, meta_window_is_on_all_workspaces (META_WINDOW (object)));
+}
+
+static void
+window_get_resizable (lua_State *L, GObject *object)
+{
+  lua_pushboolean (L, meta_window_allows_resize (META_WINDOW (object)));
+}
+
+static void
+window_get_movable (lua_State *L, GObject *object)
+{
+  lua_pushboolean (L, meta_window_allows_move (META_WINDOW (object)));
+}
+
 static const ShellLuaHandleVirtual window_virtuals[] = {
   { "id",         window_get_id,         NULL },
   { "title",      window_get_title,      NULL },
@@ -329,6 +514,11 @@ static const ShellLuaHandleVirtual window_virtuals[] = {
   { "fullscreen", window_get_fullscreen, NULL },
   { "focused",    window_get_focused,    NULL },
   { "pid",        window_get_pid,        NULL },
+  { "frame",             window_get_frame,             NULL },
+  { "above",             window_get_above,             NULL },
+  { "on_all_workspaces", window_get_on_all_workspaces, NULL },
+  { "resizable",         window_get_resizable,         NULL },
+  { "movable",           window_get_movable,           NULL },
   { NULL }
 };
 
@@ -387,12 +577,150 @@ l_window_move_to_monitor (lua_State *L)
   return 0;
 }
 
+/* ---- 1.1: geometry and state ------------------------------------------- */
+
+/* Coordinates and sizes stay far from the overflows of the constraint code of
+ * Mutter */
+#define COORDINATE_MAX 65536
+
+/* Field @name of the options table at @tbl: a required integer in
+ * [@min, @max] */
+static int
+check_rect_field (lua_State  *L,
+                  int         tbl,
+                  const char *name,
+                  lua_Integer min)
+{
+  lua_Integer value;
+  int isint;
+
+  if (lua_getfield (L, tbl, name) == LUA_TNIL)
+    luaL_error (L, "missing required field '%s' (an integer)", name);
+  if (lua_type (L, -1) != LUA_TNUMBER)
+    luaL_error (L, "field '%s' must be an integer, got %s", name, luaL_typename (L, -1));
+  value = lua_tointegerx (L, -1, &isint);
+  if (!isint)
+    luaL_error (L, "field '%s' must be an integer (number has no integer representation)", name);
+  if (value < min || value > COORDINATE_MAX)
+    luaL_error (L, "field '%s' must be between %I and %I", name, min, (lua_Integer) COORDINATE_MAX);
+  lua_pop (L, 1);
+  return (int) value;
+}
+
+static int
+window_rect_action (lua_State  *L,
+                    ActionKind  kind,
+                    gboolean    position,
+                    gboolean    size)
+{
+  static const char * const move_fields[] = { "x", "y", NULL };
+  static const char * const resize_fields[] = { "width", "height", NULL };
+  static const char * const move_resize_fields[] = { "x", "y", "width", "height", NULL };
+  GObject *window = check_window (L);
+  ActionRect rect = { 0 };
+
+  if (lua_gettop (L) != 2)
+    luaL_error (L, "expected one options table");
+  shell_lua_check_fields (L, 2, position && size ? move_resize_fields :
+                                position ? move_fields : resize_fields);
+  if (position)
+    {
+      rect.x = check_rect_field (L, 2, "x", -COORDINATE_MAX);
+      rect.y = check_rect_field (L, 2, "y", -COORDINATE_MAX);
+    }
+  if (size)
+    {
+      rect.width = check_rect_field (L, 2, "width", 1);
+      rect.height = check_rect_field (L, 2, "height", 1);
+    }
+
+  run_action_rect (window, kind, 0, &rect);
+  return 0;
+}
+
+static int
+l_window_move (lua_State *L)
+{
+  return window_rect_action (L, ACTION_MOVE, TRUE, FALSE);
+}
+
+static int
+l_window_resize (lua_State *L)
+{
+  return window_rect_action (L, ACTION_RESIZE, FALSE, TRUE);
+}
+
+static int
+l_window_move_resize (lua_State *L)
+{
+  return window_rect_action (L, ACTION_MOVE_RESIZE, TRUE, TRUE);
+}
+
+static int
+l_window_maximize (lua_State *L)
+{
+  run_action (check_window (L), ACTION_MAXIMIZE, 0);
+  return 0;
+}
+
+static int
+l_window_unmaximize (lua_State *L)
+{
+  run_action (check_window (L), ACTION_UNMAXIMIZE, 0);
+  return 0;
+}
+
+static int
+l_window_unminimize (lua_State *L)
+{
+  run_action (check_window (L), ACTION_UNMINIMIZE, 0);
+  return 0;
+}
+
+static int
+window_boolean_action (lua_State *L,
+                       ActionKind kind)
+{
+  GObject *window = check_window (L);
+
+  luaL_checktype (L, 2, LUA_TBOOLEAN);
+  run_action (window, kind, lua_toboolean (L, 2));
+  return 0;
+}
+
+static int
+l_window_set_fullscreen (lua_State *L)
+{
+  return window_boolean_action (L, ACTION_SET_FULLSCREEN);
+}
+
+static int
+l_window_set_above (lua_State *L)
+{
+  return window_boolean_action (L, ACTION_SET_ABOVE);
+}
+
+static int
+l_window_set_on_all_workspaces (lua_State *L)
+{
+  return window_boolean_action (L, ACTION_SET_ON_ALL_WORKSPACES);
+}
+
 static const luaL_Reg window_methods[] = {
   { "activate",          l_window_activate },
   { "minimize",          l_window_minimize },
   { "close",             l_window_close },
   { "move_to_workspace", l_window_move_to_workspace },
   { "move_to_monitor",   l_window_move_to_monitor },
+  { "move",                 l_window_move },
+  { "resize",               l_window_resize },
+  { "move_resize",          l_window_move_resize },
+  { "maximize",             l_window_maximize },
+  { "unmaximize",           l_window_unmaximize },
+  { "set_fullscreen",       l_window_set_fullscreen },
+  { "set_above",            l_window_set_above },
+  { "set_on_all_workspaces", l_window_set_on_all_workspaces },
+  { "unminimize",           l_window_unminimize },
   { NULL, NULL }
 };
 

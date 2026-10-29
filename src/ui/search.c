@@ -38,6 +38,7 @@
 #include "shell-hooks.h"
 #include "ui/animation.h"
 #include "ui/environment.h"
+#include "ui/extension-order.h"
 #include "ui/icon-grid.h"
 #include "ui/remote-search.h"
 #include "ui/search.h"
@@ -857,6 +858,24 @@ shell_search_provider_real_create_result_object (ShellSearchProvider   *self,
   return NULL;
 }
 
+static char *
+shell_search_provider_real_get_title (ShellSearchProvider *self)
+{
+  return NULL;
+}
+
+static GIcon *
+shell_search_provider_real_get_icon (ShellSearchProvider *self)
+{
+  return NULL;
+}
+
+static char *
+shell_search_provider_real_get_owner (ShellSearchProvider *self)
+{
+  return NULL;
+}
+
 static void
 shell_search_provider_default_init (ShellSearchProviderInterface *iface)
 {
@@ -867,6 +886,9 @@ shell_search_provider_default_init (ShellSearchProviderInterface *iface)
   iface->launch_search = shell_search_provider_real_launch_search;
   iface->filter_results = shell_search_provider_real_filter_results;
   iface->create_result_object = shell_search_provider_real_create_result_object;
+  iface->get_title = shell_search_provider_real_get_title;
+  iface->get_icon = shell_search_provider_real_get_icon;
+  iface->get_owner = shell_search_provider_real_get_owner;
 
   /**
    * ShellSearchProvider:id:
@@ -935,6 +957,51 @@ shell_search_provider_get_id (ShellSearchProvider *self)
 
   g_object_get (self, "id", &id, NULL);
   return id;
+}
+
+/**
+ * shell_search_provider_get_title:
+ * @self: a #ShellSearchProvider
+ *
+ * Returns: (transfer full) (nullable): the title that heads the list of the
+ *   results of a provider without an application, or %NULL
+ */
+char *
+shell_search_provider_get_title (ShellSearchProvider *self)
+{
+  g_return_val_if_fail (SHELL_IS_SEARCH_PROVIDER (self), NULL);
+
+  return SHELL_SEARCH_PROVIDER_GET_IFACE (self)->get_title (self);
+}
+
+/**
+ * shell_search_provider_get_icon:
+ * @self: a #ShellSearchProvider
+ *
+ * Returns: (transfer full) (nullable): the icon in the header of the list of
+ *   the results of a provider with a title, or %NULL
+ */
+GIcon *
+shell_search_provider_get_icon (ShellSearchProvider *self)
+{
+  g_return_val_if_fail (SHELL_IS_SEARCH_PROVIDER (self), NULL);
+
+  return SHELL_SEARCH_PROVIDER_GET_IFACE (self)->get_icon (self);
+}
+
+/**
+ * shell_search_provider_get_owner:
+ * @self: a #ShellSearchProvider
+ *
+ * Returns: (transfer full) (nullable): the uuid of the extension the provider
+ *   belongs to, or %NULL
+ */
+char *
+shell_search_provider_get_owner (ShellSearchProvider *self)
+{
+  g_return_val_if_fail (SHELL_IS_SEARCH_PROVIDER (self), NULL);
+
+  return SHELL_SEARCH_PROVIDER_GET_IFACE (self)->get_owner (self);
 }
 
 /**
@@ -2184,6 +2251,7 @@ search_results_base_do_update_search (ShellSearchResultsBase *self,
   ShellSearchResultsBaseClass *klass = SHELL_SEARCH_RESULTS_BASE_GET_CLASS (self);
   g_autoptr (GTask) task = NULL;
   g_autoptr (GPtrArray) needed = NULL;
+  g_autofree char *owner = NULL;
   UpdateData *data;
   int max_results;
   guint n_provider_results;
@@ -2220,6 +2288,12 @@ search_results_base_do_update_search (ShellSearchResultsBase *self,
     data->results = strv_new_empty ();
 
   data->more_count = MAX ((int) n_provider_results - (int) g_strv_length (data->results), 0);
+
+  /* The results of an extension are described again for every search: the
+   * name of a result can depend on the terms */
+  owner = shell_search_provider_get_owner (priv->provider);
+  if (owner != NULL)
+    g_hash_table_remove_all (priv->result_displays);
 
   needed = g_ptr_array_new ();
   for (int i = 0; data->results[i] != NULL; i++)
@@ -2555,6 +2629,8 @@ shell_list_search_results_constructed (GObject *object)
   ShellSearchResultsBase *base = SHELL_SEARCH_RESULTS_BASE (self);
   ShellSearchResultsBasePrivate *base_priv = shell_search_results_base_get_instance_private (base);
   g_autoptr (GAppInfo) app_info = NULL;
+  g_autofree char *title = NULL;
+  g_autoptr (GIcon) title_icon = NULL;
   ClutterActor *container, *info, *icon, *details_box, *name_label, *more_label;
 
   G_OBJECT_CLASS (shell_list_search_results_parent_class)->constructed (object);
@@ -2565,14 +2641,27 @@ shell_list_search_results_constructed (GObject *object)
                             NULL);
 
   app_info = shell_search_provider_get_app_info (base_priv->provider);
-  if (app_info != NULL)
+  if (app_info == NULL)
     {
+      /* A provider of an extension: a title and an icon instead of an
+       * application. The header is a button only if it can launch a search */
+      title = shell_search_provider_get_title (base_priv->provider);
+      title_icon = shell_search_provider_get_icon (base_priv->provider);
+    }
+
+  if (app_info != NULL || title != NULL)
+    {
+      const char *header_name = app_info != NULL ? g_app_info_get_name (app_info) : title;
+      GIcon *header_icon = app_info != NULL ? g_app_info_get_icon (app_info) : title_icon;
+      gboolean can_launch = app_info != NULL ||
+                            shell_search_provider_get_can_launch_search (base_priv->provider);
+
       info = g_object_new (ST_TYPE_BUTTON,
                            "style-class", "search-provider-icon",
-                           "reactive", TRUE,
-                           "can-focus", TRUE,
-                           "accessible-name", g_app_info_get_name (app_info),
-                           "track-hover", TRUE,
+                           "reactive", can_launch,
+                           "can-focus", can_launch,
+                           "accessible-name", header_name,
+                           "track-hover", can_launch,
                            "y-align", CLUTTER_ACTOR_ALIGN_START,
                            NULL);
       g_signal_connect_object (info, "key-focus-in",
@@ -2590,7 +2679,7 @@ shell_list_search_results_constructed (GObject *object)
 
       icon = g_object_new (ST_TYPE_ICON,
                            "icon-size", PROVIDER_ICON_SIZE,
-                           "gicon", g_app_info_get_icon (app_info),
+                           "gicon", header_icon,
                            NULL);
 
       details_box = g_object_new (ST_TYPE_BOX_LAYOUT,
@@ -2601,7 +2690,7 @@ shell_list_search_results_constructed (GObject *object)
                                   NULL);
 
       name_label = g_object_new (ST_TYPE_LABEL,
-                                 "text", g_app_info_get_name (app_info),
+                                 "text", header_name,
                                  "x-align", CLUTTER_ACTOR_ALIGN_START,
                                  "y-align", CLUTTER_ACTOR_ALIGN_CENTER,
                                  "y-expand", TRUE,
@@ -3537,13 +3626,15 @@ view_ensure_provider_display (ShellSearchResultsView *self,
                               ProviderEntry          *entry)
 {
   g_autoptr (GAppInfo) app_info = NULL;
+  g_autofree char *title = NULL;
   ClutterActor *display;
 
   if (entry->display != NULL)
     return;
 
   app_info = shell_search_provider_get_app_info (entry->provider);
-  if (app_info != NULL)
+  title = app_info == NULL ? shell_search_provider_get_title (entry->provider) : NULL;
+  if (app_info != NULL || title != NULL)
     display = g_object_new (SHELL_TYPE_LIST_SEARCH_RESULTS,
                             "provider", entry->provider,
                             "results-view", self,
@@ -3561,6 +3652,32 @@ view_ensure_provider_display (ShellSearchResultsView *self,
   g_set_weak_pointer (&entry->display, display);
 }
 
+/* Where a provider goes in the list: the providers without an owner in the
+ * order they are registered, after them those of the extensions, by the
+ * position of the extension in `enabled-extensions` and then in the order they
+ * are registered (docs/api/search.md) */
+static guint
+view_provider_position (ShellSearchResultsView *self,
+                        ShellSearchProvider    *provider)
+{
+  g_autofree char *owner = shell_search_provider_get_owner (provider);
+
+  for (guint i = 0; i < self->providers->len; i++)
+    {
+      ProviderEntry *entry = g_ptr_array_index (self->providers, i);
+      g_autofree char *entry_owner = shell_search_provider_get_owner (entry->provider);
+
+      if (entry_owner == NULL)
+        continue;
+
+      /* The first section of an extension that goes after the new one */
+      if (owner == NULL || shell_extension_order_compare (entry_owner, owner) > 0)
+        return i;
+    }
+
+  return self->providers->len;
+}
+
 /**
  * shell_search_results_view_register_provider:
  * @self: a #ShellSearchResultsView
@@ -3568,7 +3685,8 @@ view_ensure_provider_display (ShellSearchResultsView *self,
  *
  * Adds a provider to the search (`_registerProvider ()`), unless parental
  * controls hide its application. Providers are searched, and their results
- * shown, in the order they are registered.
+ * shown, in the order they are registered, except that those of extensions
+ * (#ShellSearchProviderInterface::get_owner) come after the others.
  */
 void
 shell_search_results_view_register_provider (ShellSearchResultsView *self,
@@ -3576,6 +3694,7 @@ shell_search_results_view_register_provider (ShellSearchResultsView *self,
 {
   g_autoptr (GAppInfo) app_info = NULL;
   ProviderEntry *entry;
+  guint position;
 
   g_return_if_fail (SHELL_IS_SEARCH_RESULTS_VIEW (self));
   g_return_if_fail (SHELL_IS_SEARCH_PROVIDER (provider));
@@ -3591,8 +3710,18 @@ shell_search_results_view_register_provider (ShellSearchResultsView *self,
     return;
 
   entry = provider_entry_new (provider);
-  g_ptr_array_add (self->providers, entry);
+  position = view_provider_position (self, provider);
+  g_ptr_array_insert (self->providers, position, entry);
   view_ensure_provider_display (self, entry);
+
+  /* The section goes where the provider is in the list */
+  if (position + 1 < self->providers->len && entry->display != NULL)
+    {
+      ProviderEntry *next = g_ptr_array_index (self->providers, position + 1);
+
+      if (next->display != NULL && self->content != NULL)
+        clutter_actor_set_child_below_sibling (self->content, entry->display, next->display);
+    }
 }
 
 /**
@@ -3940,6 +4069,90 @@ shell_search_results_view_get_terms (ShellSearchResultsView *self)
   g_return_val_if_fail (SHELL_IS_SEARCH_RESULTS_VIEW (self), NULL);
 
   return g_strdupv (self->terms);
+}
+
+/* The result actors below @actor, in the order they are shown (a result does
+ * not hold results) */
+static void
+view_collect_results (ClutterActor *actor,
+                      GPtrArray    *results)
+{
+  for (ClutterActor *child = clutter_actor_get_first_child (actor);
+       child != NULL;
+       child = clutter_actor_get_next_sibling (child))
+    {
+      if (SHELL_IS_SEARCH_RESULT (child))
+        g_ptr_array_add (results, child);
+      else
+        view_collect_results (child, results);
+    }
+}
+
+static GPtrArray *
+view_get_provider_results (ShellSearchResultsView *self,
+                           const char             *provider_id)
+{
+  GPtrArray *results = g_ptr_array_new ();
+
+  for (guint i = 0; i < self->providers->len; i++)
+    {
+      ProviderEntry *entry = g_ptr_array_index (self->providers, i);
+      g_autofree char *id = shell_search_provider_get_id (entry->provider);
+
+      if (g_strcmp0 (id, provider_id) == 0 && entry->display != NULL)
+        {
+          view_collect_results (entry->display, results);
+          break;
+        }
+    }
+
+  return results;
+}
+
+/**
+ * shell_search_results_view_get_n_results:
+ * @view: a #ShellSearchResultsView
+ * @provider_id: the #ShellSearchProvider:id of a provider
+ *
+ * Counts the results the section of a provider shows now. For the tests of
+ * the extension API and for accessibility tools.
+ *
+ * Returns: the number of results, 0 for an unknown provider
+ */
+guint
+shell_search_results_view_get_n_results (ShellSearchResultsView *view,
+                                         const char             *provider_id)
+{
+  g_autoptr (GPtrArray) results = NULL;
+
+  g_return_val_if_fail (SHELL_IS_SEARCH_RESULTS_VIEW (view), 0);
+  g_return_val_if_fail (provider_id != NULL, 0);
+
+  results = view_get_provider_results (view, provider_id);
+  return results->len;
+}
+
+/**
+ * shell_search_results_view_get_result:
+ * @view: a #ShellSearchResultsView
+ * @provider_id: the #ShellSearchProvider:id of a provider
+ * @index: the 0-based position of the result in its section
+ *
+ * Returns: (transfer none) (nullable): the result actor shown at @index in
+ *   the section of the provider, or %NULL
+ */
+ShellSearchResult *
+shell_search_results_view_get_result (ShellSearchResultsView *view,
+                                      const char             *provider_id,
+                                      guint                   index)
+{
+  g_autoptr (GPtrArray) results = NULL;
+
+  g_return_val_if_fail (SHELL_IS_SEARCH_RESULTS_VIEW (view), NULL);
+  g_return_val_if_fail (provider_id != NULL, NULL);
+
+  results = view_get_provider_results (view, provider_id);
+  return index < results->len ? g_ptr_array_index (results, index) : NULL;
 }
 
 /**

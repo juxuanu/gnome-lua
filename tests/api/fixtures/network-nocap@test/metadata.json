@@ -1,0 +1,7 @@
+{
+  "uuid": "network-nocap@test",
+  "name": "API conformance: network without the capability",
+  "description": "Fixture of tests/api/network.lua: shell.network.request raises without the network capability",
+  "shell-api": "1.1",
+  "version": 1
+}

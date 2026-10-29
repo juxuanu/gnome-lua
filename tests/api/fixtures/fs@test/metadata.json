@@ -1,0 +1,8 @@
+{
+  "uuid": "fs@test",
+  "name": "API conformance: fs",
+  "description": "Fixture of tests/api/fs.lua: shell.fs and shell.extension.data_dir with the fs capability",
+  "shell-api": "1.1",
+  "capabilities": ["fs"],
+  "version": 1
+}

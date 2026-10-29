@@ -1,21 +1,32 @@
-# `shell.windows`, `shell.workspaces`, `shell.monitors`, `shell.apps` (version 1, draft)
+# `shell.windows`, `shell.workspaces`, `shell.monitors`, `shell.apps` (version 1)
 
 Scope: a read-mostly view of the desktop (which windows, workspaces and
-monitors exist, which window is focused) with five narrow actions on windows,
-and the small `shell.apps` helper the other documents use to launch
-applications. State changes arrive through hooks (hooks.md), whose payloads
-carry the same ids and indices as these handles. Window management itself
-(placement, tiling, keybinding-driven moves, window animations) stays in the
-shell.
+monitors exist, which window is focused) with narrow actions on windows (five
+in 1.0; in 1.1 also geometry, maximizing, fullscreen, always-on-top, sticking
+and unminimizing), and the small `shell.apps` helper the other documents use to
+launch applications. State changes arrive through hooks (hooks.md), whose
+payloads carry the same ids and indices as these handles. Window management
+itself (placement policy, tiling, keybinding-driven moves, window animations)
+stays in the shell.
 
-Status: implemented (M7) by `src/lua-api/shell-lua-api-window.c`; the hooks by
-`src/lua-api/shell-window-hooks.c` (hooks.md); conformance test
-`tests/api/window.lua` with the fixture `tests/api/fixtures/window@test`.
+Items marked **Since 1.1** do not exist in a shell that reports
+`shell.api_version.minor == 0`; an extension that declares `"shell-api": "1"`
+in its metadata and wants them tests for them (`w.frame ~= nil`,
+`w.move ~= nil`).
 
-Not in v1:
-- Geometry: reading `frame_rect`, moving, resizing, maximizing, fullscreening,
-  pinning, always-on-top, shading, `stick`: an extension that arranges windows
-  is a window manager; use hooks to observe and the five actions to nudge.
+Status: implemented (M7, extended in 1.1) by `src/lua-api/shell-lua-api-window.c`;
+the hooks by `src/lua-api/shell-window-hooks.c` (hooks.md), the replay of
+`window.mapped` by `ShellHookRegistry` (`subprojects/shell-lua/src/shell-hooks.c`);
+conformance test `tests/api/window.lua` with the fixture
+`tests/api/fixtures/window@test`.
+
+Not in v1 (1.0 and 1.1):
+- Edge tiling and half-maximizing, maximizing on one axis, shading, window
+  decorations, the client area or buffer rectangles (`frame` is the frame
+  rectangle only), interactive moves and resizes (the pointer drag), snapping
+  and constraints of your own: an extension that arranges windows is a window
+  manager; the 1.1 actions place a window, they do not make Mutter follow a
+  layout policy.
 - Window actors, previews, screenshots, window contents or `Meta.Window`
   properties beyond the table below.
 - Creating, removing, reordering or renaming workspaces (dynamic workspaces
@@ -49,33 +60,70 @@ cannot map or maps to no desktop file (a window-backed app).
 All properties are read-only snapshots of the live window; they change when the
 window does.
 
-| Property | Type | Notes |
-|---|---|---|
-| `id` | integer | stable key; use it for your own tables |
-| `title` | string | may be empty |
-| `wm_class` | string | `WM_CLASS` class (X11) or the app id (Wayland), may be empty |
-| `app_id` | string or nil | desktop file id |
-| `workspace` | integer or nil | 1-based; nil when the window is on all workspaces |
-| `monitor` | integer | 1-based, the monitor holding most of the window (the primary one while it has none yet) |
-| `minimized` | boolean | |
-| `maximized` | boolean | maximized on both axes |
-| `fullscreen` | boolean | |
-| `focused` | boolean | |
-| `pid` | integer or nil | nil when unknown (many Wayland clients) |
-| `alive` | boolean | false once the window is destroyed; the handle then raises like any dead handle |
+| Property | Type | Since | Notes |
+|---|---|---|---|
+| `id` | integer | 1.0 | stable key; use it for your own tables |
+| `title` | string | 1.0 | may be empty |
+| `wm_class` | string | 1.0 | `WM_CLASS` class (X11) or the app id (Wayland), may be empty |
+| `app_id` | string or nil | 1.0 | desktop file id |
+| `workspace` | integer or nil | 1.0 | 1-based; nil when the window is on all workspaces |
+| `monitor` | integer | 1.0 | 1-based, the monitor holding most of the window (the primary one while it has none yet) |
+| `minimized` | boolean | 1.0 | |
+| `maximized` | boolean | 1.0 | maximized on both axes |
+| `fullscreen` | boolean | 1.0 | |
+| `focused` | boolean | 1.0 | |
+| `pid` | integer or nil | 1.0 | nil when unknown (many Wayland clients) |
+| `frame` | table | 1.1 | `{x = , y = , width = , height = }`, integers in logical pixels and global (stage) coordinates: the *frame rectangle* of Mutter (`meta_window_get_frame_rect`: the window with its server-side decorations, without the client-side shadow). A new table on every read, so changing it changes nothing; use `move`, `resize` and `move_resize` to change the window. For a minimized window, the rectangle it has when shown |
+| `above` | boolean | 1.1 | always on top (`meta_window_is_above`); true after `set_above(true)`, but also when the user chose "Always on Top" in the window menu or the client asked for it |
+| `on_all_workspaces` | boolean | 1.1 | the window is shown on every workspace; it is exactly the case where `workspace` is nil |
+| `resizable` | boolean | 1.1 | Mutter lets the window be resized (`meta_window_allows_resize`): false for fixed-size windows, maximized and fullscreen windows |
+| `movable` | boolean | 1.1 | Mutter lets the window be moved (`meta_window_allows_move`): false for fullscreen and some special windows |
+| `alive` | boolean | 1.0 | false once the window is destroyed; the handle then raises like any dead handle |
 
 Actions (methods; each returns nothing, raises on misuse, and takes effect on
 the next frame, so properties may still show the old value right after the
 call; called from a listener of a `window.*` or `workspace.*` hook, an action
 (of `shell.Workspace` too) is deferred to idle, README rule 8):
 
-| Method | Effect |
-|---|---|
-| `w:activate()` | `Main.activateWindow`: switches to the window's workspace if needed, unminimizes, raises, focuses; also hides the overview and closes the calendar |
-| `w:minimize()` | minimize (no-op if already) |
-| `w:close()` | polite close request (`Meta.Window.delete`); the app may refuse or ask; an unresponsive app gets the usual "Not responding" dialog |
-| `w:move_to_workspace(n)` | `n` an integer in `1..#shell.workspaces.list()`; does not create workspaces (`change_workspace_by_index(n, append = false)`); raises when out of range |
-| `w:move_to_monitor(n)` | `n` in `1..#shell.monitors.list()`; as in `moveWindowToMonitorAndWorkspace`, entering the primary monitor can change the window's workspace; a window that is on all workspaces only moves |
+| Method | Since | Effect |
+|---|---|---|
+| `w:activate()` | 1.0 | `Main.activateWindow`: switches to the window's workspace if needed, unminimizes, raises, focuses; also hides the overview and closes the calendar |
+| `w:minimize()` | 1.0 | minimize (no-op if already) |
+| `w:close()` | 1.0 | polite close request (`Meta.Window.delete`); the app may refuse or ask; an unresponsive app gets the usual "Not responding" dialog |
+| `w:move_to_workspace(n)` | 1.0 | `n` an integer in `1..#shell.workspaces.list()`; does not create workspaces (`change_workspace_by_index(n, append = false)`); raises when out of range |
+| `w:move_to_monitor(n)` | 1.0 | `n` in `1..#shell.monitors.list()`; as in `moveWindowToMonitorAndWorkspace`, entering the primary monitor can change the window's workspace; a window that is on all workspaces only moves |
+| `w:move{ x = , y = }` | 1.1 | moves the window so that the top-left corner of its frame is at (`x`, `y`) in global logical pixels (`meta_window_move_frame`, not a user operation) |
+| `w:resize{ width = , height = }` | 1.1 | resizes the frame, keeping its top-left corner (`meta_window_move_resize_frame` with the current position) |
+| `w:move_resize{ x = , y = , width = , height = }` | 1.1 | both at once |
+| `w:maximize()` | 1.1 | maximizes on both axes (`meta_window_maximize`); no-op if already maximized |
+| `w:unmaximize()` | 1.1 | restores a maximized window (`meta_window_unmaximize`); no-op if it is not maximized |
+| `w:set_fullscreen(on)` | 1.1 | `on` a boolean: `meta_window_make_fullscreen` / `meta_window_unmake_fullscreen` |
+| `w:set_above(on)` | 1.1 | `on` a boolean: always on top (`meta_window_make_above` / `meta_window_unmake_above`) |
+| `w:set_on_all_workspaces(on)` | 1.1 | `on` a boolean: `meta_window_stick` / `meta_window_unstick` |
+| `w:unminimize()` | 1.1 | shows a minimized window again without activating it (`meta_window_unminimize`); no-op if it is not minimized. `activate()` also focuses and raises it |
+
+Rules of the 1.1 actions:
+
+- The fields of `move`, `resize` and `move_resize` are all required (a missing
+  or mistyped field, or an unknown one, raises an error naming the field).
+  `x` and `y` are integers in `-65536..65536`, `width` and `height` integers in
+  `1..65536`; anything else raises. The rectangle is in the frame coordinates
+  of `frame`, not the monitor-relative ones of `monitors`: add the `x` and `y`
+  of the monitor.
+- The booleans must be booleans (`nil`, `0` or `"yes"` raise).
+- **Mutter may ignore or adjust any of them**, without an error: a window
+  that is not `resizable` keeps its size, a maximized or fullscreen window
+  keeps its geometry, `move` is held back by the usual constraints (a window
+  cannot be moved entirely off the screen), a client may pick another size than
+  asked (minimum and maximum size, size increments), an application that does
+  not allow fullscreen stays as it is. The actions never raise because Mutter
+  refused; read `frame`, `maximized`, ... afterwards, or wait for
+  `window.geometry-changed` and `window.state-changed`, to see what happened.
+- Geometry actions do not change the maximized or fullscreen state of the
+  window; maximize or fullscreen state set by the user stays until it is
+  undone.
+- Like the 1.0 actions they are deferred to idle when called from a listener
+  of a `window.*` or `workspace.*` hook.
 
 ## `shell.workspaces`
 
@@ -122,16 +170,56 @@ struts, `LayoutManager.getWorkAreaForMonitor`).
 
 | Hook | Key | Matches |
 |---|---|---|
-| `window.mapped`, `.unmapped`, `.focused`, `.minimized`, `.unminimized`, `.title-changed`, `.workspace-changed`, `.monitor-changed`, `.state-changed` | `window-id:t` | `Window.id`; resolve with `windows.get(id)` (nil for `unmapped`: the window is gone) |
+| `window.mapped`, `.unmapped`, `.focused`, `.minimized`, `.unminimized`, `.title-changed`, `.workspace-changed`, `.monitor-changed`, `.state-changed`, `.geometry-changed` (1.1) | `window-id:t` | `Window.id`; resolve with `windows.get(id)` (nil for `unmapped`: the window is gone) |
 | `window.focused` | `previous-window-id:t` | `Window.id` of the previously focused window, absent if none |
 | `window.workspace-changed` | `from:i`, `to:i` | workspace numbers (absent = all workspaces) |
 | `window.monitor-changed` | `from:i`, `to:i` | monitor numbers |
+| `window.state-changed` | `maximized:b`, `fullscreen:b`, `changed:as`; since 1.1 also `above:b`, `on-all-workspaces:b` | `Window.maximized`, `.fullscreen`, `.above`, `.on_all_workspaces` after the change; `changed` lists `maximized`, `fullscreen`, and since 1.1 `above`, `on-all-workspaces` |
+| `window.geometry-changed` (1.1) | `x:i`, `y:i`, `width:i`, `height:i` | `Window.frame` after the change |
 | `workspace.switched`, `workspace.added`, `workspace.removed` | `from:i` / `to:i` / `index:i` | `Workspace.index` |
 | `monitors.changed` | `count:i`, `primary:i` | `monitors.list()` |
 | `dash.item-added`, `notification.*`, `panel.*` | `id`, `name` | see their documents |
 
 Every `window.*` payload also carries the snapshot keys `title`, `wm-class`,
 `app-id`, `workspace`, `monitor`, `pid` so a listener rarely needs a lookup.
+
+### The windows that exist when a listener connects (1.1)
+
+Windows that were already mapped when the shell's window manager started get
+no `window.mapped`, and neither does a window that was mapped before an
+extension was enabled. Since 1.1 the hook is **replayed to a new listener**:
+when `shell.hooks.on("window.mapped", fn)` connects, `fn` is called once for
+every window `shell.windows.list()` returns that has been mapped (a window
+that is still being set up gets the live `window.mapped` when it is ready), in
+the order of that list (most recently focused first), with the payload `window.mapped` would have carried (the
+current values of the snapshot keys). So the first thing a new listener of
+`window.mapped` gets is one event per existing window, and an extension that
+wants "every window, now and later" needs a single listener and no
+`shell.windows.list()` loop.
+
+- The replay is never synchronous: the events are delivered from an idle after
+  `shell.hooks.on` returned, to that listener only (other listeners of the hook
+  see nothing). The windows are listed when the idle runs, not when the
+  listener connected, so a window that closed in between is not replayed.
+- A window that maps after `on` returned but before the idle runs is
+  delivered once (by the replay), not twice.
+- A listener that disconnects before the idle runs gets nothing.
+- The replayed events are not emitted from inside a window transition, so an
+  action called from such a listener (`w:close()`, ...) runs at once instead
+  of being deferred to idle (README rule 8 does not apply: nothing is
+  being animated).
+- Only `window.mapped`, only the `after` phase of the connection made with
+  `shell.hooks.on`. The other hooks (a `window.focused` for the window that
+  has the focus now, ...) are not replayed: resolve the replayed event with
+  `windows.get(id)` and read the state from the handle (`focused`,
+  `minimized`, ...).
+- The replay is a short delay after the connection, so a hook of another kind
+  (a title change, say) can reach a listener of *that* hook before the
+  replayed `window.mapped` reaches the listener of `window.mapped`; the
+  ordering rule of hooks.md ("`window.mapped` precedes all other `window.*`
+  hooks of a window") holds for the live emissions, not for what one extension
+  sees across several connections made at once. Write the handlers to cope
+  with a window id they have not seen (`windows.get(id)`).
 
 ## Example
 
@@ -148,5 +236,22 @@ end)
 shell.hooks.on("window.minimized", function(ev)
   local w = shell.windows.get(ev["window-id"])
   if w then shell.log.info("%s minimized on workspace %d", w.title, w.workspace or 0) end
+end)
+```
+
+Since 1.1, a minimal "keep new windows on the left half" without being a
+window manager (the `window.mapped` listener is also called for the windows
+that exist when it connects):
+
+```lua
+shell.hooks.on("window.mapped", function(ev)
+  local w = shell.windows.get(ev["window-id"])
+  if not w or not w.resizable or w.maximized or w.fullscreen then return end
+  local area = shell.monitors.get(w.monitor).work_area
+  w:move_resize{ x = area.x, y = area.y, width = area.width // 2, height = area.height }
+end)
+
+shell.hooks.on("window.geometry-changed", function(ev)
+  shell.log.debug("window %d is now %dx%d at %d,%d", ev["window-id"], ev.width, ev.height, ev.x, ev.y)
 end)
 ```

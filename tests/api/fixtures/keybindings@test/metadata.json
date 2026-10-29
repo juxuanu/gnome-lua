@@ -1,0 +1,9 @@
+{
+  "uuid": "keybindings@test",
+  "name": "API conformance: keybindings",
+  "description": "Fixture of tests/api/keybindings.lua: shell.keybindings and shell.Keybinding (API 1.1)",
+  "shell-api": "1.1",
+  "capabilities": ["settings"],
+  "settings-schema": "org.gnome-lua.test.keybindings",
+  "version": 1
+}

@@ -1,0 +1,7 @@
+{
+  "uuid": "fs-nocap@test",
+  "name": "API conformance: fs without the capability",
+  "description": "Fixture of tests/api/fs.lua: shell.fs inside the extension's own directories, and the capability error everywhere else",
+  "shell-api": "1.1",
+  "version": 1
+}

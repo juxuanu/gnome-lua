@@ -489,8 +489,9 @@ Rules in practice:
 | `prefs.js` with Gtk widgets, buttons, about pages, file choosers | none | declarative `prefs.lua` (section 8) |
 
 **Asking for an API addition.** The surface grows by minor versions
-(`shell-api` `"1.N"`), additively. A good request, in the project's issue
-tracker (the public request tracker of `docs/PLAN.md` §6), contains:
+(`shell-api` `"1.N"`), additively, and an addition is proposed as a change to
+the API documents in `docs/api/` (a new row or section first, then the
+implementation that matches it). A good proposal contains:
 
 1. The use case: what the user sees and why no existing `shell.*` call or hook
    can do it.

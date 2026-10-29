@@ -661,6 +661,298 @@ test_destroy_on_finalize (void)
 }
 
 /* ------------------------------------------------------------------------ */
+/* Replay                                                                    */
+/* ------------------------------------------------------------------------ */
+
+typedef struct {
+  guint   calls;          /* how often the registry asked */
+  int     n_items;        /* how many payloads it returns, {'n': i} */
+  gboolean floating;      /* return floating variants */
+  gboolean any_name;      /* the hook is not test.plain */
+  ShellHookRegistry *connect_in_replay;   /* connect another listener when asked */
+  Recorder          *late;
+} ReplaySource;
+
+static GPtrArray *
+replay_items (ShellHookRegistry *reg,
+              const char        *name,
+              gpointer           user_data)
+{
+  ReplaySource *src = user_data;
+  GPtrArray *items = g_ptr_array_new_with_free_func ((GDestroyNotify) g_variant_unref);
+  int i;
+
+  src->calls++;
+  if (!src->any_name)
+    g_assert_cmpstr (name, ==, "test.plain");
+  for (i = 1; i <= src->n_items; i++)
+    {
+      GVariant *v = g_variant_new_parsed ("{'n': <int64 %x>}", (gint64) i);
+
+      g_ptr_array_add (items, src->floating ? v : g_variant_ref_sink (v));
+    }
+  if (src->connect_in_replay != NULL)
+    {
+      connect_recorder (src->connect_in_replay, "test.plain", SHELL_HOOK_PHASE_AFTER, src->late);
+      src->connect_in_replay = NULL;
+    }
+  return items;
+}
+
+static void
+test_replay_basic (void)
+{
+  ShellHookRegistry *reg = registry_with ("test.plain", FALSE);
+  ReplaySource src = { .n_items = 3 };
+  GString *log = g_string_new (NULL);
+  Recorder old, fresh;
+
+  recorder_init (&old, "o", log);
+  recorder_init (&fresh, "f", log);
+
+  /* a listener that was there before the replay was set gets none */
+  connect_recorder (reg, "test.plain", SHELL_HOOK_PHASE_AFTER, &old);
+  shell_hook_registry_set_replay (reg, "test.plain", replay_items, &src);
+  tu_spin (20);
+  g_assert_cmpuint (old.calls, ==, 0);
+  g_assert_cmpuint (src.calls, ==, 0);
+
+  /* never synchronously inside connect () */
+  connect_recorder (reg, "test.plain", SHELL_HOOK_PHASE_AFTER, &fresh);
+  g_assert_cmpuint (fresh.calls, ==, 0);
+  g_assert_cmpuint (src.calls, ==, 0);
+
+  /* from an idle, to the new listener only, one call per payload in order */
+  while (g_main_context_iteration (NULL, FALSE))
+    ;
+  g_assert_cmpuint (src.calls, ==, 1);
+  g_assert_cmpuint (fresh.calls, ==, 3);
+  g_assert_cmpuint (old.calls, ==, 0);
+  g_assert_cmpstr (log->str, ==, "fff");
+  g_assert_cmpint (fresh.last_phase, ==, SHELL_HOOK_PHASE_AFTER);
+  g_assert_true (fresh.amend_was_null);
+  g_assert_cmpstr (fresh.last_name, ==, "test.plain");
+  g_assert_cmpint (lookup_int (fresh.last_payload, "n"), ==, 3);
+
+  /* the replay happened once: live emissions reach both */
+  shell_hook_registry_emit_after (reg, "test.plain", NULL);
+  g_assert_cmpuint (src.calls, ==, 1);
+  g_assert_cmpstr (log->str, ==, "fffof");
+
+  recorder_clear (&old);
+  recorder_clear (&fresh);
+  g_string_free (log, TRUE);
+  g_object_unref (reg);
+}
+
+static void
+test_replay_floating_payloads (void)
+{
+  ShellHookRegistry *reg = registry_with ("test.plain", FALSE);
+  ReplaySource src = { .n_items = 2, .floating = TRUE };
+  GString *log = g_string_new (NULL);
+  Recorder r;
+
+  recorder_init (&r, "r", log);
+  shell_hook_registry_set_replay (reg, "test.plain", replay_items, &src);
+  connect_recorder (reg, "test.plain", SHELL_HOOK_PHASE_AFTER, &r);
+  tu_spin (20);
+  g_assert_cmpuint (r.calls, ==, 2);
+  g_assert_cmpint (lookup_int (r.last_payload, "n"), ==, 2);
+
+  recorder_clear (&r);
+  g_string_free (log, TRUE);
+  g_object_unref (reg);
+}
+
+static void
+test_replay_covers_live_emissions (void)
+{
+  ShellHookRegistry *reg = registry_with ("test.plain", FALSE);
+  ReplaySource src = { .n_items = 1 };
+  GString *log = g_string_new (NULL);
+  Recorder other, pending;
+
+  recorder_init (&other, "o", log);
+  recorder_init (&pending, "p", log);
+  shell_hook_registry_set_replay (reg, "test.plain", replay_items, &src);
+  connect_recorder (reg, "test.plain", SHELL_HOOK_PHASE_AFTER, &other);
+  tu_spin (20);   /* other: connected after set_replay, replayed (1 call) */
+  g_string_truncate (log, 0);
+  other.calls = 0;
+
+  connect_recorder (reg, "test.plain", SHELL_HOOK_PHASE_AFTER, &pending);
+  /* between the connection and the idle: the live emission reaches the other
+   * listener, the pending one gets the replay instead */
+  shell_hook_registry_emit_after (reg, "test.plain", g_variant_new_parsed ("{'n': <int64 99>}"));
+  g_assert_cmpstr (log->str, ==, "o");
+  g_assert_cmpuint (pending.calls, ==, 0);
+  tu_spin (20);
+  g_assert_cmpstr (log->str, ==, "op");
+  g_assert_cmpuint (pending.calls, ==, 1);
+  g_assert_cmpint (lookup_int (pending.last_payload, "n"), ==, 1);
+
+  recorder_clear (&other);
+  recorder_clear (&pending);
+  g_string_free (log, TRUE);
+  g_object_unref (reg);
+}
+
+static void
+test_replay_disconnected_before_idle (void)
+{
+  ShellHookRegistry *reg = registry_with ("test.plain", FALSE);
+  ReplaySource src = { .n_items = 2 };
+  GString *log = g_string_new (NULL);
+  Recorder r;
+  guint id;
+
+  recorder_init (&r, "r", log);
+  shell_hook_registry_set_replay (reg, "test.plain", replay_items, &src);
+  id = connect_recorder (reg, "test.plain", SHELL_HOOK_PHASE_AFTER, &r);
+  shell_hook_registry_disconnect (reg, id);
+  g_assert_cmpuint (r.destroyed, ==, 1);
+  tu_spin (20);
+  g_assert_cmpuint (r.calls, ==, 0);
+  g_assert_cmpuint (src.calls, ==, 0);
+
+  recorder_clear (&r);
+  g_string_free (log, TRUE);
+  g_object_unref (reg);
+}
+
+static void
+test_replay_disconnect_from_the_replay (void)
+{
+  ShellHookRegistry *reg = registry_with ("test.plain", FALSE);
+  ReplaySource src = { .n_items = 3 };
+  GString *log = g_string_new (NULL);
+  Recorder r;
+  guint id;
+
+  recorder_init (&r, "r", log);
+  r.registry = reg;
+  shell_hook_registry_set_replay (reg, "test.plain", replay_items, &src);
+  id = connect_recorder (reg, "test.plain", SHELL_HOOK_PHASE_AFTER, &r);
+  r.disconnect_self_id = id;
+  tu_spin (20);
+
+  /* the first call disconnected the listener: the rest is not delivered, the
+   * destroy notify ran once */
+  g_assert_cmpuint (r.calls, ==, 1);
+  g_assert_cmpuint (r.destroyed, ==, 1);
+  g_assert_cmpuint (shell_hook_registry_count_listeners (reg, "test.plain", SHELL_HOOK_PHASE_AFTER), ==, 0);
+
+  recorder_clear (&r);
+  g_string_free (log, TRUE);
+  g_object_unref (reg);
+}
+
+static void
+test_replay_connect_from_the_replay (void)
+{
+  ShellHookRegistry *reg = registry_with ("test.plain", FALSE);
+  ReplaySource src = { .n_items = 1 };
+  GString *log = g_string_new (NULL);
+  Recorder first, late;
+
+  recorder_init (&first, "1", log);
+  recorder_init (&late, "L", log);
+  src.connect_in_replay = reg;
+  src.late = &late;
+  shell_hook_registry_set_replay (reg, "test.plain", replay_items, &src);
+  connect_recorder (reg, "test.plain", SHELL_HOOK_PHASE_AFTER, &first);
+
+  /* the listener connected by the replay function gets its own replay later,
+   * and the first one is not told twice */
+  tu_spin (50);
+  g_assert_cmpstr (log->str, ==, "1L");
+  g_assert_cmpuint (src.calls, ==, 2);
+
+  recorder_clear (&first);
+  recorder_clear (&late);
+  g_string_free (log, TRUE);
+  g_object_unref (reg);
+}
+
+static void
+test_replay_not_for_before_and_not_an_emission (void)
+{
+  ShellHookRegistry *reg = registry_with ("test.showing", TRUE);
+  ReplaySource src = { .n_items = 2 };
+  EmittedProbe probe = { g_string_new (NULL), 0, NULL, 0, NULL };
+  GString *log = g_string_new (NULL);
+  Recorder before, after, later;
+  gulong handler;
+
+  recorder_init (&before, "b", log);
+  recorder_init (&after, "a", log);
+  recorder_init (&later, "l", log);
+  handler = g_signal_connect (reg, "emitted", G_CALLBACK (on_emitted), &probe);
+
+  src.any_name = TRUE;
+  shell_hook_registry_set_replay (reg, "test.showing", replay_items, &src);
+  connect_recorder (reg, "test.showing", SHELL_HOOK_PHASE_BEFORE, &before);
+  connect_recorder (reg, "test.showing", SHELL_HOOK_PHASE_AFTER, &after);
+  tu_spin (20);
+
+  /* only the "after" listener, and the replay is not an emission */
+  g_assert_cmpuint (before.calls, ==, 0);
+  g_assert_cmpuint (after.calls, ==, 2);
+  g_assert_cmpuint (src.calls, ==, 1);
+  g_assert_cmpuint (probe.count, ==, 0);
+
+  /* removing the replay: later listeners get nothing */
+  shell_hook_registry_set_replay (reg, "test.showing", NULL, NULL);
+  connect_recorder (reg, "test.showing", SHELL_HOOK_PHASE_AFTER, &later);
+  tu_spin (20);
+  g_assert_cmpuint (later.calls, ==, 0);
+
+  g_signal_handler_disconnect (reg, handler);
+  g_clear_pointer (&probe.name, g_free);
+  g_string_free (probe.log, TRUE);
+  g_object_unref (reg);
+  recorder_clear (&before);
+  recorder_clear (&after);
+  recorder_clear (&later);
+  g_string_free (log, TRUE);
+}
+
+static void
+test_replay_registry_finalized_with_pending (void)
+{
+  ShellHookRegistry *reg = registry_with ("test.plain", FALSE);
+  ReplaySource src = { .n_items = 2 };
+  GString *log = g_string_new (NULL);
+  Recorder r;
+
+  recorder_init (&r, "r", log);
+  shell_hook_registry_set_replay (reg, "test.plain", replay_items, &src);
+  connect_recorder (reg, "test.plain", SHELL_HOOK_PHASE_AFTER, &r);
+
+  /* the registry goes away before the idle: nothing runs, nothing leaks */
+  g_object_unref (reg);
+  g_assert_cmpuint (r.destroyed, ==, 1);
+  tu_spin (20);
+  g_assert_cmpuint (r.calls, ==, 0);
+  g_assert_cmpuint (src.calls, ==, 0);
+
+  recorder_clear (&r);
+  g_string_free (log, TRUE);
+}
+
+static void
+test_replay_undeclared_warns (void)
+{
+  ShellHookRegistry *reg = registry_with ("test.plain", FALSE);
+
+  g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING, "*undeclared hook 'no.such'*");
+  shell_hook_registry_set_replay (reg, "no.such", replay_items, NULL);
+  g_test_assert_expected_messages ();
+  g_object_unref (reg);
+}
+
+/* ------------------------------------------------------------------------ */
 /* shell.hooks from Lua                                                      */
 /* ------------------------------------------------------------------------ */
 
@@ -678,6 +970,7 @@ declare_lua_hooks (void)
   shell_hook_registry_declare (reg, "test.lua-self", "", FALSE, NULL);
   shell_hook_registry_declare (reg, "test.lua-sandbox", "", FALSE, NULL);
   shell_hook_registry_declare (reg, "test.lua-mixed", "", TRUE, NULL);
+  shell_hook_registry_declare (reg, "test.lua-replay", "n:x", FALSE, NULL);
 }
 
 static void
@@ -714,6 +1007,52 @@ test_lua_on_and_disconnect (void)
   tu_do (s, "shell.hooks.emit_after('test.lua-on', {})");
   tu_assert_eval_true (s, "calls == 3");
 
+  g_object_unref (s);
+}
+
+static GPtrArray *
+lua_replay_items (ShellHookRegistry *reg,
+                  const char        *name,
+                  gpointer           user_data)
+{
+  GPtrArray *items = g_ptr_array_new_with_free_func ((GDestroyNotify) g_variant_unref);
+
+  g_ptr_array_add (items, g_variant_ref_sink (g_variant_new_parsed ("{'n': <int64 1>}")));
+  g_ptr_array_add (items, g_variant_ref_sink (g_variant_new_parsed ("{'n': <int64 2>}")));
+  return items;
+}
+
+static void
+test_lua_replay (void)
+{
+  ShellHookRegistry *reg = shell_hook_registry_get_default ();
+  ShellLuaState *s = tu_state_new ("hk", SHELL_LUA_STATE_PRIVILEGED);
+
+  shell_hook_registry_set_replay (reg, "test.lua-replay", lua_replay_items, NULL);
+
+  /* never inside shell.hooks.on (); then one call per payload, in order, for
+   * this listener only */
+  tu_do (s,
+         "seen = {}; other = {}\n"
+         "first = shell.hooks.on('test.lua-replay', function(p) other[#other + 1] = p.n end)\n");
+  tu_spin (20);
+  tu_do (s,
+         "assert(#other == 2)\n"
+         "second = shell.hooks.on('test.lua-replay', function(p) seen[#seen + 1] = p.n end)\n"
+         "assert(#seen == 0, 'no replay from inside on ()')\n");
+  tu_spin (20);
+  tu_assert_eval_true (s, "#seen == 2 and seen[1] == 1 and seen[2] == 2");
+  tu_assert_eval_true (s, "#other == 2");
+
+  /* a connection that is disconnected at once gets nothing */
+  tu_do (s,
+         "seen = {}\n"
+         "third = shell.hooks.on('test.lua-replay', function(p) seen[#seen + 1] = p.n end)\n"
+         "third:disconnect()\n");
+  tu_spin (20);
+  tu_assert_eval_true (s, "#seen == 0");
+
+  shell_hook_registry_set_replay (reg, "test.lua-replay", NULL, NULL);
   g_object_unref (s);
 }
 
@@ -1007,7 +1346,17 @@ main (int argc, char **argv)
   g_test_add_func ("/shell-lua/hooks/disconnect/during-emission", test_disconnect_during_emission);
   g_test_add_func ("/shell-lua/hooks/connect/during-emission", test_connect_during_emission);
   g_test_add_func ("/shell-lua/hooks/disconnect/destroy-on-finalize", test_destroy_on_finalize);
+  g_test_add_func ("/shell-lua/hooks/replay/basic", test_replay_basic);
+  g_test_add_func ("/shell-lua/hooks/replay/floating-payloads", test_replay_floating_payloads);
+  g_test_add_func ("/shell-lua/hooks/replay/covers-live-emissions", test_replay_covers_live_emissions);
+  g_test_add_func ("/shell-lua/hooks/replay/disconnected-before-idle", test_replay_disconnected_before_idle);
+  g_test_add_func ("/shell-lua/hooks/replay/disconnect-from-the-replay", test_replay_disconnect_from_the_replay);
+  g_test_add_func ("/shell-lua/hooks/replay/connect-from-the-replay", test_replay_connect_from_the_replay);
+  g_test_add_func ("/shell-lua/hooks/replay/not-for-before", test_replay_not_for_before_and_not_an_emission);
+  g_test_add_func ("/shell-lua/hooks/replay/registry-finalized", test_replay_registry_finalized_with_pending);
+  g_test_add_func ("/shell-lua/hooks/replay/undeclared-warns", test_replay_undeclared_warns);
   g_test_add_func ("/shell-lua/hooks/lua/on-and-disconnect", test_lua_on_and_disconnect);
+  g_test_add_func ("/shell-lua/hooks/lua/replay", test_lua_replay);
   g_test_add_func ("/shell-lua/hooks/lua/before-cancel", test_lua_before_cancel);
   g_test_add_func ("/shell-lua/hooks/lua/before-amendments", test_lua_before_amendments);
   g_test_add_func ("/shell-lua/hooks/lua/list", test_lua_list);

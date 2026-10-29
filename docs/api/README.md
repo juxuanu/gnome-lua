@@ -1,9 +1,11 @@
-# gnome-lua extension API, version 1 (draft)
+# gnome-lua extension API, version 1 (1.1)
 
 Scope: the contract every `shell.*` module obeys. Per-area documents
 (`core.md`, `ui.md`, `panel.md`, `menu.md`, `quick-settings.md`, `dash.md`,
-`notify.md`, `window.md`, `prefs.md`, `dbus.md`, `hooks.md`, `variant.md`) only
-add what is specific to them; where they are silent, this file applies. Status
+`notify.md`, `window.md`, `prefs.md`, `dbus.md`, `hooks.md`, `variant.md`, and
+since 1.1 `keybindings.md`, `overview.md`, `search.md`, `fs.md`, `spawn.md`,
+`network.md`) only add what is specific to them; where they are silent, this
+file applies. Status
 column conventions used in all documents: **impl** = exists in
 `subprojects/shell-lua` today (M1), **M7** = specified here, implemented in M7.
 See also: [`../MIGRATING_FROM_JS.md`](../MIGRATING_FROM_JS.md) (guide for authors of JS extensions).
@@ -19,6 +21,7 @@ from outside the extension directory.
 | Table | Document | Gate |
 |---|---|---|
 | `shell.api_version`, `.extension`, `.log`, `.timer`, `.settings`, `.gettext`, `.hooks` | core.md | impl; `settings.open` needs `settings` |
+| `shell.time` (1.1) | core.md | none |
 | `shell.ui` | ui.md | none |
 | `shell.panel`, type `shell.Indicator` | panel.md | none |
 | type `shell.Menu` and its items | menu.md | none |
@@ -26,7 +29,13 @@ from outside the extension directory.
 | `shell.dash` | dash.md | none |
 | `shell.notify` (callable) | notify.md | none |
 | `shell.windows`, `.workspaces`, `.monitors`, `.apps` | window.md | none |
+| `shell.keybindings`, type `shell.Keybinding` (1.1) | keybindings.md | none |
+| `shell.overview` (1.1) | overview.md | none |
+| `shell.search`, type `shell.SearchProvider` (1.1) | search.md | `search` |
 | `shell.dbus` | dbus.md | `dbus` |
+| `shell.fs`, `shell.extension.data_dir`, types `shell.Task`, `shell.FileWatch` (1.1) | fs.md | `fs` outside the extension's own directories |
+| `shell.spawn`, type `shell.Process` (1.1) | spawn.md | `spawn` |
+| `shell.network`, type `shell.Request` (1.1) | network.md | `network` |
 | `prefs.lua` (a file, not a table) | prefs.md | none |
 
 ## Versioning and stability
@@ -155,8 +164,10 @@ app. Calling a gated function without the capability raises
 |---|---|---|
 | `settings` | `shell.settings.open(schema_id)` for any installed schema | impl |
 | `dbus` | all of `shell.dbus`. It reaches every service the user can; treat it as roughly `spawn`-equivalent (e.g. systemd user manager), not as a narrow permission | impl |
-| `search` | connecting to hook `search.query` (carries what the user types) | impl (accepted in `metadata.json`) |
-| `fs`, `spawn`, `network` | reserved: accepted and displayed, no v1 function uses them | impl (names only) |
+| `search` | connecting to hook `search.query` (carries what the user types), and `shell.search.add_provider` (1.1: providing results, search.md) | impl (accepted in `metadata.json`); `add_provider` 1.1 |
+| `network` | `shell.network.request` (1.1): HTTP and HTTPS requests to any host the user's machine can reach, including `localhost` and the local network (network.md) | 1.1 |
+| `fs` | `shell.fs` outside the extension's own directories (1.1): without it an extension reads `shell.extension.dir` and reads and writes `shell.extension.data_dir`; with it, any path the shell can reach (fs.md) | 1.1 |
+| `spawn` | `shell.spawn` (1.1): running any program as the user, with the environment of the shell. The broadest capability (spawn.md) | 1.1 |
 
 ## Required changes to the M1 runtime
 

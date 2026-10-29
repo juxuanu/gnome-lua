@@ -21,6 +21,9 @@ end
 if type (shell.api_version) ~= "table" or shell.api_version.major ~= 1 then
   fail ("shell.api_version should be {major = 1, minor = n}")
 end
+if shell.api_version.minor ~= 1 then
+  fail ("shell.api_version.minor is %s, this shell implements API 1.1", tostring (shell.api_version.minor))
+end
 
 -- What the loader does with the metadata (README.md: Versioning, Capabilities)
 harness.expect_state ("core-v2@test", "out-of-date")
@@ -41,7 +44,9 @@ do
   c.wait_done ("main")
 
   local log = c.capture_log (function ()
-    c.step ("raise", { n = 5 })
+    -- shell.log.fatal in a callback is an error like the others (2 of the 5)
+    c.step ("fatal", { n = 2 })
+    c.step ("raise", { n = 3 })
     c.wait_until (function ()
       return test.extension_state (uuid).errors == 5
     end, "five errors in the callbacks of the extension")
@@ -56,6 +61,25 @@ do
     harness.wait_state (uuid, { "error" })
   end)
 
+  -- shell.log.fatal: a critical with the message, then the runtime's warning with
+  -- the traceback
+  for i = 1, 2 do
+    local logged, traced = 0, 0
+    for _, entry in ipairs (log) do
+      if entry.message == "fatal " .. i and entry.level == "critical" then
+        logged = logged + 1
+      elseif entry.message:find ("fatal " .. i, 1, true) then
+        if entry.level ~= "warning" or not entry.message:find ("stack traceback", 1, true) then
+          fail ("the error of shell.log.fatal is logged as %s without a traceback: %s", entry.level, entry.message)
+        end
+        traced = traced + 1
+      end
+    end
+    if logged ~= 1 or traced ~= 1 then
+      fail ("shell.log.fatal \"fatal %d\": %d critical entries, %d with a traceback, expected 1 and 1", i, logged, traced)
+    end
+  end
+
   local booms = 0
   for _, entry in ipairs (log) do
     if entry.message:find ("boom", 1, true) then
@@ -68,8 +92,8 @@ do
       end
     end
   end
-  if booms ~= 6 then
-    fail ("%d errors of callbacks were logged, expected 6", booms)
+  if booms ~= 4 then
+    fail ("%d errors of callbacks were logged, expected 4", booms)
   end
 
   local st = test.extension_state (uuid)
@@ -97,7 +121,7 @@ harness.run {
   uuid = "core@test",
   drive = function (c)
     -- shell.log: the domain is shell-lua/<uuid>, the levels are those of GLib
-    -- (shell.log.error is a critical: an error level is fatal in GLib)
+    -- (shell.log.error is a critical: an error level aborts in GLib)
     local log = c.capture_log (function ()
       c.step ("log")
     end)
@@ -110,6 +134,28 @@ harness.run {
       if not level_ok or got.message ~= want[2] then
         fail ("log message %d is %s %q, expected %s %q", i, got.level, got.message, want[1], want[2])
       end
+    end
+
+    -- shell.log.fatal (1.1): critical, then raised
+    local fatal_log = c.capture_log (function ()
+      c.step ("log-fatal")
+    end)
+    local EXPECTED_FATAL = { "fatal 7", "stops here", "caught" }
+    if #fatal_log ~= #EXPECTED_FATAL then
+      fail ("shell.log.fatal logged %d messages, expected %d", #fatal_log, #EXPECTED_FATAL)
+    end
+    for i, want in ipairs (EXPECTED_FATAL) do
+      if fatal_log[i].level ~= "critical" or fatal_log[i].message ~= want then
+        fail ("shell.log.fatal message %d is %s %q, expected critical %q", i, fatal_log[i].level,
+              fatal_log[i].message, want)
+      end
+    end
+
+    -- What an extension logs on purpose does not abort the shell, which runs
+    -- with G_DEBUG=fatal-warnings: no capture here, the survival is the test
+    c.step ("log-uncaptured")
+    if test.extension_state (c.uuid).state ~= "active" then
+      fail ("%s is %s after logging warnings and errors", c.uuid, test.extension_state (c.uuid).state)
     end
 
     -- shell.timer: callbacks, active, cancel, every, idle

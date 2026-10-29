@@ -241,9 +241,52 @@ struct _ShellSearchProviderInterface
    */
   ClutterActor *  (* create_result_object)     (ShellSearchProvider  *self,
                                                 ShellSearchResultMeta *meta);
+
+  /**
+   * ShellSearchProviderInterface::get_title:
+   * @self: the provider
+   *
+   * Gets the title of the list of results of a provider that has no
+   * #ShellSearchProvider:app-info, which is then shown in a list headed by
+   * this title (and by the icon of ::get_icon) instead of in a grid. The
+   * default implementation returns %NULL.
+   *
+   * Returns: (transfer full) (nullable): the title, or %NULL
+   */
+  char *          (* get_title)                (ShellSearchProvider  *self);
+
+  /**
+   * ShellSearchProviderInterface::get_icon:
+   * @self: the provider
+   *
+   * Gets the icon in the header of the list of a provider with a ::get_title.
+   * The default implementation returns %NULL.
+   *
+   * Returns: (transfer full) (nullable): the icon, or %NULL
+   */
+  GIcon *         (* get_icon)                 (ShellSearchProvider  *self);
+
+  /**
+   * ShellSearchProviderInterface::get_owner:
+   * @self: the provider
+   *
+   * Gets the uuid of the extension that provides the results, or %NULL for
+   * the providers of the shell and of installed applications. The results of
+   * a provider with an owner are described again for every search (their
+   * names can depend on the terms), and its section is placed after the
+   * providers without an owner, those of the extensions in the order of
+   * `enabled-extensions` (docs/api/search.md). The default implementation
+   * returns %NULL.
+   *
+   * Returns: (transfer full) (nullable): the uuid, or %NULL
+   */
+  char *          (* get_owner)                (ShellSearchProvider  *self);
 };
 
 char         *shell_search_provider_get_id                (ShellSearchProvider *self);
+char         *shell_search_provider_get_title             (ShellSearchProvider *self);
+GIcon        *shell_search_provider_get_icon              (ShellSearchProvider *self);
+char         *shell_search_provider_get_owner             (ShellSearchProvider *self);
 GAppInfo     *shell_search_provider_get_app_info          (ShellSearchProvider *self);
 gboolean      shell_search_provider_get_can_launch_search (ShellSearchProvider *self);
 gboolean      shell_search_provider_get_is_remote_provider (ShellSearchProvider *self);
@@ -358,6 +401,14 @@ ShellSearchProvider    *shell_search_result_get_provider     (ShellSearchResult 
 ShellSearchResultMeta  *shell_search_result_get_meta_info    (ShellSearchResult *self);
 ShellSearchResultsView *shell_search_result_get_results_view (ShellSearchResult *self);
 void                    shell_search_result_activate         (ShellSearchResult *self);
+
+/* The results shown for a provider, for the tests of the API and the
+ * accessibility tools: their number, and the one at @index (0-based) */
+guint                   shell_search_results_view_get_n_results (ShellSearchResultsView *view,
+                                                                 const char             *provider_id);
+ShellSearchResult      *shell_search_results_view_get_result    (ShellSearchResultsView *view,
+                                                                 const char             *provider_id,
+                                                                 guint                   index);
 
 #define SHELL_TYPE_LIST_SEARCH_RESULT (shell_list_search_result_get_type ())
 G_DECLARE_FINAL_TYPE (ShellListSearchResult, shell_list_search_result,

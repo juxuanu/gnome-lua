@@ -93,7 +93,7 @@ function ext.enable()
     eq(math.type(v.major), "integer", "major")
     eq(v.major, 1, "major")
     eq(math.type(v.minor), "integer", "minor")
-    truthy(v.minor >= 0, "minor")
+    eq(v.minor, 1, "minor (API 1.1)")
     raises(function() v.major = 2 end, nil, "assigning api_version.major")
     raises(function() v.minor = 5 end, nil, "assigning api_version.minor")
     raises(function() v.patch = 1 end, nil, "adding a field to api_version")
@@ -181,7 +181,7 @@ function ext.enable()
   -- -------------------------------------------------------------------
   case("shell.log functions", function()
     eq(type(shell.log), "table", "shell.log")
-    for _, name in ipairs({ "debug", "info", "warning", "error" }) do
+    for _, name in ipairs({ "debug", "info", "warning", "error", "fatal" }) do
       eq(type(shell.log[name]), "function", "shell.log." .. name)
     end
   end)
@@ -191,6 +191,8 @@ function ext.enable()
     raises(function() shell.log.info({}) end, nil, "a table as the message")
     raises(function() shell.log.info("%d", "x") end, nil, "a format that does not fit its argument")
     raises(function() shell.log.debug("%d") end, nil, "a missing argument")
+    raises(function() shell.log.fatal() end, nil, "fatal without a message")
+    raises(function() shell.log.fatal("%d", "x") end, nil, "fatal with a format that does not fit")
   end)
 
   -- -------------------------------------------------------------------
@@ -430,6 +432,30 @@ function ext.enable()
       shell.log.info("100%% sure")
       shell.log.info("no format arguments")
       shell.log.debug("%s", "last")
+    end,
+
+    -- shell.log.fatal (1.1): logs like error, then raises the message as is
+    ["log-fatal"] = function()
+      local err = raises(function() shell.log.fatal("fatal %d", 7) end, "fatal 7", "shell.log.fatal")
+      eq(err, "fatal 7", "the error is the formatted message, as is")
+      local reached = false
+      raises(function()
+        shell.log.fatal("stops here")
+        reached = true
+      end, "stops here", "shell.log.fatal in a function")
+      eq(reached, false, "the code after shell.log.fatal does not run")
+      -- an error of a pcall can be caught and the extension goes on
+      eq(select(2, pcall(shell.log.fatal, "caught")), "caught", "pcall (shell.log.fatal)")
+    end,
+
+    -- What an extension logs on purpose is never fatal. The script does NOT
+    -- capture the log for this step: the shell runs with G_DEBUG=fatal-warnings,
+    -- which aborts it on any warning or critical that is not exempt.
+    ["log-uncaptured"] = function()
+      shell.log.warning("on purpose: an uncaptured warning")
+      shell.log.error("on purpose: an uncaptured error")
+      pcall(shell.log.fatal, "on purpose: an uncaptured fatal")
+      shell.log.warning("%s", "on purpose: and the shell is still here")
     end,
 
     -- shell.timer

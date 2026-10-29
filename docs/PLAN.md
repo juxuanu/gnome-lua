@@ -319,7 +319,7 @@ Design rules for the surface:
 | Mutter API bump every cycle. | Same pinning; a release of gnome-lua tracks exactly one mutter API version. |
 | Lua 5.5 is young; vendoring it means owning CVE tracking. | Wrap file pinned to a tag with checksum; update with each point release; `-DLUA_USE_LINUX`, no `os`/`io` in extension states shrinks the exposed surface. |
 | Lifetime bugs at the C↔Lua boundary (dangling handles, re-entrancy when a hook destroys what emitted it). | Handles invalidated on `dispose`; hook emission snapshots listener list; API calls that mutate the shell are deferred to idle when emitted from inside a hook; fuzzing in M8. |
-| An API that is too narrow drives extension authors away. | Ship the four requested areas plus hooks in 1.0; add surface by minor versions based on a public request tracker; `capabilities` give an escape hatch (D-Bus) without exposing internals. |
+| An API that is too narrow drives extension authors away. | Ship the four requested areas plus hooks in 1.0; add surface by minor versions, proposed as a change to the documents in `docs/api/` first (API 1.1 is the first such release); `capabilities` give an escape hatch (D-Bus) without exposing internals. |
 | GDM/lock screen regressions are security-relevant. | Port last, dedicated `dbusmock` test matrix, manual sign-off checklist before M6. |
 | Performance regressions vs. GJS JIT in the remaining dynamic parts. | Nothing dynamic remains on the shell's hot path; extension callbacks are bounded by the watchdog; measure in M6. |
 

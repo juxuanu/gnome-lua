@@ -90,7 +90,7 @@ test_sandbox_api_version (void)
 {
   ShellLuaState *s = tu_state_new ("sbx", SHELL_LUA_STATE_SANDBOXED);
 
-  tu_assert_eval_true (s, "shell.api_version.major == 1 and shell.api_version.minor == 0");
+  tu_assert_eval_true (s, "shell.api_version.major == 1 and shell.api_version.minor == 1");
   tu_assert_eval_str (s, "(function() local n = 0 for k, v in pairs(shell.api_version) "
                          "do n = n + 1 end return n end)()", "2");
   tu_assert_fails (s, "shell.api_version.major = 2", SHELL_LUA_ERROR_RUNTIME, "read-only");

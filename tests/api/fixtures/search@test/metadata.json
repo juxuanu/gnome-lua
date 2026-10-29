@@ -1,0 +1,8 @@
+{
+  "uuid": "search@test",
+  "name": "API conformance: search",
+  "description": "Fixture of tests/api/search.lua: shell.search and shell.SearchProvider",
+  "shell-api": "1.1",
+  "capabilities": ["search"],
+  "version": 1
+}

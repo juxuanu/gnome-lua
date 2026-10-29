@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome-lua.test.keybindings" path="/org/gnome-lua/test/keybindings/">
+    <key name="keybindings-test-toggle" type="as">
+      <default>["&lt;Super&gt;&lt;Alt&gt;j"]</default>
+    </key>
+    <key name="keybindings-test-other" type="as">
+      <default>["&lt;Super&gt;&lt;Alt&gt;m"]</default>
+    </key>
+    <key name="keybindings-test-title" type="s">
+      <default>"x"</default>
+    </key>
+  </schema>
+</schemalist>
