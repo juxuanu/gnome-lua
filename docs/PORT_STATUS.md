@@ -4,6 +4,8 @@ One row per upstream GJS module (gnome-shell 51.1, `js/`). Each module is ported
 
 Status values: `todo`, `wip`, `ported`, `dropped` (with a reason). Update this file in the same commit as the port. See `docs/PLAN.md` for what the milestones mean.
 
+**Where the port stands:** every module is ported, GJS is gone (M6) and the shell starts from `src/main.c` through `ShellMain`; the extension API v1 (M7, `docs/api/`) is implemented and its conformance suite passes. CI (`.github/workflows/ci.yml`: 11 unit programs, 8 shell tests, 9 API tests, under AddressSanitizer with fatal warnings, plus the check that nothing links GJS or SpiderMonkey) has been green since run 90. What is left is M8 (`docs/PLAN.md` §4) and the performance numbers of `docs/PERF.md`, which need a real machine.
+
 | Milestone | files | JS lines |
 |---|---:|---:|
 | M2 | 57 | 20795 |

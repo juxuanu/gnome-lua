@@ -224,22 +224,30 @@ portal helper.
 * [x] Replace `gjs_dumpstack` on fatal signals with the Lua traceback of
   the running extension state plus a C backtrace
   (`backtrace_symbols_fd`, or the sanitizer's under ASan).
-* [ ] Exit: the binary links neither `libgjs` nor `libmozjs` (no reference left
-  in the Meson files; to be confirmed on a real build), startup time, RSS and
-  frame time measured against upstream 51.1 and published in `docs/PERF.md`.
+* [x] Exit: the binary links neither `libgjs` nor `libmozjs` (no reference left
+  in the Meson files; CI checks `ldd` of `gnome-shell`, `libshell` and
+  `libshell-lua` on every build, see "Check that nothing links GJS or
+  SpiderMonkey" in `.github/workflows/ci.yml`).
+* [ ] Exit: startup time, RSS and frame time measured against upstream 51.1
+  and published in `docs/PERF.md` (the method is written; the numbers need a
+  real machine with a GPU, the headless CI runner cannot give them).
 
 ### M7 — Extension API v1 (effort 2.5; design starts during M2)
-* `docs/api/` is written *before* code: every `shell.*` function with its
+* [x] `docs/api/` is written *before* code: every `shell.*` function with its
   signature, errors, ownership rules, and the hook catalogue with payload schemas.
-* Implement the `shell-lua-api-*.c` modules per §3; conformance tests in `tests/api/` (one Lua
-  file per API area, run headless).
-* Prefs schema + Adw renderer in the extensions D-Bus service.
-* Reference extensions in `examples/`: top-bar indicator with menu, quick-settings
-  toggle with slider, dash button launching an app, a hooks-only extension that
-  logs lifecycle events, and a prefs example.
-* `gnome-extensions` tool: `create` scaffolds Lua; `pack`/`install` unchanged.
-* Exit: all examples pass conformance; API doc published; `api_version = 1.0`
-  frozen.
+* [x] Implement the `shell-lua-api-*.c` modules per §3; conformance tests in
+  `tests/api/` (one Lua file per API area, run headless: core, ui, menu,
+  panel, dash, quick-settings, notify, window, hooks, dbus and the examples).
+* [x] Prefs schema + Adw renderer in the extensions D-Bus service.
+* [x] Reference extensions in `subprojects/shell-lua/examples/`: top-bar
+  indicator with menu, quick-settings toggle with slider, dash button
+  launching an app, a hooks-only extension that logs lifecycle events, and a
+  prefs example.
+* [x] `gnome-extensions` tool: `create` scaffolds Lua; `pack`/`install` unchanged.
+* [x] Exit: all examples pass conformance (`tests/api/examples.lua`); API doc
+  published; `api_version = 1.0` frozen. The whole suite (11 unit programs, 8
+  shell tests, 9 API tests) is green in CI under AddressSanitizer with
+  `G_DEBUG=fatal-warnings` since run 90.
 
 ### M8 — Stabilization and release (effort 1)
 * Two GNOME point releases of soak time on the maintainers' own machines.
