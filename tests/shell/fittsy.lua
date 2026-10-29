@@ -73,12 +73,14 @@ check_fittsiness ("fittsyTopBarVert", activities_button, "vertical", top_edge)
 
 main.panel.text_direction = "ltr"
 test.sleep (50)
+test.wait_leisure ()
 
 test.log ("Checking that top bar extends to left screen edge for LTR")
 check_fittsiness ("fittsyTopBarHorzLTR", activities_button, "horizontal", left_edge)
 
 main.panel.text_direction = "rtl"
 test.sleep (50)
+test.wait_leisure ()
 
 test.log ("Checking that top bar extends to right screen edge for RTL")
 check_fittsiness ("fittsyTopBarHorzRTL", activities_button, "horizontal", right_edge)
