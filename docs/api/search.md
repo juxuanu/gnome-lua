@@ -141,7 +141,7 @@ never called again, and nothing of the extension stays in the results.
 -- metadata.json: "shell-api": "1.1", "capabilities": ["search"]
 local shell = require("shell")
 
-local CITIES = { paris = "Europe/Paris", tokyo = "Asia/Tokyo", lima = "America/Lima" }
+local CITIES = { paris = 3600, tokyo = 9 * 3600, lima = -5 * 3600 }  -- offsets from UTC in seconds (no DST here)
 
 shell.search.add_provider{
   id = "world-clock",
@@ -150,12 +150,13 @@ shell.search.add_provider{
   on_search = function(provider, terms, respond)
     local results = {}
     for _, word in ipairs(terms) do
-      for city, zone in pairs(CITIES) do
+      for city, offset in pairs(CITIES) do
         if city:find(word:lower(), 1, true) == 1 then
-          local now = shell.time.format("%H:%M", { at = shell.time.now() })   -- zone handling is up to you
+          -- shell.time knows the local zone and UTC only: other zones are an offset you add
+          local now = shell.time.format("%H:%M", { at = shell.time.now() + offset, utc = true })
           results[#results + 1] = {
             id = city, name = city:sub(1, 1):upper() .. city:sub(2),
-            description = zone .. ", " .. now, clipboard_text = now,
+            description = "UTC" .. string.format("%+d", offset // 3600) .. ", " .. now, clipboard_text = now,
             icon_name = "preferences-system-time-symbolic",
           }
         end

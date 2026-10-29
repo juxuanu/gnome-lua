@@ -1,0 +1,7 @@
+{
+  "uuid": "clock@gnome-lua.example",
+  "name": "Top bar clock",
+  "description": "A top-bar clock updated on the minute, with the full date in its menu, a 24-hour switch and a keybinding that toggles the overview.",
+  "shell-api": "1.1",
+  "version": 1
+}

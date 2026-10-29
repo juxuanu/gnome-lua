@@ -310,6 +310,17 @@ Design rules for the surface:
   implemented in C with GVariant↔Lua mapping limited to basic types, arrays,
   dictionaries and tuples.
 
+API 1.1 (additive, `"shell-api": "1.1"`) adds: `shell.time` (wall clock,
+calendar fields, formatting, the hook `time.timezone-changed`),
+`shell.extension.data_dir` and `shell.log.fatal` (`core.md`); global shortcuts
+(`keybindings.md`); `shell.overview` (`overview.md`); search providers
+(`search.md`, capability `search`); `shell.fs` (`fs.md`, capability `fs` outside
+the extension's own directories), `shell.spawn` (`spawn.md`, capability
+`spawn`) and `shell.network` (`network.md`, capability `network`); and window
+geometry and state actions, the hook `window.geometry-changed` and the replay
+of `window.mapped` to new listeners (`window.md`, `hooks.md`). The example
+`subprojects/shell-lua/examples/clock@gnome-lua.example` uses several of them.
+
 ## 6. Risks
 
 | Risk | Mitigation |

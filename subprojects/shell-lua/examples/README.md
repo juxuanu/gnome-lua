@@ -11,6 +11,7 @@ each of them in a headless shell.
 |---|---|---|
 | `hello@gnome-lua.example` | the canonical minimal extension: logs, runs a timer, connects to a hook only when the running shell declares it, has settings and a preferences window | core.md, hooks.md, prefs.md |
 | `indicator@gnome-lua.example` | a top-bar indicator with a menu (action, switch, submenu with a choice, separator, image item), widgets as its content, a stylesheet | panel.md, menu.md, ui.md |
+| `clock@gnome-lua.example` | API 1.1: a top-bar clock (`shell.time.format`) re-rendered by a timer aligned to the minute and on `time.timezone-changed`, a menu with the full date and a 24-hour switch, a literal keybinding (Super+Alt+O) that toggles the overview | core.md (`shell.time`), keybindings.md, overview.md, hooks.md |
 | `quick-toggle@gnome-lua.example` | a quick-settings menu toggle with a header and a slider, and a status icon, kept in sync with the extension's settings in both directions | quick-settings.md, core.md |
 | `dash-launcher@gnome-lua.example` | two buttons in the dash: one launches an application, one toggles a mark | dash.md, window.md (`shell.apps`) |
 | `hooks-log@gnome-lua.example` | an extension that only listens to hooks and logs the lifecycle events of the shell, skipping the hooks the shell does not declare | hooks.md |

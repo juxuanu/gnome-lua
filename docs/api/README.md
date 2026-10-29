@@ -178,7 +178,9 @@ reverse-order destruction at disable, the 4096 cap, `destroy()` frees the slot
 at once, callbacks blocked once disable begins); the `"1.N"` check; `search`
 in `known_capabilities`; virtual handle properties (per-type getter/setter
 tables); the assignment guard (rule 7: assignments are silent, unknown and
-read-only properties raise); the deferral of rule 8. Still to do: `shell.dbus.variant` (dbus.md).
+read-only properties raise); the deferral of rule 8; `shell.dbus.variant` (dbus.md). Rows
+marked **1.1** in the per-area documents are the first minor release; they are
+implemented together with their conformance tests in `tests/api/`.
 
 ## Example
 

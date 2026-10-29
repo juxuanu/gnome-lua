@@ -10,6 +10,7 @@ local harness = dofile (((os.getenv ("SHELL_TEST_SCRIPT") or ""):match ("^(.*)/[
 local EXAMPLES = {
   "hello@gnome-lua.example",
   "indicator@gnome-lua.example",
+  "clock@gnome-lua.example",
   "quick-toggle@gnome-lua.example",
   "dash-launcher@gnome-lua.example",
   "hooks-log@gnome-lua.example",

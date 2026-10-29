@@ -10,6 +10,10 @@ capabilities, rules 1-8) and the extensions in
 and `docs/api/` differ, `docs/api/` wins (`docs/PLAN.md` §7 is the one-line
 summary of this file; the code in `docs/PLAN.md` §5 is illustrative only).
 
+This guide describes API 1.1 (`shell.api_version = {major = 1, minor = 1}`).
+Rows, functions and hooks added after 1.0 are marked "(1.1)"; an extension
+that uses them declares `"shell-api": "1.1"`.
+
 Contents: 1 What changed and why, 2 The skeleton, 3 Translation tables,
 4 Ownership and teardown, 5 What has no equivalent, 6 Worked example,
 7 Looking Glass, 8 Preferences.
@@ -27,11 +31,11 @@ is exactly what was removed.
 | GObject Introspection: every `St`, `Clutter`, `Meta`, `Gio` object | No GI. Handles (userdata) with exactly the methods and properties `docs/api/` lists. | Decouples extensions from shell internals, which is what makes the API stable (D2). |
 | Monkey patching, `InjectionManager`, prototype overrides | Hooks: `shell.hooks.on` (after) and `shell.hooks.before` (cancel or amend). Patching internals is impossible by design. | Patches are what break every six months. |
 | `shell-version` whitelist in `metadata.json` | `"shell-api": "1"` (or `"1.N"`). `shell.api_version = {major, minor}`. Within a major, minors only add; a removal needs two releases of runtime warning, then a major bump. | One metadata value instead of one per GNOME release (D10). |
-| Unrestricted code | No `os`, `io`, `debug`, `load`, `package`; `require` only reaches files inside your extension directory; D-Bus (and later files, processes, network) behind `capabilities` shown to the user (D6). | Extensions today can do anything the user can. |
+| Unrestricted code | No `os`, `io`, `debug`, `load`, `package`; `require` only reaches files inside your extension directory; D-Bus, files outside your own directories, processes and the network behind `capabilities` shown to the user (D6). | Extensions today can do anything the user can. |
 | A frozen shell if your callback loops | Watchdog: 500 ms wall clock per callback, 64 MiB per Lua state (`subprojects/shell-lua/docs/SANDBOX.md`). | D7 |
 | Leaked signal handlers and actors | Everything created through `shell.*` is owned by the extension and destroyed at disable (section 4). | D8 |
 | Uncaught exceptions are logged and ignored | An error in any callback is logged with a traceback and counted; more than 5 disable the extension (state ERROR). The shell never crashes because of Lua. | D9, README rule 8 |
-| Synchronous D-Bus and file calls | Nothing blocks the compositor: D-Bus is callback-only, there are no synchronous calls. | The watchdog would kill you first. |
+| Synchronous D-Bus, file, process and HTTP calls | Nothing blocks the compositor: D-Bus, `shell.fs` (1.1), `shell.spawn` (1.1) and `shell.network` (1.1) are callback-only. The only synchronous file calls are `fs.exists` and `fs.info` (one `stat`). | The watchdog would kill you first. |
 | `prefs.js` with Gtk/Adw widgets | `prefs.lua`: a data table rendered by the shell (section 8). | D12 |
 
 Unchanged: the directory layout (`<uuid>/` with `metadata.json`, `stylesheet.css`,
@@ -47,7 +51,7 @@ Failure kinds (README, calling convention 5), so you know what to `pcall`:
 |---|---|
 | Misuse: wrong type, unknown or missing field, dead handle, missing capability | A Lua error, e.g. `handle to <type> is no longer valid`, `<function> requires the "<cap>" capability`, `unknown hook`. An unknown field in a constructor is an error naming the field. |
 | Environmental failure of a synchronous call | `nil, message` (e.g. `shell.apps.launch`). |
-| Asynchronous failure | the `on_error` callback (D-Bus). |
+| Asynchronous failure | the `on_error` callback (D-Bus, `shell.fs`, `shell.network`; for `shell.spawn` the outcome, failures included, is the `result` of `on_exit`). |
 
 ## 2. The skeleton
 
@@ -84,11 +88,11 @@ Failure kinds (README, calling convention 5), so you know what to `pcall`:
 | Key | Now |
 |---|---|
 | `uuid`, `name`, `shell-api` | required; the directory name MUST equal `uuid` |
-| `shell-api` | `"1"` or `"1.N"`: the loader checks the major, and with `"1.N"` marks the extension OUT_OF_DATE when the running minor is below `N`. Malformed values (`"1."`, `"1.x"`, `"1.0.1"`) are OUT_OF_DATE too. Use `"1.N"` only when you need something added in minor `N` (`since` column of `docs/api/hooks.md`) |
+| `shell-api` | `"1"` or `"1.N"`: the loader checks the major, and with `"1.N"` marks the extension OUT_OF_DATE when the running minor is below `N`. Malformed values (`"1."`, `"1.x"`, `"1.0.1"`) are OUT_OF_DATE too. Use `"1.N"` only when you need something added in minor `N` (the "Since" columns of `docs/api/`): everything marked 1.1 below needs `"shell-api": "1.1"`, and a 1.0 shell marks such an extension OUT_OF_DATE |
 | `shell-version` | gone, replaced by `shell-api` |
 | `settings-schema` | as before; opened with `shell.settings.extension()` |
 | `gettext-domain` | as before (default: the uuid); `locale/` as before |
-| `capabilities` | new: `dbus`, `settings`, `search` do something in v1; `fs`, `spawn`, `network` are accepted and displayed but unlock no function. An unknown string rejects the extension |
+| `capabilities` | new, shown to the user: `settings` (`shell.settings.open` for any schema), `dbus` (all of `shell.dbus`), `search` (hook `search.query` and `shell.search.add_provider`), and since 1.1 `fs` (`shell.fs` outside your own directories), `spawn` (`shell.spawn`: any program, the broadest capability) and `network` (`shell.network.request`). An unknown string rejects the extension. Everything else, `shell.time`, `shell.keybindings` and `shell.overview` included, needs none |
 | `session-modes` | as before |
 
 `gnome-extensions create --template plain|indicator|quick-settings [--prefs]
@@ -133,6 +137,7 @@ return ext   -- no disable(): the shell destroys what enable() created
 | `this.uuid` | `shell.extension.uuid` |
 | `this.path`, `this.dir` (`Gio.File`) | `shell.extension.dir` (absolute path string) |
 | `this.metadata` | `shell.extension.metadata` (read-only copy of `metadata.json`) |
+| a directory for your own files (`GLib.get_user_data_dir()` + a name you invent) | `shell.extension.data_dir` (1.1): `$XDG_DATA_HOME/gnome-lua/<uuid>`, created on first read (mode 0700), kept across disable, restart and upgrade; readable and writable through `shell.fs` without any capability |
 | (no equivalent) | `shell.extension.capabilities` (sequence of strings) |
 | `this.getSettings()` | `shell.settings.extension()` |
 | `this.gettext`, `_` imported from `extension.js` | the globals `_`, `ngettext`, `pgettext` (also `shell.gettext`, `shell.ngettext`, `shell.pgettext`) |
@@ -142,7 +147,8 @@ return ext   -- no disable(): the shell destroys what enable() created
 **The context object.** There is none to hold. Your "context" is the extension
 instance the shell keeps behind the `shell` table: it owns everything you
 create (D8). The only part you can see is `shell.extension` (`uuid`, `dir`,
-`metadata`, `capabilities`); it is `nil` in the Looking Glass evaluator.
+`metadata`, `capabilities`, and since 1.1 `data_dir`); it is `nil` in the
+Looking Glass evaluator.
 Dropping the last Lua reference to a widget, indicator or notification never
 destroys it, and a reference to a destroyed object is just a dead handle.
 
@@ -172,13 +178,19 @@ Assigning a property from Lua (`toggle.checked = true`, `slider.value = 0.5`)
 | Repeating timeout | `GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 60, () => {...; return GLib.SOURCE_CONTINUE;})` | `shell.timer.every{ ms = 60000, callback = function() ... end }`; it repeats until the callback returns `false` (a callback that raises does not repeat). Positional `shell.timer.every(60000, f)` also works |
 | Idle | `GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, fn)` | `shell.timer.idle{ callback = fn }` |
 | Cancel | `GLib.source_remove(id)` | `timer:cancel()`, `timer.active`. Not needed at disable: timers are owned |
+| Wall clock | `GLib.get_real_time()`, `Date.now()`, `new Date()` | `shell.time.now()` (1.1): seconds since the epoch, with a fraction. There is still no `os.time` or `os.date` in the sandbox |
+| Monotonic clock | `GLib.get_monotonic_time()` | `shell.time.monotonic()` (1.1): seconds, for durations |
+| Calendar fields | `GLib.DateTime.new_now_local()` (`get_year()`, `get_month()`, `get_hour()`, `get_day_of_week()`, ...), `date.getHours()` | `shell.time.date{ at = t, utc = false }` (1.1) returns `{year, month, day, hour, minute, second, microsecond, weekday, yearday, timezone, offset, dst}`: months 1..12, `weekday` ISO 1 = Monday .. 7 = Sunday; `at` defaults to now |
+| Build a time | `GLib.DateTime.new_local(y, m, d, h, mi, s).to_unix()` | `shell.time.timestamp{ year = 2026, month = 10, day = 29, hour = 8 }` (1.1), the inverse of `date` (`utc = true` for UTC) |
+| Format | `dt.format('%H:%M')` | `shell.time.format("%H:%M", { at = t, utc = false })` (1.1): GDateTime format strings (`%A %x` is the weekday and the locale's date); raises on a bad format |
+| Time zone | `GLib.TimeZone.new_local().get_identifier()`; watching for a change by hand | `shell.time.timezone()` (1.1); hook `time.timezone-changed` (payload `timezone`) |
 | Settings object | `this.getSettings()` | `shell.settings.extension()` (errors without `settings-schema`) |
 | Any other schema | `new Gio.Settings({schema_id})` | `shell.settings.open(schema_id)`, needs capability `settings` |
 | Read, write | `s.get_boolean('k')`, `s.set_int('k', 3)`, `s.get_value`/`set_value` | `s:get_boolean("k")`, `s:set_int("k", 3)`; also `get_double`, `get_string`, `get_strv` and the `set_*` twins, generic `s:get("k")`/`s:set("k", v)` (`docs/api/variant.md`), `s:reset("k")`, `s:keys()` |
 | Changes | `s.connect('changed::k', (s, key) => ...)` | `s:on_changed("k", function(key, value) ... end)`; `nil` instead of `"k"` listens to every key. Returns a `shell.Connection`. Fires for changes made elsewhere (dconf, prefs window) |
 | Binding to a widget | `s.bind('k', obj, 'prop', Gio.SettingsBindFlags.DEFAULT)` | no equivalent: write the widget from `on_changed` and the setting from the widget's callback (the worked example does) |
 | Translate | `_('Text')`, `ngettext(a, b, n)`, `pgettext(ctx, s)`, `_('%d min').format(n)` | `_("Text")`, `ngettext("%d minute", "%d minutes", n)`, `pgettext("ctx", "Text")`, `_("%d min"):format(n)` (`string.format`). Strings come from `locale/` with `gettext-domain`; translation also works in `prefs.lua` |
-| Log | `console.log()`, `log()`, `logError(e)`, `this.getLogger()` | `shell.log.debug(fmt, ...)`, `.info`, `.warning`, `.error` (`string.format` semantics: `shell.log.info("%s", text)`); `shell.log(fmt, ...)` is `info`. Domain `shell-lua/<uuid>`. `print` goes to `g_message` |
+| Log | `console.log()`, `log()`, `logError(e)`, `this.getLogger()` | `shell.log.debug(fmt, ...)`, `.info`, `.warning`, `.error`, and since 1.1 `.fatal` (logs like `error`, then raises a Lua error with the message) (`string.format` semantics: `shell.log.info("%s", text)`); `shell.log(fmt, ...)` is `info`. Domain `shell-lua/<uuid>`. `print` goes to `g_message`. Since 1.1 `warning` and `error` never abort the shell, even under `G_DEBUG=fatal-warnings` |
 | Stylesheet | `stylesheet.css`, `stylesheet-dark.css`, ... | same files, same loading and unloading. The shell adds the class `lua-ext-<id>` to every widget you create (uuid, lower-cased, every char outside `[a-z0-9-]` replaced by `-`): scope selectors as `.lua-ext-<id> .mine` |
 | Bundled icon | `Gio.icon_new_for_string(this.path + '/a.svg')` | `icon_file = "a.svg"` (path relative to the extension directory, `.svg` or `.png`; absolute paths, `..` and missing files raise) |
 
@@ -330,20 +342,138 @@ an opaque integer; key your own tables on it.
 | `w.get_workspace().index()` (0-based), `is_on_all_workspaces()` | `w.workspace` (1-based; nil = all workspaces) |
 | `w.get_monitor()` (0-based) | `w.monitor` (1-based) |
 | `w.maximized_horizontally && w.maximized_vertically` | `w.maximized` (both axes) |
+| `w.get_frame_rect()` | `w.frame` (1.1): a new table `{x, y, width, height}` on every read, global logical pixels, the frame rectangle (decorations included, client shadow not) |
+| `w.is_above()`, `w.is_on_all_workspaces()`, `w.allows_resize()`, `w.allows_move()` | `w.above`, `w.on_all_workspaces`, `w.resizable`, `w.movable` (1.1) |
 | `w.activate(time)` / `minimize()` / `delete(time)` | `w:activate()` / `w:minimize()` / `w:close()` |
+| `w.move_frame(true, x, y)` | `w:move{ x = 10, y = 20 }` (1.1): frame coordinates, global logical pixels, not a user operation |
+| `w.move_resize_frame(true, x, y, w, h)` | `w:move_resize{ x, y, width, height }` (1.1), or `w:resize{ width, height }` to keep the corner; every field required |
+| `w.maximize(Meta.MaximizeFlags.BOTH)` / `unmaximize(...)` | `w:maximize()` / `w:unmaximize()` (1.1): both axes only |
+| `w.make_fullscreen()` / `unmake_fullscreen()` | `w:set_fullscreen(true\|false)` (1.1) |
+| `w.make_above()` / `unmake_above()`, `w.stick()` / `unstick()` | `w:set_above(on)`, `w:set_on_all_workspaces(on)` (1.1) |
+| `w.unminimize()` | `w:unminimize()` (1.1): does not focus; `w:activate()` does |
 | `w.change_workspace_by_index(i, false)` / `w.move_to_monitor(i)` | `w:move_to_workspace(n)` / `w:move_to_monitor(n)` (raise when out of range) |
 | a stored `Meta.Window` after `unmanaged` | `w.alive` is false once the window is destroyed; the handle then raises like any dead handle |
 | `workspace_manager.get_n_workspaces()`, `get_active_workspace()`, `get_workspace_by_index()` | `shell.workspaces.count()`, `.active()`, `.get(n)`, `.list()` |
 | `ws.index()`, `ws.list_windows()`, `ws.activate(time)` | `ws.index`, `ws:windows()`, `ws:activate()`; also `ws.active`, `ws.n_windows` |
 | `Main.layoutManager.monitors`, `.primaryMonitor`, `getWorkAreaForMonitor(i)` | `shell.monitors.list()`, `.primary()`, `.get(n)`: plain snapshot tables `{index, x, y, width, height, scale, primary, work_area = {x, y, width, height}}`; call again after `monitors.changed` |
 
-Actions called from a `window.*` or `workspace.*` hook listener are deferred to
-idle, so properties may still show the old value right after the call.
+Actions run on the next frame, and from a `window.*` or `workspace.*` hook
+listener they are deferred to idle, so properties may still show the old value
+right after the call. The 1.1 geometry and state actions are requests: Mutter
+may ignore or adjust them without an error (a fixed-size window keeps its size,
+a maximized window keeps its geometry); read `w.frame` afterwards or wait for
+`window.geometry-changed` / `window.state-changed`.
 
 ```lua
 for i, w in ipairs(shell.windows.list()) do
   if w.app_id == "org.gnome.Console.desktop" and not w.minimized then w:minimize() end
 end
+
+-- 1.1: put a window in the top-left corner of the primary monitor
+local mon = shell.monitors.primary()
+local w = shell.windows.focused()
+if w and w.resizable then w:move_resize{ x = mon.x, y = mon.y, width = mon.width // 2, height = mon.height } end
+```
+
+### Keyboard shortcuts (`docs/api/keybindings.md`, 1.1; no capability)
+
+| JS | Lua |
+|---|---|
+| `Main.wm.addKeybinding('my-key', settings, Meta.KeyBindingFlags.NONE, Shell.ActionMode.NORMAL \| Shell.ActionMode.OVERVIEW, handler)` | `shell.keybindings.add{ name = "my-key", on_pressed = function(binding) end }`: `name` is a key of type `as` in your schema (the `settings` field defaults to your own; pass a `shell.Settings` for another). The `keybinding` row of `prefs.lua` edits that key and a rebinding takes effect at once |
+| `Meta.Display.grab_accelerator('<Super>x', Meta.KeyBindingFlags.NONE)` plus the `accelerator-activated` signal | `shell.keybindings.add{ accelerators = { "<Super>x" }, on_pressed = ... }` (1 to 8 fixed combinations, GTK syntax; mutually exclusive with `name`/`settings`) |
+| the third argument, `Shell.ActionMode` flags | `modes = { "normal", "overview" }` (the default; only these two) |
+| `Main.wm.removeKeybinding('my-key')`, `display.ungrab_accelerator(id)` | `binding:destroy()` (also done at disable) |
+| `settings.get_strv('my-key')` | `binding.accelerators`, `binding.name` |
+
+`add` returns the `shell.Keybinding` or `nil, message` when the combination is
+already taken (literal) or the name is already used (settings-backed; names are
+one namespace for the session, so prefix yours). Key names of settings-backed
+shortcuts must be specific to the extension. At most 16 per extension. The
+callback gets the binding, no key and no window; it never runs on the lock
+screen or in system modal dialogs; autorepeat does not fire it again.
+
+```lua
+local ok, err = shell.keybindings.add{
+  accelerators = { "<Super><Alt>o" },
+  on_pressed = function() shell.overview.toggle() end,
+}
+if not ok then shell.log.warning("no shortcut: %s", err) end
+```
+
+### Overview and search (`docs/api/overview.md`, `docs/api/search.md`, 1.1)
+
+| JS | Lua |
+|---|---|
+| `Main.overview.visible` | `shell.overview.visible` (true from the start of the showing animation to the end of the hiding one) |
+| (no property) | `shell.overview.target`: `"hidden"`, `"window-picker"` or `"app-grid"`; `shell.overview.animating` (`Main.overview.animationInProgress`) |
+| `Main.overview.show()` / `showApps()` | `shell.overview.show{ target = "window-picker" \| "app-grid" }` |
+| `Main.overview.hide()` / `toggle()` | `shell.overview.hide()` / `shell.overview.toggle()` |
+| `Main.overview.searchController.addProvider(provider)` with `getInitialResultSet`, `getSubsearchResultSet`, `getResultMetas`, `activateResult`, `launchSearch` | `shell.search.add_provider{ id, name, icon_name \| icon_file, on_search = function(provider, terms, respond) end, on_activate = function(provider, result_id, terms) end, on_launch = function(provider, terms) end }`; needs capability `search` |
+| `getResultMetas` returning `{id, name, description, createIcon, clipboardText}` | `respond{ { id, name, description, icon_name \| icon_file, clipboard_text } }`, at most 32 results kept, 5 shown |
+| `provider.removeProvider()` / `searchController.removeProvider` | `provider:destroy()` (also done at disable) |
+
+The calls return at once; a request made from inside an `overview.*` hook is
+deferred to idle, and a listener may still cancel a showing. `show` on an
+overview that is shown does nothing. The overview hooks report the extension
+that asked as `reason = "extension"` with `owner` = its uuid. A search provider
+is asked once per search with the full terms (no sub-search protocol), answers
+through `respond` (from any later callback; the answer to a search that was
+replaced by a newer one is dropped), and has no widgets of its own.
+
+```lua
+shell.search.add_provider{
+  id = "notes", name = _("Notes"), icon_name = "accessories-text-editor-symbolic",
+  on_search = function(_provider, terms, respond)
+    respond{ { id = "n1", name = _("Shopping list"), description = terms[1] } }
+  end,
+  on_activate = function(_provider, id) shell.log.info("open %s", id) end,
+}
+```
+
+### Files, processes, HTTP (`docs/api/fs.md`, `spawn.md`, `network.md`, 1.1)
+
+All asynchronous: the options table carries `on_done` / `on_error` (or `on_exit`), nothing runs inside the call, and
+callbacks never run after disable.
+
+| JS | Lua |
+|---|---|
+| `Gio.File.new_for_path(p).query_exists(null)` | `shell.fs.exists(path)` (absolute paths only; no `~`, no relative paths) |
+| `file.query_info('standard::type,standard::size,time::modified', ...)` | `shell.fs.info(path)` returns `{type = "file"\|"directory"\|"symlink"\|"special", size, modified}`, `nil` when absent, or `nil, message` |
+| `file.load_contents_async(...)`, `GLib.file_get_contents` | `shell.fs.read{ path, max_bytes = 16777216, on_done = function(contents) end, on_error = function(err) end }`; `err = {message, code}` with code `"not-found"`, `"permission-denied"`, `"too-large"`, `"cancelled"` or `"other"`; returns a `shell.Task` (`cancel()`, `alive`) |
+| `file.replace_contents_async(...)`, `GLib.file_set_contents` | `shell.fs.write{ path, contents, append = false, on_done, on_error }` (atomic replace; parent directories are created inside `data_dir` only) |
+| `file.enumerate_children_async(...)` | `shell.fs.list{ path, on_done = function(entries) end }`, entries `{name, type}` sorted by name |
+| `file.delete(null)` | `shell.fs.remove{ path, on_done, on_error }` (files and empty directories) |
+| `file.monitor(Gio.FileMonitorFlags.NONE, null)` + `changed` | `shell.fs.watch{ path, on_changed = function(event, path, other_path) end }`, events `"created"`, `"changed"`, `"deleted"`, `"renamed"`; returns a `shell.FileWatch` (`disconnect()`/`destroy()`) |
+| `new Gio.Subprocess({argv, flags})` + `communicate_utf8_async`, `GLib.spawn_async`, `GLib.spawn_command_line_sync` | `shell.spawn{ argv = { "cmd", "arg" }, cwd, env = { NAME = "v" }, stdin = "text", timeout_ms, max_output = 1048576, on_exit = function(result) end }` returns a `shell.Process` (`pid`, `alive`, `kill()`, `destroy()`) or `nil, message` when it cannot start; `result = {status, signal, stdout, stderr, timed_out, truncated}` (`status` is nil when a signal killed it). Needs capability `spawn`. No shell is involved: for pipes run `{ "/bin/sh", "-c", script }` |
+| `proc.force_exit()`, `proc.send_signal(SIGTERM)` | `process:kill()` (SIGTERM), `process:destroy()` (SIGTERM, SIGKILL after 2 s, no `on_exit`); running processes are killed at disable |
+| `new Soup.Session()` + `send_and_read_async(Soup.Message.new('GET', url), ...)` | `shell.network.request{ method = "GET", url, headers = { Name = "v" }, body, content_type, timeout_ms = 30000, max_bytes = 8388608, on_done = function(response) end, on_error = function(err) end }` returns a `shell.Request` (`cancel()`, `destroy()`, `alive`). `response = {status, reason, headers (lower-case names), body, url}`; `err.code` is `"cancelled"`, `"timeout"`, `"too-large"`, `"tls"`, `"resolve"`, `"connection"` or `"other"`. An HTTP 404 or 500 is a response, not an error. Needs capability `network` |
+
+Capabilities, as shown to the user: **`fs`** gates `shell.fs` outside your own
+directories. Without it you may read `shell.extension.dir` and read and write
+`shell.extension.data_dir`; every other path raises `shell.fs.<function>()
+requires the "fs" capability` (paths are canonicalised and symbolic links are
+followed before the check). With it, any path the shell can reach. **`spawn`**
+gates all of `shell.spawn`; the program runs as the user with the shell's
+environment, so treat it like `dbus`. **`network`** gates all of
+`shell.network.request`; it reaches `localhost` and the local network as well.
+Keep your own state in `shell.extension.data_dir` (settings are better for
+anything the user edits).
+
+```lua
+-- no capability needed: the data directory is yours
+local file = shell.extension.data_dir .. "/seen.txt"
+shell.fs.read{ path = file, on_done = function(text) shell.log.info("seen: %s", text) end,
+               on_error = function(err) if err.code ~= "not-found" then shell.log.warning("%s", err.message) end end }
+shell.fs.write{ path = file, contents = "yes\n" }
+
+-- capability "spawn"
+shell.spawn{ argv = { "uptime", "-p" }, timeout_ms = 3000,
+             on_exit = function(r) if r.status == 0 then shell.log.info("%s", r.stdout) end end }
+
+-- capability "network"
+shell.network.request{ url = "https://example.org/status", timeout_ms = 10000,
+  on_done = function(res) shell.log.info("HTTP %d", res.status) end,
+  on_error = function(err) shell.log.debug("%s (%s)", err.message, err.code) end }
 ```
 
 ### Signals to hooks (`docs/api/hooks.md`)
@@ -361,9 +491,9 @@ does. `W` below is the window snapshot: `window-id`, `title`, `wm-class`,
 
 | JS signal | Hook | Payload keys |
 |---|---|---|
-| `Main.overview` `showing` (and patching `show()`) | `overview.showing` (cancellable; amend `target`) | `reason`, `target` |
+| `Main.overview` `showing` (and patching `show()`) | `overview.showing` (cancellable; amend `target`) | `reason`, `target`, and `owner` when `reason` is `"extension"` (1.1) |
 | `Main.overview` `shown` | `overview.shown` | `target` |
-| `Main.overview` `hiding` | `overview.hiding` (cancellable) | `reason` |
+| `Main.overview` `hiding` | `overview.hiding` (cancellable) | `reason`, and `owner` when `reason` is `"extension"` (1.1) |
 | `Main.overview` `hidden` | `overview.hidden` | none |
 | `display` `notify::focus-window` | `window.focused` | W + `previous-window-id` |
 | `display` `window-created`, actor `map` | `window.mapped` | W |
@@ -372,27 +502,33 @@ does. `W` below is the window snapshot: `window-id`, `title`, `wm-class`,
 | `window` `notify::title` | `window.title-changed` | W + `old-title` |
 | `window` `workspace-changed` | `window.workspace-changed` | W + `from`, `to` |
 | `display` `window-entered-monitor` | `window.monitor-changed` | W + `from`, `to` |
-| `notify::maximized-*`, `notify::fullscreen` | `window.state-changed` | W + `maximized`, `fullscreen`, `changed` |
+| `notify::maximized-*`, `notify::fullscreen`, `notify::above`, `notify::on-all-workspaces` | `window.state-changed` | W + `maximized`, `fullscreen`, `changed`, and since 1.1 `above`, `on-all-workspaces` |
+| `window` `position-changed`, `size-changed` | `window.geometry-changed` (1.1; at most once per frame per window) | W + `x`, `y`, `width`, `height` (the frame) |
 | `workspace_manager` `workspace-switched` | `workspace.switched` | `from`, `to` |
 | `workspace-added` / `workspace-removed` | `workspace.added` / `workspace.removed` | `index` |
 | `Main.layoutManager` `monitors-changed` | `monitors.changed` | `count`, `primary` |
 | `Main.layoutManager` `startup-complete` | `shell.started` | none |
 | shell shutdown | `shell.shutting-down` | none |
 | `Main.sessionMode` `updated` | `session.mode-changed` | `mode` |
+| a `Gio.FileMonitor` on `/etc/localtime` | `time.timezone-changed` (1.1) | `timezone` (the new identifier) |
 | `Main.messageTray` banner requests | `notification.showing` (cancellable: no banner, no sound), `notification.shown`, `notification.activated` | `notification-id`, `source`, `urgency`, `resident`, `transient`, `owner`, `app-id`; never title or body |
 | `Panel._onMenuSet`, `statusArea` additions | `panel.menu-opened`, `panel.indicator-added` | `name`, `box` (+ `owner` for `indicator-added`, empty for the shell's own) |
 | quick settings menu `open-state-changed` | `quick-settings.opened` | none |
 | dash `_redisplay` | `dash.item-added` | `kind`, `owner`, `index` (+ `app-id` for apps) |
 | `Main.screenshotUI`, `Main.keyboard` | `screenshot.taken`, `osk.shown`, `osk.hidden` | `kind`, `clipboard`, `file`; `monitor` |
-| search provider | `search.query`, observe only; capability `search` | `query`, `terms` |
+| what the user types into the search entry | `search.query`, observe only; capability `search` (to provide results use `shell.search.add_provider`) | `query`, `terms` |
 
-Notes: windows already mapped when the shell started get no `window.mapped`
-(read them with `shell.windows.list()` in `enable()`); an after hook runs once
+Notes: since 1.1 `window.mapped` is replayed to a new listener: the first
+thing it gets, from an idle after `shell.hooks.on` returned, is one event per
+existing window in `shell.windows.list()` order, so one listener sees "every
+window, now and later" (on a 1.0 shell read them with `shell.windows.list()` in
+`enable()`); an after hook runs once
 the new state is visible through the API (`shell.windows.focused()` already
 returns the new window inside `window.focused`); `reason` and `target` are
 open enumerations, treat an unknown value as `"other"`; a cancel of
 `overview.hiding` is honoured only for `hot-corner`, `activities-button`,
-`overlay-key`, `keybinding` and `gesture`.
+`overlay-key`, `keybinding` and `gesture` (never for `extension`: a hiding an
+extension asked for cannot be cancelled).
 
 ```lua
 -- Replaces a patch of the hot corner
@@ -410,11 +546,15 @@ end)
 
 Everything you create through `shell.*` (widgets, indicators, menu items,
 quick-settings items, dash buttons, notifications, timers, settings and hook
-connections, D-Bus subscriptions, names and exported objects) belongs to the
+connections, D-Bus subscriptions, names and exported objects, and since 1.1
+keybindings, search providers, file watches, pending file tasks, running
+processes and HTTP requests) belongs to the
 extension, not to the Lua value. At disable the shell, in this order: runs
 your `disable()` if there is one, destroys your objects in reverse creation
 order, disconnects callbacks and cancels timers (no callback runs after
-disable begins; pending D-Bus calls are cancelled), then closes the Lua state.
+disable begins; pending D-Bus calls, file tasks and HTTP requests are cancelled
+and running processes are killed, all without callbacks), then closes the Lua
+state.
 Nothing you created is visible afterwards.
 
 What you stop writing:
@@ -474,15 +614,19 @@ Rules in practice:
 | `Main.panel.add_child`, `Main.layoutManager.addChrome`, `uiGroup`, `global.stage`, any `St`/`Clutter` object | none: no handle to any GObject by any route | compose `shell.ui` widgets inside an indicator, menu or quick-settings menu (`docs/api/ui.md`); floating or overlay widgets do not exist |
 | `GObject.registerClass` widgets, vfunc overrides, `allocate` | none | compose widgets; CSS for look; `icon_file` for bundled art |
 | `actor.ease()`, transitions, `Clutter.Actor.set_position`, effects, `Cogl`, `St.DrawingArea` | none | CSS, `x_expand`/`x_align`; a fixed `transition` property may come later |
-| `button-press-event`, `key-press-event` on arbitrary actors | none (raw input is a keylogging channel) | `on_clicked`, `on_activate`, `on_changed`; shortcuts are a future `shell.keybindings` |
+| `button-press-event`, `key-press-event` on arbitrary actors | none (raw input is a keylogging channel) | `on_clicked`, `on_activate`, `on_changed`; global shortcuts are `shell.keybindings` (1.1), which tells you that your shortcut fired, not which key was typed |
 | `InjectionManager`, prototype patching, overriding `Main.*` methods | impossible | hooks: `shell.hooks.before` to cancel or amend, `shell.hooks.on` to react |
 | Hiding, reordering or replacing built-in indicators, the date menu, the Activities button, built-in quick-settings items | none | add your own items; built-ins never move relative to extension groups |
-| `Main.wm.addKeybinding` | not in 1.0 (the `keybinding` row of `prefs.lua` edits an `as` key only) | none yet, request it |
-| `Main.overview.visible`, `overview.toggle()`, `Main.overview.searchController.addProvider` | no query, no toggle, no provider | `overview.*` hooks, `hide_overview` on a dash button, `w:activate()` (hides the overview), hook `search.query` (observe only, needs `search`) |
-| `import ... from 'gi://...'`: `Gio.File`, `GLib.spawn_*`, `Soup`, `Gtk`, `Clipboard` | no GI | `fs`, `spawn` and `network` are reserved names: accepted and displayed, no v1 function uses them. `shell.apps.launch` starts a desktop app |
-| Wall-clock time (`GLib.DateTime`) | the sandbox has no `os`: no `os.time`, `os.date`, `os.clock` | count timer ticks, as the worked example does, or request it |
-| Synchronous calls of any kind | none | callbacks (`on_reply`, `on_error`) |
-| Window geometry, `move_resize_frame`, maximize, tile, window actors, screenshots | none: window management stays in the shell | five actions (`activate`, `minimize`, `close`, `move_to_workspace`, `move_to_monitor`) plus the hooks |
+| Key release, chords (`<Super>x, y`), "any key" grabs, `Main.wm.setCustomKeybindingHandler`, overriding or taking over a shortcut of the shell or of Mutter | none: `shell.keybindings.add` reports a taken combination (`nil, message`), never takes it over; it never runs on the lock screen, in system modal dialogs or while a shell menu is open | pick another combination; let the user rebind a settings-backed one in `prefs.lua` |
+| Typing into the search entry, focusing it, selecting an app or workspace in the overview, changing the layout or content of the window picker or the app grid, `Main.overview.dash` internals | none: `shell.overview` shows, hides and reports the state | `shell.overview.show/hide/toggle`, the `overview.*` hooks, `hide_overview` on a dash button |
+| Search providers with their own widgets, grid results, context menus, results that change after `respond`, `getSubsearchResultSet` | none: one asynchronous `respond` of plain tables, at most 32 results kept and 5 shown | `shell.search.add_provider`; `search.query` to observe what is typed (both need `search`) |
+| `import ... from 'gi://...'`: `Gio`, `GLib`, `Soup`, `Gtk`, `Clipboard`, `GObject` | no GI | `shell.fs` (exists, info, read, write, list, remove, watch: absolute paths, whole files, no directories outside `data_dir`, no rename, copy or recursion), `shell.spawn`, `shell.network.request` (no cookies, WebSockets, streaming or custom certificate handling), `shell.time`, `shell.dbus`, `shell.apps.launch`; no clipboard API (a search result can set `clipboard_text`) |
+| `os.time`, `os.date`, `os.clock`, `io.open`, `os.execute` | the sandbox has no `os` and no `io` | `shell.time`, `shell.fs`, `shell.spawn` (1.1) |
+| Synchronous calls of any kind: `Sync` proxy calls, `load_contents`, `communicate_utf8`, a nested main loop to wait for a reply | none; the watchdog would kill you first | callbacks (`on_reply`, `on_done`, `on_error`, `on_exit`); start the second step from the first one's callback |
+| Detached processes that outlive the extension, interactive standard input, streaming output | none: a process running at disable is killed, `stdin` is a string written once, output arrives whole in `on_exit` | `systemd-run --user` through `shell.spawn`, `shell.apps.launch` |
+| Tiling and half-maximizing, maximizing on one axis, interactive moves and resizes, window actors, window contents, screenshots | none: window management stays in the shell | geometry and state actions (`move`, `resize`, `move_resize`, `maximize`, `unmaximize`, `set_fullscreen`, `set_above`, `set_on_all_workspaces`, `unminimize`, 1.1) plus the older five, and the hooks; Mutter may adjust or ignore a request |
+| Creating, removing, reordering or renaming workspaces (`workspace_manager.append_new_workspace`, `reorder_workspace`) | none: dynamic workspaces are Mutter's | `w:move_to_workspace(n)` within the existing ones, `ws:activate()` |
+| Vetoing a window being closed, focused or moved (`before` hooks on windows) | none: window hooks are informational | react afterwards (`window.focused`, `window.geometry-changed`) and call an action |
 | Other extensions' indicators, `Extension.lookupByUUID` | none | extensions must not depend on each other |
 | Reading other applications' notifications, `Urgency.CRITICAL`, custom banners, sounds | none; hooks never carry title or body | `shell.notify` for your own |
 | Dash drag-and-drop, dash context menus, per-monitor panels, panel height | none | |
@@ -782,7 +926,7 @@ changes in `extension.lua` with `shell.settings.extension():on_changed(...)`.
 | `Adw.ComboRow` with a model and manual mapping | `{ type = "combo", key, title, choices = { { value = "24h", label = _("24-hour") } } }` (key `s` or integer; with `<choices>`/`<enum>` every value must be one of them) |
 | `Adw.EntryRow` + `bind(..., 'text')` | `{ type = "entry", key, title, max_length? }` (key `s`; written on Enter or focus-out) |
 | `Gtk.ColorDialogButton` + string conversion | `{ type = "color", key, title, alpha? }` (key `s`; stores `#rrggbb` or `rgba(r, g, b, a)`) |
-| a shortcut capture row | `{ type = "keybinding", key, title, max = 1..4, allow_empty }` (key `as`; it edits the key, it does not register the shortcut) |
+| a shortcut capture row | `{ type = "keybinding", key, title, max = 1..4, allow_empty }` (key `as`; it edits the key, it does not register the shortcut: register it in `extension.lua` with `shell.keybindings.add{ name = key, ... }`, 1.1) |
 | `row.sensitive = ...` / `bind_property` on another key | `depends_on = "key"`, `"!key"` (booleans) or `{ key = "k", value = v }`; an inactive row is insensitive, not hidden |
 | `window.set_title`, `window.add(page)` | top-level `title` (default: metadata `name`) |
 | `ExtensionPreferences.gettext` | `_`, `ngettext`, `pgettext`, resolved at load time with `locale/` |
@@ -821,6 +965,7 @@ enables each of them in a headless shell.
 |---|---|
 | `hello@gnome-lua.example` | minimal extension, timer, settings, feature-detecting a hook, prefs |
 | `indicator@gnome-lua.example` | indicator with menu (action, switch, submenu with choice, separator, image item), widgets, stylesheet |
+| `clock@gnome-lua.example` | 1.1: `shell.time` clock refreshed on the minute and on `time.timezone-changed`, a keybinding that toggles `shell.overview` |
 | `quick-toggle@gnome-lua.example` | menu toggle with header, slider and status icon kept in sync with settings both ways |
 | `dash-launcher@gnome-lua.example` | two dash buttons, `shell.apps` |
 | `hooks-log@gnome-lua.example` | only hooks (`on` and `before`), `disable()` |
