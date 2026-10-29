@@ -23,8 +23,8 @@ the other two reported.
 |---|---|
 | Startup time | `systemd-analyze --user blame` for `org.gnome.Shell@wayland.service`, and the time from the service start to the `startup-complete` signal of the layout manager (`journalctl --user -u org.gnome.Shell@wayland.service` shows "GNOME Shell started at" from `ShellMain`). |
 | Resident memory | `smem -P gnome-shell -c "pss rss"` one minute after login with no window open, and again after opening and closing the overview, the system menu and the calendar five times. |
-| Frame time | `gnome-shell --headless`-free: `GNOME_SHELL_SLOWDOWN_FACTOR=1` with `MUTTER_DEBUG_ENABLE_FRAME_TIMINGS=1`, or Sysprof's "Compositor" marks, while switching workspaces ten times and opening the overview ten times; report the 50th and 99th percentile of the frame time. |
-| Extension cost | With the `hooks-log@gnome-lua.example` extension enabled, the same measurements; the watchdog counters of each extension (`shell_lua_state_get_stats ()`, shown in Looking Glass) give the time spent in Lua. |
+| Frame time | Sysprof (`sysprof-cli --gnome-shell`), reading the compositor's frame marks while switching workspaces ten times and opening the overview ten times; report the 50th and 99th percentile of the frame time. |
+| Extension cost | With the `hooks-log@gnome-lua.example` extension enabled, the same measurements; the memory of each extension's state (`shell_lua_state_get_memory_usage ()`, shown in Looking Glass) gives its share of the heap. |
 
 The JS runtime cost that the port removes shows up mostly in the startup
 time (no GJS context, no module loading) and in the resident memory (no
