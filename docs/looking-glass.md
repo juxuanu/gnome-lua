@@ -6,7 +6,8 @@ You currently run it by pressing <kbd>Alt</kbd> <kbd>F2</kbd>,
 and typing `lg`<kbd>Return</kbd>.
 
 You can leave Looking Glass by pressing <kbd>Esc</kbd> in its
-Evaluator pane.
+Evaluator pane. While the object inspector (see below) is open, <kbd>Esc</kbd>
+closes the inspector first.
 
 Looking Glass has five major panes (Evaluator, Windows, Extensions,
 Actors and Flags) and one tool (the Picker).
@@ -129,9 +130,14 @@ window or the application.
 
 ## Extensions
 
-This is a list of all installed Lua extensions with their state, the memory
-and the number of errors of their Lua state. You can use the View Source link to
-quickly access the extension folder, and Show Errors to see the last error.
+This is a list of all installed Lua extensions, sorted by name, with their
+description, their state, the memory (the Lua heap) and the number of errors of
+their Lua state. You can use the View Source link to quickly access the
+extension folder, Web Page to open the `url` of `metadata.json` (when it has
+one), and Show Errors to see the last error of the extension (Hide Errors
+closes it again). The list is made again whenever an extension changes its
+state. The page does not enable, disable or reload extensions: use
+`gnome-extensions` or the Extensions application.
 
 ## Actors
 
@@ -141,7 +147,10 @@ accessed via code in the evaluator.
 
 ## Flags
 
-This pane provides easy access to a list of Mutter and Clutter debug flags.
+This pane provides easy access to a list of Mutter and Clutter debug flags,
+`unsafe-mode`, the export of the debug control of Mutter, and a slider for
+`slow_down_factor` of `St.Settings` (see below). The switches are updated from
+the shell each time the pane is shown.
 
 ## The Picker
 

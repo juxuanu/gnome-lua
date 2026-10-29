@@ -217,6 +217,25 @@ create_settings_schema (GFile       *target_dir,
                                   error);
 }
 
+/* The extension is loaded from where it is created, and neither the shell nor
+ * the preferences window read the XML: they need schemas/gschemas.compiled
+ * (docs/api/prefs.md). Not being able to compile is no reason to fail. */
+static void
+compile_settings_schemas (GFile *target_dir)
+{
+  g_autoptr (GFile) schema_dir = g_file_get_child (target_dir, "schemas");
+  g_autofree char *schema_path = g_file_get_path (schema_dir);
+  g_autoptr (GSubprocess) proc = NULL;
+  g_autoptr (GError) error = NULL;
+
+  proc = g_subprocess_new (G_SUBPROCESS_FLAGS_STDERR_SILENCE, &error,
+                           "glib-compile-schemas", "--strict", schema_path,
+                           NULL);
+  if (proc == NULL || !g_subprocess_wait_check (proc, NULL, &error))
+    g_printerr (_("Could not compile the settings schema (run “glib-compile-schemas %s” once it is edited): %s\n"),
+                schema_path, error->message);
+}
+
 /* The schema of the extension when prefs.lua is wanted and the command line
  * names none: prefs.lua needs keys to bind its rows to. The convention of
  * the extensions is org.gnome.shell.extensions.<name>, the name being the
@@ -370,6 +389,9 @@ create_extension (const char *uuid,
       g_printerr ("%s\n", error->message);
       return FALSE;
     }
+
+  if (settings_schema)
+    compile_settings_schemas (dir);
 
   if (!copy_extension_template (template, dir, &error))
     {

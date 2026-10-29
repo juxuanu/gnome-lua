@@ -869,7 +869,8 @@ lg_obj_inspector_select_object (LgObjInspector *self,
     }
   else
     {
-      title = g_strdup_printf ("Inspecting: <error> %s", error->message);
+      title = g_strdup_printf ("Inspecting: <error> %s",
+                               error != NULL ? error->message : "unknown error");
     }
 
   hbox = box_layout_new (NULL, "lg-obj-inspector-title", CLUTTER_ORIENTATION_HORIZONTAL);
@@ -1672,7 +1673,9 @@ extension_view_errors_cb (StButton     *button,
                                     NULL);
       if (error != NULL && *error != '\0')
         {
-          clutter_actor_add_child (error_display, CLUTTER_ACTOR (st_label_new (error)));
+          g_autofree char *valid = g_utf8_make_valid (error, -1);
+
+          clutter_actor_add_child (error_display, CLUTTER_ACTOR (st_label_new (valid)));
         }
       else
         {
@@ -3010,7 +3013,9 @@ lg_push_result (ShellLookingGlass *self,
 
   if (error_message != NULL)
     {
-      g_autofree char *text = g_strdup_printf ("<error> %s", error_message);
+      /* a Lua error message can hold any bytes, Pango warns about invalid UTF-8 */
+      g_autofree char *valid = g_utf8_make_valid (error_message, -1);
+      g_autofree char *text = g_strdup_printf ("<error> %s", valid);
 
       clutter_actor_add_child (result_actor, wrapping_label_new (text));
     }

@@ -1525,12 +1525,16 @@ add_member (lua_State      *L,
 {
   Member *member = g_new0 (Member, 1);
 
+  /* summarize () can raise (__tostring): the member is owned by the array
+   * before that, the caller's remaining summary is then empty. */
   member->key = key;
+  member->summary = g_strdup ("");
+  g_ptr_array_add (ctx->members, member);
   g_string_truncate (ctx->scratch, 0);
   summarize (L, -1, ctx->scratch);
+  g_free (member->summary);
   member->summary = one_line (ctx->scratch);
   member->pin = pin_top (L, ctx);
-  g_ptr_array_add (ctx->members, member);
   return member;
 }
 
@@ -1546,6 +1550,7 @@ add_table_members (lua_State      *L,
     {
       Member *member;
       GString *key;
+      char *valid_key;
 
       if (ctx->members->len >= MAX_MEMBERS)
         {
@@ -1568,8 +1573,9 @@ add_table_members (lua_State      *L,
           g_string_append_c (key, ']');
         }
 
-      member = add_member (L, ctx, make_valid (key->str, key->len));
+      valid_key = make_valid (key->str, key->len);
       g_string_free (key, TRUE);
+      member = add_member (L, ctx, valid_key);
 
       if (lua_isinteger (L, -2))
         {

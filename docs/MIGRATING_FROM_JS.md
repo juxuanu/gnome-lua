@@ -709,8 +709,8 @@ The timer callback does not return a value to continue (only `false` stops a
 `shell.timer.every`); the counter is reset by a closure upvalue instead of a
 class field.
 
-Check before shipping: `gnome-extensions pack` validates `prefs.lua` against
-the compiled schema.
+Check before shipping: `gnome-extensions prefs <uuid>` validates `prefs.lua`
+against the compiled schema (the window shows the problems); `pack` does not.
 
 ## 7. Looking Glass
 
@@ -794,8 +794,8 @@ return a table synchronously within the 500 ms watchdog, and may contain only
 strings, numbers, booleans and tables (a function, userdata or cycle is a
 validation error).
 
-Validation (`gnome-extensions pack` as errors, `gnome-extensions prefs <uuid>`
-and the prefs service, with paths such as `pages[2].groups[1].rows[3].key`):
+Validation (by the prefs service when it opens the window, as
+`gnome-extensions prefs <uuid>` does, with paths such as `pages[2].groups[1].rows[3].key`):
 only documented fields; strings non-empty and at most 200 bytes (`subtitle`,
 `description` 500); `settings-schema` set and compiled in `schemas/`; every
 `key` in the schema, of a type allowed for the row, **bound by at most one

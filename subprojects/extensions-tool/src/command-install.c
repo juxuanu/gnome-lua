@@ -45,6 +45,13 @@ load_metadata (GFile   *dir,
   if (!json_parser_load_from_stream (parser, stream, NULL, error))
     return NULL;
 
+  if (!JSON_NODE_HOLDS_OBJECT (json_parser_get_root (parser)))
+    {
+      g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                           "metadata.json does not contain an object");
+      return NULL;
+    }
+
   return json_node_dup_object (json_parser_get_root (parser));
 }
 
@@ -130,7 +137,14 @@ install_extension (const char *bundle,
         goto err;
     }
 
-  uuid = json_object_get_string_member (metadata, "uuid");
+  uuid = json_object_get_string_member_with_default (metadata, "uuid", NULL);
+  if (uuid == NULL || *uuid == '\0')
+    {
+      g_set_error_literal (&error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                           "missing \"uuid\" property in metadata.json");
+      goto err;
+    }
+
   dst = g_file_get_child (dstdir, uuid);
 
   if (g_file_query_exists (dst, NULL))

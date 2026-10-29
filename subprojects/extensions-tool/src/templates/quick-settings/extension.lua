@@ -32,7 +32,7 @@ function ext.enable()
   shell.quick_settings.add_toggle{
     title = _("Smile"),
     icon_name = "face-smile-symbolic",
-    on_toggle = function(_, checked)
+    on_toggle = function(toggle, checked)
       indicator.visible = checked
     end,
   }

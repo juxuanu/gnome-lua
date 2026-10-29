@@ -59,7 +59,8 @@ uninstall_extension (const char *uuid)
                                      NULL,
                                      &error);
 
-  g_variant_get (response, "(b)", &success);
+  if (response != NULL)
+    g_variant_get (response, "(b)", &success);
 
   if (!success)
     g_printerr (_("Failed to uninstall “%s”\n"), uuid);

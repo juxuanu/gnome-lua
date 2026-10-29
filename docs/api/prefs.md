@@ -93,12 +93,17 @@ Behaviour of the renderer:
 
 ## Validation
 
-Performed identically by the prefs service, `gnome-extensions pack` (as errors)
-and `gnome-extensions prefs`; all problems are collected and reported with a
-path such as `pages[2].groups[1].rows[3].key`. A failing file shows the
-error page of the old dialog (`ExtensionPrefsErrorPage`: the problems, a Copy
-Error button and a link to the extension's `url`); it never disables the
-extension.
+Performed by the prefs service each time it opens the window, whoever asked
+for it (`gnome-extensions prefs <uuid>`, the Extensions application or the
+shell: all call `OpenExtensionPrefs`, which the shell forwards to the
+service). `gnome-extensions pack` does not run `prefs.lua`: it only adds the
+file to the bundle and checks that `metadata.json` has `uuid`, `name` and
+`shell-api`. All problems are collected and reported with a path such as
+`pages[2].groups[1].rows[3].key`. A failing file shows the error page of the
+old dialog (`ExtensionPrefsErrorPage`: the problems, a Copy Error button and a
+link to the extension's `url`); it never disables the extension.
+`gnome-extensions create --prefs` scaffolds a `prefs.lua` with a schema and
+compiles it, so the new window opens at once.
 
 1. The file returns a table; only the fields above exist (unknown field =
    error); required fields present; strings are non-empty and at most 200 bytes

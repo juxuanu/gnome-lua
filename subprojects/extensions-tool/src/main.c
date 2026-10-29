@@ -231,7 +231,8 @@ void
 print_extension_info (GVariantDict  *info,
                       DisplayFormat  format)
 {
-  const char *uuid, *name, *desc, *path, *url, *author, *version_name;
+  const char *uuid = "", *name = "", *desc = "", *path = "";
+  const char *url, *author, *version_name;
   double state, version;
   gboolean has_version, has_version_name, enabled;
 
@@ -241,6 +242,7 @@ print_extension_info (GVariantDict  *info,
   if (format == DISPLAY_ONELINE)
     return;
 
+  /* The description is optional in the metadata.json of a Lua extension */
   g_variant_dict_lookup (info, "name", "&s", &name);
   g_print ("  %s: %s\n", _("Name"), name);
 

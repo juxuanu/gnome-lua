@@ -1,5 +1,5 @@
 [Desktop Entry]
 Type=Application
 Name=Plain
-Comment=An empty extension
+Comment=An empty Lua extension
 Path=plain

@@ -860,7 +860,12 @@ create_error_page (ExtPrefsWindow *self,
   adw_preferences_group_add (ADW_PREFERENCES_GROUP (intro), label);
   adw_preferences_page_add (ADW_PREFERENCES_PAGE (page), ADW_PREFERENCES_GROUP (intro));
 
-  details = g_strjoinv ("\n", problems);
+  {
+    /* the messages of a Lua error can hold any bytes */
+    g_autofree char *joined = g_strjoinv ("\n", problems);
+
+    details = g_utf8_make_valid (joined, -1);
+  }
 
   gtk_widget_add_css_class (copy_button, "flat");
   gtk_widget_set_tooltip_text (copy_button, _("Copy Error"));

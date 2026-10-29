@@ -160,7 +160,8 @@ COMMANDS
     ``--settings-schema``\ =\ *SCHEMA*
 
       Set the GSettings schema used by the extension. An empty schema
-      is created in the schemas/ folder of the extension
+      is created in the schemas/ folder of the extension and compiled
+      with ``glib-compile-schemas``
 
     ``--template``\ =\ *TEMPLATE*
 
@@ -188,7 +189,9 @@ COMMANDS
   and metadata.json, as well as any of the optional stylesheet.css,
   stylesheet-dark.css, stylesheet-light.css or prefs.lua if found.
   Each additional source that should be included must be specified
-  with ``--extra-source``.
+  with ``--extra-source``. The command only checks that metadata.json
+  has the *uuid*, *name* and *shell-api* properties; prefs.lua is
+  validated when its window is opened (``gnome-extensions prefs``).
 
   If the extension includes one or more GSettings schemas, they can
   either be placed in a schemas/ folder to be picked up automatically,

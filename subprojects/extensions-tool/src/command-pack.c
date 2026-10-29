@@ -127,7 +127,27 @@ ensure_metadata (ExtensionPack  *pack,
   if (!json_parser_load_from_stream (parser, stream, NULL, error))
     return FALSE;
 
+  if (!JSON_NODE_HOLDS_OBJECT (json_parser_get_root (parser)))
+    {
+      g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                           "metadata.json does not contain an object");
+      return FALSE;
+    }
+
   pack->metadata = json_node_dup_object (json_parser_get_root (parser));
+
+  /* What the shell needs to load a Lua extension (docs/api/README.md) */
+  if (json_object_get_string_member_with_default (pack->metadata, "uuid", NULL) == NULL ||
+      json_object_get_string_member_with_default (pack->metadata, "name", NULL) == NULL ||
+      json_object_get_string_member_with_default (pack->metadata, "shell-api", NULL) == NULL)
+    {
+      g_clear_pointer (&pack->metadata, json_object_unref);
+      g_set_error_literal (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                           "metadata.json needs the string properties "
+                           "\"uuid\", \"name\" and \"shell-api\"");
+      return FALSE;
+    }
+
   return TRUE;
 }
 
