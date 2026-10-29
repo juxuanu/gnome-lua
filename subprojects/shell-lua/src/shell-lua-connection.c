@@ -391,3 +391,30 @@ shell_lua_connection_push (ShellLuaConnection *self,
   shell_lua_handle_push (L, "shell.Connection", G_OBJECT (self));
   shell_lua_api_anchor (L, -1, G_OBJECT (self));
 }
+
+static int
+push_trampoline (lua_State *L)
+{
+  shell_lua_connection_push (lua_touserdata (L, 1), L);
+  return 1;
+}
+
+int
+shell_lua_connection_push_take (ShellLuaConnection *self,
+                                lua_State          *L)
+{
+  int status;
+
+  g_return_val_if_fail (SHELL_IS_LUA_CONNECTION (self), 0);
+
+  /* The push allocates (the handle, its anchor) and may raise: the owner
+   * holds the connection already, so all that must not be lost is the
+   * caller's reference. */
+  lua_pushcfunction (L, push_trampoline);
+  lua_pushlightuserdata (L, self);
+  status = lua_pcall (L, 1, 1, 0);
+  g_object_unref (self);
+  if (status != LUA_OK)
+    return lua_error (L);   /* the error object is on top */
+  return 1;
+}

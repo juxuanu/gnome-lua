@@ -825,6 +825,34 @@ lookup_pspec (Handle                       *h,
                                        p->gproperty != NULL ? p->gproperty : p->name);
 }
 
+typedef struct {
+  ShellLuaVirtualGetter get;
+  GObject              *object;
+} VirtualGet;
+
+static int
+virtual_get_trampoline (lua_State *L)
+{
+  VirtualGet *vg = lua_touserdata (L, 1);
+
+  lua_settop (L, 0);
+  vg->get (L, vg->object);
+  return 1;
+}
+
+/* The string key at @idx as a C string. Names are compared as C strings, so
+ * a key with an embedded NUL ("i\0junk") must not alias the property it
+ * starts with: it reads as "", which names nothing. */
+static const char *
+key_string (lua_State *L,
+            int        idx)
+{
+  size_t len;
+  const char *key = lua_tolstring (L, idx, &len);
+
+  return strlen (key) == len ? key : "";
+}
+
 static int
 handle_index (lua_State *L)
 {
@@ -845,7 +873,7 @@ handle_index (lua_State *L)
       lua_pushnil (L);
       return 1;
     }
-  key = lua_tostring (L, 2);
+  key = key_string (L, 2);
 
   /* `alive` exists on every handle and never raises. */
   if (strcmp (key, "alive") == 0)
@@ -882,13 +910,17 @@ handle_index (lua_State *L)
   virt = find_virtual (L, h->type, key);
   if (virt != NULL)
     {
-      GObject *object = g_object_ref (h->object);
+      VirtualGet vg = { virt->get, g_object_ref (h->object) };
+      int status;
 
-      /* The getter may raise: the reference is dropped by the caller's
-       * object ownership at worst (the object is owned by an extension), so
-       * a leak here would need an out-of-memory error. */
-      virt->get (L, object);
-      g_object_unref (object);
+      /* The getter may raise (a bad state, out of memory): run it in a
+       * protected call so that the reference is dropped either way. */
+      lua_pushcfunction (L, virtual_get_trampoline);
+      lua_pushlightuserdata (L, &vg);
+      status = lua_pcall (L, 1, 1, 0);
+      g_object_unref (vg.object);
+      if (status != LUA_OK)
+        return lua_error (L);   /* the error object is on top */
       return 1;
     }
 
@@ -969,7 +1001,7 @@ handle_newindex (lua_State *L)
 
   if (lua_type (L, 2) != LUA_TSTRING)
     return luaL_error (L, "no property of type %s on %s", luaL_typename (L, 2), h->type->name);
-  key = lua_tostring (L, 2);
+  key = key_string (L, 2);
 
   if (strcmp (key, "alive") == 0)
     return luaL_error (L, "property 'alive' on %s is read-only", h->type->name);

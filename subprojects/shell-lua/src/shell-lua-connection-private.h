@@ -47,6 +47,12 @@ void                shell_lua_connection_register_handle_type (lua_State *L);
  * and keeps @self alive as long as the handle is reachable from Lua). */
 void                shell_lua_connection_push         (ShellLuaConnection *self,
                                                        lua_State          *L);
+/* shell_lua_connection_push() for a C function that returns the handle
+ * (`return shell_lua_connection_push_take (connection, L);`): it takes over
+ * the caller's reference and drops it whether or not the push raised (an
+ * out-of-memory error must not leak the connection). Returns 1. */
+int                 shell_lua_connection_push_take    (ShellLuaConnection *self,
+                                                       lua_State          *L);
 
 /* ------------------------------------------------------------------------ */
 /* Ownership                                                                 */

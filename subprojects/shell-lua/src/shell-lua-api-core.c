@@ -1139,9 +1139,7 @@ l_settings_on_changed (lua_State *L)
   watch->handler = g_signal_connect (settings, signal_name, G_CALLBACK (settings_changed_cb), watch);
 
   shell_lua_connection_own (connection);
-  shell_lua_connection_push (connection, L);
-  g_object_unref (connection);
-  return 1;
+  return shell_lua_connection_push_take (connection, L);
 }
 
 static const luaL_Reg settings_methods[] = {

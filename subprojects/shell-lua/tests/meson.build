@@ -12,6 +12,7 @@ shell_lua_tests = [
   'objects',
   'extension',
   'inspector',
+  'fuzz',
 ]
 
 # The test schemas (org.gnome-lua.test, a minimal org.gnome.shell) are

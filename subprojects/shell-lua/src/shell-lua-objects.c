@@ -385,12 +385,18 @@ emit_with (ShellLuaState        *state,
            ShellLuaPushArgsFunc  push_args,
            gpointer              user_data)
 {
+  g_autoptr(ShellLuaState) keep = NULL;
   Objects *o;
   EmitContext ctx = { emitter, with_self && emitter != NULL, push_args, user_data };
   gboolean ok;
 
   if (state == NULL || ref == LUA_NOREF || ref == LUA_REFNIL || !shell_lua_state_is_alive (state))
     return FALSE;
+
+  /* The callback may disable the extension that owns the state (dropping its
+   * reference) or destroy it: @o lives and dies with the state object, so
+   * hold it until the bookkeeping below is done. */
+  keep = g_object_ref (state);
 
   o = objects_get (state, TRUE);
   if (o == NULL || o->blocked)
@@ -516,10 +522,7 @@ shell_lua_callback_push_connection (lua_State        *L,
 
   connection = shell_lua_connection_new (state, LUA_NOREF, conn_disconnect, c);
   shell_lua_connection_own (connection);
-  shell_lua_connection_register_handle_type (L);
-  shell_lua_connection_push (connection, L);
-  g_object_unref (connection);
-  return 1;
+  return shell_lua_connection_push_take (connection, L);
 }
 
 /* ------------------------------------------------------------------------ */

@@ -197,10 +197,11 @@ hooks_connect (lua_State     *L,
 
   shell_lua_connection_register_handle_type (L);
 
+  /* luaL_ref on the running thread: shell_lua_state_ref() works on the
+   * state's main thread, which is not the one that runs this when the
+   * script calls us from inside a coroutine. */
   lua_pushvalue (L, 2);
-  ref = shell_lua_state_ref (state);
-  if (ref == LUA_NOREF)
-    return luaL_error (L, "cannot store the callback");
+  ref = luaL_ref (L, LUA_REGISTRYINDEX);
 
   d = g_new0 (Listener, 1);
   d->refcount = 2;           /* registry + connection */
@@ -220,9 +221,7 @@ hooks_connect (lua_State     *L,
     }
 
   shell_lua_connection_own (connection);
-  shell_lua_connection_push (connection, L);
-  g_object_unref (connection);
-  return 1;
+  return shell_lua_connection_push_take (connection, L);
 }
 
 static int

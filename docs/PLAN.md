@@ -250,10 +250,12 @@ portal helper.
   `G_DEBUG=fatal-warnings` since run 90.
 
 ### M8 — Stabilization and release (effort 1)
-* Two GNOME point releases of soak time on the maintainers' own machines.
-* Fuzz the Lua API boundary (malformed handles, re-entrancy from hooks,
-  disable-during-callback).
-* Write `docs/MIGRATING_FROM_JS.md` (§7) and announce.
+* [ ] Two GNOME point releases of soak time on the maintainers' own machines.
+* [x] Fuzz the Lua API boundary (malformed handles, re-entrancy from hooks,
+  disable-during-callback, limits, random sequences):
+  `subprojects/shell-lua/tests/test-fuzz.c`, 25 cases, seeded and
+  deterministic; it found six runtime bugs on its first campaign.
+* [x] Write `docs/MIGRATING_FROM_JS.md` (§7); [ ] announce.
 
 ## 5. The extension API, in brief
 

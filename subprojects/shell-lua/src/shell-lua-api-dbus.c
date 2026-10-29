@@ -1257,9 +1257,7 @@ subscribe (lua_State     *L,
 
   bus_when_ready (proxy->bus, signal_sub_op, signal_sub_ref (sub), signal_sub_unref);
 
-  shell_lua_connection_push (connection, L);
-  g_object_unref (connection);
-  return 1;
+  return shell_lua_connection_push_take (connection, L);
 }
 
 /* proxy:on_signal(name_or_nil, fn) */
@@ -2400,9 +2398,7 @@ l_bus_watch_name (lua_State *L)
                                       vanished != LUA_NOREF ? name_vanished_cb : NULL,
                                       watch, name_watch_unref);
 
-  shell_lua_connection_push (connection, L);
-  g_object_unref (connection);
-  return 1;
+  return shell_lua_connection_push_take (connection, L);
 }
 
 /* bus:own_name{ name, allow_replacement, replace, on_acquired, on_lost } */

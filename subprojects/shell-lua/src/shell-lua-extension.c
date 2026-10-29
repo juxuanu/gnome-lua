@@ -871,7 +871,10 @@ shell_lua_extension_enable (ShellLuaExtension  *self,
     {
       if (!shell_lua_state_pcall (self->lua_state, 0, 0, &local_error))
         {
-          lua_settop (L, top);
+          /* enable() may have disabled this very extension (or destroyed
+           * its state): the lua_State is closed then, leave it alone. */
+          if (self->lua_state != NULL && shell_lua_state_get_L (self->lua_state) == L)
+            lua_settop (L, top);
           return enable_failed (self, local_error, error);
         }
     }

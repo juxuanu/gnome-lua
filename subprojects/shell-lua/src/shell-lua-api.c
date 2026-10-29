@@ -141,12 +141,14 @@ shell_lua_check_fields (lua_State         *L,
   while (lua_next (L, tbl) != 0)
     {
       const char *key;
+      size_t len;
 
       lua_pop (L, 1);
       if (lua_type (L, -1) != LUA_TSTRING)
         luaL_error (L, "options table has a non-string key (%s)", luaL_typename (L, -1));
-      key = lua_tostring (L, -1);
-      if (!g_strv_contains (allowed, key))
+      key = lua_tolstring (L, -1, &len);
+      /* a key with an embedded NUL must not pass as the field it starts with */
+      if (strlen (key) != len || !g_strv_contains (allowed, key))
         luaL_error (L, "unknown field '%s'", key);
     }
 }
@@ -322,6 +324,7 @@ shell_lua_call_ref (ShellLuaState        *state,
                     gpointer              user_data)
 {
   g_autoptr(GError) error = NULL;
+  g_autoptr(ShellLuaState) keep = NULL;
   CallContext ctx = { ref, nargs, push_args, user_data };
   lua_State *L;
   int top;
@@ -341,6 +344,11 @@ shell_lua_call_ref (ShellLuaState        *state,
   /* Callbacks never run once disable has begun. */
   if (shell_lua_objects_is_blocked (state))
     return FALSE;
+
+  /* The callback may disable the extension that owns the state, which drops
+   * its reference: keep the state until we are done with it (the id below,
+   * the registries of the caller). */
+  keep = g_object_ref (state);
 
   L = shell_lua_state_get_L (state);
   top = lua_gettop (L);
