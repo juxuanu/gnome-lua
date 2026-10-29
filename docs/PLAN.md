@@ -319,6 +319,8 @@ Design rules for the surface:
 
 ## 7. Migration notes for JS extension authors (to be expanded in M7)
 
+Full guide: [`MIGRATING_FROM_JS.md`](MIGRATING_FROM_JS.md). In brief:
+
 * `Main.panel.addToStatusArea(...)` → `shell.panel.add_indicator{...}`.
 * `QuickSettings.QuickToggle` subclasses → `shell.quick_settings.add_toggle{...}`.
 * `Main.overview.dash` manipulation → `shell.dash.add_button{...}`.

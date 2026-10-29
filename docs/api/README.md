@@ -6,6 +6,7 @@ Scope: the contract every `shell.*` module obeys. Per-area documents
 add what is specific to them; where they are silent, this file applies. Status
 column conventions used in all documents: **impl** = exists in
 `subprojects/shell-lua` today (M1), **M7** = specified here, implemented in M7.
+See also: [`../MIGRATING_FROM_JS.md`](../MIGRATING_FROM_JS.md) (guide for authors of JS extensions).
 
 Not in v1: access to GObject/Clutter/Cogl/Meta/Gio objects by any route; custom
 widget classes or virtual-method overrides; raw allocation, paint or Clutter
