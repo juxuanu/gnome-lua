@@ -248,6 +248,13 @@ portal helper.
   published; `api_version = 1.0` frozen. The whole suite (11 unit programs, 8
   shell tests, 9 API tests) is green in CI under AddressSanitizer with
   `G_DEBUG=fatal-warnings` since run 90.
+* [x] **API 1.1** (additive): `shell.time`, `shell.log.fatal`,
+  `shell.keybindings`, window geometry and state actions with
+  `window.geometry-changed` and the replay of `window.mapped`,
+  `shell.overview`, `shell.search.add_provider`, `shell.fs`, `shell.spawn`,
+  `shell.network` behind the `fs`, `spawn` and `network` capabilities,
+  `shell.extension.data_dir`; seven new conformance tests and three new
+  subproject test programs; green in CI since run 105 (35 tests).
 
 ### M8 — Stabilization and release (effort 1)
 * [ ] Two GNOME point releases of soak time on the maintainers' own machines.
