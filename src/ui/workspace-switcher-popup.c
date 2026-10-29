@@ -44,6 +44,7 @@ struct _ShellWsPopupMonitorConstraint
   ClutterConstraint parent;
 
   int monitor_index;            /* -1: the primary monitor */
+  MetaMonitorManager *monitor_manager;  /* weak, "monitors-changed" is connected */
 };
 
 G_DEFINE_FINAL_TYPE (ShellWsPopupMonitorConstraint,
@@ -65,14 +66,22 @@ static void
 shell_ws_popup_monitor_constraint_set_actor (ClutterActorMeta *meta,
                                              ClutterActor     *new_actor)
 {
-  MetaMonitorManager *monitor_manager =
-    meta_backend_get_monitor_manager (shell_global_get_backend (shell_global_get ()));
+  ShellWsPopupMonitorConstraint *self = SHELL_WS_POPUP_MONITOR_CONSTRAINT (meta);
 
-  g_signal_handlers_disconnect_by_func (monitor_manager,
-                                        monitors_changed_cb, meta);
+  if (self->monitor_manager != NULL)
+    {
+      g_signal_handlers_disconnect_by_func (self->monitor_manager,
+                                            monitors_changed_cb, meta);
+      g_clear_weak_pointer (&self->monitor_manager);
+    }
+
   if (new_actor != NULL)
-    g_signal_connect (monitor_manager, "monitors-changed",
-                      G_CALLBACK (monitors_changed_cb), meta);
+    {
+      g_set_weak_pointer (&self->monitor_manager,
+                          meta_backend_get_monitor_manager (shell_global_get_backend (shell_global_get ())));
+      g_signal_connect (self->monitor_manager, "monitors-changed",
+                        G_CALLBACK (monitors_changed_cb), meta);
+    }
 
   CLUTTER_ACTOR_META_CLASS (shell_ws_popup_monitor_constraint_parent_class)->set_actor (meta, new_actor);
 }
@@ -105,14 +114,15 @@ shell_ws_popup_monitor_constraint_update_allocation (ClutterConstraint *constrai
 static void
 shell_ws_popup_monitor_constraint_dispose (GObject *object)
 {
-  ShellGlobal *global = shell_global_get ();
-  MetaBackend *backend = global ? shell_global_get_backend (global) : NULL;
-  MetaMonitorManager *monitor_manager =
-    backend ? meta_backend_get_monitor_manager (backend) : NULL;
+  ShellWsPopupMonitorConstraint *self = SHELL_WS_POPUP_MONITOR_CONSTRAINT (object);
 
-  if (monitor_manager != NULL)
-    g_signal_handlers_disconnect_by_func (monitor_manager,
-                                          monitors_changed_cb, object);
+  /* Never shell_global_get () here: the global is gone at the end of shutdown */
+  if (self->monitor_manager != NULL)
+    {
+      g_signal_handlers_disconnect_by_func (self->monitor_manager,
+                                            monitors_changed_cb, object);
+      g_clear_weak_pointer (&self->monitor_manager);
+    }
 
   G_OBJECT_CLASS (shell_ws_popup_monitor_constraint_parent_class)->dispose (object);
 }
@@ -434,7 +444,10 @@ shell_workspace_switcher_popup_dispose (GObject *object)
 {
   ShellWorkspaceSwitcherPopup *self = SHELL_WORKSPACE_SWITCHER_POPUP (object);
 
-  release_sources (self);
+  /* Not release_sources (): it needs shell_global_get (), which must not be
+   * reached from dispose (); the destroy () vfunc, which ClutterActor's
+   * dispose runs, disconnects the workspace manager */
+  g_clear_handle_id (&self->timeout_id, g_source_remove);
   g_clear_weak_pointer (&self->ui_group);
 
   G_OBJECT_CLASS (shell_workspace_switcher_popup_parent_class)->dispose (object);

@@ -298,9 +298,11 @@ shell_panel_button_box_dispose (GObject *object)
   ShellPanelButtonBox *self = SHELL_PANEL_BUTTON_BOX (object);
   ShellPanelButtonBoxPrivate *priv = shell_panel_button_box_get_instance_private (self);
 
-  g_clear_object (&priv->container);
-
   G_OBJECT_CLASS (shell_panel_button_box_parent_class)->dispose (object);
+
+  /* Clear after the chain-up: ClutterActor's dispose emits ::destroy, whose
+   * class handler (shell_panel_button_box_destroy ()) destroys the container */
+  g_clear_object (&priv->container);
 }
 
 static void
@@ -810,11 +812,14 @@ shell_panel_menu_button_dispose (GObject *object)
   if (priv->menu != NULL)
     g_signal_handlers_disconnect_by_data (priv->menu, self);
 
-  g_clear_object (&priv->menu);
   g_clear_object (&priv->click_gesture);
   g_clear_object (&priv->key_controller);
 
   G_OBJECT_CLASS (shell_panel_menu_button_parent_class)->dispose (object);
+
+  /* Clear after the chain-up: ClutterActor's dispose emits ::destroy, whose
+   * class handler (shell_panel_menu_button_destroy ()) destroys the menu */
+  g_clear_object (&priv->menu);
 }
 
 static void

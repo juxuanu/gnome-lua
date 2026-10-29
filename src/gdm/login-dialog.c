@@ -794,10 +794,12 @@ shell_a11y_menu_button_dispose (GObject *object)
 {
   ShellA11yMenuButton *self = SHELL_A11Y_MENU_BUTTON (object);
 
+  G_OBJECT_CLASS (shell_a11y_menu_button_parent_class)->dispose (object);
+
+  /* Clear after the chain-up: ClutterActor's dispose emits ::destroy, whose
+   * handler (a11y_menu_button_destroy_cb ()) destroys the menu */
   g_clear_object (&self->manager);
   g_clear_object (&self->menu);
-
-  G_OBJECT_CLASS (shell_a11y_menu_button_parent_class)->dispose (object);
 }
 
 static void

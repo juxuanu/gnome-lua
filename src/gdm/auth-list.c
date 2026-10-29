@@ -103,10 +103,12 @@ shell_auth_list_item_icon_dispose (GObject *object)
 {
   ShellAuthListItemIcon *self = SHELL_AUTH_LIST_ITEM_ICON (object);
 
+  G_OBJECT_CLASS (shell_auth_list_item_icon_parent_class)->dispose (object);
+
+  /* Clear after the chain-up: ClutterActor's dispose emits ::destroy, whose
+   * handler (item_icon_destroy_cb ()) destroys the menu */
   g_clear_object (&self->manager);
   g_clear_object (&self->menu);
-
-  G_OBJECT_CLASS (shell_auth_list_item_icon_parent_class)->dispose (object);
 }
 
 static void

@@ -2083,10 +2083,14 @@ shell_switcher_popup_dispose (GObject *object)
   ShellSwitcherPopupPrivate *priv = shell_switcher_popup_get_instance_private (self);
 
   clear_timeouts (self);
-  g_clear_object (&priv->grab);
-  g_clear_object (&priv->switcher_list);
 
   G_OBJECT_CLASS (shell_switcher_popup_parent_class)->dispose (object);
+
+  /* Clear after the chain-up: ClutterActor's dispose emits ::destroy, whose
+   * handler (popup_destroy_cb ()) pops the modal with the grab and destroys
+   * the switcher list */
+  g_clear_object (&priv->grab);
+  g_clear_object (&priv->switcher_list);
 }
 
 static void

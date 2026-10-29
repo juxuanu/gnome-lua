@@ -957,10 +957,12 @@ shell_auth_menu_button_dispose (GObject *object)
   if (priv->sections != NULL)
     g_ptr_array_set_size (priv->sections, 0);
 
+  G_OBJECT_CLASS (shell_auth_menu_button_parent_class)->dispose (object);
+
+  /* Clear after the chain-up: ClutterActor's dispose emits ::destroy, whose
+   * handler (button_destroy_cb ()) destroys the menu */
   g_clear_object (&priv->manager);
   g_clear_object (&priv->menu);
-
-  G_OBJECT_CLASS (shell_auth_menu_button_parent_class)->dispose (object);
 }
 
 static void

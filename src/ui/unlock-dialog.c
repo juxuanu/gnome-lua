@@ -1081,13 +1081,15 @@ shell_unlock_clock_dispose (GObject *object)
   self->idle_watch_id = 0;
   g_clear_weak_pointer (&self->idle_monitor);
 
-  g_clear_object (&self->wall_clock);
-
   self->time = NULL;
   self->date = NULL;
   self->hint = NULL;
 
   G_OBJECT_CLASS (shell_unlock_clock_parent_class)->dispose (object);
+
+  /* Clear after the chain-up: ClutterActor's dispose emits ::destroy, whose
+   * class handler (shell_unlock_clock_destroy ()) disposes the wall clock */
+  g_clear_object (&self->wall_clock);
 }
 
 static void
@@ -2487,7 +2489,6 @@ shell_unlock_dialog_dispose (GObject *object)
     g_ptr_array_set_size (self->bg_managers, 0);
 
   g_clear_object (&self->gdm_client);
-  g_clear_object (&self->grab);
   g_clear_object (&self->user);
   g_clear_object (&self->screen_saver_settings);
   g_clear_object (&self->lockdown_settings);
@@ -2510,6 +2511,10 @@ shell_unlock_dialog_dispose (GObject *object)
   self->active_page = NULL;
 
   G_OBJECT_CLASS (shell_unlock_dialog_parent_class)->dispose (object);
+
+  /* Clear after the chain-up: ClutterActor's dispose emits ::destroy, whose
+   * class handler (shell_unlock_dialog_destroy ()) pops the modal with it */
+  g_clear_object (&self->grab);
 }
 
 static void

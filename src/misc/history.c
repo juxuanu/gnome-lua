@@ -381,7 +381,10 @@ shell_history_manager_dispose (GObject *object)
 {
   ShellHistoryManager *self = SHELL_HISTORY_MANAGER (object);
 
-  if (self->key_controller != NULL && self->entry != NULL)
+  /* A destroyed entry keeps its address, not its actions */
+  if (self->key_controller != NULL && self->entry != NULL &&
+      clutter_actor_meta_get_actor (CLUTTER_ACTOR_META (self->key_controller)) ==
+      CLUTTER_ACTOR (self->entry))
     clutter_actor_remove_action (CLUTTER_ACTOR (self->entry), self->key_controller);
 
   g_clear_object (&self->key_controller);

@@ -1513,9 +1513,13 @@ shell_window_preview_dispose (GObject *gobject)
   g_clear_object (&self->close_button);
   g_clear_object (&self->window_container);
   g_clear_object (&self->overview_adjustment);
-  g_clear_object (&self->meta_window);
 
   G_OBJECT_CLASS (shell_window_preview_parent_class)->dispose (gobject);
+
+  /* Clear after the chain-up: ClutterActor's dispose emits ::destroy, and the
+   * handlers of ShellWorkspace (preview_destroyed_cb ()) and the ::drag-end
+   * emitted by destroy () read the window of the preview */
+  g_clear_object (&self->meta_window);
 }
 
 static void

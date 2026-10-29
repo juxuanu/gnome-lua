@@ -2573,6 +2573,10 @@ shell_input_source_manager_dispose (GObject *object)
   if (self->window_manager != NULL)
     g_clear_signal_handler (&self->overview_visible_notify_id, self->window_manager);
 
+  /* The popup can outlive the manager: its "destroy" handler has @self as data */
+  if (self->switcher_popup != NULL)
+    g_signal_handlers_disconnect_by_func (self->switcher_popup,
+                                          manager_switcher_popup_destroy_cb, self);
   g_clear_weak_pointer (&self->switcher_popup);
   g_clear_weak_pointer (&self->candidate_popup);
   g_clear_weak_pointer (&self->window_manager);
