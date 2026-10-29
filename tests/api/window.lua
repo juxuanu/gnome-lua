@@ -17,9 +17,19 @@ harness.run {
   drive = function (c)
     c.wait_done ("main")
 
-    -- a window of the perf helper: mapped, drawn, listed
+    -- a window of the perf helper: mapped, drawn, listed. The helper reports
+    -- its window shown before the compositor maps it; the fixture reports
+    -- window.mapped as it comes.
     test.create_window {}
     test.wait_windows ()
+    c.wait_until (function ()
+      for _, check in ipairs (test.extension_report (uuid).checks) do
+        if check.name:find ("^window%.mapped #") then
+          return true
+        end
+      end
+      return false
+    end, "the fixture to see window.mapped")
     test.wait_leisure ()
     c.step ("opened")
 
