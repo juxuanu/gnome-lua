@@ -148,7 +148,15 @@ perform_action (GObject   *object,
       break;
 
     case ACTION_CLOSE:
-      meta_window_delete (META_WINDOW (object), shell_global_get_current_time (global));
+      {
+        /* An extension closes a window outside of any event (a timer, a
+         * D-Bus reply): without a timestamp the liveness ping is refused */
+        guint32 timestamp = shell_global_get_current_time (global);
+
+        if (timestamp == 0)
+          timestamp = meta_display_get_current_time_roundtrip (shell_global_get_display (global));
+        meta_window_delete (META_WINDOW (object), timestamp);
+      }
       break;
 
     case ACTION_MOVE_TO_WORKSPACE:

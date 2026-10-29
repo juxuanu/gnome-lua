@@ -882,7 +882,9 @@ function ext.enable()
           eq(kept.lost, nil, "on_lost is not called for a name we gave back")
           kept.watch:disconnect()
           eq(kept.watch:is_connected(), false, "disconnected")
-          go()
+          -- the script expects the name held while the extension is enabled,
+          -- and released by the teardown at disable
+          kept.owner = bus:own_name{ name = OWN_NAME, on_acquired = guard(finish, go) }
         end)
       end,
     })

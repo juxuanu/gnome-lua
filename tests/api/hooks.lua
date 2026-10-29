@@ -179,6 +179,8 @@ local function notification_scenarios (c)
   -- CANCEL: no banner (the notification is not shown)
   arm (c, "notification.showing", "cancel")
   c.step ("reset")
+  -- the system source goes with its last notification; the tray makes a new one
+  source = main.message_tray:get_system_source ()
   local second = test.new ("ShellNotification", { source = source, title = "API test 2" })
   source:add_notification (second)
   test.sleep (1500)
