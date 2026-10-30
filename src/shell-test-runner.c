@@ -140,6 +140,7 @@
 #include "ui/overview.h"
 #include "ui/panel.h"
 #include "ui/popup-menu.h"
+#include "ui/screen-shield.h"
 
 #ifndef MUTTER_TEST_LIBRARY
 #define MUTTER_TEST_LIBRARY "libmutter-test-51.so"
@@ -2214,6 +2215,22 @@ static const luaL_Reg notification_methods[] = {
   { NULL, NULL }
 };
 
+/* screen_shield:lock (animate) */
+static int
+l_screen_shield_lock (lua_State *L)
+{
+  ShellScreenShield *shield = check_instance (L, 1, SHELL_TYPE_SCREEN_SHIELD);
+
+  luaL_checktype (L, 2, LUA_TBOOLEAN);
+  shell_screen_shield_lock (shield, lua_toboolean (L, 2));
+  return 0;
+}
+
+static const luaL_Reg screen_shield_methods[] = {
+  { "lock", l_screen_shield_lock },
+  { NULL, NULL }
+};
+
 /* ShellLayoutManager */
 
 static int
@@ -2422,6 +2439,7 @@ register_object_methods (void)
   shell_lua_inspector_add_object_methods (SHELL_TYPE_MESSAGE_TRAY, tray_methods);
   shell_lua_inspector_add_object_methods (SHELL_TYPE_SOURCE, source_methods);
   shell_lua_inspector_add_object_methods (SHELL_TYPE_NOTIFICATION, notification_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_SCREEN_SHIELD, screen_shield_methods);
   shell_lua_inspector_add_object_methods (SHELL_TYPE_LAYOUT_MANAGER, layout_methods);
   shell_lua_inspector_add_object_methods (META_TYPE_DISPLAY, display_methods);
   shell_lua_inspector_add_object_methods (META_TYPE_BACKEND, backend_methods);

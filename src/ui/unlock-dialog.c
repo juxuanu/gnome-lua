@@ -553,8 +553,9 @@ policy_notify_cb (GObject                *object,
 }
 
 static void
-source_destroy_cb (ShellSource            *source,
-                   NotificationSourceInfo *info)
+source_destroy_cb (ShellSource                      *source,
+                   ShellNotificationDestroyedReason  reason,
+                   NotificationSourceInfo           *info)
 {
   ShellUnlockNotificationsBox *self = info->box;
 

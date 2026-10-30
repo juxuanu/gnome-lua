@@ -21,6 +21,9 @@ class MockDisplayManager:
     def load(mock, parameters={}):
         mock.AddMethods(MockDisplayManager.MAIN_IFACE,
                         [('RegisterSession', 'a{sv}', '', '')])
+        # The shell can lock the screen (it has a screen shield) only with a
+        # GDM that has a version
+        mock.AddProperty(MockDisplayManager.MAIN_IFACE, 'Version', '51.1')
 
 class MockPermissionStore:
     BUS_NAME = 'org.freedesktop.impl.portal.PermissionStore'

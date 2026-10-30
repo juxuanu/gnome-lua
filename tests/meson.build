@@ -104,6 +104,9 @@ shell_tests = [
     'name': 'boxPointer',
   },
   {
+    'name': 'lockScreenNotifications',
+  },
+  {
     # The login screen, against tests/greeter-mock.py (gnomeshell_dbusrunner.py
     # starts it for this mode)
     'name': 'loginDialog',
