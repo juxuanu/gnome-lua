@@ -1,6 +1,7 @@
 -- This script tests the overview (src/ui/overview.c): it shows the overview,
 -- waits for it to be shown, switches to the application grid, runs a search
--- and hides the overview, under fatal warnings.
+-- and hides the overview, under fatal warnings. Then a D-Bus client shows and
+-- hides it through the OverviewActive property of org.gnome.Shell.
 
 local TIMEOUT = 10000
 
@@ -14,6 +15,9 @@ local results = {
   search_started = false,
   search_ended = false,
   hidden = false,
+  dbus_shown = false,
+  dbus_rewritten = false,
+  dbus_hidden = false,
 }
 
 test.finish (function ()
@@ -24,7 +28,27 @@ test.finish (function ()
   assert (results.search_started, "Failed to start the search")
   assert (results.search_ended, "Failed to end the search")
   assert (results.hidden, "Failed to hide the overview")
+  assert (results.dbus_shown, "Failed to show the overview over D-Bus")
+  assert (results.dbus_rewritten, "Failed to write the value OverviewActive has over D-Bus")
+  assert (results.dbus_hidden, "Failed to hide the overview over D-Bus")
 end)
+
+-- Writes OverviewActive as a client of the shell's D-Bus service does, and
+-- waits for the reply: true when gdbus succeeded
+local function set_overview_active (active)
+  local result
+
+  local proc, err = shell.spawn {
+    argv = { "gdbus", "call", "--session", "--timeout", "5",
+             "--dest", "org.gnome.Shell", "--object-path", "/org/gnome/Shell",
+             "--method", "org.freedesktop.DBus.Properties.Set",
+             "org.gnome.Shell", "OverviewActive", active and "<true>" or "<false>" },
+    on_exit = function (r) result = r end,
+  }
+  assert (proc, err)
+  test.wait_for (function () return result ~= nil end, "gdbus to exit", TIMEOUT)
+  return result.status == 0
+end
 
 test.wait_startup ()
 
@@ -87,6 +111,25 @@ local hidden = test.watch (overview, "hidden")
 overview:hide ()
 test.wait (hidden, TIMEOUT)
 results.hidden = not overview.visible
+test.wait_leisure ()
+
+-- the same over D-Bus; writing the value the property already has used to
+-- spin the shell in the notify handler of the property
+test.log ("Showing the overview over D-Bus")
+shown = test.watch (overview, "shown")
+assert (set_overview_active (true), "Failed to write OverviewActive")
+test.wait (shown, TIMEOUT)
+results.dbus_shown = overview.visible
+test.wait_leisure ()
+
+results.dbus_rewritten = set_overview_active (true) and overview.visible
+test.wait_leisure ()
+
+test.log ("Hiding the overview over D-Bus")
+hidden = test.watch (overview, "hidden")
+assert (set_overview_active (false), "Failed to write OverviewActive")
+test.wait (hidden, TIMEOUT)
+results.dbus_hidden = not overview.visible
 test.wait_leisure ()
 
 test.log ("Finished overview test")

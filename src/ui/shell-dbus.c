@@ -35,7 +35,8 @@
  *  - setting OverviewActive over D-Bus asks ShellMain to show or hide the
  *    overview, and the property only changes when the overview has; a
  *    skeleton property is written first by the D-Bus call, so it is put back
- *    to its previous value before the request (nothing is emitted for that);
+ *    to its previous value before the request (nothing is emitted for that),
+ *    once the emission of notify::overview-active is over;
  *  - an accelerator signal whose activation token cannot be created is sent
  *    with an empty token (the JS threw and no signal was sent);
  *  - ReloadExtension () reloads the extension (it used to fail as not
@@ -240,6 +241,8 @@ struct _ShellDBusService
 
   gboolean overview_active;
   gboolean syncing_overview_active;
+  gboolean requested_overview_active;
+  guint overview_active_request_id;
   gboolean shutting_down;
 };
 
@@ -766,25 +769,44 @@ on_handle_hide_monitor_labels (ShellDBusShell        *skeleton,
 
 /* The OverviewActive property */
 
+static gboolean
+overview_active_request_cb (gpointer user_data)
+{
+  ShellDBusService *self = user_data;
+
+  self->overview_active_request_id = 0;
+
+  /* The property only changes when the overview does: restore the value
+   * before asking for the change */
+  sync_overview_active (self);
+
+  if (!self->shutting_down)
+    g_signal_emit (self, signals[OVERVIEW_ACTIVE_REQUESTED], 0,
+                   self->requested_overview_active);
+
+  return G_SOURCE_REMOVE;
+}
+
 static void
 on_overview_active_notify (GObject          *skeleton,
                            GParamSpec       *pspec,
                            ShellDBusService *self)
 {
-  gboolean requested;
-
   if (self->syncing_overview_active)
     return;
 
-  /* A client wrote the property. It only changes when the overview does, so
-   * restore the value before asking for the change */
-  requested = shell_dbus_shell_get_overview_active (self->skeleton);
-  sync_overview_active (self);
-
-  if (self->shutting_down)
-    return;
-
-  g_signal_emit (self, signals[OVERVIEW_ACTIVE_REQUESTED], 0, requested);
+  /* A client wrote the property. Restoring it here would emit
+   * notify::overview-active within this emission, and notify is a
+   * G_SIGNAL_NO_RECURSE signal: GLib would restart this emission, and this
+   * handler with it, for good. So it is restored once the emission is over */
+  self->requested_overview_active = shell_dbus_shell_get_overview_active (self->skeleton);
+  if (self->overview_active_request_id == 0)
+    {
+      /* Before the skeleton's PropertiesChanged, which then has nothing to
+       * emit, and before the next D-Bus call is handled */
+      self->overview_active_request_id =
+        g_idle_add_full (G_PRIORITY_HIGH, overview_active_request_cb, self, NULL);
+    }
 }
 
 static void
@@ -1053,6 +1075,8 @@ shell_dbus_service_dispose (GObject *object)
   gpointer watch_id;
 
   self->shutting_down = TRUE;
+
+  g_clear_handle_id (&self->overview_active_request_id, g_source_remove);
 
   if (self->grabbers != NULL)
     {
