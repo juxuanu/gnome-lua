@@ -98,6 +98,7 @@ shell_tests = [
   },
   {
     'name': 'cameraMonitor',
+    'timeout': 120,
   },
   {
     'name': 'boxPointer',
@@ -231,6 +232,7 @@ foreach shell_test : shell_tests
       tests_dependencies,
     ],
     env: local_test_env,
+    timeout: shell_test.get('timeout', 30),
   )
 endforeach
 

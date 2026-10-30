@@ -7,7 +7,9 @@
 -- monitor reports it in use, not in use once the delayed disable ran, and in
 -- use again.
 
-local TIMEOUT = 10000
+-- PipeWire and WirePlumber start on demand, which takes a while on a loaded
+-- machine
+local TIMEOUT = 30000
 local CAMERA = "shell-test-camera"
 
 local results = {
