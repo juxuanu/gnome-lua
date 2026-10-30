@@ -99,7 +99,10 @@ backend only needs a Wayland parent.
 Build options that trim dependencies for a development build:
 `-Dcalendar_server=false` (no evolution-data-server; the date menu shows no
 events), `-Dportal_helper=false` (no WebKitGTK), `-Dnetworkmanager=false`,
-`-Dbluetooth=false`, `-Dmalcontent=false`, `-Dintrospection=false`.
+`-Dbluetooth=false`, `-Dmalcontent=false`, `-Dintrospection=false`, and
+`-Dtests=false` where the distribution's Mutter ships without its test
+library (`libmutter-test-51`: Arch's `mutter` package does not include it;
+the podman image builds Mutter with it).
 
 ## Running a nested instance
 
