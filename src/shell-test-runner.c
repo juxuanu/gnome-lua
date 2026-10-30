@@ -132,6 +132,7 @@
 #define ST_H_INSIDE 1
 #include "st-enum-types.h"
 #undef ST_H_INSIDE
+#include "ui/box-pointer.h"
 #include "ui/extension-system.h"
 #include "ui/layout.h"
 #include "ui/main.h"
@@ -1573,8 +1574,16 @@ l_new (lua_State *L)
   if (status != LUA_OK)
     return lua_error (L);
 
-  keep_object (r, object);
-  g_object_unref (object);
+  /* The runner keeps the reference g_object_new () returned; that of an
+   * initially unowned object (an actor) is floating, which keep_object ()
+   * sinks and takes as its own */
+  if (g_object_is_floating (object))
+    keep_object (r, object);
+  else
+    {
+      keep_object (r, object);
+      g_object_unref (object);
+    }
   shell_lua_inspector_push_object (L, object);
   return 1;
 }
@@ -1629,8 +1638,8 @@ l_create_virtual_device (lua_State *L)
 
 /* test.press_accelerator (accelerator): types the combination (GTK syntax:
  * `<Super><Alt>j`, `<Control>F5`; modifiers Shift, Control, Alt, Super; a key
- * is one ASCII character, `space`, `Return`, `Escape`, `Tab`, `Print` or
- * `F1`..`F12`) on a virtual keyboard of the default seat: the modifiers go
+ * is one ASCII character, `space`, `Return`, `Escape`, `Tab`, `Print`, `Left`,
+ * `Right`, `Up`, `Down` or `F1`..`F12`) on a virtual keyboard of the default seat: the modifiers go
  * down, the key goes down and up, the modifiers go up. It does not wait: the
  * events reach the shell from the main loop, so the script polls for the
  * effect. The keyboard is made on the first call. */
@@ -1650,6 +1659,10 @@ accelerator_keyval (const char *name,
     { "Escape", CLUTTER_KEY_Escape },
     { "Tab", CLUTTER_KEY_Tab },
     { "Print", CLUTTER_KEY_Print },
+    { "Left", CLUTTER_KEY_Left },
+    { "Right", CLUTTER_KEY_Right },
+    { "Up", CLUTTER_KEY_Up },
+    { "Down", CLUTTER_KEY_Down },
   };
   guint i;
 
@@ -1882,10 +1895,20 @@ l_actor_queue_redraw (lua_State *L)
   return 0;
 }
 
+/* actor:add_child (child) */
+static int
+l_actor_add_child (lua_State *L)
+{
+  clutter_actor_add_child (check_instance (L, 1, CLUTTER_TYPE_ACTOR),
+                           check_instance (L, 2, CLUTTER_TYPE_ACTOR));
+  return 0;
+}
+
 static const luaL_Reg actor_methods[] = {
   { "get_transformed_position", l_actor_get_transformed_position },
   { "get_allocation_box", l_actor_get_allocation_box },
   { "queue_redraw", l_actor_queue_redraw },
+  { "add_child", l_actor_add_child },
   { NULL, NULL }
 };
 
@@ -2119,6 +2142,21 @@ l_menu_close (lua_State *L)
   lua_pushboolean (L, shell_popup_menu_base_close (menu, SHELL_POPUP_ANIMATION_FULL));
   return 1;
 }
+
+/* box_pointer:set_position (source, alignment) */
+static int
+l_box_pointer_set_position (lua_State *L)
+{
+  shell_box_pointer_set_position (check_instance (L, 1, SHELL_TYPE_BOX_POINTER),
+                                  check_instance (L, 2, CLUTTER_TYPE_ACTOR),
+                                  luaL_checknumber (L, 3));
+  return 0;
+}
+
+static const luaL_Reg box_pointer_methods[] = {
+  { "set_position", l_box_pointer_set_position },
+  { NULL, NULL }
+};
 
 static const luaL_Reg menu_methods[] = {
   { "open", l_menu_open },
@@ -2380,6 +2418,7 @@ register_object_methods (void)
   shell_lua_inspector_add_object_methods (SHELL_TYPE_SEARCH_RESULT, search_result_methods);
   shell_lua_inspector_add_object_methods (SHELL_TYPE_PANEL, panel_methods);
   shell_lua_inspector_add_object_methods (SHELL_TYPE_POPUP_MENU_BASE, menu_methods);
+  shell_lua_inspector_add_object_methods (SHELL_TYPE_BOX_POINTER, box_pointer_methods);
   shell_lua_inspector_add_object_methods (SHELL_TYPE_MESSAGE_TRAY, tray_methods);
   shell_lua_inspector_add_object_methods (SHELL_TYPE_SOURCE, source_methods);
   shell_lua_inspector_add_object_methods (SHELL_TYPE_NOTIFICATION, notification_methods);

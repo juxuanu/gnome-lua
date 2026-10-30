@@ -100,6 +100,9 @@ shell_tests = [
     'name': 'cameraMonitor',
   },
   {
+    'name': 'boxPointer',
+  },
+  {
     # The login screen, against tests/greeter-mock.py (gnomeshell_dbusrunner.py
     # starts it for this mode)
     'name': 'loginDialog',

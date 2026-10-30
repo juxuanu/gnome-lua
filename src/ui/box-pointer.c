@@ -181,6 +181,27 @@ clear_source_actor (ShellBoxPointer *self)
   priv->source_destroy_id = 0;
 }
 
+/* The stage allocates each child of a no-layout actor as a root of its own,
+ * at its fixed position with its preferred size, the last queued first. The
+ * window menu shows its source, such a child of the UI group, in the same
+ * turn of the main loop as its box pointer, so the source comes after: never
+ * allocated yet (an infinite box, which makes the position NaN) or still at
+ * its previous place. It is allocated now as the stage will, as ClutterClone
+ * does with its source; when the stage gets to it, nothing has changed. */
+static void
+ensure_source_allocated (ClutterActor *source_actor)
+{
+  ClutterActor *parent = clutter_actor_get_parent (source_actor);
+  float x = 0.f, y = 0.f;
+
+  if (parent == NULL || !clutter_actor_is_no_layout (parent) ||
+      clutter_actor_has_allocation (source_actor))
+    return;
+
+  clutter_actor_get_fixed_position (source_actor, &x, &y);
+  clutter_actor_allocate_preferred_size (source_actor, x, y);
+}
+
 /*
  * Monitor and work area, as Main.layoutManager.findIndexForActor() and
  * Main.layoutManager.getWorkAreaForMonitor() compute them
@@ -588,6 +609,7 @@ shell_box_pointer_allocate (ClutterActor          *actor,
 
   if (priv->source_actor != NULL && clutter_actor_is_mapped (priv->source_actor))
     {
+      ensure_source_allocated (priv->source_actor);
       reposition (self, &allocation);
       update_flip (self, &allocation);
     }
