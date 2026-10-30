@@ -654,7 +654,7 @@ shell_user_list_constructed (GObject *object)
                             "style-class", "login-dialog-user-list",
                             "pseudo-class", "expanded",
                             NULL);
-  st_bin_set_child (ST_BIN (self), CLUTTER_ACTOR (self->box));
+  st_scroll_view_set_child (ST_SCROLL_VIEW (self), ST_SCROLLABLE (self->box));
 }
 
 static void

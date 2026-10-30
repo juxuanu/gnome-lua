@@ -625,7 +625,8 @@ reactive_to_opacity_cb (GBinding     *binding,
                         GValue       *to_value,
                         gpointer      user_data)
 {
-  g_value_set_uchar (to_value, g_value_get_boolean (from_value) ? 255 : 128);
+  /* ClutterActor:opacity is a guint */
+  g_value_set_uint (to_value, g_value_get_boolean (from_value) ? 255 : 128);
   return TRUE;
 }
 

@@ -591,6 +591,7 @@ auto_session_proxy_ready (GObject      *source,
   g_autoptr (GTask) task = user_data;
   g_autoptr (ShellLogin1Session) auto_session = NULL;
   g_autoptr (GError) error = NULL;
+  const char *session_id;
 
   auto_session = shell_login1_session_proxy_new_for_bus_finish (res, &error);
   if (auto_session == NULL)
@@ -600,8 +601,16 @@ auto_session_proxy_ready (GObject      *source,
       return;
     }
 
-  look_up_current_session (g_steal_pointer (&task),
-                           shell_login1_session_get_id (auto_session));
+  /* A proxy is made even when logind is not running: it has no ID then */
+  session_id = shell_login1_session_get_id (auto_session);
+  if (session_id == NULL || *session_id == '\0')
+    {
+      g_task_return_new_error (task, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+                               "Failed to get session from logind: no session");
+      return;
+    }
+
+  look_up_current_session (g_steal_pointer (&task), session_id);
 }
 
 /**

@@ -566,7 +566,7 @@ shell_auth_list_constructed (GObject *object)
                                     "style-class", "login-dialog-auth-list-view",
                                     "y-expand", TRUE,
                                     NULL);
-  st_bin_set_child (ST_BIN (self->scroll_view), CLUTTER_ACTOR (self->box));
+  st_scroll_view_set_child (self->scroll_view, ST_SCROLLABLE (self->box));
   clutter_actor_add_child (CLUTTER_ACTOR (self), CLUTTER_ACTOR (self->scroll_view));
 
   g_signal_connect (self->box, "child-added",
