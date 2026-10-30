@@ -828,7 +828,12 @@ function ext.enable()
             returned = table.pack(w:maximize())
             w:maximize()                        -- a no-op when asked again
           end,
-          pred = function() return w.maximized and find_event("window.state-changed", id, from) ~= nil end,
+          -- The frame grows once the client has drawn at the new size, which
+          -- can come frames after the state changed
+          pred = function()
+            return w.maximized and find_event("window.state-changed", id, from) ~= nil and
+                   w.frame.width > before.width and w.frame.height > before.height
+          end,
           check = function()
             case("maximize (): maximized, window.state-changed, the frame grows", function()
               local ev = find_event("window.state-changed", id, from)
