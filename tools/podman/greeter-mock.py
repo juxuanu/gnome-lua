@@ -7,6 +7,7 @@ greeter's GDM session (its user verifier and greeter interfaces), and
 AccountsService with two users. Verification takes a username when none was
 chosen, then a password: "gnome" for every user, anything else fails. A
 verified user's session is not started; the greeter is only told it opened.
+No user has a session to reauthenticate, as at a real login screen.
 '''
 
 import os
@@ -327,8 +328,14 @@ class Manager:
             handle_properties(invocation, method, parameters,
                               {'org.gnome.DisplayManager.Manager':
                                {'Version': GLib.Variant('s', GDM_VERSION)}})
-        elif method in ('OpenSession', 'OpenReauthenticationChannel'):
+        elif method == 'OpenSession':
             invocation.return_value(GLib.Variant('(s)', (self.server.get_client_address(),)))
+        elif method == 'OpenReauthenticationChannel':
+            # What GDM answers for a user without a session, as the users of
+            # the login screen are: the greeter then verifies them in its own
+            # session
+            invocation.return_dbus_error('org.freedesktop.DBus.Error.AccessDenied',
+                                         'No session available')
         else:
             log(f'{method} called')
             invocation.return_value(None)

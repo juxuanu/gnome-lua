@@ -1248,8 +1248,6 @@ begin_with_proxies (BeginData *data)
   begin_next_service (data);
 }
 
-static void begin_get_proxies (BeginData *data);
-
 static void
 user_verifier_ready (GObject      *source,
                      GAsyncResult *res,
@@ -1311,9 +1309,10 @@ reauthentication_channel_ready (GObject      *source,
         {
           /* Gdm emits org.freedesktop.DBus.Error.AccessDenied when there
            * is no session to reauthenticate. Fall back to performing
-           * verification from this login session */
-          g_clear_pointer (&data->user_name, g_free);
-          begin_get_proxies (data);
+           * verification from this login session, still for the user: the
+           * services begin the verification for data->user_name */
+          gdm_client_get_user_verifier (data->self->client, data->cancellable,
+                                        user_verifier_ready, data);
           return;
         }
 
