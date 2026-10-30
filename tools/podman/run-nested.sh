@@ -27,6 +27,17 @@ test -f "$SRC/build/src/gnome-shell" || { echo "run-nested.sh: build first with 
 
 mkdir -p "$SRC/tools/podman/home/gnome-shell/extensions"
 
+# The devkit backend shows the nested shell through a PipeWire stream: the
+# viewer (mutter-devkit) needs a PipeWire daemon. Use the session's when it
+# has one, otherwise start one inside the container.
+PW=""
+if [ -S "$RUNTIME/pipewire-0" ]; then
+  PW="-v $RUNTIME/pipewire-0:/run/wayland/pipewire-0"
+  START_PW=""
+else
+  START_PW="pipewire >/dev/null 2>&1 & sleep 0.5; wireplumber >/dev/null 2>&1 & sleep 0.5;"
+fi
+
 DRI=""
 for d in /dev/dri/renderD* /dev/dri/card*; do
   [ -e "$d" ] && DRI="$DRI --device $d"
@@ -37,6 +48,7 @@ exec podman run --rm -it \
   $DRI \
   -v "$SRC:/src" -w /src \
   -v "$RUNTIME/$WAYLAND_DISPLAY:/run/wayland/$WAYLAND_DISPLAY" \
+  $PW \
   -e XDG_RUNTIME_DIR=/run/wayland -e WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
   -e XDG_SESSION_TYPE=wayland \
   -e HOME=/work -e NO_AT_BRIDGE=1 \
@@ -49,4 +61,4 @@ exec podman run --rm -it \
   -e LD_LIBRARY_PATH=/src/build/subprojects/shell-lua/src:/src/build/src/st:/src/build/subprojects/gvc:/src/build/src \
   ${LIBGL_ALWAYS_SOFTWARE:+-e LIBGL_ALWAYS_SOFTWARE=$LIBGL_ALWAYS_SOFTWARE} \
   "$IMAGE" \
-  sh -c 'chmod 700 /run/wayland 2>/dev/null; exec dbus-run-session build/src/gnome-shell --wayland --devkit "$@"' -- "$@"
+  sh -c "chmod 700 /run/wayland 2>/dev/null; $START_PW exec dbus-run-session build/src/gnome-shell --wayland --devkit \"\$@\"" -- "$@"

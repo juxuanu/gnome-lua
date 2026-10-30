@@ -11,7 +11,7 @@ RUN dnf install -y --setopt=install_weak_deps=False \
       geoclue2-devel libnma-gtk4-devel malcontent-devel \
       gnome-bluetooth-libs-devel upower-devel libgudev-devel gstreamer1-devel \
       webkitgtk6.0-devel libadwaita-devel libsoup3-devel gnome-autoar-devel \
-      dbus-daemon mesa-dri-drivers mesa-libEGL mesa-vulkan-drivers && \
+      dbus-daemon mesa-dri-drivers mesa-libEGL mesa-vulkan-drivers pipewire wireplumber && \
     dnf clean all
 
 RUN git clone --quiet --depth=1 --branch 51.1 \
