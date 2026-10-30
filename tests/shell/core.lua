@@ -115,7 +115,10 @@ end)
 test.on_script_event ("afterShowHide", function (_time)
   if overview_show_count == 1 then
     METRICS.usedAfterOverview.value = malloc_used_size
-  else
+  elseif METRICS.usedAfterOverview.value ~= nil then
+    -- Not before: the first cycle can start with the overview still shown
+    -- by the startup animation, and then not count as a show (the JS got NaN
+    -- here, overwritten by the next cycles)
     METRICS.leakedAfterOverview.value = malloc_used_size - METRICS.usedAfterOverview.value
   end
 end)
