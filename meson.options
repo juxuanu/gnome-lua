@@ -4,6 +4,12 @@ option('camera_monitor',
   description: 'Enable the camera monitor'
 )
 
+option('calendar_server',
+  type: 'boolean',
+  value: true,
+  description: 'Build the calendar server (needs evolution-data-server); without it the date menu shows no events'
+)
+
 option('extensions_tool',
   type: 'boolean',
   value: true,

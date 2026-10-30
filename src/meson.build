@@ -10,7 +10,9 @@ introspection_common = {
   'fatal_warnings': get_option('werror'),
 }
 
-subdir('calendar-server')
+if have_calendar_server
+  subdir('calendar-server')
+endif
 subdir('dbus-services')
 subdir('hotplug-sniffer')
 subdir('st')

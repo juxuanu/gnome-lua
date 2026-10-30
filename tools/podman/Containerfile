@@ -1,0 +1,25 @@
+# The image CI builds and tests in (.github/workflows/ci.yml), with the extra
+# development headers the port links and Mutter 51.1 installed into /usr.
+# Build it with tools/podman/build.sh; it is only a build environment, the
+# shell runs from the mounted source tree.
+FROM registry.gitlab.gnome.org/gnome/mutter/fedora/45:x86_64-2026-09-10.0
+
+USER root
+
+RUN dnf install -y --setopt=install_weak_deps=False \
+      accountsservice-devel gdm-devel ibus-devel libgweather-devel \
+      geoclue2-devel libnma-gtk4-devel malcontent-devel \
+      gnome-bluetooth-libs-devel upower-devel libgudev-devel gstreamer1-devel \
+      webkitgtk6.0-devel libadwaita-devel libsoup3-devel gnome-autoar-devel \
+      dbus-daemon mesa-dri-drivers mesa-libEGL mesa-vulkan-drivers && \
+    dnf clean all
+
+RUN git clone --quiet --depth=1 --branch 51.1 \
+      https://gitlab.gnome.org/GNOME/mutter.git /tmp/mutter && \
+    meson setup /tmp/mutter/build /tmp/mutter --prefix=/usr -Dtests=disabled && \
+    meson install -C /tmp/mutter/build && \
+    rm -rf /tmp/mutter
+
+# Any user id can build and run in the mounted tree (podman --userns=keep-id).
+RUN chmod 1777 /tmp && mkdir -p /work && chmod 777 /work
+WORKDIR /src

@@ -76,6 +76,31 @@ Refer to the [README][toolbox-tools] for further information on the scripts.
 [toolbox]: https://containertoolbx.org/
 [toolbox-tools]: ../tools/toolbox/README.md
 
+## Building with podman (any distribution)
+
+The dependencies are GNOME's: Mutter 51, gnome-desktop, libgdm, accountsservice
+and a dozen libraries. On a non-GNOME distribution the container image CI
+builds in avoids installing them on the host:
+
+```sh
+$ tools/podman/build.sh                      # builds the image once, then meson setup + compile
+$ tools/podman/build.sh meson test -C build   # any command in the image
+$ tools/podman/run-nested.sh                 # the built shell, nested in the current Wayland session
+```
+
+`run-nested.sh` hands the container the session's Wayland socket and the GPU
+render nodes, runs the shell uninstalled from `build/` with its own session
+bus, an in-memory settings backend and a throw-away data home
+(`tools/podman/home/`), and points `SHELL_LUA_EXTENSION_PATH` at the example
+extensions. Set `LIBGL_ALWAYS_SOFTWARE=1` if the host GPU driver and the
+image's Mesa disagree. It works under KDE Plasma as under GNOME: the devkit
+backend only needs a Wayland parent.
+
+Build options that trim dependencies for a development build:
+`-Dcalendar_server=false` (no evolution-data-server; the date menu shows no
+events), `-Dportal_helper=false` (no WebKitGTK), `-Dnetworkmanager=false`,
+`-Dbluetooth=false`, `-Dmalcontent=false`, `-Dintrospection=false`.
+
 ## Running a nested instance
 
 It is possible to run gnome-shell as nested instance using Devkit.

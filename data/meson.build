@@ -24,18 +24,20 @@ endforeach
 desktopconf = configuration_data()
 desktopconf.set('libexecdir', libexecdir)
 
-i18n.merge_file(
-  input: configure_file(
-    input: 'org.gnome.Shell.CalendarServer.desktop.in.in',
-    output: 'org.gnome.Shell.CalendarServer.desktop.in',
-    configuration: desktopconf
-  ),
-  output: 'org.gnome.Shell.CalendarServer.desktop',
-  po_dir: po_dir,
-  install: true,
-  install_dir: desktopdir,
-  type: 'desktop'
-)
+if have_calendar_server
+  i18n.merge_file(
+    input: configure_file(
+      input: 'org.gnome.Shell.CalendarServer.desktop.in.in',
+      output: 'org.gnome.Shell.CalendarServer.desktop.in',
+      configuration: desktopconf
+    ),
+    output: 'org.gnome.Shell.CalendarServer.desktop',
+    po_dir: po_dir,
+    install: true,
+    install_dir: desktopdir,
+    type: 'desktop'
+  )
+endif
 
 desktop_directories = [
   'X-GNOME-Shell-Utilities.directory',
