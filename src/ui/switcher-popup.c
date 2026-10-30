@@ -175,7 +175,7 @@ shell_switcher_draw_arrow (StDrawingArea *area,
 
   set_source_color (cr, &body_color);
   cairo_fill (cr);
-  cairo_destroy (cr);
+  /* The context is the drawing area's: it destroys it after the repaint */
 }
 
 static void

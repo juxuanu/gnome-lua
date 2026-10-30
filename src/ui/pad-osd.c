@@ -1323,7 +1323,7 @@ shell_pad_diagram_repaint (StDrawingArea *area)
   cairo_translate (cr, -image_width / 2.0, -image_height / 2.0);
   render_handle (self->handle, cr);
   cairo_restore (cr);
-  cairo_destroy (cr);
+  /* The context is the drawing area's: it destroys it after the repaint */
 }
 
 static void

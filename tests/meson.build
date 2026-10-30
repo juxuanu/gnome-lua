@@ -93,6 +93,9 @@ shell_tests = [
   {
     'name': 'fittsy',
   },
+  {
+    'name': 'switcher',
+  },
 ]
 
 # Conformance tests of the extension API (docs/api, tests/api/README.md): one
