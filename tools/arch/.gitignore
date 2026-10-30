@@ -1,0 +1,9 @@
+# makepkg's sources, build tree and packages
+/gnome-shell/
+/libgnome-volume-control/
+/libshew/
+/lua-5.5.1.tar.gz
+/src/
+/pkg/
+/*.pkg.tar.*
+/*.log

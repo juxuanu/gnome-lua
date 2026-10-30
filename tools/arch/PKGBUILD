@@ -1,0 +1,151 @@
+# gnome-lua packaged to replace Arch's gnome-shell: adapted from the
+# gnome-shell 1:51.1-1 PKGBUILD of Arch Linux's extra repository.
+#
+# From the directory of this PKGBUILD (a checkout is not needed: the sources
+# come from GitHub):
+#
+#   makepkg -si                    # builds and installs, replacing gnome-shell
+#   sudo pacman -S gnome-shell     # back to the stock shell
+#
+# It builds the main branch. The shell replaces gnome-shell everywhere, GDM's
+# login screen included, and loads Lua extensions only: JavaScript extensions,
+# those of gnome-shell-extensions and GNOME Classic among them, are not
+# loaded.
+
+# Contributor: Jan Alexander Steffens (heftig) <heftig@archlinux.org>
+# Contributor: Fabian Bornschein <fabiscafe@archlinux.org>
+# Contributor: Ionut Biru <ibiru@archlinux.org>
+# Contributor: Flamelab <panosfilip@gmail.com
+
+pkgname=gnome-shell-lua
+_shellver=51.1
+pkgver=51.1
+pkgrel=1
+pkgdesc="Next generation desktop shell, without JavaScript and with Lua extensions"
+url="https://github.com/juxuanu/gnome-lua"
+arch=(x86_64)
+license=(GPL-3.0-or-later)
+depends=(
+  accountsservice
+  at-spi2-core
+  bash
+  cairo
+  dconf
+  gcr-4
+  gdk-pixbuf2
+  geoclue
+  glib2
+  glibc
+  glycin
+  gnome-autoar
+  gnome-bluetooth-3.0
+  gnome-desktop-4
+  gnome-session
+  gnome-settings-daemon
+  graphene
+  gstreamer
+  gsettings-desktop-schemas
+  gtk4
+  hicolor-icon-theme
+  ibus
+  json-glib
+  libadwaita
+  libcanberra-pulse
+  libgcc
+  libgdm
+  libglvnd
+  libgudev
+  libgweather-4
+  libibus
+  libical
+  libmalcontent
+  libnm
+  libnma-gtk4
+  libpipewire
+  libpulse
+  librsvg
+  libsecret
+  libsoup3
+  libx11
+  libxext
+  libxfixes
+  mutter
+  pango
+  polkit
+  systemd-libs
+  unzip
+  upower
+  webkitgtk-6.0
+)
+makedepends=(
+  asciidoc
+  bash-completion
+  evolution-data-server
+  git
+  glib2-devel
+  gnome-keybindings
+  gobject-introspection
+  meson
+  python-docutils
+  sassc
+)
+optdepends=(
+  'evolution-data-server: Evolution calendar integration'
+  'gnome-control-center: System settings'
+  'gnome-disk-utility: Mount with keyfiles'
+  'gst-plugin-pipewire: Screen recording'
+  'gst-plugins-good: Screen recording'
+  'power-profiles-daemon: Power profile switching'
+  'python: gnome-shell-extension-tool and gnome-shell-test-tool'
+  'python-simplejson: gnome-shell-test-tool performance tester'
+  'switcheroo-control: Multi-GPU support'
+)
+provides=("gnome-shell=1:$_shellver")
+conflicts=(gnome-shell)
+source=(
+  "gnome-shell::git+$url.git#branch=main"
+  "git+https://gitlab.gnome.org/GNOME/libgnome-volume-control.git#commit=0a4eda0cdc2deb352bebc70ec697c42af46094e4"
+  "git+https://gitlab.gnome.org/GNOME/libshew.git#commit=d16afc40412b565d2bbecf80335f54a19a978009"
+  # The Lua the shell embeds (subprojects/shell-lua/subprojects/lua.wrap)
+  "https://www.lua.org/ftp/lua-5.5.1.tar.gz"
+)
+noextract=(lua-5.5.1.tar.gz)
+b2sums=('SKIP'
+        'b3ff7babceb21522cbdc8f2d11b00fe7c83a820250629f79831b42c4802613aa116a0df58038c76d9948c452c27cd47eca7a0172f06800df571c90f8671c0b6c'
+        '7b39ef786d0af34f207c36c078fda5410848a5eceb84509b145184be1dbb994aeb3ffa70cb3de363a8460d59c140aafbdee8f74312cf2971a80cc5d485f1b829'
+        'b3f9ba31a8c33ef564233bb633168246d3e04f44b28f2d16130b14b47fd65a1f3b44bed0e2b7bf773d9526abc2c941db4213b01e95de8af5f523658ec4315bff')
+
+pkgver() {
+  cd gnome-shell
+  printf "%s.r%s.g%s" "$_shellver" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+  # Inject gvc
+  ln -sfn libgnome-volume-control gvc
+}
+
+build() {
+  local meson_options=(
+    -D gtk_doc=false
+    # Arch's mutter comes without its test library
+    -D tests=false
+  )
+
+  CFLAGS="${CFLAGS/-O2/-O3} -fno-semantic-interposition"
+  LDFLAGS+=" -Wl,-Bsymbolic-functions"
+
+  # Inject subprojects: gvc, libshew and the Lua tarball
+  export MESON_PACKAGE_CACHE_DIR="$srcdir"
+
+  arch-meson gnome-shell build "${meson_options[@]}"
+  meson compile -C build
+}
+
+package() {
+  depends+=(libmutter-51.so)
+
+  meson install -C build --no-rebuild --destdir "$pkgdir"
+}
+
+# vim:set sw=2 sts=-1 et:

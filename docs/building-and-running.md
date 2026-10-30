@@ -120,6 +120,22 @@ events), `-Dportal_helper=false` (no WebKitGTK), `-Dnetworkmanager=false`,
 library (`libmutter-test-51`: Arch's `mutter` package does not include it;
 the podman image builds Mutter with it).
 
+## Installing on Arch Linux
+
+`tools/arch/PKGBUILD` packages the `main` branch as `gnome-shell-lua`, which
+replaces Arch's `gnome-shell` (it is adapted from Arch's own PKGBUILD, against
+the same Mutter). From its directory, without a checkout of the rest:
+
+```sh
+$ makepkg -si                    # builds and installs, replacing gnome-shell
+$ sudo pacman -S gnome-shell     # back to the stock shell
+```
+
+The package replaces the shell everywhere, GDM's login screen included, and
+loads Lua extensions only: JavaScript extensions (gnome-shell-extensions,
+GNOME Classic) are not loaded. Keep another way in (a TTY, another desktop)
+when trying it.
+
 ## Running a nested instance
 
 It is possible to run gnome-shell as nested instance using Devkit.
