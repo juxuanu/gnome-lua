@@ -77,6 +77,7 @@ indicator_page_index (StButton *indicator)
 
 static void
 indicator_clicked_cb (StButton            *indicator,
+                      int                  clicked_button,
                       ShellPageIndicators *self)
 {
   g_signal_emit (self, signals[PAGE_ACTIVATED], 0,

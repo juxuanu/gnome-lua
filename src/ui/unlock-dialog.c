@@ -974,8 +974,9 @@ unlock_clock_touch_mode_cb (GObject          *object,
 }
 
 static void
-unlock_clock_power_save_mode_changed_cb (MetaMonitorManager *manager,
-                                         ShellUnlockClock   *self)
+unlock_clock_power_save_mode_changed_cb (MetaMonitorManager        *manager,
+                                         MetaPowerSaveChangeReason  reason,
+                                         ShellUnlockClock          *self)
 {
   clutter_actor_set_opacity (CLUTTER_ACTOR (self->hint), 0);
 }

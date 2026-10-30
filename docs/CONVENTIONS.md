@@ -253,3 +253,11 @@ never call extension code directly.
   `dispose ()` is already `NULL` in the `destroy` vfunc and in `::destroy`
   handlers. Destroy what a field owns in `dispose ()` itself (or chain up
   first, then clear it), or the owned menu survives its item.
+* A C signal handler takes every argument the signal passes, in order, then
+  the user data: `StButton::clicked` passes the mouse button (`int`),
+  `notify::` passes the `GParamSpec`, `ClutterMotionController::motion` passes
+  `(sprite, x, y)`. A handler declared `(StButton *button, Self *self)` gets
+  the button number as `self` and crashes on the first click. JavaScript
+  ignored extra arguments, so a port does not show these until a user clicks;
+  the headless tests do not click. Check the signal's `g_signal_new` in St,
+  Clutter or Mutter when writing the handler.

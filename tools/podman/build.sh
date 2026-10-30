@@ -9,6 +9,8 @@
 set -eu
 
 IMAGE=${GNOME_LUA_IMAGE:-gnome-lua-dev}
+# -t only when there is a terminal (podman warns otherwise)
+TTY="-i"; [ -t 0 ] && TTY="-it"
 SRC=$(cd "$(dirname "$0")/../.." && pwd)
 
 if ! podman image exists "$IMAGE"; then
@@ -16,7 +18,7 @@ if ! podman image exists "$IMAGE"; then
 fi
 
 run() {
-  podman run --rm -it \
+  podman run --rm $TTY \
     --userns=keep-id --security-opt label=disable \
     -v "$SRC:/src" -w /src \
     -e HOME=/work -e NO_AT_BRIDGE=1 \

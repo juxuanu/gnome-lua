@@ -384,6 +384,7 @@ lg_notebook_select_child (LgNotebook   *self,
 
 static void
 tab_label_clicked_cb (StButton *button,
+                      int       clicked_button,
                       LgTab    *tab)
 {
   lg_notebook_select_child (tab->notebook, tab->child);
@@ -806,6 +807,7 @@ lg_obj_inspector_release_pins (LgObjInspector *self)
 
 static void
 obj_inspector_insert_cb (StButton       *button,
+                         int             clicked_button,
                          LgObjInspector *self)
 {
   guint64 id = self->id;
@@ -825,6 +827,7 @@ lg_obj_inspector_select_object (LgObjInspector *self,
 
 static void
 obj_inspector_back_cb (StButton       *button,
+                       int             clicked_button,
                        LgObjInspector *self)
 {
   lg_obj_inspector_select_object (self, self->previous_id, TRUE);
@@ -832,6 +835,7 @@ obj_inspector_back_cb (StButton       *button,
 
 static void
 obj_inspector_close_cb (StButton       *button,
+                        int             clicked_button,
                         LgObjInspector *self)
 {
   lg_obj_inspector_close (self);
@@ -1621,6 +1625,7 @@ extension_get_name (ShellLuaExtension *extension)
 
 static void
 extension_view_source_cb (StButton     *button,
+                          int           clicked_button,
                           LgExtensions *self)
 {
   ShellLuaExtension *extension = g_object_get_data (G_OBJECT (button), "extension");
@@ -1638,6 +1643,7 @@ extension_view_source_cb (StButton     *button,
 
 static void
 extension_web_page_cb (StButton     *button,
+                       int           clicked_button,
                        LgExtensions *self)
 {
   ShellLuaExtension *extension = g_object_get_data (G_OBJECT (button), "extension");
@@ -1658,6 +1664,7 @@ extension_web_page_cb (StButton     *button,
 
 static void
 extension_view_errors_cb (StButton     *button,
+                          int           clicked_button,
                           LgExtensions *self)
 {
   ShellLuaExtension *extension = g_object_get_data (G_OBJECT (button), "extension");
@@ -1963,6 +1970,7 @@ lg_actor_link_init (LgActorLink *self)
 
 static void
 actor_link_inspect_button_clicked_cb (StButton    *button,
+                                      int          clicked_button,
                                       LgActorLink *self)
 {
   g_signal_emit (self, actor_link_signals[ACTOR_LINK_INSPECT_ACTOR], 0);
@@ -2578,6 +2586,7 @@ slow_down_to_checked_cb (GBinding     *binding,
 
 static void
 slow_down_flag_clicked_cb (StButton *button,
+                           int       clicked_button,
                            gpointer  user_data)
 {
   StSettings *settings = st_settings_get ();
@@ -3384,6 +3393,7 @@ picker_closed_cb (LgPicker          *picker,
 
 static void
 inspect_button_clicked_cb (StButton          *button,
+                           int                clicked_button,
                            ShellLookingGlass *self)
 {
   LgPicker *picker = lg_picker_new (self);
@@ -3405,6 +3415,7 @@ gc_timeout_cb (gpointer user_data)
 
 static void
 gc_button_clicked_cb (StButton          *button,
+                      int                clicked_button,
                       ShellLookingGlass *self)
 {
   st_button_set_icon_name (button, "user-trash-symbolic");

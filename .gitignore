@@ -2,6 +2,8 @@ data/.osk-layout-workbench
 po/gnome-shell.pot
 subprojects/gvc
 subprojects/libshew
+subprojects/lua-5.5.1
+subprojects/packagecache
 *~
 *.patch
 *.sw?

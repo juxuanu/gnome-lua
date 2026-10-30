@@ -1323,6 +1323,7 @@ calendar_on_scroll (ClutterScrollController *controller,
 
 static void
 calendar_on_back_clicked (StButton      *button,
+                          int            clicked_button,
                           ShellCalendar *self)
 {
   calendar_on_prev_month_clicked (self);
@@ -1330,6 +1331,7 @@ calendar_on_back_clicked (StButton      *button,
 
 static void
 calendar_on_forward_clicked (StButton      *button,
+                             int            clicked_button,
                              ShellCalendar *self)
 {
   calendar_on_next_month_clicked (self);
@@ -1436,6 +1438,7 @@ calendar_build_header (ShellCalendar *self)
 
 static void
 calendar_on_day_clicked (StButton      *button,
+                         int            clicked_button,
                          ShellCalendar *self)
 {
   gint64 *date = g_object_get_data (G_OBJECT (button), DAY_DATE_KEY);
@@ -2013,6 +2016,7 @@ list_setup_mpris (ShellCalendarMessageList *self)
 
 static void
 list_on_clear_clicked (StButton                 *button,
+                       int                       clicked_button,
                        ShellCalendarMessageList *self)
 {
   if (self->message_view != NULL)

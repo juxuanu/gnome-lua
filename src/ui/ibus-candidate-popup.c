@@ -109,6 +109,7 @@ candidate_clicked_cb (ClutterPressGesture *gesture,
 
 static void
 previous_button_clicked_cb (StButton               *button,
+                            int                     clicked_button,
                             ShellIBusCandidateArea *self)
 {
   g_signal_emit (self, area_signals[AREA_PREVIOUS_PAGE], 0);
@@ -116,6 +117,7 @@ previous_button_clicked_cb (StButton               *button,
 
 static void
 next_button_clicked_cb (StButton               *button,
+                        int                     clicked_button,
                         ShellIBusCandidateArea *self)
 {
   g_signal_emit (self, area_signals[AREA_NEXT_PAGE], 0);

@@ -767,6 +767,9 @@ show_pointer (ShellScreenShield *self)
 
 static void
 motion_listener_motion_cb (ClutterMotionController *controller,
+                           ClutterSprite           *sprite,
+                           float                    x,
+                           float                    y,
                            ShellScreenShield       *self)
 {
   show_pointer (self);

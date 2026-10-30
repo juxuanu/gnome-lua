@@ -2240,6 +2240,7 @@ child_hover_changed_cb (GObject    *object,
 
 static void
 child_clicked_cb (StButton *button,
+                  int       clicked_button,
                   gpointer  user_data)
 {
   ShellDash *self;

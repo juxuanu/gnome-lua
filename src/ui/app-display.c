@@ -4584,6 +4584,7 @@ base_app_view_page_activated_cb (ShellPageIndicators *indicators,
 
 static void
 base_app_view_next_arrow_clicked_cb (StButton         *button,
+                                     int               clicked_button,
                                      ShellBaseAppView *self)
 {
   ShellBaseAppViewPrivate *priv = view_priv (self);
@@ -4595,6 +4596,7 @@ base_app_view_next_arrow_clicked_cb (StButton         *button,
 
 static void
 base_app_view_prev_arrow_clicked_cb (StButton         *button,
+                                     int               clicked_button,
                                      ShellBaseAppView *self)
 {
   ShellBaseAppViewPrivate *priv = view_priv (self);

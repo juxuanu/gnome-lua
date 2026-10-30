@@ -14,6 +14,8 @@
 set -eu
 
 IMAGE=${GNOME_LUA_IMAGE:-gnome-lua-dev}
+# -t only when there is a terminal (podman warns otherwise)
+TTY="-i"; [ -t 0 ] && TTY="-it"
 SRC=$(cd "$(dirname "$0")/../.." && pwd)
 
 if [ "${XDG_SESSION_TYPE:-}" != "wayland" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
@@ -43,7 +45,7 @@ for d in /dev/dri/renderD* /dev/dri/card*; do
   [ -e "$d" ] && DRI="$DRI --device $d"
 done
 
-exec podman run --rm -it \
+exec podman run --rm $TTY \
   --userns=keep-id --security-opt label=disable \
   $DRI \
   -v "$SRC:/src" -w /src \
