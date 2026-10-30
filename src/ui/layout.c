@@ -106,6 +106,14 @@ get_display_work_area_for_monitor (MetaDisplay  *display,
     meta_display_get_workspace_manager (display);
   MetaWorkspace *workspace;
 
+  /* A monitor can be gone by the time a work-area change is handled
+   * (unplugged, or the last one removed at shutdown) */
+  if (monitor_index < 0 || monitor_index >= meta_display_get_n_monitors (display))
+    {
+      *work_area = (MtkRectangle) { 0, };
+      return;
+    }
+
   /* Assume that all workspaces will have the same struts and pick the
    * first one. */
   workspace = meta_workspace_manager_get_workspace_by_index (workspace_manager, 0);

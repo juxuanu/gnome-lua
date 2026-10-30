@@ -5855,8 +5855,16 @@ indicator_client_ready_cb (GObject      *source_object,
   if (client == NULL)
     {
       /* NetworkManager is not required to run, nor is the system bus */
-      if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
-        g_debug ("Failed to create the NetworkManager client: %s", error->message);
+      if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+        return;
+
+      g_debug ("Failed to create the NetworkManager client: %s", error->message);
+
+      /* Without a client the toggles have nothing to show: hide them
+       * rather than leave them visible with no title */
+      toggles = shell_system_indicator_get_quick_settings_items (SHELL_SYSTEM_INDICATOR (self));
+      for (i = 0; i < toggles->len; i++)
+        shell_nm_toggle_sync (g_ptr_array_index (toggles, i));
       return;
     }
 

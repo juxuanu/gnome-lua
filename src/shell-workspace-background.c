@@ -45,6 +45,11 @@ on_workareas_changed (ShellWorkspaceBackground *self)
   MetaWorkspace *workspace =
     meta_workspace_manager_get_workspace_by_index (workspace_manager, 0);
 
+  /* The monitor may be gone (workareas-changed also follows its removal) */
+  if (self->monitor_index < 0 ||
+      self->monitor_index >= meta_display_get_n_monitors (display))
+    return;
+
   meta_workspace_get_work_area_for_monitor (workspace,
                                             self->monitor_index,
                                             &self->work_area);

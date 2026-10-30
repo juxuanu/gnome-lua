@@ -49,6 +49,11 @@ shell_osd_monitor_label_position (ShellOsdMonitorLabel *self)
   MetaWorkspace *workspace;
   MtkRectangle work_area;
 
+  /* The monitor may be gone already */
+  if (self->monitor < 0 ||
+      self->monitor >= meta_display_get_n_monitors (shell_global_get_display (global)))
+    return;
+
   /* Assume that all workspaces will have the same struts and pick the
    * first one. */
   workspace = meta_workspace_manager_get_workspace_by_index (workspace_manager, 0);
