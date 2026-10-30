@@ -7,10 +7,10 @@
 #
 # The container gets the session's Wayland socket, the GPU render nodes and
 # the source tree; the shell runs uninstalled from build/ with its own session
-# bus, an in-memory settings backend and a throw-away data home, so nothing
-# of the host account is touched. Extensions placed under
-# tools/podman/home/gnome-shell/extensions/<uuid>/ are visible to it, as are
-# the examples (SHELL_LUA_EXTENSION_PATH).
+# bus, an empty system bus, an in-memory settings backend and a throw-away
+# data home, so nothing of the host account is touched. Extensions placed
+# under tools/podman/home/gnome-shell/extensions/<uuid>/ are visible to it, as
+# are the examples (SHELL_LUA_EXTENSION_PATH).
 set -eu
 
 IMAGE=${GNOME_LUA_IMAGE:-gnome-lua-dev}
@@ -40,6 +40,10 @@ else
   START_PW="pipewire >/dev/null 2>&1 & sleep 0.5; wireplumber >/dev/null 2>&1 & sleep 0.5;"
 fi
 
+# The shell and its clients need a system bus: an empty one of their own
+# (system-bus.conf), so the host's system services are out of reach.
+SYSTEM_BUS='DBUS_SYSTEM_BUS_ADDRESS=$(dbus-daemon --config-file=/src/tools/podman/system-bus.conf --fork --print-address) && export DBUS_SYSTEM_BUS_ADDRESS;'
+
 DRI=""
 for d in /dev/dri/renderD* /dev/dri/card*; do
   [ -e "$d" ] && DRI="$DRI --device $d"
@@ -63,4 +67,4 @@ exec podman run --rm $TTY \
   -e LD_LIBRARY_PATH=/src/build/subprojects/shell-lua/src:/src/build/src/st:/src/build/subprojects/gvc:/src/build/src \
   ${LIBGL_ALWAYS_SOFTWARE:+-e LIBGL_ALWAYS_SOFTWARE=$LIBGL_ALWAYS_SOFTWARE} \
   "$IMAGE" \
-  sh -c "chmod 700 /run/wayland 2>/dev/null; $START_PW exec dbus-run-session build/src/gnome-shell --wayland --devkit \"\$@\"" -- "$@"
+  sh -c "chmod 700 /run/wayland 2>/dev/null; $SYSTEM_BUS $START_PW exec dbus-run-session build/src/gnome-shell --wayland --devkit \"\$@\"" -- "$@"

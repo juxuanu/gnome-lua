@@ -2211,6 +2211,11 @@ startup_allocated_cb (gboolean finished,
       primary_monitor = shell_layout_manager_get_primary_monitor (self->layout_manager);
       clutter_actor_get_transformed_position (self->search_entry_bin, NULL, &y);
       y_offset = y - (primary_monitor != NULL ? primary_monitor->y : 0);
+      /* A stage without a monitor yet (the devkit backend adds it when its
+       * viewer connects) has no projection, and an eased NaN would keep the
+       * entry out of sight for good */
+      if (!isfinite (y_offset))
+        y_offset = 0;
 
       clutter_actor_set_translation (self->search_entry_bin, 0,
                                      -(y_offset + clutter_actor_get_height (self->search_entry_bin)), 0);

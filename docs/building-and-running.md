@@ -88,11 +88,16 @@ $ tools/podman/build.sh meson test -C build   # any command in the image
 $ tools/podman/run-nested.sh                 # the built shell, nested in the current Wayland session
 ```
 
+`build.sh` runs the image build, compiles and tests at the lowest CPU and I/O
+priority (`GNOME_LUA_LOW_PRIORITY=0` leaves the priority as is).
+
 `run-nested.sh` hands the container the session's Wayland socket and the GPU
 render nodes, runs the shell uninstalled from `build/` with its own session
-bus, an in-memory settings backend and a throw-away data home
-(`tools/podman/home/`), and points `SHELL_LUA_EXTENSION_PATH` at the example
-extensions. Set `LIBGL_ALWAYS_SOFTWARE=1` if the host GPU driver and the
+bus, an empty system bus (`tools/podman/system-bus.conf`), an in-memory
+settings backend and a throw-away data home (`tools/podman/home/`), and points
+`SHELL_LUA_EXTENSION_PATH` at the example extensions. The system bus has no
+service on it, but it has to exist: without one the parental controls never
+finish initializing, so no application is shown and searches never end. Set `LIBGL_ALWAYS_SOFTWARE=1` if the host GPU driver and the
 image's Mesa disagree. It works under KDE Plasma as under GNOME: the devkit
 backend only needs a Wayland parent.
 
