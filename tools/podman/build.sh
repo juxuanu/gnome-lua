@@ -5,16 +5,21 @@
 #   tools/podman/build.sh meson test -C build   # any command inside the image
 #
 # The source tree is mounted at /src; the build directory is build/ in the
-# tree, as on the host. The image is rebuilt only when it is missing.
+# tree, as on the host. The image is rebuilt only when it is missing. Image
+# builds, compiles and tests run at the lowest CPU and I/O priority, so the
+# desktop stays responsive; GNOME_LUA_LOW_PRIORITY=0 leaves the priority as is.
 set -eu
 
 IMAGE=${GNOME_LUA_IMAGE:-gnome-lua-dev}
 # -t only when there is a terminal (podman warns otherwise)
 TTY="-i"; [ -t 0 ] && TTY="-it"
 SRC=$(cd "$(dirname "$0")/../.." && pwd)
+# Niceness 19 whatever the starting one (the kernel caps it), idle I/O class
+LOW="nice -n 39 ionice -c 3"
+[ "${GNOME_LUA_LOW_PRIORITY:-1}" = 0 ] && LOW=""
 
 if ! podman image exists "$IMAGE"; then
-  podman build -t "$IMAGE" -f "$SRC/tools/podman/Containerfile" "$SRC/tools/podman"
+  $LOW podman build -t "$IMAGE" -f "$SRC/tools/podman/Containerfile" "$SRC/tools/podman"
 fi
 
 run() {
@@ -23,7 +28,7 @@ run() {
     --pids-limit=-1 \
     -v "$SRC:/src" -w /src \
     -e HOME=/work -e NO_AT_BRIDGE=1 \
-    "$IMAGE" "$@"
+    "$IMAGE" $LOW "$@"
 }
 
 if [ $# -eq 0 ]; then
