@@ -96,6 +96,15 @@ shell_tests = [
   {
     'name': 'switcher',
   },
+  {
+    'name': 'cameraMonitor',
+  },
+  {
+    # The login screen, against tests/greeter-mock.py (gnomeshell_dbusrunner.py
+    # starts it for this mode)
+    'name': 'loginDialog',
+    'session_mode': 'gdm',
+  },
 ]
 
 # Conformance tests of the extension API (docs/api, tests/api/README.md): one
@@ -191,7 +200,6 @@ shell_testenv.set('G_DEBUG', 'fatal-warnings')
 shell_testenv.set('G_MESSAGES_DEBUG', 'GNOME Shell')
 shell_testenv.set('GNOME_SHELL_DATADIR', data_builddir)
 shell_testenv.set('GNOME_SHELL_BUILDDIR', src_builddir)
-shell_testenv.set('GNOME_SHELL_SESSION_MODE', 'user')
 shell_testenv.set('SHELL_BACKGROUND_IMAGE', '@0@'.format(background_file))
 shell_testenv.append('LD_LIBRARY_PATH', libgvc_path, separator: ':')
 shell_testenv.append('LD_LIBRARY_PATH', libshell_lua_path, separator: ':')
@@ -201,6 +209,7 @@ foreach shell_test : shell_tests
   options = shell_test.get('options', [])
 
   local_test_env = shell_testenv
+  local_test_env.set('GNOME_SHELL_SESSION_MODE', shell_test.get('session_mode', 'user'))
   foreach var, value : shell_test.get('env', {})
     local_test_env.set(var, value)
   endforeach
@@ -240,6 +249,9 @@ foreach api_test : api_tests
     extension_args += ['--install-extension', extension_dir]
   endforeach
 
+  api_test_env = shell_testenv
+  api_test_env.set('GNOME_SHELL_SESSION_MODE', 'user')
+
   test('api-@0@'.format(test_name), dbus_runner,
     suite: 'api',
     args: [
@@ -254,7 +266,7 @@ foreach api_test : api_tests
       gnome_shell_perf_helper,
       tests_dependencies,
     ],
-    env: shell_testenv,
+    env: api_test_env,
     timeout: 120,
   )
 endforeach

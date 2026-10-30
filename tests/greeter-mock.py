@@ -1,6 +1,7 @@
 #!/usr/bin/python3
-'''Stand-ins for the system services a GDM greeter talks to, for
-tools/podman/run-nested.sh --mode=gdm.
+'''Stand-ins for the system services a GDM greeter talks to, for the login
+screen test (tests/shell/loginDialog.lua, started by gnomeshell_dbusrunner.py)
+and tools/podman/run-nested.sh --mode=gdm.
 
 On the system bus: GDM's manager, whose peer-to-peer channels lead to the
 greeter's GDM session (its user verifier and greeter interfaces), and
@@ -8,6 +9,9 @@ AccountsService with two users. Verification takes a username when none was
 chosen, then a password: "gnome" for every user, anything else fails. A
 verified user's session is not started; the greeter is only told it opened.
 No user has a session to reauthenticate, as at a real login screen.
+
+What it is asked is logged on stderr, and appended to the file that
+GREETER_MOCK_LOG names, for the test to read.
 '''
 
 import os
@@ -129,6 +133,10 @@ SESSION_XML = '''
 
 def log(message):
     print(f'greeter-mock: {message}', file=sys.stderr, flush=True)
+    path = os.getenv('GREETER_MOCK_LOG')
+    if path:
+        with open(path, 'a') as f:
+            print(message, file=f)
 
 
 def default_value(signature):
@@ -259,7 +267,8 @@ class Session:
             self._emit('UserVerifier', 'ServiceUnavailable', 'ss', service,
                        f'The mock only does gdm-password, not {service}')
             return
-        log(f'{service}: verifying {username or "a user to be named"}')
+        log(f'{service}: verifying {username}' if username
+            else f'{service}: asking for the username')
         self.conversations[service] = username
         self._emit('UserVerifier', 'ConversationStarted', 's', service)
         if username:

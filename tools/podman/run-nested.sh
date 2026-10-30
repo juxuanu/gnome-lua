@@ -15,7 +15,7 @@
 # are visible to it (SHELL_LUA_EXTENSION_PATH).
 #
 # For the login screen the system bus gets stand-ins for GDM and
-# AccountsService (greeter-mock.py): it lists the current user and "guest",
+# AccountsService (tests/greeter-mock.py): it lists the current user and "guest",
 # whose password is "gnome".
 set -eu
 
@@ -66,7 +66,7 @@ SEATS=""
 START_GREETER=""
 if [ -n "$GREETER" ]; then
   SEATS="--tmpfs /run/systemd/seats"
-  START_GREETER="python3 /src/tools/podman/greeter-mock.py & gdbus wait --system --timeout 10 org.gnome.DisplayManager;"
+  START_GREETER="python3 /src/tests/greeter-mock.py & gdbus wait --system --timeout 10 org.gnome.DisplayManager;"
 fi
 
 DRI=""

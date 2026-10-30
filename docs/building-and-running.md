@@ -106,7 +106,7 @@ the host GPU driver and the image's Mesa disagree. It works under KDE Plasma
 as under GNOME: the devkit backend only needs a Wayland parent.
 
 With `--mode=gdm` the system bus also gets stand-ins for GDM and
-AccountsService (`tools/podman/greeter-mock.py`), and the container a
+AccountsService (`tests/greeter-mock.py`), and the container a
 `/run/systemd/seats` directory: the login screen shows its dialog only where
 the screen can be locked, which takes both. It lists the current user and
 "guest"; the password of both is `gnome`, anything else is refused, and a

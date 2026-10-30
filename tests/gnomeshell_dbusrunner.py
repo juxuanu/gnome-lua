@@ -5,6 +5,7 @@ import sys
 import os
 import dbus
 import pwd
+import time
 #import dbus.lowlevel
 import dbusmock
 
@@ -95,14 +96,17 @@ class GnomeShellDBusRunner(MutterDBusRunner):
         klass.start_from_template('polkitd')
         klass.start_from_template('power_profiles_daemon')
 
-        accounts_service = klass.start_from_local_template('accounts_service')
-        empty_dict = dbus.Dictionary({}, signature='sv')
-        accounts_service[1].AddUser(os.getuid(),
-                                    pwd.getpwuid(os.getuid()).pw_name,
-                                    '',
-                                    empty_dict)
+        if os.getenv('GNOME_SHELL_SESSION_MODE') == 'gdm':
+            klass.start_greeter_mock()
+        else:
+            accounts_service = klass.start_from_local_template('accounts_service')
+            empty_dict = dbus.Dictionary({}, signature='sv')
+            accounts_service[1].AddUser(os.getuid(),
+                                        pwd.getpwuid(os.getuid()).pw_name,
+                                        '',
+                                        empty_dict)
+            klass.start_from_class(MockDisplayManager)
 
-        klass.start_from_class(MockDisplayManager)
         klass.start_from_class(MockSessionManager)
         klass.start_from_class(MockGeoClue)
         klass.start_from_class(MockPermissionStore)
@@ -113,4 +117,22 @@ class GnomeShellDBusRunner(MutterDBusRunner):
         systemd_mock.AddMockUnit('org.freedesktop.IBus.session.GNOME.service')
         systemd_mock.AddMockUnit('org.gnome.Shell.CalendarServer.service')
 
-        accounts_service_mock = dbus.Interface(accounts_service[1], dbusmock.MOCK_IFACE)
+    @classmethod
+    def start_greeter_mock(klass):
+        # The login screen talks to GDM through the peer-to-peer channels it
+        # opens, which dbusmock cannot serve: tests/greeter-mock.py stands in
+        # for GDM and AccountsService, and logs what it is asked to
+        # GREETER_MOCK_LOG, which the test reads (the test inherits the
+        # environment of the runner)
+        os.environ['GREETER_MOCK_LOG'] = os.path.join(os.environ['TMPDIR'],
+                                                      'greeter-mock.log')
+        klass.launch_service([sys.executable,
+                              os.path.join(os.path.dirname(__file__),
+                                           'greeter-mock.py')])
+
+        names = ['org.gnome.DisplayManager', 'org.freedesktop.Accounts']
+        deadline = time.monotonic() + 10
+        while not all(klass.system_bus_con.name_has_owner(name) for name in names):
+            if time.monotonic() > deadline:
+                raise Exception('tests/greeter-mock.py did not start')
+            time.sleep(0.1)
