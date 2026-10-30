@@ -52,7 +52,7 @@ exec podman run --rm $TTY \
   -v "$RUNTIME/$WAYLAND_DISPLAY:/run/wayland/$WAYLAND_DISPLAY" \
   $PW \
   -e XDG_RUNTIME_DIR=/run/wayland -e WAYLAND_DISPLAY="$WAYLAND_DISPLAY" \
-  -e XDG_SESSION_TYPE=wayland \
+  -e XDG_SESSION_TYPE=wayland -e XDG_CURRENT_DESKTOP=GNOME \
   -e HOME=/work -e NO_AT_BRIDGE=1 \
   -e XDG_DATA_HOME=/src/tools/podman/home \
   -e GSETTINGS_BACKEND=memory \

@@ -210,7 +210,13 @@ st_button_key_release (ClutterActor *actor,
         {
           if (priv->key_pressed)
             {
+              /* The clicked handlers may have destroyed the button */
+              g_object_add_weak_pointer (G_OBJECT (button), (gpointer *) &button);
               handle_clicked (button, ST_BUTTON_PRIMARY);
+              if (button == NULL)
+                return CLUTTER_EVENT_STOP;
+              g_object_remove_weak_pointer (G_OBJECT (button), (gpointer *) &button);
+
               st_widget_remove_style_pseudo_class (ST_WIDGET (actor), "active");
               priv->key_pressed = FALSE;
             }
@@ -430,10 +436,14 @@ st_button_init (StButton *button)
   clutter_press_gesture_set_cancel_threshold (CLUTTER_PRESS_GESTURE (priv->click_gesture), -1);
   clutter_actor_meta_set_name (CLUTTER_ACTOR_META (priv->click_gesture), "StButton click gesture");
 
-  g_signal_connect (priv->click_gesture, "recognize",
-                    G_CALLBACK (button_click_gesture_recognize_cb), button);
-  g_signal_connect (priv->click_gesture, "notify::pressed",
-                    G_CALLBACK (button_click_gesture_notify_pressed_cb), button);
+  /* A clicked handler may destroy the button (an action closing the
+   * notification or dialog it is in); the gesture still finishes the click
+   * and resets its pressed state afterwards, so its handlers must not
+   * outlive the button. */
+  g_signal_connect_object (priv->click_gesture, "recognize",
+                           G_CALLBACK (button_click_gesture_recognize_cb), button, 0);
+  g_signal_connect_object (priv->click_gesture, "notify::pressed",
+                           G_CALLBACK (button_click_gesture_notify_pressed_cb), button, 0);
 
   clutter_actor_add_action (CLUTTER_ACTOR (button), CLUTTER_ACTION (priv->click_gesture));
 

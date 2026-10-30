@@ -20,6 +20,7 @@ fi
 run() {
   podman run --rm $TTY \
     --userns=keep-id --security-opt label=disable \
+    --pids-limit=-1 \
     -v "$SRC:/src" -w /src \
     -e HOME=/work -e NO_AT_BRIDGE=1 \
     "$IMAGE" "$@"
