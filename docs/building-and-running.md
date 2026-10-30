@@ -86,20 +86,31 @@ builds in avoids installing them on the host:
 $ tools/podman/build.sh                      # builds the image once, then meson setup + compile
 $ tools/podman/build.sh meson test -C build   # any command in the image
 $ tools/podman/run-nested.sh                 # the built shell, nested in the current Wayland session
+$ tools/podman/run-nested.sh --mode=gdm      # the login screen, nested
 ```
 
 `build.sh` runs the image build, compiles and tests at the lowest CPU and I/O
 priority (`GNOME_LUA_LOW_PRIORITY=0` leaves the priority as is).
 
-`run-nested.sh` hands the container the session's Wayland socket and the GPU
-render nodes, runs the shell uninstalled from `build/` with its own session
-bus, an empty system bus (`tools/podman/system-bus.conf`), an in-memory
-settings backend and a throw-away data home (`tools/podman/home/`), and points
-`SHELL_LUA_EXTENSION_PATH` at the example extensions. The system bus has no
-service on it, but it has to exist: without one the parental controls never
-finish initializing, so no application is shown and searches never end. Set `LIBGL_ALWAYS_SOFTWARE=1` if the host GPU driver and the
-image's Mesa disagree. It works under KDE Plasma as under GNOME: the devkit
-backend only needs a Wayland parent.
+`run-nested.sh` hands the container the session's Wayland socket, the GPU
+render nodes and the source tree, read-only. It runs the shell uninstalled
+from `build/`, as the current user, with its own session bus, an empty system
+bus (`tools/podman/system-bus.conf`), an in-memory settings backend and a home
+inside the container: whatever the shell writes goes away with the container.
+`SHELL_LUA_EXTENSION_PATH` points at the example extensions and at
+`tools/podman/extensions/`, where other extensions can be dropped (one
+`<uuid>/` directory each). The system bus has no service on it, but it has to
+exist: without one the parental controls never finish initializing, so no
+application is shown and searches never end. Set `LIBGL_ALWAYS_SOFTWARE=1` if
+the host GPU driver and the image's Mesa disagree. It works under KDE Plasma
+as under GNOME: the devkit backend only needs a Wayland parent.
+
+With `--mode=gdm` the system bus also gets stand-ins for GDM and
+AccountsService (`tools/podman/greeter-mock.py`), and the container a
+`/run/systemd/seats` directory: the login screen shows its dialog only where
+the screen can be locked, which takes both. It lists the current user and
+"guest"; the password of both is `gnome`, anything else is refused, and a
+verified login fades the screen out where GDM would start the session.
 
 Build options that trim dependencies for a development build:
 `-Dcalendar_server=false` (no evolution-data-server; the date menu shows no
