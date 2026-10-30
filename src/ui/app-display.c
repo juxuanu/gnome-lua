@@ -8394,8 +8394,9 @@ usage_compare_cb (gconstpointer a,
                   gconstpointer b,
                   gpointer      user_data)
 {
-  const char *id_a = *(const char * const *) a;
-  const char *id_b = *(const char * const *) b;
+  /* g_ptr_array_sort_values_with_data () passes the elements themselves */
+  const char *id_a = a;
+  const char *id_b = b;
 
   return shell_app_usage_compare (user_data, id_a, id_b);
 }

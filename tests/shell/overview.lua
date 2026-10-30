@@ -1,7 +1,9 @@
 -- This script tests the overview (src/ui/overview.c): it shows the overview,
 -- waits for it to be shown, switches to the application grid, runs a search
--- and hides the overview, under fatal warnings. Then a D-Bus client shows and
--- hides it through the OverviewActive property of org.gnome.Shell.
+-- and hides the overview, under fatal warnings. The search matches two
+-- applications the script installs, which the application search sorts by
+-- usage. Then a D-Bus client shows and hides it through the OverviewActive
+-- property of org.gnome.Shell.
 
 local TIMEOUT = 10000
 
@@ -12,6 +14,7 @@ local results = {
   shown = false,
   visible_while_shown = false,
   app_grid_shown = false,
+  search_apps_installed = false,
   search_started = false,
   search_ended = false,
   hidden = false,
@@ -25,6 +28,7 @@ test.finish (function ()
   assert (results.shown, "Failed to show the overview")
   assert (results.visible_while_shown, "The overview is not visible once shown")
   assert (results.app_grid_shown, "Failed to show the application grid")
+  assert (results.search_apps_installed, "The applications to search for were not found")
   assert (results.search_started, "Failed to start the search")
   assert (results.search_ended, "Failed to end the search")
   assert (results.hidden, "Failed to hide the overview")
@@ -50,9 +54,36 @@ local function set_overview_active (active)
   return result.status == 0
 end
 
+-- Installs the applications the search finds, in the test home
+local function install_search_apps (names)
+  local dir = os.getenv ("XDG_DATA_HOME") .. "/applications"
+  local app_system = global:get_app_system ()
+
+  assert (os.execute (string.format ("mkdir -p '%s'", dir)))
+  for _, name in ipairs (names) do
+    local file = assert (io.open (string.format ("%s/%s.desktop", dir, name), "w"))
+    file:write ("[Desktop Entry]\nType=Application\nName=" .. name .. "\nExec=true\n")
+    file:close ()
+  end
+
+  test.wait_for (function ()
+    for _, name in ipairs (names) do
+      if app_system:lookup_app (name .. ".desktop") == nil then
+        return false
+      end
+    end
+    return true
+  end, "the applications to search for", TIMEOUT)
+  return true
+end
+
 test.wait_startup ()
 
 test.log ("Running overview test")
+
+-- Two applications that one search matches equally: they make one group of
+-- results, the one that sorting can get wrong
+results.search_apps_installed = install_search_apps { "Luasearch-one", "Luasearch-two" }
 
 test.sleep (1000)
 test.wait_leisure ()
@@ -89,7 +120,7 @@ results.app_grid_shown = show_apps.checked and overview.visible
 test.log ("Searching")
 local search_controller = overview.search_controller
 local search_entry = overview.search_entry
-search_entry.text = "a"
+search_entry.text = "luasearch"
 test.wait_for (function ()
   return search_controller.search_active
 end, "the search to start", TIMEOUT)
