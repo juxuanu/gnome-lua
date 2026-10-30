@@ -83,6 +83,8 @@ delayed_disable_state (gpointer data)
 {
   ShellCameraMonitor *monitor = SHELL_CAMERA_MONITOR (data);
 
+  /* The source is gone: removing it again when a camera starts would warn */
+  monitor->delayed_disable_id = 0;
   monitor->cameras_in_use = FALSE;
   g_object_notify_by_pspec (G_OBJECT (monitor),
                             obj_props[PROP_CAMERAS_IN_USE]);
