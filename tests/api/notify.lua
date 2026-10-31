@@ -78,6 +78,7 @@ harness.run {
     -- see them (these steps wait for the banners for a while)
     c.step ("low-urgency")
     c.step ("cancel-banner")
+    c.step ("destroy-in-showing")
     c.step ("banner")
     c.step ("default-source")
     c.step ("transient")

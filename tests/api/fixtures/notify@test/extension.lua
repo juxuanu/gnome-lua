@@ -97,6 +97,8 @@ local keep = {}
 local seen = { showing = {}, shown = {}, activated = {} }
 -- Titles of the sources the hook handler should cancel the banner of
 local CANCEL_SOURCE = "Notify test: cancel the banner"
+-- ... and of the source the hook handler destroys, with its notification
+local DESTROY_SOURCE = "Notify test: destroyed while asked"
 
 function ext.enable()
   -- The hooks first: the banners of the checks below are seen, and the ones of
@@ -105,6 +107,9 @@ function ext.enable()
     seen.showing[#seen.showing + 1] = payload
     if payload.source == CANCEL_SOURCE then
       return shell.hooks.CANCEL
+    end
+    if payload.source == DESTROY_SOURCE and keep.destroy_me ~= nil then
+      keep.destroy_me:destroy()
     end
   end)
   shell.hooks.on("notification.shown", function(payload)
@@ -718,6 +723,31 @@ function ext.enable()
           eq(src.count, 1, "count")
         end)
         src:destroy()
+        done()
+      end }
+
+      return "later"
+    end,
+
+    -- A notification destroyed by a handler of notification.showing, with its
+    -- source: no banner, and the tray does not keep it queued
+    ["destroy-in-showing"] = function(p, done)
+      local shown_before = #seen.shown
+      local src = shell.notify.source { title = DESTROY_SOURCE }
+
+      keep.destroy_me = src
+      src:notify { title = "Destroyed", urgency = "high" }
+
+      shell.timer.after { ms = 1500, callback = function()
+        case("a notification destroyed by notification.showing shows no banner", function()
+          for i = shown_before + 1, #seen.shown do
+            if seen.shown[i].source == DESTROY_SOURCE then
+              error("notification.shown ran for a destroyed notification")
+            end
+          end
+          eq(src.alive, false, "the source")
+        end)
+        keep.destroy_me = nil
         done()
       end }
 

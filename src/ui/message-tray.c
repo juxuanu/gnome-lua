@@ -3907,6 +3907,8 @@ tray_on_notification_request_banner (ShellSource       *source,
                                      ShellNotification *notification,
                                      ShellMessageTray  *self)
 {
+  g_autoptr (ShellNotification) keep = NULL;
+
   /* We never display a banner for already acknowledged notifications */
   if (shell_notification_get_acknowledged (notification))
     return;
@@ -3919,8 +3921,11 @@ tray_on_notification_request_banner (ShellSource       *source,
     return;
 
   /* Extensions can veto the banner (and its sound); the notification still
-   * goes to the message list */
-  if (!emit_hook_before ("notification.showing", notification))
+   * goes to the message list. A handler can also destroy the notification:
+   * a destroyed one has no source and no banner. */
+  keep = g_object_ref (notification);
+  if (!emit_hook_before ("notification.showing", notification) ||
+      shell_notification_get_source (notification) == NULL)
     return;
 
   if (self->notification == notification)
@@ -3960,6 +3965,19 @@ tray_remove_source (ShellMessageTray *self,
     return;
 
   keep_alive = g_object_ref (source);
+
+  /* The tray no longer hears about the notifications of @source being
+   * removed (notification-removed): its banners go now. Upstream keeps them
+   * queued and shows them, destroyed or not. */
+  for (guint i = self->notification_queue->len; i > 0; i--)
+    {
+      ShellNotification *queued = g_ptr_array_index (self->notification_queue, i - 1);
+
+      if (shell_notification_get_source (queued) == source)
+        tray_on_notification_removed (source, queued, self);
+    }
+  if (self->notification != NULL && shell_notification_get_source (self->notification) == source)
+    tray_on_notification_removed (source, self->notification, self);
 
   g_ptr_array_remove_index (self->sources, index);
   g_signal_handlers_disconnect_by_data (source, self);
@@ -4379,6 +4397,7 @@ tray_update_showing_notification (ShellMessageTray *self)
 {
   ShellEaseParams params;
   ClutterActor *bin = CLUTTER_ACTOR (self->banner_bin);
+  ShellSource *source;
 
   if (self->notification == NULL)
     return;
@@ -4388,8 +4407,9 @@ tray_update_showing_notification (ShellMessageTray *self)
 
   /* We auto-expand notifications with CRITICAL urgency, or for which the
    * relevant setting is on in the control center. */
+  source = shell_notification_get_source (self->notification);
   if (shell_notification_get_urgency (self->notification) == SHELL_NOTIFICATION_URGENCY_CRITICAL ||
-      shell_notification_policy_get_force_expanded (shell_source_get_policy (shell_notification_get_source (self->notification))))
+      (source != NULL && shell_notification_policy_get_force_expanded (shell_source_get_policy (source))))
     expand_banner (self, TRUE);
 
   /* We tween all notifications to full opacity. This ensures that both new
