@@ -30,6 +30,27 @@ GVariant *shell_lua_to_variant   (lua_State          *L,
                                   int                 idx,
                                   const GVariantType *type);   /* nullable */
 
+typedef enum {
+  SHELL_LUA_VARIANT_NONE        = 0,
+  /* In the conversion without a type, a string that is not valid UTF-8 (or
+   * has an embedded NUL) becomes `ay` instead of failing; it comes back as
+   * a Lua string of the same bytes (worker messages, docs/api/worker.md). */
+  SHELL_LUA_VARIANT_BYTES_AS_AY = 1 << 0,
+  /* In the conversion without a type, a table with both integer and string
+   * keys fails instead of becoming an `a{sv}` without its integer keys
+   * (a message must arrive whole or not at all). */
+  SHELL_LUA_VARIANT_STRICT_KEYS = 1 << 1,
+} ShellLuaVariantFlags;
+
+/* Same with @flags, and a cap on the number of values (every scalar and
+ * every container counts one; 0: no cap): beyond it the conversion fails
+ * with `too many values (limit N)` before it builds the rest. */
+GVariant *shell_lua_to_variant_full (lua_State          *L,
+                                     int                 idx,
+                                     const GVariantType *type,
+                                     guint               flags,
+                                     gsize               max_values);
+
 /* Pushes a typed-value box holding a reference to @variant (sunk if floating).
  * Boxes are immutable and compare by identity. */
 void      shell_lua_push_variant_box (lua_State          *L,

@@ -6,8 +6,9 @@ watchdog and error policy. Nothing here is available outside the `shell`
 table; `require("shell")` returns the same table.
 
 ## `shell.api_version`
-Table `{major = 1, minor = 1}`; read-only. The minor is 1 since API 1.1
-(see "Since" below); `metadata.json` may declare `"shell-api": "1.1"`.
+Table `{major = 1, minor = 2}`; read-only. The minor is 2 since API 1.2
+(see "Since" below); `metadata.json` may declare `"shell-api": "1.1"` or
+`"1.2"`.
 
 ## `shell.extension`
 Present only in extension states (nil in the inspector).

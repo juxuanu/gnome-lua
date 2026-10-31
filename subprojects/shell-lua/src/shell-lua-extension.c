@@ -12,7 +12,7 @@
 #include "shell-lua-api-private.h"
 
 static const char * const known_capabilities[] = {
-  "dbus", "settings", "search", "fs", "spawn", "network", NULL
+  "dbus", "settings", "search", "fs", "spawn", "network", "worker", NULL
 };
 
 enum {
@@ -620,6 +620,33 @@ shell_lua_extension_get_lua_state (ShellLuaExtension *self)
   return self->lua_state;
 }
 
+/**
+ * shell_lua_extension_get_worker_stats: (skip)
+ * @self: an extension
+ * @stats: (out caller-allocates): where to store the figures
+ *
+ * What the workers of the extension (docs/api/worker.md) did since it was
+ * enabled: how many messages they handled, the CPU time of their threads in
+ * them, the longest handler. Returns %FALSE, and zeroes, when the extension
+ * is not running or never started a worker.
+ */
+gboolean
+shell_lua_extension_get_worker_stats (ShellLuaExtension   *self,
+                                      ShellLuaWorkerStats *stats)
+{
+  g_return_val_if_fail (SHELL_IS_LUA_EXTENSION (self), FALSE);
+  g_return_val_if_fail (stats != NULL, FALSE);
+
+  if (self->lua_state == NULL || !shell_lua_state_is_alive (self->lua_state))
+    {
+      memset (stats, 0, sizeof *stats);
+      return FALSE;
+    }
+
+  shell_lua_worker_get_stats (self->lua_state, stats);
+  return stats->messages > 0 || stats->live > 0;
+}
+
 const char * const *
 shell_lua_extension_get_capabilities (ShellLuaExtension *self)
 {
@@ -1133,6 +1160,7 @@ shell_lua_extension_serialize (ShellLuaExtension *self)
   if (self->lua_state != NULL && shell_lua_state_is_alive (self->lua_state))
     {
       ShellLuaStats stats;
+      ShellLuaWorkerStats workers;
 
       shell_lua_state_get_stats (self->lua_state, &stats);
       dict_take (dict, "callbacks", g_variant_new_double (stats.calls));
@@ -1143,6 +1171,16 @@ shell_lua_extension_serialize (ShellLuaExtension *self)
       dict_take (dict, "slowCallbacks", g_variant_new_double (stats.slow_calls));
       dict_take (dict, "memory",
                  g_variant_new_double (shell_lua_state_get_memory_usage (self->lua_state)));
+
+      /* What its workers did in their threads (docs/api/worker.md "Time
+       * accounting"): next to the callback figures, never added to them */
+      if (shell_lua_extension_get_worker_stats (self, &workers))
+        {
+          dict_take (dict, "workers", g_variant_new_double (workers.live));
+          dict_take (dict, "workerMessages", g_variant_new_double (workers.messages));
+          dict_take (dict, "workerTime", g_variant_new_double (workers.total_us / 1000.0));
+          dict_take (dict, "workerLongest", g_variant_new_double (workers.longest_us / 1000.0));
+        }
     }
 
   g_variant_builder_init (&builder, G_VARIANT_TYPE_VARDICT);

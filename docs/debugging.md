@@ -53,6 +53,16 @@ The figures are the keys `callbacks`, `callbackTime`, `callbackLongest`
 of the extension info (`org.gnome.Shell.Extensions.GetExtensionInfo`);
 `ShellLuaStats` in `subprojects/shell-lua/src/shell-lua.h` in C.
 
+An extension with workers (`docs/api/worker.md`) runs code off the main
+thread too; that time costs no frames and is shown apart, never added to the
+figures above: `gnome-extensions info` prints a `Workers` line (running,
+messages handled, their CPU time in total and the longest), Looking Glass a
+line of its own, and the extension info carries `workers`, `workerMessages`,
+`workerTime` and `workerLongest` (milliseconds; `ShellLuaWorkerStats` in
+`shell-lua-extension.h`). What a worker does cost the main thread, the
+conversion of its messages and the `on_message` callbacks, is in the callback
+figures like any other callback.
+
 ## Debugging the session's gnome-shell proces
 
 It is possible to attach gdb to the gnome-shell process of the existing

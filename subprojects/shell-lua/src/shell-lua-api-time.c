@@ -28,7 +28,7 @@
 static void __attribute__ ((constructor))
 shell_lua_api_time_init (void)
 {
-  shell_lua_api_register ("time", shell_lua_api_time_register);
+  shell_lua_api_register_for_kinds ("time", shell_lua_api_time_register, SHELL_LUA_API_KINDS_ALL);
 }
 
 /* GDateTime's range: 0001-01-01T00:00:00Z .. 9999-12-31T23:59:59Z */

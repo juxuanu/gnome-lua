@@ -17,8 +17,12 @@
 typedef struct {
   char                    *name;
   ShellLuaApiRegisterFunc  func;
+  guint                    kinds;   /* SHELL_LUA_API_KIND () bits */
 } ApiModule;
 
+/* Worker states are populated from their own threads: the registry is used
+ * under this lock. */
+G_LOCK_DEFINE_STATIC (modules);
 static GArray *modules = NULL;
 
 static void
@@ -32,8 +36,9 @@ api_module_clear (gpointer data)
 /* Constructors in different translation units run in unspecified order, so
  * the list is created lazily and sorted by name when it is used. */
 void
-shell_lua_api_register (const char              *name,
-                        ShellLuaApiRegisterFunc  func)
+shell_lua_api_register_for_kinds (const char              *name,
+                                  ShellLuaApiRegisterFunc  func,
+                                  guint                    kinds)
 {
   ApiModule module;
   guint i;
@@ -41,21 +46,41 @@ shell_lua_api_register (const char              *name,
   g_return_if_fail (name != NULL);
   g_return_if_fail (func != NULL);
 
+  G_LOCK (modules);
+
   if (modules == NULL)
     {
       modules = g_array_new (FALSE, FALSE, sizeof (ApiModule));
       g_array_set_clear_func (modules, api_module_clear);
     }
 
+  /* registered twice (a constructor and shell_lua_api_populate): the kinds
+   * add up */
   for (i = 0; i < modules->len; i++)
     {
-      if (g_array_index (modules, ApiModule, i).func == func)
-        return;
+      ApiModule *existing = &g_array_index (modules, ApiModule, i);
+
+      if (existing->func == func)
+        {
+          existing->kinds |= kinds;
+          G_UNLOCK (modules);
+          return;
+        }
     }
 
   module.name = g_strdup (name);
   module.func = func;
+  module.kinds = kinds;
   g_array_append_val (modules, module);
+
+  G_UNLOCK (modules);
+}
+
+void
+shell_lua_api_register (const char              *name,
+                        ShellLuaApiRegisterFunc  func)
+{
+  shell_lua_api_register_for_kinds (name, func, SHELL_LUA_API_KINDS_MAIN);
 }
 
 static int
@@ -72,7 +97,10 @@ void
 shell_lua_api_populate (ShellLuaState *state,
                         lua_State     *L)
 {
-  guint i;
+  g_autofree guint *kinds = NULL;
+  g_autofree ShellLuaApiRegisterFunc *funcs = NULL;
+  g_autofree char **names = NULL;
+  guint i, n;
 
   g_return_if_fail (SHELL_IS_LUA_STATE (state));
   g_return_if_fail (L != NULL);
@@ -82,26 +110,45 @@ shell_lua_api_populate (ShellLuaState *state,
    * the library is linked statically nothing references their object files
    * and the linker drops them. Registering them here (idempotent) keeps the
    * library usable without --whole-archive. */
-  shell_lua_api_register ("core", shell_lua_api_core_register);
+  shell_lua_api_register_for_kinds ("core", shell_lua_api_core_register, SHELL_LUA_API_KINDS_ALL);
   shell_lua_api_register ("hooks", shell_lua_api_hooks_register);
   shell_lua_api_register ("dbus", shell_lua_api_dbus_register);
   shell_lua_api_register ("fs", shell_lua_api_fs_register);
   shell_lua_api_register ("spawn", shell_lua_api_spawn_register);
-  shell_lua_api_register ("time", shell_lua_api_time_register);
+  shell_lua_api_register_for_kinds ("time", shell_lua_api_time_register, SHELL_LUA_API_KINDS_ALL);
+  shell_lua_api_register_for_kinds ("worker", shell_lua_api_worker_register, SHELL_LUA_API_KINDS_ALL);
 
-  /* Deterministic order independent of link order */
+  /* Deterministic order independent of link order. The registry is copied
+   * so that the lock is not held while the modules run (a module may create
+   * a state of its own). */
+  G_LOCK (modules);
   g_array_sort (modules, compare_modules);
-
-  for (i = 0; i < modules->len; i++)
+  kinds = g_new0 (guint, modules->len);
+  funcs = g_new0 (ShellLuaApiRegisterFunc, modules->len);
+  names = g_new0 (char *, modules->len);
+  n = modules->len;
+  for (i = 0; i < n; i++)
     {
       ApiModule *module = &g_array_index (modules, ApiModule, i);
+
+      kinds[i] = module->kinds;
+      funcs[i] = module->func;
+      names[i] = module->name;   /* never freed while the process runs */
+    }
+  G_UNLOCK (modules);
+
+  for (i = 0; i < n; i++)
+    {
       int top = lua_gettop (L);
 
-      module->func (state, L);
+      if ((kinds[i] & SHELL_LUA_API_KIND (shell_lua_state_get_kind (state))) == 0)
+        continue;
+
+      funcs[i] (state, L);
 
       if (lua_gettop (L) != top)
         g_error ("Lua API module '%s' left the stack unbalanced (%d -> %d)",
-                 module->name, top, lua_gettop (L));
+                 names[i], top, lua_gettop (L));
     }
 }
 

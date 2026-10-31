@@ -12,6 +12,7 @@ shell_lua_tests = [
   'api-fs',
   'api-spawn',
   'api-time',
+  'api-worker',
   'objects',
   'extension',
   'inspector',

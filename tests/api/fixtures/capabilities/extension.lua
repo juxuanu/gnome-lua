@@ -95,7 +95,7 @@ end
 -- ---------------------------------------------------------------------
 -- The variant of this copy
 -- ---------------------------------------------------------------------
-local CAPABILITIES = { "dbus", "settings", "search", "fs", "spawn", "network" }
+local CAPABILITIES = { "dbus", "settings", "search", "fs", "spawn", "network", "worker" }
 
 local UUID = shell.extension.uuid
 local VARIANT = UUID:match("^capabilities%-(.-)@test$")
@@ -341,6 +341,28 @@ local GATES = {
         end) }
     end,
     check = function(_, process, message) truthy(process, "the process (" .. tostring(message) .. ")") end,
+  },
+
+  -- worker.md: a worker that echoes one value, then is destroyed
+  {
+    capability = "worker", fn = "shell.worker.start()",
+    call = function(_, finish)
+      local w
+      w = shell.worker.start{ module = "workers.echo",
+        on_message = guard(finish, function(v)
+          eq(v, "matrix", "the echo")
+          w:destroy()
+          eq(w.alive, false, "worker.alive after destroy ()")
+          finish(true)
+        end),
+        on_error = function(err) finish(false, "worker: " .. tostring(err.code) .. ": " .. tostring(err.message)) end }
+      return w
+    end,
+    check = function(_, worker, message)
+      truthy(worker, "the worker (" .. tostring(message) .. ")")
+      eq(worker.alive, true, "worker.alive")
+      worker:post("matrix")
+    end,
   },
 
   -- network.md

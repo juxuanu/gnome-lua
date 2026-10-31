@@ -1,0 +1,7 @@
+{
+  "uuid": "worker-nocap@test",
+  "name": "API conformance: worker without the capability",
+  "description": "Fixture of tests/api/worker.lua: without the capability shell.worker.start raises and no thread runs",
+  "shell-api": "1.2",
+  "version": 1
+}

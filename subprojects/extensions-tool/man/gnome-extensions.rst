@@ -91,7 +91,9 @@ COMMANDS
   the longest callback and where it is defined, the callbacks longer than a
   frame (16 ms, a dropped frame at 60 Hz) and their Lua memory. The shell
   also logs each callback longer than a frame, at most once every 10
-  seconds per extension.
+  seconds per extension. The workers of an extension (threads of their own,
+  which cost no frames) are not in these figures; ``info`` shows them on a
+  line of their own.
 
   **Options**
 

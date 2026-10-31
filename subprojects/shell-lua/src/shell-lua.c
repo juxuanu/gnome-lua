@@ -57,6 +57,7 @@
 
 #define WATCHDOG_PREFIX "watchdog: "
 #define SANDBOX_PREFIX  "sandbox: "
+#define STOPPED_MESSAGE "worker: stopped"
 
 typedef struct {
   guint           id;
@@ -79,6 +80,15 @@ struct _ShellLuaState
 
   gpointer owner;
   guint error_count;
+  GString *warn_pending;     /* lua_warn (): the message being assembled */
+
+  /* WORKER states: set from another thread, read by the count hook */
+  gint stop_requested;
+
+  /* Where print () and shell.log write when set (worker states relay them
+   * to the main thread); NULL: the GLib log */
+  ShellLuaMessageSink message_sink;
+  gpointer message_sink_data;
 
   /* Memory accounting */
   gsize mem_used;
@@ -111,7 +121,9 @@ static guint signals[N_SIGNALS] = { 0 };
 
 static gint n_states = 0;
 static gssize total_memory = 0;
-static GPtrArray *current_states = NULL;   /* innermost pcall last; not owned */
+/* The states running in this thread, innermost pcall last; not owned. One
+ * stack per thread: worker states run in threads of their own. */
+static GPrivate current_states_key = G_PRIVATE_INIT ((GDestroyNotify) g_ptr_array_unref);
 static const char loading_sentinel = 0;    /* address used as require() "in progress" marker */
 static const char callee_key = 0;          /* registry: the function of the outermost call, or false */
 
@@ -188,20 +200,37 @@ lua_warn (void       *ud,
           const char *msg,
           int         tocont)
 {
-  static GString *pending = NULL;
   ShellLuaState *self = ud;
+  GString *pending;
 
-  if (pending == NULL)
-    pending = g_string_new (NULL);
+  if (self->warn_pending == NULL)
+    self->warn_pending = g_string_new (NULL);
+  pending = self->warn_pending;
 
   g_string_append (pending, msg);
   if (tocont)
     return;
 
-  /* "@on" / "@off" control messages are accepted and ignored */
-  if (pending->str[0] != '@')
+  /* "@on" / "@off" control messages are accepted and ignored. A worker
+   * state must not log from its thread (the warning would be fatal under
+   * G_DEBUG=fatal-warnings in any case): its warnings are dropped. */
+  if (pending->str[0] != '@' && self->kind != SHELL_LUA_STATE_WORKER)
     g_warning ("[%s] Lua warning: %s", self->id, pending->str);
   g_string_truncate (pending, 0);
+}
+
+/* The pcall stack of the calling thread, made on first use. */
+static GPtrArray *
+current_states_get (void)
+{
+  GPtrArray *states = g_private_get (&current_states_key);
+
+  if (states == NULL)
+    {
+      states = g_ptr_array_new ();
+      g_private_set (&current_states_key, states);
+    }
+  return states;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -241,18 +270,33 @@ mark_thread_killed (lua_State *L)
   lua_pop (L, 1);
 }
 
-/* Raises the watchdog error in @L. From now on the hook fires at every
- * instruction so that a script that catches the error with its own pcall()
- * cannot keep running. */
+/* From now on the hook fires at every instruction so that a script that
+ * catches the error with its own pcall() cannot keep running. */
+static void
+escalate_hook (lua_State *L)
+{
+  mark_thread_killed (L);
+  lua_sethook (L, watchdog_hook, LUA_MASKCOUNT, 1);
+}
+
+/* Raises the watchdog error in @L. */
 static int
 watchdog_raise (lua_State     *L,
                 ShellLuaState *self)
 {
   self->watchdog_trips++;
-  mark_thread_killed (L);
-  lua_sethook (L, watchdog_hook, LUA_MASKCOUNT, 1);
+  escalate_hook (L);
   lua_pushfstring (L, WATCHDOG_PREFIX "callback exceeded its time budget (%I ms)",
                    (lua_Integer) (self->limits.callback_budget_us / 1000));
+  return lua_error (L);
+}
+
+/* The stop flag of a worker state was set (from another thread). */
+static int
+stop_raise (lua_State *L)
+{
+  escalate_hook (L);
+  lua_pushliteral (L, STOPPED_MESSAGE);
   return lua_error (L);
 }
 
@@ -265,6 +309,12 @@ watchdog_hook (lua_State *L,
   if (self == NULL)
     return;
 
+  if (g_atomic_int_get (&self->stop_requested))
+    {
+      stop_raise (L);
+      return;
+    }
+
   if (!watchdog_expired (self))
     {
       /* Undo an escalation left over from a previous expiry (coroutine
@@ -275,6 +325,23 @@ watchdog_hook (lua_State *L,
     }
 
   watchdog_raise (L, self);
+}
+
+void
+shell_lua_state_request_stop (ShellLuaState *self)
+{
+  g_return_if_fail (SHELL_IS_LUA_STATE (self));
+
+  if (self->kind == SHELL_LUA_STATE_WORKER)
+    g_atomic_int_set (&self->stop_requested, 1);
+}
+
+gboolean
+shell_lua_state_stop_requested (ShellLuaState *self)
+{
+  g_return_val_if_fail (SHELL_IS_LUA_STATE (self), FALSE);
+
+  return g_atomic_int_get (&self->stop_requested) != 0;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -384,21 +451,20 @@ push_frame (ShellLuaState *self)
   gint64 budget = self->limits.callback_budget_us;
   gint64 now = g_get_monotonic_time ();
 
-  if (current_states == NULL)
-    current_states = g_ptr_array_new ();
-
   if (budget >= G_MAXINT64 || budget > G_MAXINT64 - now)
     self->deadlines[self->depth] = G_MAXINT64;
   else
     self->deadlines[self->depth] = now + budget;
 
   self->depth++;
-  g_ptr_array_add (current_states, self);
+  g_ptr_array_add (current_states_get (), self);
 }
 
 static void
 pop_frame (ShellLuaState *self)
 {
+  GPtrArray *current_states = current_states_get ();
+
   self->depth--;
   g_ptr_array_set_size (current_states, current_states->len - 1);
 }
@@ -426,10 +492,17 @@ apply_env (lua_State *L)
     lua_pop (L, 1);
 }
 
+/* Worker states get the sandbox too. */
 static gboolean
 is_sandboxed (ShellLuaState *self)
 {
-  return self->kind == SHELL_LUA_STATE_SANDBOXED;
+  return self->kind != SHELL_LUA_STATE_PRIVILEGED;
+}
+
+static gboolean
+is_worker (ShellLuaState *self)
+{
+  return self->kind == SHELL_LUA_STATE_WORKER;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -464,6 +537,26 @@ module_name_is_valid (const char *name)
     }
 
   return !prev_dot;
+}
+
+gboolean
+shell_lua_module_name_is_valid (const char *name)
+{
+  return name != NULL && module_name_is_valid (name);
+}
+
+GPtrArray *
+shell_lua_state_dup_search_roots (ShellLuaState *self)
+{
+  GPtrArray *roots;
+  guint i;
+
+  g_return_val_if_fail (SHELL_IS_LUA_STATE (self), NULL);
+
+  roots = g_ptr_array_new_with_free_func (g_object_unref);
+  for (i = 0; i < self->roots->len; i++)
+    g_ptr_array_add (roots, g_object_ref (g_ptr_array_index (self->roots, i)));
+  return roots;
 }
 
 typedef enum {
@@ -657,8 +750,37 @@ l_print (lua_State *L)
     }
   luaL_pushresult (&b);
 
-  g_message ("[%s] %s", self->id, lua_tostring (L, -1));
+  if (self->message_sink != NULL)
+    self->message_sink (L, G_LOG_LEVEL_MESSAGE, lua_tostring (L, -1), self->message_sink_data);
+  else
+    g_message ("[%s] %s", self->id, lua_tostring (L, -1));
   return 0;
+}
+
+void
+shell_lua_state_set_message_sink (ShellLuaState       *self,
+                                  ShellLuaMessageSink  sink,
+                                  gpointer             data)
+{
+  g_return_if_fail (SHELL_IS_LUA_STATE (self));
+
+  self->message_sink = sink;
+  self->message_sink_data = data;
+}
+
+gboolean
+shell_lua_state_sink_message (ShellLuaState  *self,
+                              lua_State      *L,
+                              GLogLevelFlags  level,
+                              const char     *message)
+{
+  g_return_val_if_fail (SHELL_IS_LUA_STATE (self), FALSE);
+
+  if (self->message_sink == NULL)
+    return FALSE;
+
+  self->message_sink (L, level, message, self->message_sink_data);
+  return TRUE;
 }
 
 static int
@@ -1136,6 +1258,8 @@ shell_lua_state_finalize (GObject *object)
   ShellLuaState *self = SHELL_LUA_STATE (object);
 
   g_clear_pointer (&self->teardowns, g_array_unref);
+  if (self->warn_pending != NULL)
+    g_string_free (self->warn_pending, TRUE);
   g_free (self->longest_where);
   g_free (self->id);
 
@@ -1195,12 +1319,14 @@ shell_lua_state_new (const char           *id,
                      const ShellLuaLimits *limits)
 {
   g_autoptr(ShellLuaState) self = NULL;
-  gboolean sandboxed = kind == SHELL_LUA_STATE_SANDBOXED;
+  gboolean sandboxed = kind != SHELL_LUA_STATE_PRIVILEGED;
+  gboolean budgeted = kind == SHELL_LUA_STATE_SANDBOXED;   /* a worker has no frame to protect */
   lua_State *L;
 
   g_return_val_if_fail (id != NULL, NULL);
   g_return_val_if_fail (kind == SHELL_LUA_STATE_SANDBOXED ||
-                        kind == SHELL_LUA_STATE_PRIVILEGED, NULL);
+                        kind == SHELL_LUA_STATE_PRIVILEGED ||
+                        kind == SHELL_LUA_STATE_WORKER, NULL);
 
   self = g_object_new (SHELL_TYPE_LUA_STATE, NULL);
   self->id = g_strdup (id);
@@ -1210,7 +1336,7 @@ shell_lua_state_new (const char           *id,
     ? limits->hook_interval : DEFAULT_HOOK_INTERVAL;
   self->limits.callback_budget_us = (limits != NULL && limits->callback_budget_us > 0)
     ? limits->callback_budget_us
-    : (sandboxed ? DEFAULT_SANDBOX_BUDGET_US : G_MAXINT64);
+    : (budgeted ? DEFAULT_SANDBOX_BUDGET_US : G_MAXINT64);
   self->limits.memory_limit = (limits != NULL && limits->memory_limit > 0)
     ? limits->memory_limit
     : (sandboxed ? DEFAULT_SANDBOX_MEMORY : G_MAXSIZE);
@@ -1407,6 +1533,16 @@ report_failure (ShellLuaState  *self,
 
   self->error_count++;
 
+  /* A worker state runs in a thread of its own: it neither logs nor emits
+   * (the owner of the state reads the GError and reports it from the main
+   * thread, shell_lua_state_report_error ()). */
+  if (is_worker (self))
+    {
+      if (error != NULL)
+        *error = g_steal_pointer (&gerror);
+      return;
+    }
+
   if (self->kind == SHELL_LUA_STATE_SANDBOXED)
     g_warning ("[%s] %s", self->id, message);
   else
@@ -1416,6 +1552,17 @@ report_failure (ShellLuaState  *self,
 
   if (error != NULL)
     *error = g_steal_pointer (&gerror);
+}
+
+void
+shell_lua_state_report_error (ShellLuaState *self,
+                              ShellLuaError  code,
+                              const char    *message)
+{
+  g_return_if_fail (SHELL_IS_LUA_STATE (self));
+  g_return_if_fail (message != NULL);
+
+  report_failure (self, code, message, NULL);
 }
 
 /* True if @marker occurs in the first line of @msg. coroutine.wrap() prepends
@@ -1440,6 +1587,9 @@ classify_error (ShellLuaState *self,
     return SHELL_LUA_ERROR_MEMORY;
   if (status == LUA_ERRERR && self->mem_refused)
     return SHELL_LUA_ERROR_MEMORY;
+  /* Once a worker was asked to stop every error is a consequence of it */
+  if (g_atomic_int_get (&self->stop_requested))
+    return SHELL_LUA_ERROR_STOPPED;
   if (self->watchdog_trips != trips_before && message_has_marker (msg, WATCHDOG_PREFIX))
     return SHELL_LUA_ERROR_WATCHDOG;
   if (g_str_has_prefix (msg, "not enough memory"))
@@ -1536,9 +1686,10 @@ account_call (ShellLuaState *self,
 {
   gint64 elapsed = g_get_monotonic_time () - start;
   gint64 own = MAX (elapsed - self->outer_nested_us, 0);
+  GPtrArray *current_states = current_states_get ();
   g_autofree char *where = NULL;
 
-  if (current_states != NULL && current_states->len > 0)
+  if (current_states->len > 0)
     {
       ShellLuaState *outer = g_ptr_array_index (current_states, current_states->len - 1);
 
@@ -1560,7 +1711,8 @@ account_call (ShellLuaState *self,
   if (own >= SHELL_LUA_SLOW_CALL_US)
     {
       self->stats.slow_calls++;
-      if (is_sandboxed (self))
+      /* a worker has no frame to drop, and must not log from its thread */
+      if (is_sandboxed (self) && !is_worker (self))
         {
           if (where == NULL)
             where = callee_where (self);
@@ -1947,6 +2099,8 @@ shell_lua_state_gc (ShellLuaState *self)
 ShellLuaState *
 shell_lua_state_get_current (void)
 {
+  GPtrArray *current_states = g_private_get (&current_states_key);
+
   if (current_states == NULL || current_states->len == 0)
     return NULL;
 

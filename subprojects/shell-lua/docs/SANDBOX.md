@@ -22,7 +22,7 @@ Globals (nothing else exists):
 | `_G` | the sandbox environment itself |
 | `shell` | the API table; `require("shell")` returns the same table |
 
-`shell.api_version` is `{major=1, minor=1}` behind a read-only proxy.
+`shell.api_version` is `{major=1, minor=2}` behind a read-only proxy.
 
 `shell.log.debug/info/warning/error/fatal` write to the GLib log with the
 domain `shell-lua/<state id>`; `error` and `fatal` are `G_LOG_LEVEL_CRITICAL`
@@ -81,6 +81,25 @@ Both capabilities are shown to the user by the extensions app; the Lua state
 itself is unchanged (same watchdog, same memory limit: the callbacks of these
 modules run under both).
 
+**Worker states (API 1.2).** `shell.worker` (docs/api/worker.md, capability
+`worker`) runs a file of the extension in a state of kind
+`SHELL_LUA_STATE_WORKER` in a thread of its own. It is this sandbox (the same
+globals and copies of the libraries, the same closed doors, `require` for the
+files of the extension directory) with a `shell` table that holds only
+`api_version`, `log`, `time`, a read-only copy of `extension` and
+`shell.worker.post`: no timers, settings, hooks, handles or gated modules,
+since nothing of the main thread exists there. It has no time budget
+(`callback_budget_us` unlimited: there is no frame to protect) and the memory
+limit of `max_memory` (64 MiB by default, at most 128 MiB). Instead of the
+watchdog the count hook checks a **stop flag**
+(`shell_lua_state_request_stop ()`, the one call that another thread may
+make on a state): once set, the hook raises `worker: stopped` and escalates
+like the watchdog, and the pcall reports `STOPPED`. A worker state never
+logs, never emits `error` and never touches the main thread: a failed pcall
+is returned to the thread, which relays it; `print` and `shell.log` go
+through a message sink to the main thread, which writes them. The thread
+creates and closes the state; the main thread never waits for it.
+
 Every chunk loaded through `shell_lua_state_load_*()` or `require()` gets the
 sandbox environment as its `_ENV` upvalue. Modules of one state share that
 environment (a global written by one module is visible to the others).
@@ -95,6 +114,9 @@ environment (a global written by one module is visible to the others).
 | `callback_budget_us` (wall clock per `shell_lua_state_pcall`) | 500000 (500 ms) | `G_MAXINT64` (unlimited) |
 | `memory_limit` (bytes handed out by the allocator) | 64 MiB | `G_MAXSIZE` (unlimited) |
 | nested `shell_lua_state_pcall` depth | 50 | 50 |
+
+A `WORKER` state has the limits of `SANDBOXED` except `callback_budget_us`,
+which is unlimited; `shell.worker.start` sets its `memory_limit`.
 
 `G_MAXINT64` / `G_MAXSIZE` may be passed explicitly to disable a limit.
 
@@ -154,6 +176,7 @@ string (strings as is; other values via `__tostring`, else
 | `MEMORY` | allocator refused / `not enough memory` |
 | `SANDBOX` | `sandbox: ...` errors (invalid module name) |
 | `DEAD` | the state was already destroyed, or was destroyed during the call |
+| `STOPPED` | a worker state was asked to stop (`shell_lua_state_request_stop ()`) during the call |
 
 Every failed pcall increments the state's error counter, logs the message
 (`g_warning` for sandboxed states, `g_debug` for privileged ones) and emits

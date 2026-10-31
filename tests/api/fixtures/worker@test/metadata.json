@@ -1,0 +1,8 @@
+{
+  "uuid": "worker@test",
+  "name": "API conformance: worker",
+  "description": "Fixture of tests/api/worker.lua: every function, option, limit and error of docs/api/worker.md, with the worker capability",
+  "shell-api": "1.2",
+  "capabilities": ["worker"],
+  "version": 1
+}

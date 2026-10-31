@@ -71,6 +71,19 @@ JsonObject             *shell_lua_extension_get_metadata    (ShellLuaExtension *
  * Returns: (transfer none) (nullable): the state, alive only while enabled
  */
 ShellLuaState          *shell_lua_extension_get_lua_state   (ShellLuaExtension *self);
+
+/* What the workers of an extension cost (docs/api/worker.md "Time
+ * accounting"), next to the ShellLuaStats of its state, never added to them:
+ * the worker threads run off the main thread. */
+typedef struct {
+  guint64 live;          /* workers whose thread has not exited */
+  guint64 messages;      /* messages its workers handled */
+  gint64  total_us;      /* CPU time of the worker threads in them, microseconds */
+  gint64  longest_us;    /* the longest handler */
+} ShellLuaWorkerStats;
+
+gboolean                shell_lua_extension_get_worker_stats (ShellLuaExtension   *self,
+                                                              ShellLuaWorkerStats *stats);
 /* (transfer none) */
 /**
  * shell_lua_extension_get_capabilities:

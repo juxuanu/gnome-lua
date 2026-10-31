@@ -186,10 +186,14 @@ api_tests = [
     'fixtures': ['network@test', 'network-nocap@test'],
   },
   {
+    'name': 'worker',
+    'fixtures': ['worker@test', 'worker-nocap@test'],
+  },
+  {
     'name': 'time',
   },
   {
-    # One fixture, eight metadata.json (tests/api/capabilities.lua)
+    # One fixture, nine metadata.json (tests/api/capabilities.lua)
     'name': 'capabilities',
     'fixtures': [
       'capabilities-none@test',
@@ -199,6 +203,7 @@ api_tests = [
       'capabilities-fs@test',
       'capabilities-spawn@test',
       'capabilities-network@test',
+      'capabilities-worker@test',
       'capabilities-all@test',
     ],
   },

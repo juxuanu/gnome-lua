@@ -14,10 +14,22 @@ G_BEGIN_DECLS
 /* Register an API module. Modules call this from a constructor function
  * (G_DEFINE_CONSTRUCTOR or __attribute__((constructor))) so that linking the
  * library is enough. @name is informational ("core", "hooks", ...). Each
- * registered function is invoked for every new state (both kinds) with the
- * `shell` table on top of the stack. */
+ * registered function is invoked for every new SANDBOXED or PRIVILEGED state
+ * with the `shell` table on top of the stack. A module that also serves
+ * WORKER states (which are populated from a worker thread, so the function
+ * must touch nothing shared) registers with shell_lua_api_register_for_kinds
+ * and SHELL_LUA_API_KINDS_ALL. */
 void shell_lua_api_register (const char              *name,
                              ShellLuaApiRegisterFunc  func);
+
+#define SHELL_LUA_API_KIND(kind) (1u << (kind))
+#define SHELL_LUA_API_KINDS_MAIN (SHELL_LUA_API_KIND (SHELL_LUA_STATE_SANDBOXED) | \
+                                  SHELL_LUA_API_KIND (SHELL_LUA_STATE_PRIVILEGED))
+#define SHELL_LUA_API_KINDS_ALL  (SHELL_LUA_API_KINDS_MAIN | SHELL_LUA_API_KIND (SHELL_LUA_STATE_WORKER))
+
+void shell_lua_api_register_for_kinds (const char              *name,
+                                       ShellLuaApiRegisterFunc  func,
+                                       guint                    kinds);
 
 /* Called by shell_lua_state_new() after the sandbox is built. (skip) */
 void shell_lua_api_populate  (ShellLuaState *state,
@@ -27,6 +39,45 @@ void shell_lua_api_populate  (ShellLuaState *state,
 
 /* Push the ShellLuaState that owns @L (from the registry). */
 ShellLuaState *shell_lua_state_from_L (lua_State *L);
+
+/* The rule of require () for module names (SANDBOX.md): letters, digits,
+ * `_` and `.` with no empty component, at most 255 bytes. */
+gboolean       shell_lua_module_name_is_valid (const char *name);
+
+/* The require () roots of a state, in order (GFile, transfer full): a worker
+ * gets the roots of the state that starts it. */
+GPtrArray     *shell_lua_state_dup_search_roots (ShellLuaState *state);
+
+/* Where print () and shell.log of a state write when a sink is set: worker
+ * states relay their messages to the main thread this way. @level is the
+ * GLib level (G_LOG_LEVEL_MESSAGE for print). The sink may raise a Lua
+ * error in @L (a stopped worker). shell_lua_state_sink_message () writes
+ * through the sink and returns FALSE when the state has none. */
+typedef void (* ShellLuaMessageSink) (lua_State      *L,
+                                      GLogLevelFlags  level,
+                                      const char     *message,
+                                      gpointer        data);
+void           shell_lua_state_set_message_sink (ShellLuaState       *state,
+                                                 ShellLuaMessageSink  sink,
+                                                 gpointer             data);
+gboolean       shell_lua_state_sink_message     (ShellLuaState  *state,
+                                                 lua_State      *L,
+                                                 GLogLevelFlags  level,
+                                                 const char     *message);
+
+/* shell.log's writer (shell-lua-api-core.c): one message of the extension
+ * @id to the GLib log, domain "shell-lua/<id>", never fatal. Main thread
+ * only (it lowers the process-wide fatal mask around the call). */
+void           shell_lua_write_extension_log (const char     *id,
+                                              GLogLevelFlags  level,
+                                              const char     *message);
+
+/* Building the read-only tables of shell.extension (shell-lua-api-core.c):
+ * push a JsonNode as Lua values (objects and arrays read-only), and replace
+ * the table on top of the stack by a read-only proxy. */
+void           shell_lua_push_json_node (lua_State *L,
+                                         JsonNode  *node);
+void           shell_lua_make_readonly  (lua_State *L);
 
 /* A trampoline that runs an extension's function from a protected call
  * calls this right before lua_call () with the stack index of the function:
@@ -74,6 +125,20 @@ void shell_lua_api_spawn_register (ShellLuaState *state, lua_State *L);
  * Called with the table behind shell.extension on top of the stack. */
 void shell_lua_fs_install_data_dir (lua_State *L);
 void shell_lua_api_time_register  (ShellLuaState *state, lua_State *L);
+void shell_lua_api_worker_register (ShellLuaState *state, lua_State *L);
+
+/* shell.worker (shell-lua-api-worker.c): what the workers of a state cost
+ * (ShellLuaWorkerStats, shell-lua-extension.h). @state is the extension's
+ * state (NULL allowed). Zeroes when it never started one. */
+void shell_lua_worker_get_stats (ShellLuaState       *state,
+                                 ShellLuaWorkerStats *stats);
+
+/* Tests: the shell-wide limit of live workers (default max (8, 2 * CPUs)),
+ * and the number of worker threads that have not exited yet. */
+void  shell_lua_worker_set_limit      (guint limit);
+guint shell_lua_worker_get_limit      (void);
+guint shell_lua_worker_get_live_count (void);
+void  shell_lua_worker_set_max_message_values (gsize max_values);   /* 0: the default */
 
 
 /* ======================================================================== *

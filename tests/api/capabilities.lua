@@ -1,8 +1,8 @@
 -- Conformance test of the capabilities of docs/api/README.md ("Capabilities"):
 -- see tests/api/README.md. Every gated function, with and without the
 -- capability that unlocks it: the fixture tests/api/fixtures/capabilities is
--- installed eight times, as capabilities-<variant>@test with the same code and
--- the variant's capabilities in metadata.json (none, each one alone, all six).
+-- installed nine times, as capabilities-<variant>@test with the same code and
+-- the variant's capabilities in metadata.json (none, each one alone, all seven).
 -- Each copy calls every gated function and checks that it works when its
 -- capability is declared and raises the capability error when it is not, also
 -- when other capabilities are. The per-area tests (dbus, fs, search, spawn,
@@ -13,7 +13,7 @@
 
 local harness = dofile (((os.getenv ("SHELL_TEST_SCRIPT") or ""):match ("^(.*)/[^/]*$") or ".") .. "/harness.lua")
 
-local VARIANTS = { "none", "dbus", "settings", "search", "fs", "spawn", "network", "all" }
+local VARIANTS = { "none", "dbus", "settings", "search", "fs", "spawn", "network", "worker", "all" }
 local CYCLES = 2
 
 local function fail (fmt, ...)

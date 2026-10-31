@@ -21,8 +21,8 @@ end
 if type (shell.api_version) ~= "table" or shell.api_version.major ~= 1 then
   fail ("shell.api_version should be {major = 1, minor = n}")
 end
-if shell.api_version.minor ~= 1 then
-  fail ("shell.api_version.minor is %s, this shell implements API 1.1", tostring (shell.api_version.minor))
+if shell.api_version.minor ~= 2 then
+  fail ("shell.api_version.minor is %s, this shell implements API 1.2", tostring (shell.api_version.minor))
 end
 
 -- What the loader does with the metadata (README.md: Versioning, Capabilities)

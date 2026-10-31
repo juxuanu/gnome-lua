@@ -90,7 +90,7 @@ test_sandbox_api_version (void)
 {
   ShellLuaState *s = tu_state_new ("sbx", SHELL_LUA_STATE_SANDBOXED);
 
-  tu_assert_eval_true (s, "shell.api_version.major == 1 and shell.api_version.minor == 1");
+  tu_assert_eval_true (s, "shell.api_version.major == 1 and shell.api_version.minor == 2");
   tu_assert_eval_str (s, "(function() local n = 0 for k, v in pairs(shell.api_version) "
                          "do n = n + 1 end return n end)()", "2");
   tu_assert_fails (s, "shell.api_version.major = 2", SHELL_LUA_ERROR_RUNTIME, "read-only");
@@ -1230,6 +1230,159 @@ test_stats_nested (void)
   tu_rm_rf (tmp);
 }
 
+/* ------------------------------------------------------------------------ */
+/* Worker states (docs/api/worker.md)                                        */
+/* ------------------------------------------------------------------------ */
+
+static guint worker_error_signals = 0;
+
+static void
+on_worker_error (ShellLuaState *state,
+                 GError        *error,
+                 gpointer       user_data)
+{
+  worker_error_signals++;
+}
+
+/* The sandbox of SANDBOXED, the modules of the main thread absent, no time
+ * budget, and a failed pcall that is counted and returned but neither
+ * logged nor emitted (the thread must not touch the main thread). */
+static void
+test_worker_kind (void)
+{
+  ShellLuaState *s = tu_state_new ("w", SHELL_LUA_STATE_WORKER);
+  GError *error = NULL;
+
+  worker_error_signals = 0;
+  g_signal_connect (s, "error", G_CALLBACK (on_worker_error), NULL);
+  g_assert_cmpint (shell_lua_state_get_kind (s), ==, SHELL_LUA_STATE_WORKER);
+
+  tu_assert_eval_true (s, "os == nil and io == nil and load == nil and debug == nil and package == nil");
+  tu_assert_eval_true (s, "type(string.format) == 'function' and string.dump == nil");
+  tu_assert_eval_true (s, "shell.api_version.major == 1 and shell.api_version.minor == 2");
+  tu_assert_eval_true (s, "shell.timer == nil and shell.settings == nil and shell.hooks == nil and "
+                          "shell.dbus == nil and shell.fs == nil and shell.spawn == nil and "
+                          "shell.gettext == nil and _ == nil and shell.extension == nil");
+  tu_assert_eval_true (s, "type(shell.log.info) == 'function' and type(shell.time.now) == 'function'");
+  tu_assert_eval_true (s, "type(shell.worker.post) == 'function' and shell.worker.start == nil");
+  tu_assert_fails (s, "setmetatable({}, { __gc = function() end })", SHELL_LUA_ERROR_RUNTIME, "__gc");
+
+  g_assert_false (shell_lua_state_do_string (s, "error('boom')", "=(t)", &error));
+  g_assert_error (error, SHELL_LUA_ERROR, SHELL_LUA_ERROR_RUNTIME);
+  g_assert_nonnull (strstr (error->message, "boom"));
+  g_clear_error (&error);
+  g_assert_cmpuint (shell_lua_state_get_error_count (s), ==, 2);   /* with the __gc one */
+  g_assert_cmpuint (worker_error_signals, ==, 0);
+
+  /* longer than the 500 ms budget of an extension */
+  tu_do (s, "local t = shell.time.monotonic() while shell.time.monotonic() - t < 0.6 do end");
+
+  /* the memory limit is the sandbox's */
+  tu_assert_fails (s, "local x = string.rep('x', 65 * 1024 * 1024)", SHELL_LUA_ERROR_MEMORY, "not enough memory");
+  g_assert_cmpuint (worker_error_signals, ==, 0);
+
+  g_object_unref (s);
+}
+
+static gpointer
+stopper_thread (gpointer data)
+{
+  g_usleep (100 * 1000);
+  shell_lua_state_request_stop (data);
+  return NULL;
+}
+
+/* The stop flag set from another thread ends a loop, also one that catches
+ * its errors; the other kinds ignore it. */
+static void
+test_worker_stop_flag (void)
+{
+  ShellLuaState *s = tu_state_new ("w", SHELL_LUA_STATE_WORKER);
+  ShellLuaState *p = tu_state_new ("p", SHELL_LUA_STATE_PRIVILEGED);
+  GError *error = NULL;
+  GThread *thread;
+  gint64 start, elapsed_ms;
+
+  g_assert_false (shell_lua_state_stop_requested (s));
+
+  thread = g_thread_new ("stopper", stopper_thread, s);
+  start = g_get_monotonic_time ();
+  g_assert_false (shell_lua_state_do_string (s, "while true do pcall(function() while true do end end) end",
+                                             "=(t)", &error));
+  elapsed_ms = (g_get_monotonic_time () - start) / 1000;
+  g_assert_error (error, SHELL_LUA_ERROR, SHELL_LUA_ERROR_STOPPED);
+  g_assert_nonnull (strstr (error->message, "worker: stopped"));
+  g_assert_cmpint (elapsed_ms, >=, 90);
+  g_assert_cmpint (elapsed_ms, <, 5000);
+  g_clear_error (&error);
+  g_thread_join (thread);
+  g_assert_true (shell_lua_state_stop_requested (s));
+
+  /* stays stopped: the next loop ends at once */
+  g_assert_false (shell_lua_state_do_string (s, "while true do end", "=(t)", &error));
+  g_assert_error (error, SHELL_LUA_ERROR, SHELL_LUA_ERROR_STOPPED);
+  g_clear_error (&error);
+
+  shell_lua_state_request_stop (p);
+  g_assert_false (shell_lua_state_stop_requested (p));
+  tu_do (p, "x = 1");
+
+  g_object_unref (p);
+  g_object_unref (s);
+}
+
+static int
+cf_note_into (lua_State *L)
+{
+  ShellLuaState **slot = lua_touserdata (L, lua_upvalueindex (1));
+
+  *slot = shell_lua_state_get_current ();
+  return 0;
+}
+
+static gpointer
+current_in_thread (gpointer data)
+{
+  ShellLuaState **slot = data;
+  ShellLuaState *s = tu_state_new ("thread", SHELL_LUA_STATE_WORKER);
+
+  /* a fresh thread: nothing runs in it yet, whatever the main thread does */
+  g_assert_null (shell_lua_state_get_current ());
+  tu_set_cfunction_with_data (s, "note", cf_note_into, slot);
+  tu_do (s, "note()");
+  g_assert_true (*slot == s);
+  g_assert_null (shell_lua_state_get_current ());
+  g_object_unref (s);
+  return NULL;
+}
+
+/* Runs inside a pcall of the main thread's state: the thread sees its own
+ * state as current, the main thread still sees this one. */
+static int
+cf_spawn_and_join (lua_State *L)
+{
+  ShellLuaState *seen = NULL;
+  GThread *thread = g_thread_new ("current", current_in_thread, &seen);
+
+  g_thread_join (thread);
+  g_assert_nonnull (seen);
+  g_assert_true (seen != shell_lua_state_from_L (L));
+  g_assert_true (shell_lua_state_get_current () == shell_lua_state_from_L (L));
+  return 0;
+}
+
+static void
+test_worker_current_state_per_thread (void)
+{
+  ShellLuaState *outer = tu_state_new ("outer", SHELL_LUA_STATE_PRIVILEGED);
+
+  tu_set_cfunction (outer, "spawn_and_join", cf_spawn_and_join);
+  tu_do (outer, "spawn_and_join()");
+  g_assert_null (shell_lua_state_get_current ());
+
+  g_object_unref (outer);
+}
+
 int
 main (int argc, char **argv)
 {
@@ -1265,6 +1418,9 @@ main (int argc, char **argv)
   g_test_add_func ("/shell-lua/state/destroy/deferred-with-error", test_destroy_deferred_with_error);
   g_test_add_func ("/shell-lua/state/pcall/depth-limit", test_pcall_depth_limit);
   g_test_add_func ("/shell-lua/state/pcall/current-state", test_current_state);
+  g_test_add_func ("/shell-lua/state/worker/kind", test_worker_kind);
+  g_test_add_func ("/shell-lua/state/worker/stop-flag", test_worker_stop_flag);
+  g_test_add_func ("/shell-lua/state/worker/current-state-per-thread", test_worker_current_state_per_thread);
   g_test_add_func ("/shell-lua/state/refs-and-owner", test_refs_and_owner);
   g_test_add_func ("/shell-lua/state/privileged/stdlib", test_privileged_stdlib);
   g_test_add_func ("/shell-lua/state/stats", test_stats);

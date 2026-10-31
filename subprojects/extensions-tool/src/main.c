@@ -233,7 +233,7 @@ print_extension_info (GVariantDict  *info,
 {
   const char *uuid = "", *name = "", *desc = "", *path = "";
   const char *url, *author, *version_name;
-  double state, version, callbacks;
+  double state, version, callbacks, messages;
   gboolean has_version, has_version_name, enabled;
 
   g_variant_dict_lookup (info, "uuid", "&s", &uuid);
@@ -293,6 +293,21 @@ print_extension_info (GVariantDict  *info,
         g_print ("  %s: %.1f ms (%s)\n", _("Longest callback"), longest, where);
       g_print ("  %s: %.0f\n", _("Callbacks longer than a frame"), slow);
       g_print ("  %s: %s\n", _("Lua memory"), size);
+    }
+
+  /* Its workers (docs/api/worker.md): off the main thread, so not part of
+   * the figures above */
+  if (g_variant_dict_lookup (info, "workerMessages", "d", &messages))
+    {
+      double workers = 0, time = 0, longest = 0;
+
+      g_variant_dict_lookup (info, "workers", "d", &workers);
+      g_variant_dict_lookup (info, "workerTime", "d", &time);
+      g_variant_dict_lookup (info, "workerLongest", "d", &longest);
+
+      g_print ("  %s: %.0f %s, %.0f %s, %.1f ms\n", _("Workers"),
+               workers, _("running"), messages, _("messages"), time);
+      g_print ("  %s: %.1f ms\n", _("Longest worker message"), longest);
     }
 }
 

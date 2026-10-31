@@ -1,11 +1,11 @@
-# gnome-lua extension API, version 1 (1.1)
+# gnome-lua extension API, version 1 (1.2)
 
 Scope: the contract every `shell.*` module obeys. Per-area documents
 (`core.md`, `ui.md`, `panel.md`, `menu.md`, `quick-settings.md`, `dash.md`,
-`notify.md`, `window.md`, `prefs.md`, `dbus.md`, `hooks.md`, `variant.md`, and
+`notify.md`, `window.md`, `prefs.md`, `dbus.md`, `hooks.md`, `variant.md`,
 since 1.1 `keybindings.md`, `overview.md`, `search.md`, `fs.md`, `spawn.md`,
-`network.md`) only add what is specific to them; where they are silent, this
-file applies. Status
+`network.md`, and since 1.2 `worker.md`) only add what is specific to them;
+where they are silent, this file applies. Status
 column conventions used in all documents: **impl** = exists in
 `subprojects/shell-lua` today (M1), **M7** = specified here, implemented in M7.
 See also: [`../MIGRATING_FROM_JS.md`](../MIGRATING_FROM_JS.md) (guide for authors of JS extensions).
@@ -36,6 +36,7 @@ from outside the extension directory.
 | `shell.fs`, `shell.extension.data_dir`, types `shell.Task`, `shell.FileWatch` (1.1) | fs.md | `fs` outside the extension's own directories |
 | `shell.spawn`, type `shell.Process` (1.1) | spawn.md | `spawn` |
 | `shell.network`, type `shell.Request` (1.1) | network.md | `network` |
+| `shell.worker`, type `shell.Worker` (1.2) | worker.md | `worker` (`shell.worker.limit` needs none) |
 | `prefs.lua` (a file, not a table) | prefs.md | none |
 
 ## Versioning and stability
@@ -177,6 +178,7 @@ capability, alone and among the others).
 | `network` | `shell.network.request` (1.1): HTTP and HTTPS requests to any host the user's machine can reach, including `localhost` and the local network (network.md) | 1.1 |
 | `fs` | `shell.fs` outside the extension's own directories (1.1): without it an extension reads `shell.extension.dir` and reads and writes `shell.extension.data_dir`; with it, any path the shell can reach (fs.md) | 1.1 |
 | `spawn` | `shell.spawn` (1.1): running any program as the user, with the environment of the shell. The broadest capability (spawn.md) | 1.1 |
+| `worker` | `shell.worker.start` (1.2): Lua code of the extension in threads of their own, with no access to shell objects, files, the network or programs; it grants CPU time off the main thread and nothing else (worker.md) | 1.2 |
 
 ## Required changes to the M1 runtime
 

@@ -17,6 +17,7 @@ shell_lua_sources = [
   'shell-lua-api-fs.c',
   'shell-lua-api-spawn.c',
   'shell-lua-api-time.c',
+  'shell-lua-api-worker.c',
   'shell-lua-objects.c',
   'shell-lua-handle.c',
   'shell-lua-variant.c',

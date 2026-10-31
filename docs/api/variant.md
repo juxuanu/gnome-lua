@@ -15,6 +15,10 @@
 Lua → GVariant without a target type: boolean→`b`, integer→`x`, number→`d`,
 string→`s`, sequence→`av`, other table→`a{sv}`, nil→error (ambiguous).
 With a target type the value is converted or an error names the mismatch.
+A table with both integer and string keys becomes an `a{sv}` of its string
+keys. Worker messages (worker.md, 1.2) use the same mapping with two
+differences: a string that is not valid UTF-8 becomes `ay` (and comes back as
+the same bytes), and a table with both kinds of keys is an error.
 
 ## Typed values
 

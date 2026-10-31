@@ -13,12 +13,13 @@ change together.
 | `network.lua` | network.md | `network@test`, `network-nocap@test` (the script serves the requests with `test.http_server`) |
 | `fs.lua` | fs.md | `fs@test`, `fs-nocap@test` (the script reads back what the extension left in its data directory) |
 | `spawn.lua` | spawn.md | `spawn@test`, `spawn-nocap@test` (only `/bin/sh` and coreutils; the script checks that a process left running is killed at disable) |
+| `worker.lua` | worker.md | `worker@test`, `worker-nocap@test` (the script drives the step that causes errors under a captured log and checks that the thread of a worker left looping exits after the disable, `test.live_workers`) |
 | `examples.lua` | the reference extensions of `subprojects/shell-lua/examples` | (the examples themselves) |
 | `ui`, `menu`, `panel`, `dash`, `quick-settings`, `notify`, `window`, `dbus`, `keybindings`, `time` | the other documents | `<area>@test` |
 | `overview` | overview.md | `overview@test` |
 | `search` | search.md | `search@test`, `search-nocap@test` |
 | `extension-stats` | not an area: the time of the calls into an extension as `gnome-extensions info` and `stats` show it (docs/debugging.md); the script starts the service `org.gnome.Shell.Extensions` the tool talks to | `extension-stats@test` (a callback of 40 ms) |
-| `capabilities` | the capabilities of README.md: every gated function with and without its capability, also among the others | `capabilities-<variant>@test` for `none`, each capability alone and `all`: the same `fixtures/capabilities/extension.lua` (linked), a different `metadata.json` |
+| `capabilities` | the capabilities of README.md: every gated function with and without its capability, also among the others | `capabilities-<variant>@test` for `none`, each capability alone and `all`: the same `fixtures/capabilities/extension.lua` and `workers/` (linked), a different `metadata.json` |
 
 ## How a test runs
 
@@ -99,7 +100,8 @@ whose result has `activate ()` and `launch_search ()`), `test.set_boolean (schem
 virtual keyboard; it does not wait, poll for the effect),
 `test.log_capture (uuid, on)` (`c.capture_log (fn)`: the log of the extension,
 and the errors of its callbacks, as `{level, message}`; warnings are not
-fatal inside), `test.extension_report (uuid)`, and
+fatal inside), `test.extension_report (uuid)`, `test.live_workers ()` (the
+worker threads of every extension that have not exited yet, worker.md), and
 `test.http_server {routes = {["/path"] = "body" or {status =, body =,
 headers =, delay_ms =, echo =, redirect =, size =}}}` (a SoupServer on
 127.0.0.1 and an ephemeral port: the CI has no internet; returns `{url, port,

@@ -24,7 +24,7 @@ G_BEGIN_DECLS
 /* The version of the `shell.*` API this runtime implements (docs/api/README.md).
  * metadata.json "shell-api": "1" or "1.N" is accepted when N <= the minor. */
 #define SHELL_LUA_API_MAJOR 1
-#define SHELL_LUA_API_MINOR 1
+#define SHELL_LUA_API_MINOR 2
 
 #define SHELL_LUA_ERROR (shell_lua_error_quark ())
 GQuark shell_lua_error_quark (void);
@@ -36,16 +36,24 @@ typedef enum {
   SHELL_LUA_ERROR_MEMORY,    /* allocator refused: memory_limit exceeded */
   SHELL_LUA_ERROR_SANDBOX,   /* attempted use of a forbidden facility (e.g. require outside roots) */
   SHELL_LUA_ERROR_DEAD,      /* state already destroyed */
+  SHELL_LUA_ERROR_STOPPED,   /* shell_lua_state_request_stop () ended the call (worker states) */
 } ShellLuaError;
 
 typedef enum {
   SHELL_LUA_STATE_SANDBOXED,   /* extensions: restricted stdlib, see docs/SANDBOX.md */
   SHELL_LUA_STATE_PRIVILEGED,  /* Looking Glass / tests: full stdlib + shell.* */
+  /* The state of a worker (docs/api/worker.md): the sandbox of SANDBOXED
+   * without a time budget, driven from a thread of its own. It never logs,
+   * emits no signal and touches nothing of the main thread; the owner reads
+   * the GError of a failed pcall and relays it. A stop flag
+   * (shell_lua_state_request_stop) ends whatever it runs. */
+  SHELL_LUA_STATE_WORKER,
 } ShellLuaStateKind;
 
 /* A zero field means "use the default for the state kind" (see shell-lua.c:
  * SANDBOXED = 10000 instructions, 500 ms, 64 MiB; PRIVILEGED = 10000
- * instructions, unlimited, unlimited). */
+ * instructions, unlimited, unlimited; WORKER = 10000 instructions,
+ * unlimited, 64 MiB). */
 typedef struct {
   guint  hook_interval;        /* instructions between watchdog checks (count hook) */
   gint64 callback_budget_us;   /* wall-clock budget for one pcall(), microseconds; G_MAXINT64 = unlimited */
@@ -174,6 +182,23 @@ void               shell_lua_state_remove_teardown (ShellLuaState *self,
  * "destroyed". Idempotent. Also happens on dispose. */
 void               shell_lua_state_destroy        (ShellLuaState *self);
 
+/* Stopping a WORKER state from another thread: from now on the count hook
+ * raises `worker: stopped` at every check, and keeps raising at every
+ * instruction until the thread is unwound, so that a pcall in the worker
+ * cannot keep it running; pcall then reports SHELL_LUA_ERROR_STOPPED. The
+ * only call of this API that is safe from a thread other than the one that
+ * runs the state. Idempotent. The other kinds ignore it. */
+void               shell_lua_state_request_stop     (ShellLuaState *self);
+gboolean           shell_lua_state_stop_requested   (ShellLuaState *self);
+
+/* Counts and reports an error of the code of this state that was run
+ * elsewhere (in a worker thread) exactly as a failed pcall of the state
+ * would: the error counter, the warning for sandboxed states, the "error"
+ * signal. Main thread. */
+void               shell_lua_state_report_error     (ShellLuaState *self,
+                                                     ShellLuaError  code,
+                                                     const char    *message);
+
 /* Statistics, consumed by Looking Glass and the extension info. */
 void               shell_lua_state_get_stats        (ShellLuaState *self,
                                                      ShellLuaStats *stats);
@@ -182,8 +207,10 @@ guint              shell_lua_state_get_error_count  (ShellLuaState *self);
 void               shell_lua_state_reset_error_count (ShellLuaState *self);
 void               shell_lua_state_gc               (ShellLuaState *self);
 
-/* The state whose code is executing right now (innermost pcall), or NULL.
- * Used by API modules and by the fatal-signal handler. */
+/* The state whose code is executing right now (innermost pcall) in the
+ * calling thread, or NULL. Used by API modules and by the fatal-signal
+ * handler. Each thread has a stack of its own (worker states run in threads
+ * of their own). */
 /**
  * shell_lua_state_get_current:
  *

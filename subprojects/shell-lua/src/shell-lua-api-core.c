@@ -29,7 +29,7 @@
 static void __attribute__ ((constructor))
 shell_lua_api_core_init (void)
 {
-  shell_lua_api_register ("core", shell_lua_api_core_register);
+  shell_lua_api_register_for_kinds ("core", shell_lua_api_core_register, SHELL_LUA_API_KINDS_ALL);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -61,10 +61,10 @@ extension_of (ShellLuaState *state)
  * g_log_set_handler () and g_test_expect_message (), which the structured
  * writer path bypasses; the default handler turns it into a structured entry
  * (MESSAGE, GLIB_DOMAIN, PRIORITY) for the journal anyway. */
-static void
-write_extension_log (const char     *id,
-                     GLogLevelFlags  level,
-                     const char     *message)
+void
+shell_lua_write_extension_log (const char     *id,
+                               GLogLevelFlags  level,
+                               const char     *message)
 {
   g_autofree char *domain = g_strconcat ("shell-lua/", id, NULL);
   GLogLevelFlags fatal = 0;
@@ -111,7 +111,10 @@ l_log (lua_State *L)
     }
 
   message = luaL_checkstring (L, -1);
-  write_extension_log (state != NULL ? shell_lua_state_get_id (state) : "?", level, message);
+  /* a worker state relays its messages to the main thread (a sink that may
+   * raise: a stopped worker) */
+  if (state == NULL || !shell_lua_state_sink_message (state, L, level, message))
+    shell_lua_write_extension_log (state != NULL ? shell_lua_state_get_id (state) : "?", level, message);
 
   if (lua_toboolean (L, lua_upvalueindex (4)))
     {
@@ -236,8 +239,8 @@ ro_pairs (lua_State *L)
 }
 
 /* Replace the table on top of the stack by a read-only proxy of it. */
-static void
-make_readonly (lua_State *L)
+void
+shell_lua_make_readonly (lua_State *L)
 {
   luaL_checkstack (L, 5, "make_readonly");
 
@@ -286,7 +289,7 @@ push_json_node (lua_State *L,
             push_json_node (L, member, depth + 1);
             lua_setfield (L, -2, l->data);
           }
-        make_readonly (L);
+        shell_lua_make_readonly (L);
         break;
       }
     case JSON_NODE_ARRAY:
@@ -300,7 +303,7 @@ push_json_node (lua_State *L,
             push_json_node (L, json_array_get_element (array, i), depth + 1);
             lua_rawseti (L, -2, i + 1);
           }
-        make_readonly (L);
+        shell_lua_make_readonly (L);
         break;
       }
     case JSON_NODE_VALUE:
@@ -330,6 +333,13 @@ push_json_node (lua_State *L,
     }
 }
 
+void
+shell_lua_push_json_node (lua_State *L,
+                          JsonNode  *node)
+{
+  push_json_node (L, node, 0);
+}
+
 static void
 push_extension_table (lua_State        *L,
                       ShellLuaExtension *extension)
@@ -352,7 +362,7 @@ push_extension_table (lua_State        *L,
 
   node = json_node_new (JSON_NODE_OBJECT);
   json_node_set_object (node, metadata);
-  push_json_node (L, node, 0);
+  shell_lua_push_json_node (L, node);
   json_node_unref (node);
   lua_setfield (L, -2, "metadata");
 
@@ -362,13 +372,13 @@ push_extension_table (lua_State        *L,
       lua_pushstring (L, capabilities[i]);
       lua_rawseti (L, -2, i + 1);
     }
-  make_readonly (L);
+  shell_lua_make_readonly (L);
   lua_setfield (L, -2, "capabilities");
 
   /* data_dir (1.1): resolved on first read, shell-lua-api-fs.c */
   shell_lua_fs_install_data_dir (L);
 
-  make_readonly (L);
+  shell_lua_make_readonly (L);
 }
 
 /* __index of the shell table: builds shell.extension on first access. */
@@ -1360,6 +1370,17 @@ shell_lua_api_core_register (ShellLuaState *state,
   int shell = lua_absindex (L, -1);
 
   luaL_checkstack (L, 10, "shell core api");
+
+  /* A worker state (docs/api/worker.md) gets shell.log and nothing else of
+   * this module: no timers, settings or gettext (they need the main loop or
+   * touch process state), and its shell.extension is a copy that the worker
+   * module installs from its thread. */
+  if (shell_lua_state_get_kind (state) == SHELL_LUA_STATE_WORKER)
+    {
+      push_log_table (L);
+      lua_setfield (L, shell, "log");
+      return;
+    }
 
   timer_type.gtype = SHELL_TYPE_LUA_TIMER;
   shell_lua_handle_register_type (L, &timer_type);

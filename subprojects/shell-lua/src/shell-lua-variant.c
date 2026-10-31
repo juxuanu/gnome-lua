@@ -316,8 +316,11 @@ shell_lua_variant_box_peek (lua_State *L,
 typedef struct
 {
   lua_State *L;
-  GString   *path;   /* current field path, for messages */
-  char      *error;  /* set on failure (g_malloc'd) */
+  GString   *path;      /* current field path, for messages */
+  char      *error;     /* set on failure (g_malloc'd) */
+  guint      flags;       /* ShellLuaVariantFlags */
+  gsize      max_values;  /* 0: unlimited */
+  gsize      n_values;    /* every value converted so far, containers included */
 } Ctx;
 
 static GVariant *convert (Ctx *ctx, int idx, const GVariantType *type, int depth);
@@ -827,6 +830,16 @@ convert_inferred (Ctx *ctx,
         return g_variant_new_int64 ((gint64) lua_tointeger (L, idx));
       return g_variant_new_double (lua_tonumber (L, idx));
     case LUA_TSTRING:
+      /* worker messages: bytes that are not a string cross as `ay` (they
+       * arrive as a Lua string again, variant.md) */
+      if (ctx->flags & SHELL_LUA_VARIANT_BYTES_AS_AY)
+        {
+          size_t len;
+          const char *str = lua_tolstring (L, idx, &len);
+
+          if (memchr (str, '\0', len) != NULL || !g_utf8_validate (str, (gssize) len, NULL))
+            return g_variant_new_fixed_array (G_VARIANT_TYPE_BYTE, str, len, 1);
+        }
       return convert_string (ctx, idx, 's', G_VARIANT_TYPE_STRING);
     case LUA_TNIL:
       return fail (ctx, "cannot infer a variant type from nil for field %s "
@@ -856,6 +869,10 @@ convert_inferred (Ctx *ctx,
               }
           }
 
+        if (n_str > 0 && n_int > 0 && (ctx->flags & SHELL_LUA_VARIANT_STRICT_KEYS))
+          return fail (ctx, "field %s mixes integer and string keys; it is neither a sequence "
+                       "nor a dictionary", ctx->path->str);
+
         if (n_str == 0 && n_int > 0)
           {
             if (n_int != max_int)
@@ -883,6 +900,9 @@ convert (Ctx                *ctx,
   GVariant *result;
 
   idx = lua_absindex (L, idx);
+  ctx->n_values++;
+  if (ctx->max_values != 0 && ctx->n_values > ctx->max_values)
+    return fail (ctx, "too many values (limit %" G_GSIZE_FORMAT ")", ctx->max_values);
 
   if (depth > MAX_DEPTH)
     return fail (ctx, "value for field %s is nested too deeply (limit %d)",
@@ -991,11 +1011,13 @@ convert (Ctx                *ctx,
 }
 
 GVariant *
-shell_lua_to_variant (lua_State          *L,
-                      int                 idx,
-                      const GVariantType *type)
+shell_lua_to_variant_full (lua_State          *L,
+                           int                 idx,
+                           const GVariantType *type,
+                           guint               flags,
+                           gsize               max_values)
 {
-  Ctx ctx = { L, g_string_new (ROOT_FIELD), NULL };
+  Ctx ctx = { L, g_string_new (ROOT_FIELD), NULL, flags, max_values, 0 };
   GVariant *result;
 
   idx = lua_absindex (L, idx);
@@ -1013,4 +1035,12 @@ shell_lua_to_variant (lua_State          *L,
   g_string_free (ctx.path, TRUE);
   g_free (ctx.error);
   return g_variant_ref_sink (result);
+}
+
+GVariant *
+shell_lua_to_variant (lua_State          *L,
+                      int                 idx,
+                      const GVariantType *type)
+{
+  return shell_lua_to_variant_full (L, idx, type, SHELL_LUA_VARIANT_NONE, 0);
 }

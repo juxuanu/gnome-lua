@@ -63,6 +63,8 @@
  *                                 it was enabled}, nil if not installed
  *   test.extension_report (uuid)  {checks = {{name, ok, message}...},
  *                                 passed, failed, done = {label = true}}
+ *   test.live_workers ()          the worker threads (docs/api/worker.md)
+ *                                 of every extension that have not exited
  *   test.log_capture (uuid, on)   captures the log of the extension
  *                                 (domain shell-lua/<uuid>, and the errors
  *                                 of its callbacks) and makes warnings
@@ -1020,6 +1022,16 @@ static int
 l_now (lua_State *L)
 {
   lua_pushinteger (L, g_get_monotonic_time () / 1000);
+  return 1;
+}
+
+/* test.live_workers (): the worker threads of every extension that have not
+ * exited yet (docs/api/worker.md: the main thread never waits for them, so
+ * a test that must know polls this) */
+static int
+l_live_workers (lua_State *L)
+{
+  lua_pushinteger (L, shell_lua_worker_get_live_count ());
   return 1;
 }
 
@@ -3454,6 +3466,7 @@ static const luaL_Reg test_functions[] = {
   { "disable_helper_auto_exit", l_disable_helper_auto_exit },
   { "timeout", l_timeout },
   { "now", l_now },
+  { "live_workers", l_live_workers },
   { "new", l_new },
   { "new_monitor", l_new_monitor },
   { "create_virtual_device", l_create_virtual_device },

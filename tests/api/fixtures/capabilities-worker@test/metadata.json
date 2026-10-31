@@ -1,0 +1,9 @@
+{
+  "uuid": "capabilities-worker@test",
+  "name": "API conformance: capabilities, worker",
+  "description": "Fixture of tests/api/capabilities.lua: every gated function, with the worker capability alone",
+  "shell-api": "1.2",
+  "settings-schema": "org.gnome-lua.test.capabilities",
+  "capabilities": ["worker"],
+  "version": 1
+}

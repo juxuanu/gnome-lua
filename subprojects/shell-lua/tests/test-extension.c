@@ -423,9 +423,9 @@ test_shell_api_versions (void)
     const char *api;
     gboolean    supported;
   } cases[] = {
-    { "1", TRUE }, { "1.0", TRUE }, { "1.1", TRUE },
+    { "1", TRUE }, { "1.0", TRUE }, { "1.1", TRUE }, { "1.2", TRUE },
     /* additive minors: the running minor (SHELL_LUA_API_MINOR) must be at least N */
-    { "1.2", FALSE }, { "1.7", FALSE }, { "1.", FALSE }, { "1.x", FALSE }, { "1.0.1", FALSE },
+    { "1.3", FALSE }, { "1.7", FALSE }, { "1.", FALSE }, { "1.x", FALSE }, { "1.0.1", FALSE },
     { "1.-1", FALSE }, { ".1", FALSE },
     { "2", FALSE }, { "0", FALSE }, { "10", FALSE }, { "11.0", FALSE }, { "x", FALSE },
     { "1x", FALSE }, { "-1", FALSE }, { "1,0", FALSE }, { "47", FALSE },

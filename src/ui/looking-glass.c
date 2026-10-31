@@ -1722,6 +1722,7 @@ extension_display_new (LgExtensions      *self,
 {
   ClutterActor *box, *meta_box, *state, *view_source, *view_errors;
   ShellLuaState *lua_state = shell_lua_extension_get_lua_state (extension);
+  ShellLuaWorkerStats workers;
   const char *description = extension_get_string (extension, "description");
 
   box = box_layout_new (NULL, "lg-extension", CLUTTER_ORIENTATION_VERTICAL);
@@ -1782,6 +1783,30 @@ extension_display_new (LgExtensions      *self,
                                 stats.longest_us / 1000.0, stats.longest_where, slow);
       else
         text = g_strdup (calls);
+
+      clutter_actor_add_child (box, g_object_new (ST_TYPE_LABEL,
+                                                  "style-class", "lg-extension-stats",
+                                                  "text", text,
+                                                  "x-expand", TRUE,
+                                                  NULL));
+    }
+
+  /* Its workers (docs/api/worker.md) run off the main thread: their time
+   * is shown next to the callbacks, never added to them */
+  if (shell_lua_extension_get_worker_stats (extension, &workers))
+    {
+      g_autofree char *running = NULL;
+      g_autofree char *text = NULL;
+
+      running = g_strdup_printf (ngettext ("%lu worker running",
+                                           "%lu workers running",
+                                           (unsigned long) workers.live),
+                                 (unsigned long) workers.live);
+      text = g_strdup_printf (ngettext ("%s, %lu message handled in %.1f ms of their own time, longest %.1f ms",
+                                        "%s, %lu messages handled in %.1f ms of their own time, longest %.1f ms",
+                                        (unsigned long) workers.messages),
+                              running, (unsigned long) workers.messages,
+                              workers.total_us / 1000.0, workers.longest_us / 1000.0);
 
       clutter_actor_add_child (box, g_object_new (ST_TYPE_LABEL,
                                                   "style-class", "lg-extension-stats",

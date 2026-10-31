@@ -4,6 +4,6 @@
   "description": "Fixture of tests/api/capabilities.lua: every gated function, with every capability",
   "shell-api": "1.1",
   "settings-schema": "org.gnome-lua.test.capabilities",
-  "capabilities": ["dbus", "settings", "search", "fs", "spawn", "network"],
+  "capabilities": ["dbus", "settings", "search", "fs", "spawn", "network", "worker"],
   "version": 1
 }
