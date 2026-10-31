@@ -57,17 +57,48 @@ if overview.visible then
   test.wait (hidden, TIMEOUT)
 end
 
+assert (os.execute (string.format ("mkdir -p '%s'", work_dir)))
+
 -- Something in the middle of the screen, smaller than the selection: its
 -- edges and the background around them show a capture of the wrong place
 test.create_window { width = 200, height = 100 }
 test.wait_windows ()
 test.wait_leisure ()
 
+-- Waits until the screen stops changing: two screenshots half a second
+-- apart are the same. A new window has no content for a moment, then plays
+-- the map effect (slow under ASan in CI): the UI, which captures when it
+-- opens, and the reference, which comes later, must see the same screen.
+local stable_count = 0
+local function wait_stable_screen ()
+  local previous = nil
+
+  for _ = 1, 20 do
+    stable_count = stable_count + 1
+    local file = work_dir .. "/stable-" .. stable_count .. ".png"
+
+    global.context.unsafe_mode = true
+    local shot = run { "gdbus", "call", "--session", "--dest", "org.gnome.Shell",
+                       "--object-path", "/org/gnome/Shell/Screenshot",
+                       "--method", "org.gnome.Shell.Screenshot.Screenshot", "false", "false", file }
+    global.context.unsafe_mode = false
+    assert (shot.status == 0, "Screenshot failed: " .. shot.stderr)
+    if previous ~= nil and run { "python3", compare, previous, file }.status == 0 then
+      return
+    end
+    previous = file
+    test.sleep (500)
+    test.wait_leisure ()
+  end
+  error ("the screen does not settle")
+end
+
 -- Opens the UI, picks a mode with its key (nil: the default selection),
 -- captures with Return; returns the file saved
 local function capture_with_ui (mode_key)
   local before = #saved_screenshots ()
 
+  wait_stable_screen ()
   test.press_accelerator ("Print")
   test.wait_for (function () return ui.visible end, "the screenshot UI", TIMEOUT)
   test.sleep (1000)
@@ -118,7 +149,6 @@ local function same (what, a, b, ignore)
   assert (verdict.status == 0, what .. ": the screenshot and the screen differ: " .. verdict.stdout .. verdict.stderr)
 end
 
-assert (os.execute (string.format ("mkdir -p '%s'", work_dir)))
 local width, height = stage.width, stage.height
 
 test.log ("Capturing the default selection")
