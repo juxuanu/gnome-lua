@@ -127,6 +127,14 @@ shell_tests = [
     'name': 'lockScreenNotifications',
   },
   {
+    'name': 'screencast',
+    'env': {
+      # Without a GPU the first pipeline of the service fails to negotiate
+      # its formats, which Mutter warns about; the service falls back to
+      # the next one
+      'G_DEBUG': 'fatal-criticals',
+    },
+  {
     # The login screen, against tests/greeter-mock.py (gnomeshell_dbusrunner.py
     # starts it for this mode)
     'name': 'loginDialog',

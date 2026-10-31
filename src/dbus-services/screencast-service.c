@@ -899,7 +899,8 @@ screencast_recorder_start_async (ScreencastRecorder  *self,
       return;
     }
 
-  g_signal_connect (self->stream_proxy, "pipe-wire-stream-added",
+  /* The C name of PipeWireStreamAdded is annotated in the XML */
+  g_signal_connect (self->stream_proxy, "pipewire-stream-added",
                     G_CALLBACK (pipe_wire_stream_added_cb), self);
 
   if (!shell_mutter_screen_cast_session_call_start_sync (self->session_proxy,
