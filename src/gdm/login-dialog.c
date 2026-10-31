@@ -1476,6 +1476,11 @@ next_signal_cb (ShellAuthPrompt   *prompt,
   shell_auth_prompt_update_sensitivity (prompt, FALSE);
   answer = shell_auth_prompt_get_answer (prompt);
 
+  /* Enter on an empty field: no user name, PAM asks for it (JS tested
+   * the answer for truth) */
+  if (answer != NULL && answer[0] == '\0')
+    g_clear_pointer (&answer, g_free);
+
   g_free (self->user_name);
   self->user_name = g_strdup (answer);
 

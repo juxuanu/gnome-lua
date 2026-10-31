@@ -1465,7 +1465,7 @@ lg_window_list_update (LgWindowList *self)
       const char *wm_class = meta_window_get_wm_class (window);
       g_autofree char *wmclass_text = NULL;
       g_autofree char *fallback = NULL;
-      ShellApp *app;
+      g_autoptr (ShellApp) app = NULL;   /* transfer full */
       ClutterActor *box, *header, *window_link, *props_box;
 
       /* Avoid multiple connections */

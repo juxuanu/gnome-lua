@@ -145,6 +145,14 @@ function ext.enable()
            "UTF-8", "an accessible name")
   end)
 
+  -- C would read a name only up to the NUL, so a NUL is refused
+  case("a name with a NUL byte is refused", function()
+    raises(function() shell.settings.open("org.gnome.desktop.interface\0x") end, "NUL", "a schema id")
+    local s = shell.settings.open("org.gnome.desktop.interface")
+    raises(function() s:get("clock-format\0x") end, "NUL", "a key")
+    raises(function() s:on_changed("clock-format\0x", function() end) end, "NUL", "a key to watch")
+  end)
+
   case("pairs of shell.overview ends on a key it does not know", function()
     local next_member = pairs(shell.overview)
     eq(next_member(shell.overview, "bogus"), nil, "the key after an unknown one")

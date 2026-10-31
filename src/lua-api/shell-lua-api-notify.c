@@ -771,10 +771,11 @@ post_notification (lua_State            *L,
   icon_file = shell_lua_opt_string (L, tbl, "icon_file", NULL);
   has_urgency = field_present (L, tbl, "urgency");
 
-  /* Everything that can fail comes before anything is created */
+  /* Everything that can fail comes before anything is created; the icon
+   * last, since the capacity check raises */
+  shell_lua_check_owned_capacity (L);
   if (icon_file != NULL)
     icon = icon_from_file (L, "icon_file", icon_file);
-  shell_lua_check_owned_capacity (L);
 
   source = notify_source_ensure (self, tray);
   notification = shell_notification_new (source, title, body);

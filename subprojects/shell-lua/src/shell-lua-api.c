@@ -204,6 +204,21 @@ shell_lua_check_utf8 (lua_State  *L,
   return s;
 }
 
+/* A name (a D-Bus member, a GSettings key or schema id): an embedded NUL
+ * would cut it short where C reads it, as validation and use alike would,
+ * so refuse it as the other names of the API are */
+const char *
+shell_lua_check_name_arg (lua_State *L,
+                          int        arg)
+{
+  size_t len;
+  const char *s = luaL_checklstring (L, arg, &len);
+
+  if (strlen (s) != len)
+    luaL_argerror (L, arg, "must not contain a NUL byte");
+  return s;
+}
+
 int
 shell_lua_rawgetfield (lua_State  *L,
                        int         tbl,

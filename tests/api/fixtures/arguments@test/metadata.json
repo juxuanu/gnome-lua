@@ -3,6 +3,6 @@
   "name": "API conformance: plain argument tables",
   "description": "Fixture of tests/api/arguments.lua: option tables and the tables in them are plain, read raw",
   "shell-api": "1.2",
-  "capabilities": ["network", "search"],
+  "capabilities": ["network", "search", "settings"],
   "version": 1
 }

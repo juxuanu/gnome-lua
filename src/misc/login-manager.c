@@ -460,7 +460,9 @@ current_user_path_ready (GObject      *source,
  * Gets a proxy for the logind object of the user running the shell. The
  * proxy is created once and then cached.
  *
- * Without logind, @callback is never called.
+ * Without logind, it fails with %G_IO_ERROR_NOT_SUPPORTED. (The JS dummy
+ * never settled its promise; in C the callers hand references in
+ * @user_data, which a callback that never runs would leak.)
  */
 void
 shell_login_manager_get_current_user_async (ShellLoginManager   *self,
@@ -472,10 +474,13 @@ shell_login_manager_get_current_user_async (ShellLoginManager   *self,
 
   g_return_if_fail (SHELL_IS_LOGIN_MANAGER (self));
 
-  /* Like the JS dummy implementation, never settle: callers can't do
-   * anything useful with a fake user. */
   if (self->proxy == NULL)
-    return;
+    {
+      g_task_report_new_error (self, callback, user_data, shell_login_manager_get_current_user_async,
+                               G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+                               "logind is not available");
+      return;
+    }
 
   task = g_task_new (self, cancellable, callback, user_data);
   g_task_set_source_tag (task, shell_login_manager_get_current_user_async);
@@ -624,7 +629,9 @@ auto_session_proxy_ready (GObject      *source,
  * `XDG_SESSION_ID` or, if that is unset, by asking logind directly. The
  * proxy is created once and then cached.
  *
- * Without logind, @callback is never called.
+ * Without logind, it fails with %G_IO_ERROR_NOT_SUPPORTED. (The JS dummy
+ * never settled its promise; in C the callers hand references in
+ * @user_data, which a callback that never runs would leak.)
  */
 void
 shell_login_manager_get_current_session_async (ShellLoginManager   *self,
@@ -637,10 +644,13 @@ shell_login_manager_get_current_session_async (ShellLoginManager   *self,
 
   g_return_if_fail (SHELL_IS_LOGIN_MANAGER (self));
 
-  /* Like the JS dummy implementation, never settle: callers can't do
-   * anything useful with a fake session. */
   if (self->proxy == NULL)
-    return;
+    {
+      g_task_report_new_error (self, callback, user_data, shell_login_manager_get_current_session_async,
+                               G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+                               "logind is not available");
+      return;
+    }
 
   task = g_task_new (self, cancellable, callback, user_data);
   g_task_set_source_tag (task, shell_login_manager_get_current_session_async);

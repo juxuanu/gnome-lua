@@ -1212,10 +1212,23 @@ shell_extension_manager_add_installed (ShellExtensionManager  *self,
                                        GError                **error)
 {
   g_autoptr (GError) load_error = NULL;
+  g_autofree char *userdatadir = NULL;
+  g_autofree char *installed_path = NULL;
+  g_autoptr (GFile) installed = NULL;
+  ShellLuaExtension *loaded;
 
   g_return_val_if_fail (SHELL_IS_EXTENSION_MANAGER (self), FALSE);
 
-  if (shell_lua_extension_manager_lookup (self->lua_manager, uuid) != NULL)
+  userdatadir = shell_extension_manager_dup_userdatadir (self);
+  installed_path = g_build_filename (userdatadir, "extensions", uuid, NULL);
+  installed = g_file_new_for_path (installed_path);
+  loaded = shell_lua_extension_manager_lookup (self->lua_manager, uuid);
+
+  /* Reloading reads the directory the extension was loaded from: that is
+   * the new one only when it was installed per user already. A system
+   * extension installed over now has a per-user copy, which shadows it and
+   * which a scan finds. */
+  if (loaded != NULL && g_file_equal (shell_lua_extension_get_dir (loaded), installed))
     {
       if (!shell_lua_extension_manager_reload (self->lua_manager, uuid, &load_error))
         g_message ("Could not load the new version of extension %s: %s", uuid, load_error->message);
@@ -1489,8 +1502,12 @@ install_extension_updates (ShellExtensionManager *self)
           extension_path = g_build_filename (userdatadir, "extensions", uuid, NULL);
           extension_dir = g_file_new_for_path (extension_path);
 
-          if (!shell_extension_recursively_delete_dir (extension_dir, FALSE, &error) ||
-              !shell_extension_recursively_move_dir (dir, extension_dir, &error))
+          /* An update that finished downloading after the extension was
+           * uninstalled would bring it back (upstream does) */
+          if (!g_file_query_exists (extension_dir, NULL))
+            g_message ("Not installing the update of %s: the extension is no longer installed", uuid);
+          else if (!shell_extension_recursively_delete_dir (extension_dir, FALSE, &error) ||
+                   !shell_extension_recursively_move_dir (dir, extension_dir, &error))
             g_message ("Failed to install extension updates for %s", uuid);
           g_clear_error (&error);
 

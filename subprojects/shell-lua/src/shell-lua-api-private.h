@@ -105,6 +105,8 @@ void        shell_lua_check_plain_table (lua_State *L, int idx, const char *what
  * valid UTF-8 text"; "<what> must be a string" for a value that is not one).
  * shell_lua_opt_string () checks the same. */
 const char *shell_lua_check_utf8 (lua_State *L, int idx, const char *what);
+/* luaL_checkstring () for a name: raises for an embedded NUL */
+const char *shell_lua_check_name_arg (lua_State *L, int arg);
 /* lua_getfield () without metamethods: pushes @tbl[@field], returns its type */
 int         shell_lua_rawgetfield (lua_State *L, int tbl, const char *field);
 const char *shell_lua_opt_string  (lua_State *L, int tbl, const char *field, const char *def);

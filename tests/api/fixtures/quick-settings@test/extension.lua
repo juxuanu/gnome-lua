@@ -227,7 +227,16 @@ function ext.enable()
   end)
 
   case("a toggle with an icon file", function()
-    -- the files of the extension only (docs/api/ui.md): none is shipped here
+    -- the files of the extension only (docs/api/ui.md)
+    local f = qs.add_toggle { title = "F", icon_file = "icon.svg" }
+    eq(f.icon_file, "icon.svg", "icon_file reads back as it was given")
+    f.icon_file = f.icon_file   -- what was read can be assigned back
+    eq(f.icon_file, "icon.svg", "icon_file after assigning it back")
+    f.icon_name = "edit-find-symbolic"
+    eq(f.icon_file, nil, "an icon_name replaces the icon file")
+    f.icon_file = "icon.svg"
+    eq(f.icon_file, "icon.svg", "icon_file assigned")
+    f:destroy()
     raises(function() qs.add_toggle { title = "F", icon_file = "missing.svg" } end, "icon_file", "a missing icon file")
     raises(function() qs.add_toggle { title = "F", icon_file = "/usr/share/pixmaps/x.svg" } end, "icon_file",
       "an absolute icon file")

@@ -1050,7 +1050,20 @@ update_extracted_cb (GObject      *source,
     }
   else if (self->manager != NULL)
     {
-      shell_extension_manager_notify_extension_update (self->manager, download->uuid);
+      ShellLuaExtension *extension = shell_extension_manager_lookup (self->manager, download->uuid);
+
+      /* Uninstalled while the update was on its way: nothing to update */
+      if (extension == NULL ||
+          shell_lua_extension_get_extension_type (extension) != SHELL_LUA_EXTENSION_TYPE_PER_USER)
+        {
+          g_autoptr (GFile) dir = get_extension_dir (self->manager, "extension-updates", download->uuid);
+
+          shell_extension_recursively_delete_dir (dir, TRUE, NULL);
+        }
+      else
+        {
+          shell_extension_manager_notify_extension_update (self->manager, download->uuid);
+        }
     }
 
   update_download_finish_one (download);

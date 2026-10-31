@@ -1039,7 +1039,8 @@ shell_gdm_auth_services_begin_verification_async (ShellGdmAuthServices          
   self->cancellable = g_cancellable_new ();
 
   g_free (self->user_name);
-  self->user_name = g_strdup (user_name);
+  /* An empty name is no name, as in JS (`if (userName)`): PAM asks for it */
+  self->user_name = user_name != NULL && user_name[0] != '\0' ? g_strdup (user_name) : NULL;
 
   update_user_verifier (self, proxies);
 

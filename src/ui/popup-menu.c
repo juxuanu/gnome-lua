@@ -1882,15 +1882,18 @@ shell_popup_menu_base_add_action_with_icon (ShellPopupMenuBase       *self,
                                             gpointer                  user_data,
                                             GDestroyNotify            destroy)
 {
+  ShellPopupImageMenuItem *item;
+
   g_return_val_if_fail (SHELL_IS_POPUP_MENU_BASE (self), NULL);
 
-  return add_action_item (self,
-                          g_object_new (SHELL_TYPE_POPUP_IMAGE_MENU_ITEM,
-                                        "text", title,
-                                        "gicon", gicon,
-                                        "icon-name", gicon != NULL ? NULL : icon_name,
-                                        NULL),
-                          callback, user_data, destroy);
+  /* One of the two: the icon name, set after the GIcon, would clear it */
+  item = g_object_new (SHELL_TYPE_POPUP_IMAGE_MENU_ITEM, "text", title, NULL);
+  if (gicon != NULL)
+    g_object_set (item, "gicon", gicon, NULL);
+  else
+    g_object_set (item, "icon-name", icon_name, NULL);
+
+  return add_action_item (self, SHELL_POPUP_BASE_MENU_ITEM (item), callback, user_data, destroy);
 }
 
 static void

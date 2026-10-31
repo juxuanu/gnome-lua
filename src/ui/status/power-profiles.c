@@ -151,7 +151,9 @@ toggle_sync (ShellPowerProfilesToggle *self)
                 "icon-name", params->icon_name,
                 NULL);
 
-  checked = g_strcmp0 (active_profile, "balanced") != 0;
+  /* NULL when the daemon has an owner but its properties are not cached
+   * (GetAll failed): an unknown profile is neither on nor remembered */
+  checked = active_profile != NULL && strcmp (active_profile, "balanced") != 0;
   st_button_set_checked (ST_BUTTON (self), checked);
 
   if (checked)

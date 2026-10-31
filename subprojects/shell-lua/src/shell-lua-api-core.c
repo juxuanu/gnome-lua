@@ -920,7 +920,7 @@ static int
 l_settings_get (lua_State *L)
 {
   GSettings *settings = check_settings (L);
-  const char *key = luaL_checkstring (L, 2);
+  const char *key = shell_lua_check_name_arg (L, 2);
   GVariant *value;
 
   settings_key_type (L, settings, key);
@@ -981,7 +981,7 @@ static int
 l_settings_set (lua_State *L)
 {
   GSettings *settings = check_settings (L);
-  const char *key = luaL_checkstring (L, 2);
+  const char *key = shell_lua_check_name_arg (L, 2);
   const GVariantType *type;
 
   luaL_checkany (L, 3);
@@ -996,7 +996,7 @@ settings_get_typed (lua_State  *L,
                     const char *what)
 {
   GSettings *settings = check_settings (L);
-  const char *key = luaL_checkstring (L, 2);
+  const char *key = shell_lua_check_name_arg (L, 2);
   GVariant *value;
 
   typed_key (L, settings, key, accepted, what);
@@ -1013,7 +1013,7 @@ settings_set_typed (lua_State  *L,
                     int         lua_type_expected)
 {
   GSettings *settings = check_settings (L);
-  const char *key = luaL_checkstring (L, 2);
+  const char *key = shell_lua_check_name_arg (L, 2);
   const GVariantType *type;
 
   if (lua_type (L, 3) != lua_type_expected)
@@ -1040,7 +1040,7 @@ static int
 l_settings_reset (lua_State *L)
 {
   GSettings *settings = check_settings (L);
-  const char *key = luaL_checkstring (L, 2);
+  const char *key = shell_lua_check_name_arg (L, 2);
 
   settings_key_type (L, settings, key);
   g_settings_reset (settings, key);
@@ -1173,7 +1173,7 @@ l_settings_on_changed (lua_State *L)
   if (lua_isfunction (L, 2) && lua_isnone (L, 3))
     fn = 2;                          /* on_changed(fn) */
   else if (!lua_isnil (L, 2))
-    key = luaL_checkstring (L, 2);   /* on_changed(key, fn) */
+    key = shell_lua_check_name_arg (L, 2);   /* on_changed(key, fn) */
   luaL_checktype (L, fn, LUA_TFUNCTION);
 
   if (key != NULL)
@@ -1274,7 +1274,7 @@ l_settings_open (lua_State *L)
 {
   ShellLuaState *state = shell_lua_state_from_L (L);
   ShellLuaExtension *extension = extension_of (state);
-  const char *schema_id = luaL_checkstring (L, 1);
+  const char *schema_id = shell_lua_check_name_arg (L, 1);
   GSettingsSchemaSource *source;
   GSettingsSchema *schema;
   GSettings *settings;

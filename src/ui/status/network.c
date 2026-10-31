@@ -3992,6 +3992,17 @@ toggle_item_destroy_cb (ClutterActor  *item,
 }
 
 /* _addItem () */
+/* @item was never added to anything: it is still floating, which destroy
+ * alone does not drop (the item, and the NMClient and NMDevice it holds,
+ * would leak) */
+static void
+destroy_floating_item (ClutterActor *item)
+{
+  g_object_ref_sink (item);
+  clutter_actor_destroy (item);
+  g_object_unref (item);
+}
+
 static void
 toggle_add_item (ShellNmToggle *self,
                  GObject       *key,
@@ -4003,14 +4014,14 @@ toggle_add_item (ShellNmToggle *self,
   if (toggle_find_entry (self, key) != NULL)
     {
       g_warning ("%s: the toggle already has an item for the key", G_STRFUNC);
-      clutter_actor_destroy (item);
+      destroy_floating_item (item);
       return;
     }
 
   /* The menu is gone (the shell is shutting down) */
   if (self->items_section == NULL)
     {
-      clutter_actor_destroy (item);
+      destroy_floating_item (item);
       return;
     }
 
@@ -5229,8 +5240,9 @@ portal_helper_proxy_ready_cb (GObject      *source_object,
   if (proxy != NULL)
     {
       self->portal_helper_proxy = proxy;
-      g_signal_connect (proxy, "status-changed",
-                        G_CALLBACK (portal_helper_status_changed_cb), self);
+      /* A call in flight keeps the proxy alive past our dispose */
+      g_signal_connect_object (proxy, "status-changed",
+                               G_CALLBACK (portal_helper_status_changed_cb), self, 0);
     }
   else
     {

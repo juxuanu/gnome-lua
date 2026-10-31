@@ -307,6 +307,8 @@ struct _ShellLuaWorker
   gboolean       terminating;  /* terminate (): on_error "terminated" is on its way */
   gboolean       finished;     /* nothing of the main side runs any more */
   gpointer       handle_key;   /* the handle terminate () killed, in terminated_handles */
+  int            handle_ref;   /* ... kept from the collector meanwhile, so that its
+                                * address is not another handle's */
 
   /* What the thread needs; written before it starts, read only after */
   char          *id;           /* "<uuid>/worker-<n>", the id of the worker's state */
@@ -367,6 +369,7 @@ shell_lua_worker_init (ShellLuaWorker *worker)
 {
   worker->message_ref = LUA_NOREF;
   worker->error_ref = LUA_NOREF;
+  worker->handle_ref = LUA_NOREF;
   g_mutex_init (&worker->lock);
   g_cond_init (&worker->inbox_cond);
   g_cond_init (&worker->outbox_cond);
@@ -445,6 +448,7 @@ let_go (ShellLuaWorker *worker)
   worker->state = NULL;
   release_ref (state, &worker->message_ref);
   release_ref (state, &worker->error_ref);
+  release_ref (state, &worker->handle_ref);
   drop_source (worker);
   g_clear_object (&state);
 }
@@ -1042,6 +1046,8 @@ l_worker_terminate (lua_State *L)
   if (terminated_handles == NULL)
     terminated_handles = g_hash_table_new (NULL, NULL);
   worker->handle_key = lua_touserdata (L, 1);
+  lua_pushvalue (L, 1);
+  worker->handle_ref = luaL_ref (L, LUA_REGISTRYINDEX);
   g_hash_table_insert (terminated_handles, worker->handle_key, worker);
   shell_lua_destroy_object (L, object);
 

@@ -139,8 +139,9 @@ dialog_emit_done (ShellPolkitDialog *self,
   g_signal_emit (self, dialog_signals[DONE], 0, dismissed);
 }
 
-/* _ensureOpen () */
-static void
+/* _ensureOpen (). FALSE when the dialog could not open: it is done (and may
+ * be destroyed), the caller must not touch it any more */
+static gboolean
 dialog_ensure_open (ShellPolkitDialog *self)
 {
   /* shell_modal_dialog_open () is safe to call if the dialog is already
@@ -161,7 +162,10 @@ dialog_ensure_open (ShellPolkitDialog *self)
                  "Dismissing authentication request for action-id %s "
                  "cookie %s", self->action_id, self->cookie);
       dialog_emit_done (self, TRUE);
+      return FALSE;
     }
+
+  return TRUE;
 }
 
 /* The reset of _destroySession (): shown after the session was dropped, until
@@ -381,7 +385,8 @@ dialog_session_request_cb (PolkitAgentSession *session,
   clutter_actor_set_reactive (CLUTTER_ACTOR (self->password_entry), TRUE);
   clutter_actor_set_reactive (CLUTTER_ACTOR (self->ok_button), FALSE);
 
-  dialog_ensure_open (self);
+  if (!dialog_ensure_open (self))
+    return;
   clutter_actor_grab_key_focus (CLUTTER_ACTOR (self->password_entry));
 }
 

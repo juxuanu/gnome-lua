@@ -122,7 +122,7 @@ indicator_notify (ShellThunderboltIndicator *self,
 {
   ShellMessageTray *message_tray = shell_main_get_message_tray (shell_main_get_default ());
   ShellSource *source;
-  ShellNotification *notification;
+  g_autoptr (ShellNotification) notification = NULL;   /* the source takes its own */
 
   if (self->notification != NULL)
     shell_notification_destroy (self->notification,

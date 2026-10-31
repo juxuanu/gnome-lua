@@ -1387,7 +1387,8 @@ shell_gdm_user_verifier_begin (ShellGdmUserVerifier *verifier,
 
   data = g_new0 (BeginData, 1);
   data->self = g_object_ref (verifier);
-  data->user_name = g_strdup (user_name);
+  /* An empty name is no name, as in JS (`if (userName)`): PAM asks for it */
+  data->user_name = user_name != NULL && user_name[0] != '\0' ? g_strdup (user_name) : NULL;
   data->hold = hold != NULL ? g_object_ref (hold) : NULL;
   data->cancellable = g_object_ref (verifier->cancellable);
 

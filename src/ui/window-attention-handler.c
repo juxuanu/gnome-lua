@@ -359,7 +359,7 @@ on_window_demands_attention (MetaDisplay                 *display,
   g_autofree char *title = NULL;
   g_autofree char *body = NULL;
   g_autoptr (ShellNotificationPolicy) policy = NULL;
-  ShellApp *app;
+  g_autoptr (ShellApp) app = NULL;   /* transfer full */
 
   /* We don't want to show the notification when the window is already
    * focused, because this is rather pointless.

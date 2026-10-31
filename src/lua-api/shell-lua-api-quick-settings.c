@@ -206,23 +206,23 @@ icon_from_file (lua_State  *L,
   return icon;
 }
 
+/* The icon_file as the extension gave it (relative to its directory), for
+ * reading it back: an assignment of what was read must work, as in shell.ui
+ * and the dash */
+#define ICON_FILE_KEY "shell-lua-quick-settings-icon-file"
+
 static void
 push_icon_file (lua_State *L,
+                GObject   *object,
                 GIcon     *icon)
 {
-  if (G_IS_FILE_ICON (icon))
-    {
-      char *path = g_file_get_path (g_file_icon_get_file (G_FILE_ICON (icon)));
+  const char *rel = g_object_get_data (object, ICON_FILE_KEY);
 
-      if (path != NULL)
-        {
-          lua_pushstring (L, path);
-          g_free (path);
-          return;
-        }
-    }
-
-  lua_pushnil (L);
+  /* an icon_name (or another icon) set since replaces the file icon */
+  if (rel != NULL && G_IS_FILE_ICON (icon))
+    lua_pushstring (L, rel);
+  else
+    lua_pushnil (L);
 }
 
 /* Takes ownership of @item (floating): puts it in the grid, or raises and
@@ -548,7 +548,7 @@ get_icon_file (lua_State *L,
   GIcon *icon = NULL;
 
   g_object_get (object, "gicon", &icon, NULL);
-  push_icon_file (L, icon);
+  push_icon_file (L, object, icon);
   g_clear_object (&icon);
 }
 
@@ -569,6 +569,7 @@ set_icon_file (lua_State *L,
         luaL_error (L, "icon_file must be a string or nil");
 
       icon = icon_from_file (L, "icon_file", lua_tostring (L, idx));
+      g_object_set_data_full (object, ICON_FILE_KEY, g_strdup (lua_tostring (L, idx)), g_free);
       g_object_set (object, "gicon", icon, NULL);
       g_object_unref (icon);
     }
@@ -891,9 +892,14 @@ apply_icon (GObject           *item,
             const ItemOptions *opts)
 {
   if (opts->icon_name != NULL)
-    g_object_set (item, "icon-name", opts->icon_name, NULL);
+    {
+      g_object_set (item, "icon-name", opts->icon_name, NULL);
+    }
   else if (icon != NULL)
-    g_object_set (item, "gicon", icon, NULL);
+    {
+      g_object_set_data_full (item, ICON_FILE_KEY, g_strdup (opts->icon_file), g_free);
+      g_object_set (item, "gicon", icon, NULL);
+    }
 }
 
 static GIcon *
@@ -934,8 +940,9 @@ add_toggle_common (lua_State *L,
   if (field_present (L, 1, "on_toggle") && field_present (L, 1, "on_click"))
     return luaL_error (L, "fields 'on_toggle' and 'on_click' are mutually exclusive");
 
-  icon = resolve_icon (L, &opts);
+  /* The capacity first: it raises, and the icon would leak */
   shell_lua_check_owned_capacity (L);
+  icon = resolve_icon (L, &opts);
 
   item = g_object_new (with_menu ? SHELL_TYPE_QUICK_MENU_TOGGLE : SHELL_TYPE_QUICK_TOGGLE,
                        "title", opts.title,
@@ -1017,8 +1024,9 @@ l_add_slider (lua_State *L)
   if (icon_click_present && !opts.icon_reactive)
     return luaL_error (L, "field 'on_icon_click' requires 'icon_reactive' = true");
 
-  icon = resolve_icon (L, &opts);
+  /* The capacity first: it raises, and the icon would leak */
   shell_lua_check_owned_capacity (L);
+  icon = resolve_icon (L, &opts);
 
   item = g_object_new (SHELL_TYPE_QUICK_SLIDER,
                        "icon-reactive", opts.icon_reactive,
@@ -1082,8 +1090,8 @@ l_add_indicator (lua_State *L)
   if (panel == NULL)
     return luaL_error (L, "the top bar does not exist");
 
-  gicon = resolve_icon (L, &opts);
   shell_lua_check_owned_capacity (L);
+  gicon = resolve_icon (L, &opts);
 
   icon = g_object_new (SHELL_TYPE_LUA_QUICK_INDICATOR, NULL);
   shell_lua_own_object (L, icon, &actor_ops);

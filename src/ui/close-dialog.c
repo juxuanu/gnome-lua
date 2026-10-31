@@ -136,7 +136,7 @@ static ClutterActor *
 create_dialog_content (ShellCloseDialog *self)
 {
   ShellWindowTracker *tracker = shell_window_tracker_get_default ();
-  ShellApp *window_app = shell_window_tracker_get_window_app (tracker, self->window);
+  g_autoptr (ShellApp) window_app = shell_window_tracker_get_window_app (tracker, self->window);
   const char *name = window_app != NULL ? shell_app_get_name (window_app)
                                         : meta_window_get_title (self->window);
   g_autofree char *title = NULL;

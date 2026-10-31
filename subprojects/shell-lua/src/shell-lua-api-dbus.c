@@ -1269,7 +1269,7 @@ l_proxy_on_signal (lua_State *L)
 
   if (!lua_isnil (L, 2))
     {
-      member = luaL_checkstring (L, 2);
+      member = shell_lua_check_name_arg (L, 2);
       if (!g_dbus_is_member_name (member))
         return luaL_argerror (L, 2, "not a valid D-Bus signal name");
     }
@@ -2198,7 +2198,7 @@ static int
 l_object_set_property (lua_State *L)
 {
   ShellLuaDBusObject *self = SHELL_LUA_DBUS_OBJECT (shell_lua_handle_check (L, 1, "shell.DBusObject"));
-  const char *name = luaL_checkstring (L, 2);
+  const char *name = shell_lua_check_name_arg (L, 2);
   GDBusPropertyInfo *property = g_dbus_interface_info_lookup_property (self->info, name);
   GVariant *value;
   GVariantBuilder changed;
@@ -2526,7 +2526,7 @@ l_dbus_variant (lua_State *L)
   GVariant *value;
 
   shell_lua_require_capability (L, "dbus", "shell.dbus.variant()");
-  signature = luaL_checkstring (L, 1);
+  signature = shell_lua_check_name_arg (L, 1);
   luaL_checkany (L, 2);
   check_single_type (L, signature, "signature");
 

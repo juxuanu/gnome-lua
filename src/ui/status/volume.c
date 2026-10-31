@@ -441,6 +441,7 @@ stream_slider_add_device (ShellStreamSlider *self,
   const char *description;
   const char *origin;
   g_autofree char *name = NULL;
+  g_autoptr (GIcon) gicon = NULL;
   ClutterActor *item;
 
   if (priv->device_items == NULL || priv->device_section == NULL ||
@@ -458,9 +459,10 @@ stream_slider_add_device (ShellStreamSlider *self,
   else
     name = g_strdup (description);
 
+  gicon = gvc_mixer_ui_device_get_gicon (device);   /* transfer full */
   item = g_object_new (SHELL_TYPE_POPUP_IMAGE_MENU_ITEM,
                        "text", name,
-                       "gicon", gvc_mixer_ui_device_get_gicon (device),
+                       "gicon", gicon,
                        NULL);
   g_object_set_data (G_OBJECT (item), DEVICE_ID_DATA_KEY, GUINT_TO_POINTER (id));
   g_signal_connect_object (item, "activate",

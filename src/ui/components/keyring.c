@@ -131,7 +131,9 @@ static void
 dialog_show_password_cb (ShellKeyringPrompt *prompt,
                          ShellKeyringDialog *self)
 {
-  dialog_ensure_open (self);
+  /* A dialog that could not open cancelled the prompt, which closes it */
+  if (!dialog_ensure_open (self))
+    return;
   dialog_update_sensitivity (self, TRUE);
   st_entry_set_text (ST_ENTRY (self->password_entry), "");
   clutter_actor_grab_key_focus (CLUTTER_ACTOR (self->password_entry));
@@ -142,7 +144,8 @@ static void
 dialog_show_confirm_cb (ShellKeyringPrompt *prompt,
                         ShellKeyringDialog *self)
 {
-  dialog_ensure_open (self);
+  if (!dialog_ensure_open (self))
+    return;
   dialog_update_sensitivity (self, TRUE);
   st_entry_set_text (ST_ENTRY (self->confirm_entry), "");
   clutter_actor_grab_key_focus (CLUTTER_ACTOR (self->continue_button));
