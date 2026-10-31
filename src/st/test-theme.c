@@ -25,6 +25,7 @@
 #include "st-theme-context.h"
 #include "st-label.h"
 #include "st-button.h"
+#include <glib/gstdio.h>
 #include <math.h>
 #include <string.h>
 #include <meta-test/meta-context-test.h>
@@ -425,6 +426,92 @@ test_background (void)
   assert_background_image (group2, "group2", "other-background.png");
 }
 
+/* gnome-lua: only local files resolve, and a custom stylesheet (an
+ * extension's) only reaches files under its own directory and imports
+ * nothing (_st_theme_resolve_url ()) */
+static void
+assert_url (StThemeNode *node,
+            const char  *node_description,
+            GFile       *expected)
+{
+  GFile *value = st_theme_node_get_background_image (node);
+
+  if ((expected == NULL) != (value == NULL) ||
+      (expected != NULL && !g_file_equal (expected, value)))
+    {
+      g_autofree char *want = expected != NULL ? g_file_get_uri (expected) : g_strdup ("(none)");
+      g_autofree char *got = value != NULL ? g_file_get_uri (value) : g_strdup ("(none)");
+
+      g_print ("%s: %s.background-image: expected: %s, got: %s\n",
+               test, node_description, want, got);
+      fail = TRUE;
+    }
+}
+
+static void
+test_url_resolution (StThemeContext *theme_context,
+                     StTheme        *theme,
+                     StThemeNode    *root)
+{
+  g_autoptr (GError) error = NULL;
+  g_autofree char *dir = g_dir_make_tmp ("st-test-XXXXXX", &error);
+  g_autofree char *ext_dir = g_build_filename (dir, "extension", NULL);
+  g_autofree char *css_path = g_build_filename (ext_dir, "stylesheet.css", NULL);
+  g_autofree char *other_path = g_build_filename (ext_dir, "other.css", NULL);
+  g_autofree char *in_path = g_build_filename (ext_dir, "img", "in.png", NULL);
+  g_autoptr (GFile) css = NULL;
+  g_autoptr (GFile) in = NULL;
+  StThemeNode *inline_http, *inline_path, *custom_in, *custom_out, *custom_http, *custom_import;
+
+  test = "url_resolution";
+
+  inline_http = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, NULL, NULL,
+                                   "background-image: url('http://example.org/x.png');");
+  assert_url (inline_http, "inline http", NULL);
+  inline_path = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, NULL, NULL,
+                                   "background-image: url('/usr/share/x.png');");
+  {
+    g_autoptr (GFile) expected = g_file_new_for_path ("/usr/share/x.png");
+
+    assert_url (inline_path, "inline path", expected);
+  }
+
+  g_assert_no_error (error);
+  g_assert_cmpint (g_mkdir_with_parents (ext_dir, 0700), ==, 0);
+  g_assert_true (g_file_set_contents (other_path, ".lua-import { background-image: url('img/in.png'); }", -1, NULL));
+  g_assert_true (g_file_set_contents (css_path,
+                                      "@import url('other.css');\n"
+                                      ".lua-in { background-image: url('img/in.png'); }\n"
+                                      ".lua-out { background-image: url('../out.png'); }\n"
+                                      ".lua-http { background-image: url('http://example.org/x.png'); }\n",
+                                      -1, NULL));
+  css = g_file_new_for_path (css_path);
+  if (!st_theme_load_stylesheet (theme, css, &error))
+    g_error ("loading %s: %s", css_path, error->message);
+
+  in = g_file_new_for_path (in_path);
+  custom_in = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, "lua-in", NULL, NULL);
+  assert_url (custom_in, "custom, under its directory", in);
+  custom_out = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, "lua-out", NULL, NULL);
+  assert_url (custom_out, "custom, outside its directory", NULL);
+  custom_http = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, "lua-http", NULL, NULL);
+  assert_url (custom_http, "custom, http", NULL);
+  custom_import = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, "lua-import", NULL, NULL);
+  assert_url (custom_import, "custom, imported", NULL);
+
+  st_theme_unload_stylesheet (theme, css);
+  g_object_unref (inline_http);
+  g_object_unref (inline_path);
+  g_object_unref (custom_in);
+  g_object_unref (custom_out);
+  g_object_unref (custom_http);
+  g_object_unref (custom_import);
+  g_unlink (css_path);
+  g_unlink (other_path);
+  g_rmdir (ext_dir);
+  g_rmdir (dir);
+}
+
 static void
 test_font (void)
 {
@@ -619,6 +706,7 @@ main (int argc, char **argv)
   test_font_features ();
   test_pseudo_class ();
   test_inline_style ();
+  test_url_resolution (theme_context, theme, root);
 
   g_object_unref (button);
   g_object_unref (group1);

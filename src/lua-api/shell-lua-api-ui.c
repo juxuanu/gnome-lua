@@ -275,11 +275,18 @@ widget_set_style (lua_State *L,
                   int        idx)
 {
   const char *style = lua_isnil (L, idx) ? "" : check_string_arg (L, idx, "style");
+  g_autofree char *lower = NULL;
 
   if (strlen (style) > MAX_STYLE_LENGTH)
     luaL_error (L, "style is too long (at most %d bytes)", MAX_STYLE_LENGTH);
   if (strchr (style, '{') != NULL || strchr (style, '}') != NULL)
     luaL_error (L, "style takes declarations only (no selectors or blocks)");
+  /* St loads what url () names with synchronous I/O while it paints, and an
+   * inline style has no directory to keep it in: a device or a FIFO would
+   * never finish. Images belong in the stylesheet of the extension. */
+  lower = g_ascii_strdown (style, -1);
+  if (strstr (lower, "url(") != NULL)
+    luaL_error (L, "style cannot load files (url ()); use the stylesheet of the extension");
 
   st_widget_set_style (ST_WIDGET (object), style[0] != '\0' ? style : NULL);
 }

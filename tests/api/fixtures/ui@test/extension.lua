@@ -222,6 +222,10 @@ function ext.enable()
     raises(function() w.style = ("a"):rep(1025) end, "1024", "a style of 1025 bytes")
     w.style = ("a"):rep(1024)   -- the limit itself is accepted
     raises(function() w.style = 5 end, "style", "a number as style")
+    -- St would load the file while it paints (a device, a FIFO, the network)
+    raises(function() w.style = "background-image: url(/dev/zero)" end, "url", "an inline url ()")
+    raises(function() w.style = "border-image: URL('http://example.org/x.png') 1" end, "url", "an inline URL ()")
+    eq(w.style, ("a"):rep(1024), "the style after the refused ones")
   end)
 
   case("sensitive", function()

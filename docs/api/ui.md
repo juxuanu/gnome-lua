@@ -50,7 +50,7 @@ below plus its own; an unknown field raises.
 | Property | Type | Access | Notes |
 |---|---|---|---|
 | `style_class` | string | rw | space-separated CSS classes. The shell always adds `lua-ext-<id>` (uuid with every char outside `[a-z0-9-]` replaced by `-`, lower-cased) so a stylesheet can scope itself; reading returns only the classes the extension set (`has_style_class` sees `lua-ext-<id>`, `remove_style_class` cannot remove it) |
-| `style` | string | rw | inline declarations only (`"color: red; padding: 2px"`), no selectors, at most 1024 bytes; for values computed at runtime (a prefs colour) |
+| `style` | string | rw | inline declarations only (`"color: red; padding: 2px"`), no selectors, no `url()` (images go in the stylesheet), at most 1024 bytes; for values computed at runtime (a prefs colour) |
 | `visible` | boolean | rw | hidden widgets take no space; default `true` |
 | `reactive` | boolean | rw | receives pointer input; default per widget |
 | `x_expand`, `y_expand` | boolean | rw | default `false` (`spacer`: `true`) |
@@ -128,7 +128,11 @@ Space all toggle.
 `stylesheet.css` (and the variants `stylesheet-dark.css`, `stylesheet-light.css`,
 `<session-mode>.css`, `<session-mode>-<variant>.css`; first match wins, loaded
 with the extension and unloaded on disable) is added to the shell theme exactly
-as before (`src/ui/extension-system.c`, `load_stylesheet ()`). It is global:
+as before (`src/ui/extension-system.c`, `load_stylesheet ()`), with two limits
+St does not have upstream: `url()` names a file under the directory of the
+stylesheet (`url("icons/on.svg")`; another scheme, a path outside the
+directory, a device, resolves to nothing), and `@import` is ignored. St loads
+these files with synchronous I/O while it paints. It is global:
 selectors reach built-in widgets and other extensions, as theme authors rely on
 today. Only the following are stable API: the classes you set, `lua-ext-<id>`,
 the class names of the theme's pseudo-classes (`:hover`, `:active`, `:checked`,

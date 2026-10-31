@@ -904,12 +904,16 @@ add_matched_properties (StTheme      *a_this,
                 CRStyleSheet *sheet = NULL;
                 GFile *file = NULL;
 
-                if (import_rule->url->stryng && import_rule->url->stryng->str)
+                /* gnome-lua: a custom stylesheet (an extension's) imports
+                 * nothing, see _st_theme_resolve_url () */
+                if (import_rule->url->stryng && import_rule->url->stryng->str &&
+                    !g_slist_find (a_this->custom_stylesheets, a_nodesheet))
                   {
                     file = _st_theme_resolve_url (a_this,
                                                   a_nodesheet,
                                                   import_rule->url->stryng->str);
-                    sheet = resolve_stylesheet (a_this, file, NULL);
+                    if (file != NULL)
+                      sheet = resolve_stylesheet (a_this, file, NULL);
                   }
 
                 if (sheet)
@@ -1058,6 +1062,15 @@ _st_theme_get_matched_properties (StTheme        *theme,
 /* Resolve an url from an url() reference in a stylesheet into a GFile,
  * if possible. The resolution here is distinctly lame and
  * will fail on many examples.
+ *
+ * gnome-lua: St loads what a stylesheet names with synchronous I/O while
+ * it paints. Only local files resolve (file: and resource: URIs, paths):
+ * another scheme (http: through gvfs) would block the compositor on the
+ * network and let the stylesheet or the inline style of an extension reach
+ * it without the network capability. A URL of a custom stylesheet (the
+ * stylesheet of an extension) must name a file under the directory of the
+ * stylesheet, not a device or a FIFO elsewhere that would never finish
+ * loading. NULL when the URL does not resolve.
  */
 GFile *
 _st_theme_resolve_url (StTheme      *theme,
@@ -1069,7 +1082,12 @@ _st_theme_resolve_url (StTheme      *theme,
 
   if ((scheme = g_uri_parse_scheme (url)))
     {
+      gboolean local = g_ascii_strcasecmp (scheme, "file") == 0 ||
+                       g_ascii_strcasecmp (scheme, "resource") == 0;
+
       g_free (scheme);
+      if (!local)
+        return NULL;
       resource = g_file_new_for_uri (url);
     }
   else if (base_stylesheet != NULL)
@@ -1090,6 +1108,15 @@ _st_theme_resolve_url (StTheme      *theme,
   else
     {
       resource = g_file_new_for_path (url);
+    }
+
+  if (base_stylesheet != NULL && g_slist_find (theme->custom_stylesheets, base_stylesheet))
+    {
+      GFile *base_file = g_hash_table_lookup (theme->files_by_stylesheet, base_stylesheet);
+      g_autoptr (GFile) parent = base_file != NULL ? g_file_get_parent (base_file) : NULL;
+
+      if (parent == NULL || !g_file_has_prefix (resource, parent))
+        g_clear_object (&resource);
     }
 
   return resource;
