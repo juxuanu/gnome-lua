@@ -25,6 +25,9 @@ G_DECLARE_FINAL_TYPE (ShellExtensionDownloader, shell_extension_downloader,
 
 ShellExtensionDownloader *shell_extension_downloader_new (ShellExtensionManager *manager);
 
+void      shell_extension_downloader_set_index_url (ShellExtensionDownloader *self,
+                                                    const char               *url);
+
 void      shell_extension_downloader_install_async  (ShellExtensionDownloader *self,
                                                      const char               *uuid,
                                                      GCancellable             *cancellable,

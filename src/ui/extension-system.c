@@ -321,6 +321,14 @@ shell_extension_manager_get_settings (ShellExtensionManager *self)
   return self->settings;
 }
 
+ShellExtensionDownloader *
+shell_extension_manager_get_downloader (ShellExtensionManager *self)
+{
+  g_return_val_if_fail (SHELL_IS_EXTENSION_MANAGER (self), NULL);
+
+  return self->downloader;
+}
+
 char *
 shell_extension_manager_dup_userdatadir (ShellExtensionManager *self)
 {

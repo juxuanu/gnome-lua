@@ -3804,3 +3804,48 @@ msgstr "Missatge més llarg d'un fil de treball"
 
 msgid "Worker memory"
 msgstr "Memòria dels fils de treball"
+
+msgid "It asks for these permissions"
+msgstr "Demana aquests permisos"
+
+msgid "Run programs"
+msgstr "Executar programes"
+
+msgid "Any program, as you"
+msgstr "Qualsevol programa, en nom vostre"
+
+msgid "Talk to other programs and services"
+msgstr "Comunicar-se amb altres programes i serveis"
+
+msgid "Over D-Bus, as powerful as running programs"
+msgstr "Per D-Bus, tan potent com executar programes"
+
+msgid "Read and change your files"
+msgstr "Llegir i modificar els vostres fitxers"
+
+msgid "Any file you can reach, not only its own"
+msgstr "Qualsevol fitxer al qual tingueu accés, no només els seus"
+
+msgid "Use the network"
+msgstr "Utilitzar la xarxa"
+
+msgid "Any server on the internet or on your local network"
+msgstr "Qualsevol servidor d'Internet o de la xarxa local"
+
+msgid "Change settings"
+msgstr "Modificar els paràmetres"
+
+msgid "Of the system and of every application"
+msgstr "Del sistema i de totes les aplicacions"
+
+msgid "See your searches"
+msgstr "Veure les vostres cerques"
+
+msgid "What you type in the overview search"
+msgstr "El que escriviu a la cerca de la vista general"
+
+msgid "Run work in the background"
+msgstr "Fer feina en segon pla"
+
+msgid "Long computations, with no other access"
+msgstr "Càlculs llargs, sense cap altre accés"

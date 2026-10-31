@@ -38,7 +38,7 @@ Not in v1:
   `g_dbus_is_interface_name`, paths with `g_variant_is_object_path`.
 - No privilege boundary: `dbus` reaches whatever the user's session or the
   system bus policy allows (e.g. the systemd user manager can run commands).
-  The extensions app displays it as such.
+  The install dialog displays it as such ("as powerful as running programs").
 
 ## Entry points
 

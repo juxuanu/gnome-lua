@@ -124,6 +124,9 @@ shell_tests = [
     },
   },
   {
+    'name': 'extensionInstall',
+  },
+  {
     'name': 'lockScreenNotifications',
   },
   {
@@ -134,6 +137,7 @@ shell_tests = [
       # the next one
       'G_DEBUG': 'fatal-criticals',
     },
+  },
   {
     # The login screen, against tests/greeter-mock.py (gnomeshell_dbusrunner.py
     # starts it for this mode)

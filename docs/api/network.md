@@ -39,8 +39,8 @@ Not in 1.1:
   fails with `connection` or `resolve`).
 - No privilege boundary: `network` reaches whatever the user's machine can
   reach, including services on `localhost` and in the local network, and a
-  plain `http:` URL is sent in the clear. The extensions app shows the
-  capability as such.
+  plain `http:` URL is sent in the clear. The install dialog shows the
+  capability as such ("Any server on the internet or on your local network").
 
 ## `shell.network.request{...}`
 

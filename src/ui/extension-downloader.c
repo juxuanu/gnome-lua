@@ -3,11 +3,11 @@
  * extension-downloader.c: Installs extensions from extensions.gnome.org and
  * looks for their updates. Port of js/ui/extensionDownloader.js.
  *
- * The flow is the one of the JS module: InstallRemoteExtension () asks the
- * index for the description of the extension, the user confirms in a dialog,
- * the archive is downloaded and extracted into the per-user extensions
- * directory (its schemas are compiled) and the extension is loaded and
- * enabled. The check for updates sends the versions of the per-user
+ * The flow is the one of the JS module, but for the order: InstallRemoteExtension
+ * () asks the index for the description of the extension, the archive is
+ * downloaded and extracted next to the per-user extensions directory, the
+ * user confirms in a dialog, the extension is moved into the directory (its
+ * schemas are compiled) and it is loaded and enabled. The check for updates sends the versions of the per-user
  * extensions to the index and downloads the newer ones into
  * `extension-updates`, which the manager installs at the next start.
  *
@@ -32,6 +32,10 @@
  *    extension that is a link is neither replaced by an installation nor by
  *    an update.
  *  - The dialog answers `cancelled` if it is destroyed unanswered.
+ *  - The dialog lists the capabilities the extension asks for, as they are in
+ *    the archive that was downloaded: so the archive comes before the dialog,
+ *    and what is installed is what the user agreed to. An archive that the
+ *    manager would not load is reported before the dialog (ENABLE_FAILED).
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -54,10 +58,13 @@
 /* The index of extensions                                                   */
 /* ------------------------------------------------------------------------ */
 
-/* URLs. The download one has the UUID of the extension in it. */
-#define INDEX_URL_DOWNLOAD "https://extensions.gnome.org/download-extension/%s.shell-extension.zip"
-#define INDEX_URL_INFO     "https://extensions.gnome.org/extension-info/"
-#define INDEX_URL_UPDATE   "https://extensions.gnome.org/update-info/"
+/* The index, and the paths of its URLs (the download one has the UUID of
+ * the extension in it). The tests point the downloader at a server of
+ * their own (shell_extension_downloader_set_index_url ()). */
+#define INDEX_URL           "https://extensions.gnome.org"
+#define INDEX_PATH_DOWNLOAD "/download-extension/%s.shell-extension.zip"
+#define INDEX_PATH_INFO     "/extension-info/"
+#define INDEX_PATH_UPDATE   "/update-info/"
 
 /* The parameters of the requests */
 #define INDEX_PARAM_UUID                       "uuid"
@@ -87,6 +94,7 @@ struct _ShellExtensionDownloader
 
   ShellExtensionManager *manager;   /* weak */
   SoupSession *session;
+  char *index_url;
 };
 
 G_DEFINE_FINAL_TYPE (ShellExtensionDownloader, shell_extension_downloader, G_TYPE_OBJECT)
@@ -132,9 +140,11 @@ get_extension_dir (ShellExtensionManager *manager,
 }
 
 static SoupMessage *
-new_download_message (const char *uuid)
+new_download_message (ShellExtensionDownloader *self,
+                      const char               *uuid)
 {
-  g_autofree char *url = g_strdup_printf (INDEX_URL_DOWNLOAD, uuid);
+  g_autofree char *path = g_strdup_printf (INDEX_PATH_DOWNLOAD, uuid);
+  g_autofree char *url = g_strconcat (self->index_url, path, NULL);
 
   return soup_message_new_from_encoded_form (SOUP_METHOD_GET, url,
                                              soup_form_encode (INDEX_PARAM_SHELL_VERSION,
@@ -146,13 +156,23 @@ new_download_message (const char *uuid)
 /* Extracting an archive                                                     */
 /* ------------------------------------------------------------------------ */
 
+/* Called once the archive is extracted to @staged, before it replaces what
+ * is installed: the callee calls extract_archive_resume () on @task, once,
+ * to go on or to give up. */
+typedef void (*ExtractStagedFunc) (GTask    *task,
+                                   GFile    *staged,
+                                   gpointer  user_data);
+
 typedef struct
 {
   GBytes *bytes;
   GFile *dir;                    /* where the extension goes */
   GFile *archive;                /* the temporary file with the archive */
-  GFile *tmp_dir;                /* where it is extracted to, next to @dir */
+  GFile *tmp_dir;                /* a directory of its own, next to @dir */
+  GFile *staged;                 /* where it is extracted to: @tmp_dir/<name of @dir> */
   AutoarExtractor *extractor;
+  ExtractStagedFunc staged_func;
+  gpointer staged_data;
 } ExtractData;
 
 static void
@@ -165,6 +185,7 @@ extract_data_free (ExtractData *data)
   g_clear_object (&data->dir);
   g_clear_object (&data->archive);
   g_clear_object (&data->tmp_dir);
+  g_clear_object (&data->staged);
   g_free (data);
 }
 
@@ -273,27 +294,24 @@ extract_moved_cb (GObject      *source,
 
       /* No rename across these file systems: copy it over by hand */
       g_clear_error (&error);
-      if (!shell_extension_recursively_move_dir (data->tmp_dir, data->dir, &error))
+      if (!shell_extension_recursively_move_dir (data->staged, data->dir, &error))
         {
           extract_fail (task, g_steal_pointer (&error));
           return;
         }
-      shell_extension_recursively_delete_dir (data->tmp_dir, TRUE, NULL);
     }
 
+  shell_extension_recursively_delete_dir (data->tmp_dir, TRUE, NULL);
   extract_compile_schemas (task);
 }
 
+/* Moves the extracted extension in place of the one that is there */
 static void
-on_extractor_completed (AutoarExtractor *extractor,
-                        ExtractData     *data)
+extract_install_staged (GTask *task)
 {
-  GTask *task = g_object_get_data (G_OBJECT (extractor), "task");
+  ExtractData *data = g_task_get_task_data (task);
   g_autoptr (GError) error = NULL;
 
-  g_signal_handlers_disconnect_by_data (extractor, data);
-
-  /* Replace the extension that is there */
   if (g_file_query_exists (data->dir, NULL) &&
       !shell_extension_recursively_delete_dir (data->dir, TRUE, &error))
     {
@@ -301,10 +319,38 @@ on_extractor_completed (AutoarExtractor *extractor,
       return;
     }
 
-  g_file_move_async (data->tmp_dir, data->dir,
+  g_file_move_async (data->staged, data->dir,
                      G_FILE_COPY_NO_FALLBACK_FOR_MOVE, G_PRIORITY_DEFAULT,
                      g_task_get_cancellable (task), NULL, NULL,
                      extract_moved_cb, task);
+}
+
+/* Goes on with an extraction stopped at its ExtractStagedFunc: @install
+ * moves the extension in place, otherwise the extraction is removed and
+ * the task fails with G_IO_ERROR_CANCELLED */
+static void
+extract_archive_resume (GTask    *task,
+                        gboolean  install)
+{
+  if (install)
+    extract_install_staged (task);
+  else
+    extract_fail (task, g_error_new_literal (G_IO_ERROR, G_IO_ERROR_CANCELLED,
+                                             "The installation was declined"));
+}
+
+static void
+on_extractor_completed (AutoarExtractor *extractor,
+                        ExtractData     *data)
+{
+  GTask *task = g_object_get_data (G_OBJECT (extractor), "task");
+
+  g_signal_handlers_disconnect_by_data (extractor, data);
+
+  if (data->staged_func != NULL)
+    data->staged_func (task, data->staged, data->staged_data);
+  else
+    extract_install_staged (task);
 }
 
 static void
@@ -339,6 +385,7 @@ extract_written_cb (GObject      *source,
   g_autoptr (GFile) parent = NULL;
   g_autofree char *archive_name = NULL;
   g_autofree char *tmp_name = NULL;
+  g_autofree char *dir_name = NULL;
   GError *error = NULL;
 
   if (!g_file_replace_contents_finish (G_FILE (source), result, NULL, &error))
@@ -347,20 +394,26 @@ extract_written_cb (GObject      *source,
       return;
     }
 
-  /* The archive is "XXXXXX.shell-extension.zip": the directory it is extracted
-   * to is "XXXXXX.shell-extension", next to the final directory */
+  /* The archive is "XXXXXX.shell-extension.zip": it is extracted to
+   * ".XXXXXX.shell-extension/<UUID>", next to the final directory. The
+   * extension has the name it will have, so it loads as it will once in
+   * place, and the scan of the extensions skips the directory around it. */
   archive_name = g_file_get_basename (data->archive);
-  tmp_name = g_strndup (archive_name, strlen (archive_name) - strlen (".zip"));
+  tmp_name = g_strdup_printf (".%.*s", (int) (strlen (archive_name) - strlen (".zip")), archive_name);
   parent = g_file_get_parent (data->dir);
   data->tmp_dir = g_file_get_child (parent, tmp_name);
-  if (!g_file_make_directory_with_parents (data->tmp_dir, NULL, &error))
+  dir_name = g_file_get_basename (data->dir);
+  data->staged = g_file_get_child (data->tmp_dir, dir_name);
+  if (!g_file_make_directory_with_parents (data->staged, NULL, &error))
     {
+      if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_EXISTS))
+        shell_extension_recursively_delete_dir (data->tmp_dir, TRUE, NULL);
       g_clear_object (&data->tmp_dir);
       extract_fail (task, error);
       return;
     }
 
-  data->extractor = autoar_extractor_new (data->archive, data->tmp_dir);
+  data->extractor = autoar_extractor_new (data->archive, data->staged);
   autoar_extractor_set_output_is_dest (data->extractor, TRUE);
   g_object_set_data (G_OBJECT (data->extractor), "task", task);
   g_signal_connect (data->extractor, "error", G_CALLBACK (on_extractor_error), data);
@@ -369,11 +422,15 @@ extract_written_cb (GObject      *source,
   autoar_extractor_start_async (data->extractor, g_task_get_cancellable (task));
 }
 
-/* Extracts the zip in @bytes to @dir, replacing what is there */
+/* Extracts the zip in @bytes to @dir, replacing what is there. With
+ * @staged_func, it stops once the archive is extracted until the callee
+ * resumes it. */
 static void
 extract_archive_async (ShellExtensionDownloader *self,
                        GBytes                   *bytes,
                        GFile                    *dir,
+                       ExtractStagedFunc         staged_func,
+                       gpointer                  staged_data,
                        GCancellable             *cancellable,
                        GAsyncReadyCallback       callback,
                        gpointer                  user_data)
@@ -386,6 +443,8 @@ extract_archive_async (ShellExtensionDownloader *self,
   g_task_set_source_tag (task, extract_archive_async);
   data->bytes = g_bytes_ref (bytes);
   data->dir = g_object_ref (dir);
+  data->staged_func = staged_func;
+  data->staged_data = staged_data;
   g_task_set_task_data (task, data, (GDestroyNotify) extract_data_free);
 
   if (g_file_query_file_type (dir, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL) == G_FILE_TYPE_SYMBOLIC_LINK)
@@ -430,6 +489,7 @@ typedef struct
   char *name;
   SoupMessage *message;
   ShellModalDialog *dialog;              /* weak */
+  GTask *extract;                        /* the extraction waiting for the answer */
   gboolean was_installed;
   gboolean confirmed;                    /* Install was pressed */
   gboolean answered;                     /* the task has its result */
@@ -441,9 +501,21 @@ install_data_free (InstallData *data)
   g_clear_object (&data->downloader);
   g_clear_weak_pointer (&data->dialog);
   g_clear_object (&data->message);
+  g_clear_object (&data->extract);
   g_free (data->uuid);
   g_free (data->name);
   g_free (data);
+}
+
+/* Moves the extension the dialog is about in place, or removes it */
+static void
+install_resume_extract (InstallData *data,
+                        gboolean     install)
+{
+  g_autoptr (GTask) extract = g_steal_pointer (&data->extract);
+
+  if (extract != NULL)
+    extract_archive_resume (extract, install);
 }
 
 static void
@@ -480,6 +552,13 @@ install_extracted_cb (GObject      *source,
 
   if (!extract_archive_finish (self, result, &error))
     {
+      /* Declined, or not loadable: the task has its result already */
+      if (data->answered)
+        {
+          g_object_unref (task);
+          return;
+        }
+
       if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
         {
           data->answered = TRUE;
@@ -515,6 +594,10 @@ install_extracted_cb (GObject      *source,
   install_return_result (task, "successful");
   g_object_unref (task);
 }
+
+static void install_staged_cb (GTask    *extract,
+                               GFile    *staged,
+                               gpointer  user_data);
 
 static void
 install_downloaded_cb (GObject      *source,
@@ -554,7 +637,8 @@ install_downloaded_cb (GObject      *source,
 
   data->was_installed = shell_extension_manager_lookup (self->manager, data->uuid) != NULL;
   dir = get_extension_dir (self->manager, "extensions", data->uuid);
-  extract_archive_async (self, bytes, dir, g_task_get_cancellable (task),
+  extract_archive_async (self, bytes, dir, install_staged_cb, task,
+                         g_task_get_cancellable (task),
                          install_extracted_cb, task);
 }
 
@@ -564,7 +648,6 @@ install_confirmed (gpointer user_data)
 {
   GTask *task = user_data;
   InstallData *data = g_task_get_task_data (task);
-  ShellExtensionDownloader *self = data->downloader;
 
   if (data->answered || data->confirmed)
     return;
@@ -573,11 +656,7 @@ install_confirmed (gpointer user_data)
   if (data->dialog != NULL)
     shell_modal_dialog_close (data->dialog);
 
-  g_clear_object (&data->message);
-  data->message = new_download_message (data->uuid);
-  soup_session_send_and_read_async (self->session, data->message, G_PRIORITY_DEFAULT,
-                                    g_task_get_cancellable (task),
-                                    install_downloaded_cb, g_object_ref (task));
+  install_resume_extract (data, TRUE);
 }
 
 /* The Cancel button */
@@ -593,6 +672,7 @@ install_cancelled (gpointer user_data)
   install_return_result (task, "cancelled");
   if (data->dialog != NULL)
     shell_modal_dialog_close (data->dialog);
+  install_resume_extract (data, FALSE);
 }
 
 static void
@@ -603,16 +683,116 @@ on_install_dialog_destroy (ClutterActor *dialog,
 
   /* Gone without an answer, as at shutdown */
   if (!data->answered && !data->confirmed)
-    install_return_result (task, "cancelled");
+    {
+      install_return_result (task, "cancelled");
+      install_resume_extract (data, FALSE);
+    }
+}
+
+/* What each capability lets an extension do (docs/api/README.md), broadest
+ * first: the order of the list in the dialog. The descriptions are kept
+ * short: the dialog ellipsizes them. */
+static const struct
+{
+  const char *name;
+  const char *icon_name;
+  const char *title;
+  const char *description;
+} capability_texts[] = {
+  {
+    "spawn", "system-run-symbolic",
+    /* Translators: a permission an extension asks for */
+    N_("Run programs"),
+    N_("Any program, as you")
+  },
+  {
+    "dbus", "network-workgroup-symbolic",
+    /* Translators: a permission an extension asks for */
+    N_("Talk to other programs and services"),
+    N_("Over D-Bus, as powerful as running programs")
+  },
+  {
+    "fs", "folder-symbolic",
+    /* Translators: a permission an extension asks for */
+    N_("Read and change your files"),
+    N_("Any file you can reach, not only its own")
+  },
+  {
+    "network", "network-transmit-receive-symbolic",
+    /* Translators: a permission an extension asks for */
+    N_("Use the network"),
+    N_("Any server on the internet or on your local network")
+  },
+  {
+    "settings", "preferences-system-symbolic",
+    /* Translators: a permission an extension asks for */
+    N_("Change settings"),
+    N_("Of the system and of every application")
+  },
+  {
+    "search", "system-search-symbolic",
+    /* Translators: a permission an extension asks for */
+    N_("See your searches"),
+    N_("What you type in the overview search")
+  },
+  {
+    "worker", "content-loading-symbolic",
+    /* Translators: a permission an extension asks for */
+    N_("Run work in the background"),
+    N_("Long computations, with no other access")
+  },
+};
+
+#define CAPABILITY_ICON_SIZE 24
+
+/* The list of what @capabilities let the extension do, or NULL when it
+ * asks for none */
+static ClutterActor *
+new_capability_section (const char * const *capabilities)
+{
+  ShellListSection *section = NULL;
+  StBoxLayout *list;
+  guint i;
+
+  for (i = 0; i < G_N_ELEMENTS (capability_texts); i++)
+    {
+      ClutterActor *icon;
+
+      if (!g_strv_contains (capabilities, capability_texts[i].name))
+        continue;
+
+      if (section == NULL)
+        section = g_object_new (SHELL_TYPE_LIST_SECTION,
+                                /* Translators: above the list of the
+                                 * permissions of an extension to install */
+                                "title", _("It asks for these permissions"),
+                                NULL);
+
+      list = shell_list_section_get_list (section);
+      icon = g_object_new (ST_TYPE_ICON,
+                           "icon-name", capability_texts[i].icon_name,
+                           "icon-size", CAPABILITY_ICON_SIZE,
+                           NULL);
+      clutter_actor_add_child (CLUTTER_ACTOR (list),
+                               g_object_new (SHELL_TYPE_LIST_SECTION_ITEM,
+                                             "icon-actor", icon,
+                                             "title", _(capability_texts[i].title),
+                                             "description", _(capability_texts[i].description),
+                                             NULL));
+    }
+
+  return CLUTTER_ACTOR (section);
 }
 
 static void
-show_install_dialog (GTask *task)
+show_install_dialog (GTask              *task,
+                     const char * const *capabilities)
 {
   InstallData *data = g_task_get_task_data (task);
   g_autofree char *description = NULL;
   ShellMessageDialogContent *content;
   ShellModalDialog *dialog;
+  ClutterActor *section;
 
   dialog = g_object_new (SHELL_TYPE_MODAL_DIALOG,
                          "dialog-style-class", "extension-dialog",
@@ -633,6 +813,11 @@ show_install_dialog (GTask *task)
   clutter_actor_add_child (CLUTTER_ACTOR (shell_modal_dialog_get_content_layout (dialog)),
                            CLUTTER_ACTOR (content));
 
+  section = new_capability_section (capabilities);
+  if (section != NULL)
+    clutter_actor_add_child (CLUTTER_ACTOR (shell_modal_dialog_get_content_layout (dialog)),
+                             section);
+
   g_signal_connect_object (dialog, "destroy", G_CALLBACK (on_install_dialog_destroy),
                            task, 0);
 
@@ -640,8 +825,37 @@ show_install_dialog (GTask *task)
     {
       /* The input could not be grabbed: nobody can answer */
       install_return_result (task, "cancelled");
+      install_resume_extract (data, FALSE);
       clutter_actor_destroy (CLUTTER_ACTOR (dialog));
     }
+}
+
+/* The archive is extracted: the dialog shows what the extension asks for,
+ * as it is in what was downloaded, and it is installed only if the user
+ * agrees */
+static void
+install_staged_cb (GTask    *extract,
+                   GFile    *staged,
+                   gpointer  user_data)
+{
+  GTask *task = user_data;
+  InstallData *data = g_task_get_task_data (task);
+  g_autoptr (ShellLuaExtension) extension = NULL;
+  g_autoptr (GError) error = NULL;
+
+  data->extract = g_object_ref (extract);
+
+  /* What the manager would refuse is not offered (and the files of an
+   * installed extension are still there) */
+  extension = shell_lua_extension_new_from_dir (staged, SHELL_LUA_EXTENSION_TYPE_PER_USER, &error);
+  if (extension == NULL)
+    {
+      install_return_error (task, SHELL_EXTENSION_ERROR_ENABLE_FAILED, error->message);
+      install_resume_extract (data, FALSE);
+      return;
+    }
+
+  show_install_dialog (task, shell_lua_extension_get_capabilities (extension));
 }
 
 static void
@@ -675,8 +889,13 @@ install_info_cb (GObject      *source,
                                                        INDEX_INFO_NAME_FIELD, NULL);
 
   data->name = g_strdup (name != NULL ? name : data->uuid);
-  show_install_dialog (task);
-  g_object_unref (task);
+
+  /* Download it before asking: the dialog shows what it asks for */
+  g_clear_object (&data->message);
+  data->message = new_download_message (data->downloader, data->uuid);
+  soup_session_send_and_read_async (data->downloader->session, data->message, G_PRIORITY_DEFAULT,
+                                    g_task_get_cancellable (task),
+                                    install_downloaded_cb, task);
   return;
 
 failed:
@@ -702,6 +921,7 @@ shell_extension_downloader_install_async (ShellExtensionDownloader *self,
   GTask *task;
   InstallData *data;
   GSettings *settings;
+  g_autofree char *info_url = NULL;
 
   g_return_if_fail (SHELL_IS_EXTENSION_DOWNLOADER (self));
   g_return_if_fail (uuid != NULL);
@@ -742,7 +962,8 @@ shell_extension_downloader_install_async (ShellExtensionDownloader *self,
   data->uuid = g_strdup (uuid);
   g_task_set_task_data (task, data, (GDestroyNotify) install_data_free);
 
-  data->message = soup_message_new_from_encoded_form (SOUP_METHOD_GET, INDEX_URL_INFO,
+  info_url = g_strconcat (self->index_url, INDEX_PATH_INFO, NULL);
+  data->message = soup_message_new_from_encoded_form (SOUP_METHOD_GET, info_url,
                                                       soup_form_encode (INDEX_PARAM_UUID, uuid,
                                                                         INDEX_PARAM_SHELL_VERSION,
                                                                         INDEX_SHELL_VERSION,
@@ -864,7 +1085,7 @@ update_downloaded_cb (GObject      *source,
     }
 
   dir = get_extension_dir (self->manager, "extension-updates", download->uuid);
-  extract_archive_async (self, bytes, dir, g_task_get_cancellable (download->check),
+  extract_archive_async (self, bytes, dir, NULL, NULL, g_task_get_cancellable (download->check),
                          update_extracted_cb, download);
 }
 
@@ -877,7 +1098,7 @@ download_extension_update (GTask      *check,
 
   download->check = g_object_ref (check);
   download->uuid = g_strdup (uuid);
-  download->message = new_download_message (uuid);
+  download->message = new_download_message (data->downloader, uuid);
   data->pending++;
 
   soup_session_send_and_read_async (data->downloader->session, download->message,
@@ -1041,7 +1262,7 @@ shell_extension_downloader_check_for_updates_async (ShellExtensionDownloader *se
   encoded = soup_form_encode (INDEX_PARAM_SHELL_VERSION, INDEX_SHELL_VERSION,
                               INDEX_PARAM_DISABLE_VERSION_VALIDATION,
                               disable_validation ? "true" : "false", NULL);
-  url = g_strdup_printf ("%s?%s", INDEX_URL_UPDATE, encoded);
+  url = g_strdup_printf ("%s" INDEX_PATH_UPDATE "?%s", self->index_url, encoded);
 
   data = g_new0 (UpdateCheckData, 1);
   data->downloader = g_object_ref (self);
@@ -1083,17 +1304,48 @@ shell_extension_downloader_dispose (GObject *object)
 }
 
 static void
+shell_extension_downloader_finalize (GObject *object)
+{
+  ShellExtensionDownloader *self = SHELL_EXTENSION_DOWNLOADER (object);
+
+  g_free (self->index_url);
+
+  G_OBJECT_CLASS (shell_extension_downloader_parent_class)->finalize (object);
+}
+
+static void
 shell_extension_downloader_class_init (ShellExtensionDownloaderClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
 
   object_class->dispose = shell_extension_downloader_dispose;
+  object_class->finalize = shell_extension_downloader_finalize;
 }
 
 static void
 shell_extension_downloader_init (ShellExtensionDownloader *self)
 {
   self->session = soup_session_new ();
+  self->index_url = g_strdup (INDEX_URL);
+}
+
+/**
+ * shell_extension_downloader_set_index_url:
+ * @self: a #ShellExtensionDownloader
+ * @url: the index to use, without a trailing slash, such as
+ *   "https://extensions.gnome.org"
+ *
+ * For the tests, which serve an index of their own.
+ */
+void
+shell_extension_downloader_set_index_url (ShellExtensionDownloader *self,
+                                          const char               *url)
+{
+  g_return_if_fail (SHELL_IS_EXTENSION_DOWNLOADER (self));
+  g_return_if_fail (url != NULL);
+
+  g_free (self->index_url);
+  self->index_url = g_strdup (url);
 }
 
 ShellExtensionDownloader *

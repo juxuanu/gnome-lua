@@ -164,8 +164,11 @@ itself relative to another extension.
 ## Capabilities
 
 Declared in `metadata.json` `"capabilities"`; unknown strings reject the
-extension (**impl**: `known_capabilities`); shown to the user in the extensions
-app. Calling a gated function without the capability raises
+extension (**impl**: `known_capabilities`). The dialog that installs an
+extension from extensions.gnome.org lists them, read from the downloaded
+archive, before anything is installed (`src/ui/extension-downloader.c`, test
+`tests/shell/extensionInstall.lua`); an update that adds one is not asked
+about yet. Calling a gated function without the capability raises
 `<function> requires the "<cap>" capability` (**impl**; conformance test
 `tests/api/capabilities.lua`: every function below with and without its
 capability, alone and among the others).

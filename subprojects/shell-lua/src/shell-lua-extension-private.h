@@ -18,16 +18,6 @@
 
 G_BEGIN_DECLS
 
-/* Parses and validates <dir>/metadata.json. Returns NULL with @error set when
- * the directory cannot be used at all (missing/invalid metadata, uuid not
- * matching the directory name, unknown capability, ...). A "shell-api" whose
- * major is not 1 is not an error: the object is returned in state OUT_OF_DATE
- * with the error message "shell-api %s not supported". Otherwise the object
- * is returned in state INITIALIZED. (transfer full) */
-ShellLuaExtension *shell_lua_extension_new_from_dir (GFile                  *dir,
-                                                     ShellLuaExtensionType   type,
-                                                     GError                **error);
-
 /* Limits for the ShellLuaState created at enable (NULL = defaults). */
 void        shell_lua_extension_set_limits      (ShellLuaExtension    *self,
                                                  const ShellLuaLimits *limits);

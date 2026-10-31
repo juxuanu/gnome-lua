@@ -1,7 +1,8 @@
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
 /*
  * extension-system-private.h: What extension-system.c and
- * extension-downloader.c share. Not installed, not in the GIR.
+ * extension-downloader.c share (and the test runner uses). Not installed,
+ * not in the GIR.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
@@ -10,11 +11,15 @@
 
 #include <gio/gio.h>
 
+#include "ui/extension-downloader.h"
 #include "ui/extension-system.h"
 
 G_BEGIN_DECLS
 
 GSettings *shell_extension_manager_get_settings   (ShellExtensionManager *self);
+
+/* The downloader of the extensions of the index */
+ShellExtensionDownloader *shell_extension_manager_get_downloader (ShellExtensionManager *self);
 
 /* The directory of the per-user data of the shell (`global.userdatadir`) */
 char      *shell_extension_manager_dup_userdatadir (ShellExtensionManager *self);

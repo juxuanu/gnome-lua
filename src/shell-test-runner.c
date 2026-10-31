@@ -65,6 +65,9 @@
  *                                 passed, failed, done = {label = true}}
  *   test.live_workers ()          the worker threads (docs/api/worker.md)
  *                                 of every extension that have not exited
+ *   test.extension_index (url)    the index the downloader installs from
+ *                                 (a test.http_server) instead of
+ *                                 extensions.gnome.org
  *   test.log_capture (uuid, on)   captures the log of the extension
  *                                 (domain shell-lua/<uuid>, and the errors
  *                                 of its callbacks) and makes warnings
@@ -137,7 +140,9 @@
 #include "st-enum-types.h"
 #undef ST_H_INSIDE
 #include "ui/box-pointer.h"
+#include "ui/extension-downloader.h"
 #include "ui/extension-system.h"
+#include "ui/extension-system-private.h"
 #include "ui/layout.h"
 #include "ui/main.h"
 #include "ui/message-tray.h"
@@ -2692,6 +2697,19 @@ check_extension_manager (lua_State *L)
   return manager;
 }
 
+/* test.extension_index (url): the downloader asks this index for the
+ * extensions to install and their updates ("http://127.0.0.1:<port>" of a
+ * test.http_server) instead of extensions.gnome.org */
+static int
+l_extension_index (lua_State *L)
+{
+  ShellExtensionManager *manager = check_extension_manager (L);
+
+  shell_extension_downloader_set_index_url (shell_extension_manager_get_downloader (manager),
+                                            luaL_checkstring (L, 1));
+  return 0;
+}
+
 /* test.extension_enable (uuid) */
 static int
 l_extension_enable (lua_State *L)
@@ -3556,6 +3574,7 @@ static const luaL_Reg test_functions[] = {
   { "pointer_press", l_pointer_press },
   { "pointer_release", l_pointer_release },
   { "set_boolean", l_set_boolean },
+  { "extension_index", l_extension_index },
   { "extension_enable", l_extension_enable },
   { "extension_disable", l_extension_disable },
   { "extension_state", l_extension_state },
