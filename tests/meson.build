@@ -142,6 +142,9 @@ api_tests = [
     'name': 'ui',
   },
   {
+    'name': 'dash',
+  },
+  {
     'name': 'menu',
   },
   {
