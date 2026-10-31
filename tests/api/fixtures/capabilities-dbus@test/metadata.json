@@ -1,0 +1,9 @@
+{
+  "uuid": "capabilities-dbus@test",
+  "name": "API conformance: capabilities, dbus",
+  "description": "Fixture of tests/api/capabilities.lua: every gated function, with the dbus capability alone",
+  "shell-api": "1.1",
+  "settings-schema": "org.gnome-lua.test.capabilities",
+  "capabilities": ["dbus"],
+  "version": 1
+}

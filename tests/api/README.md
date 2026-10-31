@@ -17,6 +17,7 @@ change together.
 | `ui`, `menu`, `panel`, `dash`, `quick-settings`, `notify`, `window`, `dbus`, `keybindings`, `time` | the other documents | `<area>@test` |
 | `overview` | overview.md | `overview@test` |
 | `search` | search.md | `search@test`, `search-nocap@test` |
+| `capabilities` | the capabilities of README.md: every gated function with and without its capability, also among the others | `capabilities-<variant>@test` for `none`, each capability alone and `all`: the same `fixtures/capabilities/extension.lua` (linked), a different `metadata.json` |
 
 ## How a test runs
 

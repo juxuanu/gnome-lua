@@ -183,6 +183,20 @@ api_tests = [
     'name': 'time',
   },
   {
+    # One fixture, eight metadata.json (tests/api/capabilities.lua)
+    'name': 'capabilities',
+    'fixtures': [
+      'capabilities-none@test',
+      'capabilities-dbus@test',
+      'capabilities-settings@test',
+      'capabilities-search@test',
+      'capabilities-fs@test',
+      'capabilities-spawn@test',
+      'capabilities-network@test',
+      'capabilities-all@test',
+    ],
+  },
+  {
     'name': 'examples',
     'fixtures': [],
     'extension_dirs': [

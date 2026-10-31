@@ -1,0 +1,9 @@
+{
+  "uuid": "capabilities-spawn@test",
+  "name": "API conformance: capabilities, spawn",
+  "description": "Fixture of tests/api/capabilities.lua: every gated function, with the spawn capability alone",
+  "shell-api": "1.1",
+  "settings-schema": "org.gnome-lua.test.capabilities",
+  "capabilities": ["spawn"],
+  "version": 1
+}

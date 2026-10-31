@@ -1,0 +1,9 @@
+{
+  "uuid": "capabilities-network@test",
+  "name": "API conformance: capabilities, network",
+  "description": "Fixture of tests/api/capabilities.lua: every gated function, with the network capability alone",
+  "shell-api": "1.1",
+  "settings-schema": "org.gnome-lua.test.capabilities",
+  "capabilities": ["network"],
+  "version": 1
+}

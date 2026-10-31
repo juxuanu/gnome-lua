@@ -1,0 +1,9 @@
+{
+  "uuid": "capabilities-fs@test",
+  "name": "API conformance: capabilities, fs",
+  "description": "Fixture of tests/api/capabilities.lua: every gated function, with the fs capability alone",
+  "shell-api": "1.1",
+  "settings-schema": "org.gnome-lua.test.capabilities",
+  "capabilities": ["fs"],
+  "version": 1
+}

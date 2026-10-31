@@ -158,7 +158,9 @@ itself relative to another extension.
 Declared in `metadata.json` `"capabilities"`; unknown strings reject the
 extension (**impl**: `known_capabilities`); shown to the user in the extensions
 app. Calling a gated function without the capability raises
-`<function> requires the "<cap>" capability` (**impl** for `settings`).
+`<function> requires the "<cap>" capability` (**impl**; conformance test
+`tests/api/capabilities.lua`: every function below with and without its
+capability, alone and among the others).
 
 | Capability | Unlocks | Status |
 |---|---|---|

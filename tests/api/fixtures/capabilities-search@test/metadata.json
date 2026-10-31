@@ -1,0 +1,9 @@
+{
+  "uuid": "capabilities-search@test",
+  "name": "API conformance: capabilities, search",
+  "description": "Fixture of tests/api/capabilities.lua: every gated function, with the search capability alone",
+  "shell-api": "1.1",
+  "settings-schema": "org.gnome-lua.test.capabilities",
+  "capabilities": ["search"],
+  "version": 1
+}

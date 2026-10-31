@@ -1,0 +1,9 @@
+{
+  "uuid": "capabilities-none@test",
+  "name": "API conformance: capabilities, none",
+  "description": "Fixture of tests/api/capabilities.lua: every gated function, with no capability",
+  "shell-api": "1.1",
+  "settings-schema": "org.gnome-lua.test.capabilities",
+  "capabilities": [],
+  "version": 1
+}
