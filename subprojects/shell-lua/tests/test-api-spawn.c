@@ -205,10 +205,14 @@ test_basic_results (void)
   Env *env = env_new ();
   ShellLuaState *s = spawn_state (env, "spawnbasic@test");
 
-  /* never synchronous; the handle describes a running process */
+  /* never synchronous; the handle describes a running process. /bin/true
+   * can be gone (and reaped by GLib) before shell.spawn returns: then pid
+   * raises, as for an ended process */
   do_f (s, RESET "p = shell.spawn{ argv = { '/bin/true' }, " ON_EXIT " }");
   tu_assert_eval_true (s, "r == nil and p.alive == true");
-  tu_assert_eval_true (s, "math.type(p.pid) == 'integer' and p.pid > 0");
+  tu_assert_eval_true (s, "(function() local ok, pid = pcall(function() return p.pid end)\n"
+                          "  if ok then return math.type(pid) == 'integer' and pid > 0 end\n"
+                          "  return tostring(pid):find('the process has ended', 1, true) ~= nil end)()");
   tu_assert_eval_true (s, "tostring(p):find('^<shell%.Process ') ~= nil");
   wait_lua (s, "n > 0");
   tu_assert_eval_true (s, "r.status == 0 and r.signal == nil and r.stdout == '' and r.stderr == ''");

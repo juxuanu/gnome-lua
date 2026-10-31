@@ -69,7 +69,7 @@ policy, never after the extension is disabled. It is the only callback.
 
 | Member | Notes |
 |---|---|
-| `pid` | integer, read-only: the process id (raises when the process has ended, like any property of a dead handle) |
+| `pid` | integer, read-only: the process id. Raises when the process has ended, like any property of a dead handle, and also before `on_exit` for a process that ended before `shell.spawn` returned (its id may already belong to another process) |
 | `alive` | `true` while the process runs; `false` from the moment its result is ready (also inside `on_exit`) |
 | `kill()` | sends `SIGTERM` (the process may ignore it); does nothing when it has ended. The result still comes through `on_exit` |
 | `destroy()` | `SIGTERM`, `SIGKILL` 2 s later if needed, and forget: `on_exit` is not called afterwards. Idempotent |

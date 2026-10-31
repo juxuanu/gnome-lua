@@ -540,7 +540,26 @@ static const ShellLuaHandleMethod process_methods_ex[] = {
 };
 
 static const ShellLuaHandleProperty process_properties[] = {
-  { "pid", "pid", TRUE, FALSE },
+  { NULL }
+};
+
+/* GLib reaps the child on its worker thread and forgets its id then: a
+ * process that ends at once can be gone before shell.spawn () reads it.
+ * It has ended, so pid raises as it does once the handle is dead. */
+static void
+process_get_pid (lua_State *L,
+                 GObject   *object)
+{
+  ShellLuaProcess *process = SHELL_LUA_PROCESS (object);
+
+  if (process->pid == 0)
+    luaL_error (L, "the process has ended");
+
+  lua_pushinteger (L, process->pid);
+}
+
+static const ShellLuaHandleVirtual process_virtuals[] = {
+  { "pid", process_get_pid, NULL },
   { NULL }
 };
 
@@ -549,6 +568,7 @@ static ShellLuaHandleType process_type = {
   .methods = process_methods,
   .methods_ex = process_methods_ex,
   .properties = process_properties,
+  .virtuals = process_virtuals,
 };
 
 static const char * const spawn_fields[] = {
