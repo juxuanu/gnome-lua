@@ -1169,9 +1169,9 @@ l_worker_start (lua_State *L)
     return luaL_error (L, "field 'max_memory' must be between %d and %d",
                        (int) MIN_MAX_MEMORY, (int) MAX_MAX_MEMORY);
 
-  lua_getfield (L, 1, "on_message");
+  shell_lua_rawgetfield (L, 1, "on_message");
   message_idx = lua_gettop (L);
-  lua_getfield (L, 1, "on_error");
+  shell_lua_rawgetfield (L, 1, "on_error");
   error_idx = lua_gettop (L);
   if (!lua_isnil (L, message_idx) && !is_callable (L, message_idx))
     return luaL_error (L, "field 'on_message' must be a function, got %s", luaL_typename (L, message_idx));

@@ -446,11 +446,11 @@ add_item_common (lua_State     *L,
 
   if (spec->kind == KIND_IMAGE || spec->kind == KIND_SUBMENU)
     {
-      gboolean name = lua_getfield (L, 2, "icon_name") != LUA_TNIL;
+      gboolean name = shell_lua_rawgetfield (L, 2, "icon_name") != LUA_TNIL;
       gboolean file;
 
       lua_pop (L, 1);
-      file = lua_getfield (L, 2, "icon_file") != LUA_TNIL;
+      file = shell_lua_rawgetfield (L, 2, "icon_file") != LUA_TNIL;
       lua_pop (L, 1);
       if (name && file)
         return luaL_error (L, "fields 'icon_name' and 'icon_file' are mutually exclusive");
@@ -461,14 +461,14 @@ add_item_common (lua_State     *L,
 
   if (spec->kind == KIND_WIDGET)
     {
-      if (lua_getfield (L, 2, "child") == LUA_TNIL)
+      if (shell_lua_rawgetfield (L, 2, "child") == LUA_TNIL)
         return luaL_error (L, "missing required field 'child' (a widget)");
       child = shell_lua_api_ui_check_free_widget (L, -1);
       lua_pop (L, 1);
     }
 
   index = shell_lua_opt_integer (L, 2, "index", 0);
-  if (lua_getfield (L, 2, "index") != LUA_TNIL && index < 1)
+  if (shell_lua_rawgetfield (L, 2, "index") != LUA_TNIL && index < 1)
     return luaL_error (L, "field 'index' must be at least 1");
   lua_pop (L, 1);
 
@@ -477,13 +477,15 @@ add_item_common (lua_State     *L,
   shell_lua_own_object (L, object, shell_lua_api_ui_actor_ops ());
   shell_lua_api_ui_decorate (L, actor);
 
+  /* The child checked above goes in before the item is in the menu, which
+   * may tell others (hooks) about it */
+  if (child != NULL)
+    clutter_actor_add_child (actor, child);
+
   if (index > 0 && index <= INT_MAX)
     shell_popup_menu_base_insert_menu_item (menu, object, (int) index - 1);
   else
     shell_popup_menu_base_add_menu_item (menu, object);
-
-  if (child != NULL)
-    clutter_actor_add_child (actor, child);
 
   shell_lua_handle_push (L, item_type_name (spec->kind), object);   /* 3: the handle */
   lua_pushcfunction (L, apply_item_fields);

@@ -64,7 +64,14 @@ from outside the extension directory.
 
 1. Constructors and anything that creates or changes shell state take **one
    options table**. Unknown or mistyped fields, and missing required ones,
-   raise an error naming the field (**impl**: `check_fields`). Positional forms
+   raise an error naming the field (**impl**: `check_fields`). The options
+   table, and every table in it that the API reads (`accelerators`,
+   `actions`, `headers`, `children`...), is a **plain table**: the API reads
+   its fields raw, never through metamethods, and a table with a metatable
+   raises `... must be a plain table (it has a metatable)` (**impl**:
+   `shell_lua_check_plain_table`; conformance test `tests/api/arguments.lua`).
+   So no code of the extension runs while a call checks and uses its
+   arguments. Positional forms
    exist only where core.md defines them (`hooks.on(name, fn)`,
    `timer.after(ms, fn)`, `settings:on_changed(key, fn)`) and for one-argument
    getters/setters such as `windows.get(id)`.

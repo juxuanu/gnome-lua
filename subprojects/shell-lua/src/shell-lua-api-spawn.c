@@ -656,15 +656,15 @@ l_spawn (lua_State *L)
    * allocated yet */
   timeout_ms = shell_lua_opt_integer (L, 1, "timeout_ms", G_MININT64);
   max_output = shell_lua_opt_integer (L, 1, "max_output", DEFAULT_MAX_OUTPUT);
-  lua_getfield (L, 1, "argv");
+  shell_lua_rawgetfield (L, 1, "argv");
   argv_idx = lua_gettop (L);
-  lua_getfield (L, 1, "cwd");
+  shell_lua_rawgetfield (L, 1, "cwd");
   cwd_idx = lua_gettop (L);
-  lua_getfield (L, 1, "env");
+  shell_lua_rawgetfield (L, 1, "env");
   env_idx = lua_gettop (L);
-  lua_getfield (L, 1, "stdin");
+  shell_lua_rawgetfield (L, 1, "stdin");
   stdin_idx = lua_gettop (L);
-  lua_getfield (L, 1, "on_exit");
+  shell_lua_rawgetfield (L, 1, "on_exit");
   exit_idx = lua_gettop (L);
 
   if (lua_isnil (L, argv_idx))

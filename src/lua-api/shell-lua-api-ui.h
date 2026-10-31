@@ -57,6 +57,13 @@ const ShellLuaOwnOps *shell_lua_api_ui_actor_ops (void);
 void          shell_lua_api_ui_decorate          (lua_State   *L,
                                                   ClutterActor *actor);
 
+/* shell.ui.label{...} and shell.ui.icon{...} (lua_CFunctions: the options
+ * table is the argument), for the shorthand fields of other modules: they
+ * call the constructors themselves, not the shell table, which the extension
+ * can change. */
+int           shell_lua_api_ui_new_label         (lua_State *L);
+int           shell_lua_api_ui_new_icon          (lua_State *L);
+
 /* `lua-ext-<id>` for the extension of @L, "" for states without one.
  * (transfer full) */
 char         *shell_lua_api_ui_extension_class   (lua_State *L);

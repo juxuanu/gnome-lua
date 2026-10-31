@@ -145,7 +145,7 @@ check_callback_field (lua_State  *L,
                       int         tbl,
                       const char *field)
 {
-  int type = lua_getfield (L, tbl, field);
+  int type = shell_lua_rawgetfield (L, tbl, field);
 
   if (type != LUA_TNIL && type != LUA_TFUNCTION &&
       luaL_getmetafield (L, -1, "__call") == LUA_TNIL)
@@ -962,7 +962,7 @@ l_proxy_call (lua_State *L)
   check_callback_field (L, 2, "on_reply");
   check_callback_field (L, 2, "on_error");
 
-  if (lua_getfield (L, 2, "args") != LUA_TNIL)
+  if (shell_lua_rawgetfield (L, 2, "args") != LUA_TNIL)
     {
       if (!lua_istable (L, -1))
         luaL_error (L, "field 'args' must be a sequence, got %s", luaL_typename (L, -1));
@@ -1037,7 +1037,7 @@ properties_call (lua_State  *L,
       GVariant *value;
 
       check_single_type (L, signature, "field 'signature'");
-      if (lua_getfield (L, 2, "value") == LUA_TNIL)
+      if (shell_lua_rawgetfield (L, 2, "value") == LUA_TNIL)
         luaL_error (L, "missing required field 'value'");
       value = shell_lua_to_variant (L, -1, G_VARIANT_TYPE (signature));
       lua_pop (L, 1);
@@ -2040,7 +2040,7 @@ export_build (lua_State *L)
   self->interface = g_strdup (self->info->name);
 
   /* methods = { Name = function(...) } */
-  if (lua_getfield (L, tbl, "methods") != LUA_TNIL)
+  if (shell_lua_rawgetfield (L, tbl, "methods") != LUA_TNIL)
     {
       if (!lua_istable (L, -1))
         luaL_error (L, "field 'methods' must be a table, got %s", luaL_typename (L, -1));
@@ -2066,7 +2066,7 @@ export_build (lua_State *L)
   lua_pop (L, 1);
 
   /* properties = { Name = value }, converted by the XML type */
-  if (lua_getfield (L, tbl, "properties") != LUA_TNIL)
+  if (shell_lua_rawgetfield (L, tbl, "properties") != LUA_TNIL)
     {
       if (!lua_istable (L, -1))
         luaL_error (L, "field 'properties' must be a table, got %s", luaL_typename (L, -1));
@@ -2246,7 +2246,7 @@ l_object_emit_signal (lua_State *L)
     }
   g_string_append_c (sig, ')');
 
-  if (lua_getfield (L, 2, "args") != LUA_TNIL)
+  if (shell_lua_rawgetfield (L, 2, "args") != LUA_TNIL)
     {
       if (!lua_istable (L, -1))
         {
@@ -2374,8 +2374,8 @@ l_bus_watch_name (lua_State *L)
     return luaL_error (L, "field 'name' is not a valid bus name: '%s'", name);
   check_callback_field (L, 2, "on_appeared");
   check_callback_field (L, 2, "on_vanished");
-  lua_getfield (L, 2, "on_appeared");
-  lua_getfield (L, 2, "on_vanished");
+  shell_lua_rawgetfield (L, 2, "on_appeared");
+  shell_lua_rawgetfield (L, 2, "on_vanished");
   if (lua_isnil (L, -1) && lua_isnil (L, -2))
     return luaL_error (L, "at least one of 'on_appeared' and 'on_vanished' is required");
   lua_pop (L, 2);

@@ -133,7 +133,7 @@ field_present (lua_State  *L,
                int         tbl,
                const char *field)
 {
-  gboolean present = lua_getfield (L, tbl, field) != LUA_TNIL;
+  gboolean present = shell_lua_rawgetfield (L, tbl, field) != LUA_TNIL;
 
   lua_pop (L, 1);
   return present;
@@ -146,7 +146,7 @@ check_callable_field (lua_State  *L,
                       int         tbl,
                       const char *field)
 {
-  if (lua_getfield (L, tbl, field) != LUA_TNIL && lua_type (L, -1) != LUA_TFUNCTION)
+  if (shell_lua_rawgetfield (L, tbl, field) != LUA_TNIL && lua_type (L, -1) != LUA_TFUNCTION)
     {
       if (luaL_getmetafield (L, -1, "__call") == LUA_TNIL)
         luaL_error (L, "field '%s' must be a function, got %s", field, luaL_typename (L, -1));

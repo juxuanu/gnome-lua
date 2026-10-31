@@ -86,7 +86,7 @@ read_instant (lua_State *L,
       shell_lua_check_fields (L, idx, instant_fields);
       utc = shell_lua_opt_boolean (L, idx, "utc", FALSE);
 
-      if (lua_getfield (L, idx, "at") == LUA_TNIL)
+      if (shell_lua_rawgetfield (L, idx, "at") == LUA_TNIL)
         {
           gint64 now = g_get_real_time ();
 
@@ -216,7 +216,7 @@ get_integer_field (lua_State  *L,
   lua_Integer value;
   int isnum;
 
-  if (lua_getfield (L, tbl, name) == LUA_TNIL)
+  if (shell_lua_rawgetfield (L, tbl, name) == LUA_TNIL)
     {
       lua_pop (L, 1);
       if (required)
@@ -320,7 +320,7 @@ l_timestamp (lua_State *L)
   micro = get_integer_field (L, 1, "microsecond", 0, 999999, 0, FALSE);
   utc = shell_lua_opt_boolean (L, 1, "utc", FALSE);
 
-  have_offset = lua_getfield (L, 1, "offset") != LUA_TNIL;
+  have_offset = shell_lua_rawgetfield (L, 1, "offset") != LUA_TNIL;
   lua_pop (L, 1);
   if (have_offset)
     offset = get_integer_field (L, 1, "offset", G_MININT32, G_MAXINT32, 0, FALSE);

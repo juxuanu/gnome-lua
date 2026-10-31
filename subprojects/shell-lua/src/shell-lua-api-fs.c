@@ -97,7 +97,7 @@ push_callback_field (lua_State  *L,
                      const char *field,
                      gboolean    required)
 {
-  int type = lua_getfield (L, tbl, field);
+  int type = shell_lua_rawgetfield (L, tbl, field);
 
   if (type == LUA_TNIL)
     {
@@ -276,7 +276,7 @@ static const char *
 check_path_field (lua_State *L,
                   int        tbl)
 {
-  if (lua_getfield (L, tbl, "path") == LUA_TNIL)
+  if (shell_lua_rawgetfield (L, tbl, "path") == LUA_TNIL)
     luaL_error (L, "missing required field 'path' (a string)");
   return check_path_string (L, -1, "field 'path'");
 }
@@ -1126,7 +1126,7 @@ l_fs_write (lua_State *L)
   ShellLuaFsTask *task;
 
   shell_lua_check_fields (L, 1, write_fields);
-  if (lua_getfield (L, 1, "contents") != LUA_TSTRING)
+  if (shell_lua_rawgetfield (L, 1, "contents") != LUA_TSTRING)
     {
       if (lua_isnil (L, -1))
         return luaL_error (L, "missing required field 'contents' (a string)");

@@ -108,24 +108,17 @@ valid_role (const char *name)
 
 /* The shorthand fields are `shell.ui.icon{ style_class = "system-status-icon",
  * ... }` and `shell.ui.label{ text = ..., y_align = "center" }`: they are made
- * by the constructors of shell.ui (the table is the first upvalue of
- * add_indicator), so the child is a widget like any other. Leaves the handle
- * on the stack and returns the actor. */
+ * by the constructors of shell.ui, so the child is a widget like any other.
+ * They are called directly, not through the shell table: the extension can
+ * change that, and no code of it may run while add_indicator works. Leaves
+ * the handle on the stack and returns the actor. */
 static ClutterActor *
 make_shorthand_child (lua_State  *L,
                       const char *icon_name,
                       const char *icon_file,
                       const char *text)
 {
-  const char *constructor = text != NULL ? "label" : "icon";
-
-  lua_pushvalue (L, lua_upvalueindex (1));
-  if (lua_getfield (L, -1, "ui") != LUA_TTABLE)
-    luaL_error (L, "the fields 'icon_name', 'icon_file' and 'text' need shell.ui");
-  lua_remove (L, -2);
-  if (lua_getfield (L, -1, constructor) != LUA_TFUNCTION)
-    luaL_error (L, "the fields 'icon_name', 'icon_file' and 'text' need shell.ui.%s", constructor);
-  lua_remove (L, -2);
+  lua_pushcfunction (L, text != NULL ? shell_lua_api_ui_new_label : shell_lua_api_ui_new_icon);
 
   lua_newtable (L);
   if (text != NULL)
@@ -461,7 +454,7 @@ l_add_indicator (lua_State *L)
   position = opt_choice (L, "position", position_names, SHELL_PANEL_BOX_RIGHT);
   edge = opt_choice (L, "edge", edge_names, SHELL_PANEL_EDGE_START);
 
-  lua_getfield (L, 1, "index");
+  shell_lua_rawgetfield (L, 1, "index");
   has_index = !lua_isnil (L, -1);
   lua_pop (L, 1);
   index = shell_lua_opt_integer (L, 1, "index", 0);
@@ -471,7 +464,7 @@ l_add_indicator (lua_State *L)
     index = G_MAXINT;
 
   /* exactly one of child, icon_name, icon_file, text, or none */
-  lua_getfield (L, 1, "child");
+  shell_lua_rawgetfield (L, 1, "child");
   if (!lua_isnil (L, -1))
     {
       child = shell_lua_api_ui_check_free_widget (L, -1);
@@ -485,7 +478,7 @@ l_add_indicator (lua_State *L)
   if (n_content > 1)
     return luaL_error (L, "only one of 'child', 'icon_name', 'icon_file' and 'text' can be given");
 
-  lua_getfield (L, 1, "on_click");
+  shell_lua_rawgetfield (L, 1, "on_click");
   has_click = !lua_isnil (L, -1);
   if (has_click && lua_type (L, -1) != LUA_TFUNCTION)
     return luaL_error (L, "field 'on_click' must be a function, got %s", luaL_typename (L, -1));

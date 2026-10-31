@@ -1503,7 +1503,7 @@ field_present (lua_State  *L,
                int         tbl,
                const char *field)
 {
-  gboolean present = lua_getfield (L, tbl, field) != LUA_TNIL;
+  gboolean present = shell_lua_rawgetfield (L, tbl, field) != LUA_TNIL;
 
   lua_pop (L, 1);
   return present;
@@ -1614,13 +1614,14 @@ apply_fields (lua_State *L)
       lua_pop (L, 1);       /* the value; the key stays for lua_next */
     }
 
-  if (lua_getfield (L, 2, "children") != LUA_TNIL)
+  if (shell_lua_rawgetfield (L, 2, "children") != LUA_TNIL)
     {
       ClutterActor *box = CLUTTER_ACTOR (shell_lua_handle_check (L, 1, "shell.Box"));
       lua_Unsigned n, i;
 
       if (!lua_istable (L, -1))
         luaL_error (L, "field 'children' must be a table, got %s", luaL_typename (L, -1));
+      shell_lua_check_plain_table (L, -1, "field 'children'");
       n = lua_rawlen (L, -1);
       for (i = 1; i <= n; i++)
         {
@@ -1698,6 +1699,18 @@ CONSTRUCTOR (l_ui_switch, kind_switch)
 CONSTRUCTOR (l_ui_slider, kind_slider)
 CONSTRUCTOR (l_ui_spacer, kind_spacer)
 CONSTRUCTOR (l_ui_scroll, kind_scroll)
+
+int
+shell_lua_api_ui_new_label (lua_State *L)
+{
+  return l_ui_label (L);
+}
+
+int
+shell_lua_api_ui_new_icon (lua_State *L)
+{
+  return l_ui_icon (L);
+}
 
 /* ------------------------------------------------------------------------ */
 /* Module                                                                    */

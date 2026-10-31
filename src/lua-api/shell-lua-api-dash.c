@@ -288,7 +288,7 @@ create_button (lua_State *L,
         index = G_MAXINT;
     }
 
-  lua_getfield (L, 1, "on_click");
+  shell_lua_rawgetfield (L, 1, "on_click");
   if (!lua_isnil (L, -1) && lua_type (L, -1) != LUA_TFUNCTION)
     return luaL_error (L, "field 'on_click' must be a function, got %s", luaL_typename (L, -1));
   lua_pop (L, 1);

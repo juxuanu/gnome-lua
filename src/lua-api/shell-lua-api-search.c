@@ -936,7 +936,7 @@ check_function_field (lua_State  *L,
                       const char *field,
                       gboolean    required)
 {
-  lua_getfield (L, 1, field);
+  shell_lua_rawgetfield (L, 1, field);
   if (lua_isnil (L, -1))
     {
       if (required)
@@ -1013,6 +1013,11 @@ l_add_provider (lua_State *L)
       return 2;
     }
 
+  /* The references before anything is registered (they were checked above) */
+  search_ref = shell_lua_opt_callback (L, 1, "on_search", TRUE);
+  activate_ref = shell_lua_opt_callback (L, 1, "on_activate", TRUE);
+  launch_ref = shell_lua_opt_callback (L, 1, "on_launch", FALSE);
+
   provider = g_object_new (SHELL_TYPE_LUA_SEARCH_PROVIDER, NULL);
   provider->id = g_strdup (id);
   provider->full_id = full_id;
@@ -1034,10 +1039,6 @@ l_add_provider (lua_State *L)
   g_hash_table_insert (live_providers, provider->full_id, provider);
 
   shell_lua_own_object (L, G_OBJECT (provider), &provider_ops);   /* a reference of the context */
-
-  search_ref = shell_lua_opt_callback (L, 1, "on_search", TRUE);
-  activate_ref = shell_lua_opt_callback (L, 1, "on_activate", TRUE);
-  launch_ref = shell_lua_opt_callback (L, 1, "on_launch", FALSE);
 
   provider->on_search = shell_lua_callback_ref (shell_lua_callback_new (L, G_OBJECT (provider), search_ref));
   provider->on_activate = shell_lua_callback_ref (shell_lua_callback_new (L, G_OBJECT (provider), activate_ref));

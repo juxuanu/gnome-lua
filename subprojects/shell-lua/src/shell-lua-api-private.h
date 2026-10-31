@@ -95,7 +95,14 @@ void           shell_lua_state_note_callee (lua_State *L,
 
 /* Argument helpers for the "single options table" calling convention used by
  * every shell.* constructor: shell.timer.every{interval=..., callback=...}.
- * All of them raise a Lua error naming the field on type mismatch. */
+ * All of them raise a Lua error naming the field on type mismatch. The
+ * table must be a plain table (no metatable) and is read raw: no code of
+ * the extension runs while the API reads its arguments. */
+/* Raises unless the value at @idx is a table without a metatable; @what
+ * names it in the message ("field 'actions'"). */
+void        shell_lua_check_plain_table (lua_State *L, int idx, const char *what);
+/* lua_getfield () without metamethods: pushes @tbl[@field], returns its type */
+int         shell_lua_rawgetfield (lua_State *L, int tbl, const char *field);
 const char *shell_lua_opt_string  (lua_State *L, int tbl, const char *field, const char *def);
 lua_Integer shell_lua_opt_integer (lua_State *L, int tbl, const char *field, lua_Integer def);
 lua_Number  shell_lua_opt_number  (lua_State *L, int tbl, const char *field, lua_Number def);

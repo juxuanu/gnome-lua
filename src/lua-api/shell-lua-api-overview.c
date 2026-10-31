@@ -237,7 +237,9 @@ overview_pairs_next (lua_State *L)
 
       for (i = 0; names[i] != NULL && strcmp (names[i], key) != 0; i++)
         ;
-      i++;
+      /* a key that is not one of the names ends the iteration */
+      if (names[i] != NULL)
+        i++;
     }
 
   if (names[i] == NULL)

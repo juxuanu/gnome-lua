@@ -209,6 +209,9 @@ api_tests = [
     'name': 'overview',
   },
   {
+    'name': 'arguments',
+  },
+  {
     'name': 'search',
     'fixtures': ['search@test', 'search-nocap@test'],
   },

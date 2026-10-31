@@ -676,7 +676,7 @@ static void
 check_callable_field (lua_State  *L,
                       const char *field)
 {
-  if (lua_getfield (L, 1, field) != LUA_TNIL && lua_type (L, -1) != LUA_TFUNCTION)
+  if (shell_lua_rawgetfield (L, 1, field) != LUA_TNIL && lua_type (L, -1) != LUA_TFUNCTION)
     {
       if (luaL_getmetafield (L, -1, "__call") == LUA_TNIL)
         luaL_error (L, "field '%s' must be a function, got %s", field, luaL_typename (L, -1));
@@ -788,10 +788,14 @@ l_request (lua_State *L)
   timeout_ms = range_field (L, "timeout_ms", DEFAULT_TIMEOUT_MS, 1, MAX_TIMEOUT_MS);
   max_bytes = range_field (L, "max_bytes", DEFAULT_MAX_BYTES, 0, MAX_MAX_BYTES);
 
-  if (lua_getfield (L, 1, "headers") != LUA_TNIL)
+  if (shell_lua_rawgetfield (L, 1, "headers") != LUA_TNIL)
     {
       if (lua_type (L, -1) != LUA_TTABLE)
         return luaL_error (L, "field 'headers' must be a table, got %s", luaL_typename (L, -1));
+      /* It is walked again to build the request: nothing may change it
+       * between (the options are read raw, so no code of the extension
+       * runs) */
+      shell_lua_check_plain_table (L, -1, "field 'headers'");
       headers_idx = lua_gettop (L);
       has_headers = TRUE;
       check_headers (L, headers_idx, &has_content_type);
@@ -801,7 +805,7 @@ l_request (lua_State *L)
       lua_pop (L, 1);
     }
 
-  if (lua_getfield (L, 1, "body") != LUA_TNIL)
+  if (shell_lua_rawgetfield (L, 1, "body") != LUA_TNIL)
     {
       if (lua_type (L, -1) != LUA_TSTRING)
         return luaL_error (L, "field 'body' must be a string, got %s", luaL_typename (L, -1));

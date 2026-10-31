@@ -309,7 +309,7 @@ field_present (lua_State  *L,
                int         tbl,
                const char *field)
 {
-  gboolean present = lua_getfield (L, tbl, field) != LUA_TNIL;
+  gboolean present = shell_lua_rawgetfield (L, tbl, field) != LUA_TNIL;
 
   lua_pop (L, 1);
   return present;
@@ -321,7 +321,7 @@ check_callable_field (lua_State  *L,
                       int         tbl,
                       const char *field)
 {
-  if (lua_getfield (L, tbl, field) != LUA_TNIL && lua_type (L, -1) != LUA_TFUNCTION)
+  if (shell_lua_rawgetfield (L, tbl, field) != LUA_TNIL && lua_type (L, -1) != LUA_TFUNCTION)
     {
       if (luaL_getmetafield (L, -1, "__call") == LUA_TNIL)
         luaL_error (L, "field '%s' must be a function, got %s", field, luaL_typename (L, -1));
@@ -642,7 +642,7 @@ check_notify_options (lua_State *L,
 
   if (field_present (L, tbl, "urgency"))
     {
-      lua_getfield (L, tbl, "urgency");
+      shell_lua_rawgetfield (L, tbl, "urgency");
       check_urgency (L, -1, "field 'urgency'");
       lua_pop (L, 1);
     }
@@ -654,9 +654,11 @@ check_notify_options (lua_State *L,
     {
       lua_Integer n, i;
 
-      lua_getfield (L, tbl, "actions");
+      shell_lua_rawgetfield (L, tbl, "actions");
       if (lua_type (L, -1) != LUA_TTABLE)
         luaL_error (L, "field 'actions' must be a sequence of tables, got %s", luaL_typename (L, -1));
+      /* post_notification () reads it again: nothing may change it between */
+      shell_lua_check_plain_table (L, -1, "field 'actions'");
 
       n = (lua_Integer) lua_rawlen (L, -1);
       if (n > MAX_ACTIONS)
@@ -791,7 +793,7 @@ post_notification (lua_State            *L,
                                        shell_lua_opt_boolean (L, tbl, "transient", FALSE));
   if (has_urgency)
     {
-      lua_getfield (L, tbl, "urgency");
+      shell_lua_rawgetfield (L, tbl, "urgency");
       shell_notification_set_urgency (notification, check_urgency (L, -1, "urgency"));
       lua_pop (L, 1);
     }
@@ -831,7 +833,7 @@ post_notification (lua_State            *L,
     {
       lua_Integer n, i;
 
-      lua_getfield (L, tbl, "actions");
+      shell_lua_rawgetfield (L, tbl, "actions");
       n = (lua_Integer) lua_rawlen (L, -1);
       for (i = 1; i <= n; i++)
         {

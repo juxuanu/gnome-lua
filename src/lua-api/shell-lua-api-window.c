@@ -594,7 +594,7 @@ check_rect_field (lua_State  *L,
   lua_Integer value;
   int isint;
 
-  if (lua_getfield (L, tbl, name) == LUA_TNIL)
+  if (shell_lua_rawgetfield (L, tbl, name) == LUA_TNIL)
     luaL_error (L, "missing required field '%s' (an integer)", name);
   if (lua_type (L, -1) != LUA_TNUMBER)
     luaL_error (L, "field '%s' must be an integer, got %s", name, luaL_typename (L, -1));

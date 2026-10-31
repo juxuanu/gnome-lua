@@ -543,16 +543,18 @@ check_string_sequence (lua_State  *L,
                        int         tbl,
                        const char *field)
 {
+  g_autofree char *what = g_strdup_printf ("field '%s'", field);
   lua_Integer n, i;
 
-  if (lua_getfield (L, tbl, field) != LUA_TTABLE)
+  if (shell_lua_rawgetfield (L, tbl, field) != LUA_TTABLE)
     return luaL_error (L, "field '%s' must be a sequence of strings, got %s",
                        field, luaL_typename (L, -1));
+  shell_lua_check_plain_table (L, -1, what);
 
-  n = luaL_len (L, -1);
+  n = (lua_Integer) lua_rawlen (L, -1);
   for (i = 1; i <= n; i++)
     {
-      if (lua_geti (L, -1, i) != LUA_TSTRING)
+      if (lua_rawgeti (L, -1, i) != LUA_TSTRING)
         return luaL_error (L, "field '%s': element %d must be a string, got %s",
                            field, (int) i, luaL_typename (L, -1));
       lua_pop (L, 1);
@@ -569,7 +571,7 @@ check_modes (lua_State *L,
   ShellActionMode modes = SHELL_ACTION_MODE_NONE;
   lua_Integer i, n;
 
-  if (lua_getfield (L, tbl, "modes") == LUA_TNIL)
+  if (shell_lua_rawgetfield (L, tbl, "modes") == LUA_TNIL)
     {
       lua_pop (L, 1);
       return SHELL_ACTION_MODE_NORMAL | SHELL_ACTION_MODE_OVERVIEW;
@@ -580,12 +582,12 @@ check_modes (lua_State *L,
   if (n == 0)
     luaL_error (L, "field 'modes' must not be empty");
 
-  lua_getfield (L, tbl, "modes");
+  shell_lua_rawgetfield (L, tbl, "modes");
   for (i = 1; i <= n; i++)
     {
       const char *mode;
 
-      lua_geti (L, -1, i);
+      lua_rawgeti (L, -1, i);
       mode = lua_tostring (L, -1);
       if (strcmp (mode, "normal") == 0)
         modes |= SHELL_ACTION_MODE_NORMAL;
@@ -610,7 +612,7 @@ check_settings (lua_State *L,
   ShellLuaExtension *extension = shell_lua_extension_from_L (L);
   GSettings *settings = NULL;
 
-  if (lua_getfield (L, tbl, "settings") != LUA_TNIL)
+  if (shell_lua_rawgetfield (L, tbl, "settings") != LUA_TNIL)
     {
       settings = G_SETTINGS (shell_lua_handle_check (L, -1, "shell.Settings"));
       lua_pop (L, 1);
@@ -687,7 +689,7 @@ l_add (lua_State *L)
 
   name = shell_lua_opt_string (L, 1, "name", NULL);
   has_name = name != NULL;
-  has_accelerators = lua_getfield (L, 1, "accelerators") != LUA_TNIL;
+  has_accelerators = shell_lua_rawgetfield (L, 1, "accelerators") != LUA_TNIL;
   lua_pop (L, 1);
 
   if (has_name == has_accelerators)
@@ -705,7 +707,7 @@ l_add (lua_State *L)
     {
       int i;
 
-      if (lua_getfield (L, 1, "settings") != LUA_TNIL)
+      if (shell_lua_rawgetfield (L, 1, "settings") != LUA_TNIL)
         return luaL_error (L, "field 'settings' is only valid with 'name'");
       lua_pop (L, 1);
 
@@ -714,10 +716,10 @@ l_add (lua_State *L)
         return luaL_error (L, "field 'accelerators' must hold 1 to %d accelerators, got %d",
                            MAX_ACCELERATORS, n);
 
-      lua_getfield (L, 1, "accelerators");
+      shell_lua_rawgetfield (L, 1, "accelerators");
       for (i = 1; i <= n; i++)
         {
-          lua_geti (L, -1, i);
+          lua_rawgeti (L, -1, i);
           if (!accelerator_is_valid (lua_tostring (L, -1)))
             return luaL_error (L, "field 'accelerators': '%s' is not an accelerator (e.g. \"<Super>x\")",
                                lua_tostring (L, -1));
@@ -728,7 +730,7 @@ l_add (lua_State *L)
 
   modes = check_modes (L, 1);
 
-  lua_getfield (L, 1, "on_pressed");
+  shell_lua_rawgetfield (L, 1, "on_pressed");
   on_pressed_type = lua_type (L, -1);
   lua_pop (L, 1);
   if (on_pressed_type == LUA_TNIL)
@@ -755,10 +757,10 @@ l_add (lua_State *L)
       int i;
 
       accelerators = g_new0 (char *, n + 1);
-      lua_getfield (L, 1, "accelerators");
+      shell_lua_rawgetfield (L, 1, "accelerators");
       for (i = 0; i < n; i++)
         {
-          lua_geti (L, -1, i + 1);
+          lua_rawgeti (L, -1, i + 1);
           accelerators[i] = g_strdup (lua_tostring (L, -1));
           lua_pop (L, 1);
         }
@@ -799,7 +801,7 @@ l_add (lua_State *L)
   shell_lua_own_object (L, G_OBJECT (self), &keybinding_ops);
   g_object_unref (self);   /* the context holds it */
 
-  lua_getfield (L, 1, "on_pressed");
+  shell_lua_rawgetfield (L, 1, "on_pressed");
   ref = luaL_ref (L, LUA_REGISTRYINDEX);
   {
     ShellLuaCallback *cb = shell_lua_callback_new (L, G_OBJECT (self), ref);

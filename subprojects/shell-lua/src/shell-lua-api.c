@@ -170,12 +170,39 @@ shell_lua_state_from_L (lua_State *L)
 /* Option helpers                                                            */
 /* ------------------------------------------------------------------------ */
 
+/* Option tables, and the tables in them that the API reads, are plain data
+ * (README calling convention 1): they are read raw, so no metamethod of the
+ * extension runs between the checks of an argument and its use, and a table
+ * with a metatable is refused rather than half honoured. */
+void
+shell_lua_check_plain_table (lua_State  *L,
+                             int         idx,
+                             const char *what)
+{
+  if (!lua_istable (L, idx))
+    luaL_error (L, "%s expected to be a table, got %s", what, luaL_typename (L, idx));
+  if (lua_getmetatable (L, idx))
+    luaL_error (L, "%s must be a plain table (it has a metatable)", what);
+}
+
+int
+shell_lua_rawgetfield (lua_State  *L,
+                       int         tbl,
+                       const char *field)
+{
+  tbl = lua_absindex (L, tbl);
+  lua_pushstring (L, field);
+  return lua_rawget (L, tbl);
+}
+
 static void
 check_options_table (lua_State *L,
                      int        tbl)
 {
   if (!lua_istable (L, tbl))
     luaL_error (L, "options table expected, got %s", luaL_typename (L, tbl));
+  if (lua_getmetatable (L, tbl))
+    luaL_error (L, "options table must be a plain table (it has a metatable)");
 }
 
 void
@@ -213,7 +240,7 @@ shell_lua_opt_string (lua_State  *L,
 
   check_options_table (L, tbl);
 
-  if (lua_getfield (L, tbl, field) == LUA_TNIL)
+  if (shell_lua_rawgetfield (L, tbl, field) == LUA_TNIL)
     {
       lua_pop (L, 1);
       return def;
@@ -223,7 +250,8 @@ shell_lua_opt_string (lua_State  *L,
     luaL_error (L, "field '%s' must be a string, got %s", field, luaL_typename (L, -1));
 
   /* The table keeps the string alive, so the pointer stays valid as long as
-   * the field is not reassigned. */
+   * the field is not reassigned: the caller runs no Lua code of the
+   * extension (reads are raw) before it is done with it. */
   value = lua_tostring (L, -1);
   lua_pop (L, 1);
   return value;
@@ -240,7 +268,7 @@ shell_lua_opt_integer (lua_State  *L,
 
   check_options_table (L, tbl);
 
-  if (lua_getfield (L, tbl, field) == LUA_TNIL)
+  if (shell_lua_rawgetfield (L, tbl, field) == LUA_TNIL)
     {
       lua_pop (L, 1);
       return def;
@@ -267,7 +295,7 @@ shell_lua_opt_number (lua_State  *L,
 
   check_options_table (L, tbl);
 
-  if (lua_getfield (L, tbl, field) == LUA_TNIL)
+  if (shell_lua_rawgetfield (L, tbl, field) == LUA_TNIL)
     {
       lua_pop (L, 1);
       return def;
@@ -291,7 +319,7 @@ shell_lua_opt_boolean (lua_State  *L,
 
   check_options_table (L, tbl);
 
-  if (lua_getfield (L, tbl, field) == LUA_TNIL)
+  if (shell_lua_rawgetfield (L, tbl, field) == LUA_TNIL)
     {
       lua_pop (L, 1);
       return def;
@@ -313,7 +341,7 @@ shell_lua_opt_callback (lua_State  *L,
 {
   check_options_table (L, tbl);
 
-  if (lua_getfield (L, tbl, field) == LUA_TNIL)
+  if (shell_lua_rawgetfield (L, tbl, field) == LUA_TNIL)
     {
       lua_pop (L, 1);
       if (required)
