@@ -3,9 +3,10 @@
 --
 -- The state lives in the extension's settings (schemas/), so it survives a
 -- restart and can be changed from outside (dconf, the preferences). The
--- widgets are updated from settings:on_changed(); assigning to a widget
--- property never calls the widget's own callback (docs/api/README.md, rule 7),
--- so this synchronisation cannot loop.
+-- widgets are updated from settings:on_changed(), and the settings from the
+-- widgets' callbacks. An assignment calls a widget's callback like any change
+-- (docs/api/README.md, rule 7), so each direction writes only a value that
+-- differs, and this synchronisation cannot loop.
 local shell = require("shell")
 local qs = shell.quick_settings
 
@@ -47,7 +48,9 @@ function ext.enable()
     value = settings:get_double("level"),
     sensitive = settings:get_boolean("enabled"),
     on_changed = function(_, value)
-      settings:set_double("level", value)
+      if math.abs(settings:get_double("level") - value) > 0.001 then
+        settings:set_double("level", value)
+      end
     end,
   }
 
@@ -58,7 +61,9 @@ function ext.enable()
     end,
   }
 
-  -- Changes made elsewhere reach the widgets; the assignments are silent
+  -- Changes made elsewhere reach the widgets. checked is not a click, so
+  -- on_toggle does not run; a new value calls the slider's on_changed, which
+  -- finds the setting equal already
   settings:on_changed("enabled", function(_, on)
     toggle.checked = on
     toggle.subtitle = subtitle(on)

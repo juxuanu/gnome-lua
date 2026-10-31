@@ -76,7 +76,8 @@ All return a handle and take one table. Common optional fields: `visible`
 | `on_click` | function(self) | action button: no state, `checked` stays false. Exclusive with `on_toggle` (raises); with neither, the item is display-only |
 
 When `on_toggle` runs the shell has already flipped `checked`; to veto, assign
-`self.checked = false` in the callback (silent, README rule 7). **(as built)**
+`self.checked = false` in the callback (an assignment is not a click: it does
+not call `on_toggle` again, README rule 7). **(as built)**
 `on_toggle` and `on_click` are the user clicking the item (the `clicked` signal
 of the button, by pointer or keyboard); `h:on_toggle(fn)` and `h:on_click(fn)`
 raise on an item that has the other one.
@@ -92,7 +93,7 @@ toggles.
 |---|---|---|
 | `icon_name` / `icon_file` | string | |
 | `value` | number 0.0..1.0 | default 0 |
-| `on_changed` | function(self, value) | user changes (drag, keys), README rule 7 |
+| `on_changed` | function(self, value) | every change of `value`: the user's (drag, keys) and assignments, README rule 7 |
 | `icon_reactive` | boolean | the icon is a button, default false |
 | `on_icon_click` | function(self) | requires `icon_reactive = true` |
 | `icon_accessible_name` | string | name of the icon button |
@@ -162,7 +163,7 @@ local toggle = shell.quick_settings.add_menu_toggle{
 }
 toggle.menu:set_header{ icon_name = ICON, title = "Large text" }
 toggle.menu:add_item{ label = "Reset", on_activate = function()
-  apply(false)   -- assignments are silent: on_toggle does not run
+  apply(false)   -- assigning checked is not a click: on_toggle does not run
   toggle.checked, toggle.subtitle, dot.visible = false, "Off", false
 end }
 

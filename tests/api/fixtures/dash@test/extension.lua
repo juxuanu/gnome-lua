@@ -230,7 +230,7 @@ function ext.enable()
     raises(function() btn.hide_overview = "no" end, nil, "a string as hide_overview")
   end)
 
-  case("button: assigning calls nothing back (README rule 7)", function()
+  case("button: an assignment is not a click (README rule 7)", function()
     local before = clicks
 
     btn.checked = true

@@ -108,13 +108,16 @@ only), `checked` (rw, meaningful with `toggle_mode`), `sensitive`.
 button also emit `clicked`.
 
 **entry**: `text` (rw), `hint_text` (rw), `sensitive`. `on_changed(self, text)`
-(user edits only, rule 7), `on_activate(self, text)` (Enter).
+(every change of `text`: user edits and assignments, rule 7),
+`on_activate(self, text)` (Enter).
 
-**switch**: `state` (rw boolean), `sensitive`. `on_changed(self, state)` (user
-only). Role CHECK_BOX; clicking, dragging the handle and Space all toggle.
+**switch**: `state` (rw boolean), `sensitive`. `on_changed(self, state)` (every
+change of `state`, rule 7). Role CHECK_BOX; clicking, dragging the handle and
+Space all toggle.
 
 **slider**: `value` (rw number 0.0..1.0), `sensitive`. `on_changed(self, value)`
-(user drags and arrow keys; rule 7), `on_drag_begin(self)`, `on_drag_end(self)`
+(every change of `value`: drags, arrow keys and assignments; rule 7),
+`on_drag_begin(self)`, `on_drag_end(self)`
 (`Shell.Slider` `drag-begin`/`drag-end`, for committing after a drag).
 
 **spacer**: only `width`, `height` (rw integer px; `-1` = natural, the default);

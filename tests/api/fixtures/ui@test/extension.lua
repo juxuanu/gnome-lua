@@ -4,8 +4,9 @@
 -- (the cap on owned objects) with a step (tests/api/README.md).
 --
 -- Not covered here: events caused by the user (a click, a drag, typing),
--- which need input; what is checked is that no callback runs because of an
--- assignment (README rule 7) and that the on_<event> methods connect.
+-- which need input; what is checked is what an assignment calls back (README
+-- rule 7: the callbacks of the state it changes, never those of a user
+-- action) and that the on_<event> methods connect.
 local shell = require("shell")
 local T = shell.test
 local ui = shell.ui
@@ -513,7 +514,7 @@ function ext.enable()
     eq(e.hint_text, "Type here", "hint_text")
     eq(ui.entry{}.text, "", "default text")
 
-    -- rule 7: assignments call nobody
+    -- rule 7: an assignment calls on_changed, and is not an activation
     local changed, activated = {}, 0
     local watched = ui.entry{
       on_changed = function(self, text) changed[#changed + 1] = text end,
@@ -522,7 +523,7 @@ function ext.enable()
     watched.text = "assigned"
     eq(watched.text, "assigned", "text after the assignment")
     watched.text = ""
-    eq(#changed, 0, "on_changed is not called by an assignment")
+    eq(table.concat(changed, "|"), "assigned|", "on_changed for each assignment")
     eq(activated, 0, "on_activate is not called by an assignment")
 
     local c1 = e:on_changed(function() end)
@@ -542,12 +543,14 @@ function ext.enable()
     eq(s.state, false, "state after the assignment")
     raises(function() s.state = 1 end, "state", "a number as state")
 
-    local calls = 0
-    local watched = ui.switch{ on_changed = function() calls = calls + 1 end }
+    -- rule 7: each change of state calls on_changed, a repeated value does not
+    local states = {}
+    local watched = ui.switch{ on_changed = function(self, state) states[#states + 1] = tostring(state) end }
+    watched.state = true
     watched.state = true
     watched.state = false
-    eq(calls, 0, "on_changed is not called by an assignment")
-    watched:on_changed(function() calls = calls + 1 end):disconnect()
+    eq(table.concat(states, ","), "true,false", "on_changed for each change")
+    watched:on_changed(function() end):disconnect()
   end)
 
   case("slider", function()
@@ -564,16 +567,17 @@ function ext.enable()
     raises(function() s.value = "half" end, "value", "a string as value")
     raises(function() ui.slider{ value = 2 } end, "value", "2 in a constructor")
 
-    local changes, drags = 0, 0
+    local changes, drags = {}, 0
     local watched = ui.slider{
-      on_changed = function() changes = changes + 1 end,
+      on_changed = function(self, value) changes[#changes + 1] = value end,
       on_drag_begin = function() drags = drags + 1 end,
       on_drag_end = function() drags = drags + 1 end,
     }
     watched.value = 0.5
     watched.value = 0.75
     eq(watched.value, 0.75, "value")
-    eq(changes, 0, "on_changed is not called by an assignment")
+    -- rule 7: each assignment calls on_changed; an assignment is not a drag
+    eq(table.concat(changes, ","), "0.5,0.75", "on_changed for each assignment")
     eq(drags, 0, "no drag")
     watched:on_changed(function() end):disconnect()
     watched:on_drag_begin(function() end):disconnect()

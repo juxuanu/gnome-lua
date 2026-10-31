@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
  *
  * The runtime rules of docs/api/README.md that API modules rely on:
- * `alive` and idempotent destroy() on dead handles, virtual properties, the
- * assignment guard (rule 7), the owned-object registry (reverse destruction,
+ * `alive` and idempotent destroy() on dead handles, virtual properties,
+ * assignments that call back (rule 7), the owned-object registry (reverse destruction,
  * the 4096 cap, slots freed by destroy(), children dying with parents),
  * callbacks (first argument, never after disable begins), deferral of
  * destroying the emitter (rule 8), capabilities.
@@ -55,7 +55,7 @@ test_obj_set_property (GObject *object, guint id, const GValue *value, GParamSpe
     {
     case PROP_LEVEL:
       self->level = g_value_get_int (value);
-      /* a setter that provokes the "poked" signal: rule 7 must silence it */
+      /* a setter that provokes the "poked" signal: its callbacks run (rule 7) */
       g_signal_emit (self, obj_signals[SIG_POKED], 0, self->level);
       break;
     case PROP_NAME:
@@ -264,29 +264,6 @@ l_obj_level_of (lua_State *L)
   return 1;
 }
 
-/* silenced method: poke with the guard on */
-typedef struct { GObject *obj; int n; } PokeCall;
-
-static void
-poke_silenced (lua_State *L, gpointer data)
-{
-  PokeCall *c = data;
-
-  g_signal_emit (c->obj, obj_signals[SIG_POKED], 0, c->n);
-  if (c->n < 0)
-    luaL_error (L, "boom");
-}
-
-static int
-l_obj_quiet_poke (lua_State *L)
-{
-  GObject *obj = shell_lua_handle_check (L, 1, "test.Obj");
-  PokeCall c = { obj, (int) luaL_checkinteger (L, 2) };
-
-  shell_lua_call_silenced (L, poke_silenced, &c);
-  return 0;
-}
-
 /* deferral probe: o:reparent_probe() returns whether the action was deferred */
 typedef struct { int *flag; } LaterData;
 
@@ -351,7 +328,6 @@ static const luaL_Reg obj_methods[] = {
   { "on_poked", l_obj_on_poked },
   { "plain", l_obj_plain },
   { "external_destroy", l_obj_external_destroy },
-  { "quiet_poke", l_obj_quiet_poke },
   { "defer", l_obj_defer },
   { "level_of", l_obj_level_of },
   { NULL, NULL }
@@ -736,7 +712,7 @@ test_callbacks (void)
 }
 
 static void
-test_assignment_is_silent (void)
+test_assignment_calls_back (void)
 {
   ShellLuaState *s = new_priv ();
 
@@ -744,26 +720,55 @@ test_assignment_is_silent (void)
   tu_do (s, PRELUDE
          "local n = 0\n"
          "o = t.new{on_poked = function() n = n + 1 end}\n"
-         /* rule 7: assigning a GObject property or a virtual calls nobody */
+         /* rule 7: assigning a GObject property or a virtual calls back like
+          * any other change */
          "o.level = 3\n"
+         "assert(n == 1, n)\n"
          "o.double = 8\n"
-         "assert(n == 0, n)\n"
-         /* a user-originated change does */
+         "assert(n == 2, n)\n"
          "o:poke(1)\n"
-         "assert(n == 1)\n"
-         /* a silenced method, and a callback inside it that assigns */
-         "o:quiet_poke(2)\n"
-         "assert(n == 1)\n"
-         "local ok = pcall(o.quiet_poke, o, -1)\n"
-         "assert(not ok)\n"
-         "o:poke(1)\n"
-         "assert(n == 2, 'the guard leaked after an error')\n"
-         /* a callback may assign: nested silence ends with it */
-         "o:on_poked(function(self) self.level = 4 end)\n"
-         "o:poke(5)\n"
          "assert(n == 3)\n"
-         "o:poke(6)\n"
-         "assert(n == 4)\n");
+         /* a virtual setter that raises: the error reaches the assignment */
+         "assert(not pcall(function() o.double = 3 end))\n"
+         "assert(n == 3)\n"
+         /* a callback may assign, and that assignment calls back in turn */
+         "local levels = {}\n"
+         "local conn = o:on_poked(function(self, level)\n"
+         "  levels[#levels + 1] = level\n"
+         "  if level < 7 then self.level = level + 1 end\n"
+         "end)\n"
+         "o:poke(5)\n"
+         "assert(table.concat(levels, ',') == '5,6,7', table.concat(levels, ','))\n"
+         "assert(n == 6, n)\n"
+         "conn:disconnect()\n");
+  g_object_unref (s);
+}
+
+/* A callback that assigns what calls it back, forever: the extension's bug.
+ * Lua's limit of nested C calls cuts the loop with an error of the innermost
+ * callback; the outer ones return and the state works afterwards. */
+static void
+test_assignment_loop_is_cut (void)
+{
+  ShellLuaState *s = new_priv ();
+
+  reset ();
+  tu_do (s, PRELUDE
+         "local depth = 0\n"
+         "o = t.new{}\n"
+         "local conn = o:on_poked(function(self, level)\n"
+         "  depth = depth + 1\n"
+         "  self.level = level + 1\n"
+         "end)\n"
+         "o:poke(0)\n"
+         "assert(depth > 10 and depth < 200, depth)\n"
+         /* the innermost callback failed before or at its assignment */
+         "assert(o.level == depth or o.level == depth - 1, o.level)\n"
+         "conn:disconnect()\n"
+         "local seen\n"
+         "o:on_poked(function(_, level) seen = level end)\n"
+         "o:poke(1)\n"
+         "assert(seen == 1)\n");
   g_object_unref (s);
 }
 
@@ -1020,7 +1025,8 @@ main (int argc, char *argv[])
   g_test_add_func ("/shell-lua/objects/type-hint", test_type_hint);
   g_test_add_func ("/shell-lua/objects/cap", test_cap);
   g_test_add_func ("/shell-lua/objects/callbacks", test_callbacks);
-  g_test_add_func ("/shell-lua/objects/assignment-is-silent", test_assignment_is_silent);
+  g_test_add_func ("/shell-lua/objects/assignment-calls-back", test_assignment_calls_back);
+  g_test_add_func ("/shell-lua/objects/assignment-loop-is-cut", test_assignment_loop_is_cut);
   g_test_add_func ("/shell-lua/objects/callbacks-die-with-object", test_callbacks_die_with_object);
   g_test_add_func ("/shell-lua/objects/destroy-emitter-is-deferred", test_destroy_emitter_is_deferred);
   g_test_add_func ("/shell-lua/objects/capability-helper", test_capability_helper);

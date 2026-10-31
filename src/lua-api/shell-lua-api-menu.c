@@ -189,10 +189,9 @@ l_menu_toggle (lua_State *L)
 }
 
 static void
-clear_silenced (lua_State *L,
-                gpointer   data)
+clear_items (lua_State          *L,
+             ShellPopupMenuBase *menu)
 {
-  ShellPopupMenuBase *menu = data;
   GList *items = shell_popup_menu_base_get_menu_items (menu);
   GList *l;
 
@@ -215,8 +214,7 @@ l_menu_clear (lua_State *L)
 {
   ShellPopupMenuBase *menu = check_menu (L, 1);
 
-  /* removeAll () does not call back for items the extension destroys. */
-  shell_lua_call_silenced (L, clear_silenced, menu);
+  clear_items (L, menu);
   return 0;
 }
 

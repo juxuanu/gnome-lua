@@ -45,9 +45,7 @@ typedef struct {
  * property of a child object, a per-type setting). @get pushes exactly one
  * value; @set receives the absolute stack index of the new value and raises
  * on a bad one. A NULL @set makes it read-only. Both run with the object
- * referenced; @set runs silenced (docs/api/README.md rule 7: callbacks
- * connected with shell_lua_callback_* are not invoked, see
- * shell-lua-api-private.h). */
+ * referenced. */
 typedef void (* ShellLuaVirtualGetter) (lua_State *L,
                                         GObject   *object);
 typedef void (* ShellLuaVirtualSetter) (lua_State *L,

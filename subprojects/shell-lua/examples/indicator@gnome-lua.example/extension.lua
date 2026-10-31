@@ -38,8 +38,8 @@ function ext.enable()
     end,
   }
 
-  -- A switch: on_toggled runs for what the user does, never for the
-  -- assignments of this script (docs/api/README.md, rule 7)
+  -- A switch: on_toggled runs when its state changes (docs/api/README.md,
+  -- rule 7); this script never assigns it, so here it is the user
   menu:add_switch{
     label = _("Happy"),
     state = true,

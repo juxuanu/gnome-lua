@@ -253,7 +253,7 @@ toggles.
 
 | JS | Lua |
 |---|---|
-| `class extends QuickSettings.QuickToggle` (`title`, `subtitle`, `iconName`, `toggleMode`, `checked`; `connect('clicked')`) | `qs.add_toggle{ title, subtitle, icon_name \| icon_file, checked, on_toggle = function(self, checked) end }` with `local qs = shell.quick_settings`. `checked` is already flipped when `on_toggle` runs; veto with `self.checked = false` (silent) |
+| `class extends QuickSettings.QuickToggle` (`title`, `subtitle`, `iconName`, `toggleMode`, `checked`; `connect('clicked')`) | `qs.add_toggle{ title, subtitle, icon_name \| icon_file, checked, on_toggle = function(self, checked) end }` with `local qs = shell.quick_settings`. `checked` is already flipped when `on_toggle` runs; veto with `self.checked = false` (an assignment is not a click: `on_toggle` does not run again) |
 | a toggle that only acts (no state) | `on_click = function(self) end` instead of `on_toggle` (exclusive) |
 | `QuickSettings.QuickMenuToggle`, `menu.setHeader(icon, title, subtitle)`, `menu.addMenuItem(...)` | `qs.add_menu_toggle{...}` (all `add_toggle` fields plus `menu_enabled`, `menu_button_accessible_name`); `t.menu:set_header{ icon_name, title, subtitle }` (`title` required); `t.menu:add_item{...}`, `t.menu:add_widget{...}` (`t.menu` is a `shell.QuickMenu`, a `shell.Menu`) |
 | `QuickSettings.QuickSlider` (`iconName`, `slider.value`, `slider.connect('notify::value')`) | `qs.add_slider{ accessible_name = "...", icon_name, value = 0.5, on_changed = function(self, value) end }`; `icon_reactive` + `on_icon_click(self)`; `colspan` defaults to 2 |
@@ -802,8 +802,9 @@ function ext.enable()
   end
 
   -- settings.bind() has no equivalent: write the setting from the widget and
-  -- the widget from the setting. Assignments are silent (README rule 7), so
-  -- the two directions cannot loop.
+  -- the widget from the setting. on_toggled also runs for the assignment
+  -- (README rule 7), but the switch only reports a change of its state, so
+  -- the round ends there.
   local remind = indicator.menu:add_switch{
     label = _("Remind me"),
     state = settings:get_boolean("remind"),

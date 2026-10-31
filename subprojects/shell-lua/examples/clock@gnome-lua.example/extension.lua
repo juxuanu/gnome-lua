@@ -53,9 +53,10 @@ function ext.enable()
     end }
   end
 
-  -- A switch: on_toggled runs for what the user does, never for assignments
-  -- of this script (docs/api/README.md, rule 7). The state is not saved: an
-  -- extension that wants to remember it would use a settings key.
+  -- A switch: on_toggled runs when its state changes (docs/api/README.md,
+  -- rule 7); this script never assigns it, so here it is the user. The state
+  -- is not saved: an extension that wants to remember it would use a settings
+  -- key.
   indicator.menu:add_switch{
     label = _("24-hour clock"),
     state = use_24h,

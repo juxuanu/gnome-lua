@@ -98,10 +98,17 @@ from outside the extension directory.
    Two naming families exist by design: `shell.ui` widgets mirror the St signal
    (`on_clicked`, `on_changed`), shell items name the user action (`on_click`,
    `on_toggle`, `on_activate`).
-7. **No callback is invoked because of an assignment made by Lua code.** Writing
-   `toggle.checked = true` or `slider.value = 0.5` is silent; only user (or
-   shell) originated changes call back. This makes "sync from external state"
-   loops safe.
+7. **A callback runs for every event it reports, whatever caused it**, an
+   assignment made by the extension's own Lua code included, as a signal
+   handler of GJS does: `slider.value = 0.5` calls the slider's `on_changed`,
+   and hiding an indicator whose menu is open calls the menu's
+   `on_open_state_changed (false)`. Callbacks that name a user action
+   (`on_click`, `on_toggle`, `on_activate`) report that action, which an
+   assignment is not: `toggle.checked = true` calls nothing. Avoiding loops is
+   the extension's job: a callback that writes state back compares before it
+   assigns. A loop that never ends is cut by Lua's limit of nested calls: the
+   innermost callback fails with an error (counted, SANDBOX.md) and the shell
+   goes on.
 8. Callbacks run under the extension's pcall with the watchdog (500 ms) and the
    error policy of SANDBOX.md: an error is logged with a traceback and counted;
    more than 5 errors disable the extension. A callback MAY call any API. A call
@@ -179,8 +186,8 @@ every handle and idempotent `destroy()` on dead handles (per-method
 reverse-order destruction at disable, the 4096 cap, `destroy()` frees the slot
 at once, callbacks blocked once disable begins); the `"1.N"` check; `search`
 in `known_capabilities`; virtual handle properties (per-type getter/setter
-tables); the assignment guard (rule 7: assignments are silent, unknown and
-read-only properties raise); the deferral of rule 8; `shell.dbus.variant` (dbus.md). Rows
+tables); the assignment guard (unknown and read-only properties raise); the
+deferral of rule 8; `shell.dbus.variant` (dbus.md). Rows
 marked **1.1** in the per-area documents are the first minor release; they are
 implemented together with their conformance tests in `tests/api/`.
 

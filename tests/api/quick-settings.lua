@@ -8,7 +8,7 @@
 -- Not covered here, for lack of a way to give the script the actors of the
 -- fixture: the events the user causes (on_toggle, on_click, on_changed,
 -- on_icon_click) and the position of the items in the grid. The fixture
--- checks what it can: that assignments call nothing back (README rule 7),
+-- checks what it can: what assignments call back (README rule 7),
 -- the errors of the callbacks, the index of every item.
 
 local harness = dofile(((os.getenv ("SHELL_TEST_SCRIPT") or ""):match ("^(.*)/[^/]*$") or ".") .. "/harness.lua")

@@ -22,10 +22,9 @@
  * Events: `on_toggle` and `on_click` are the "clicked" signal of the item (so
  * only the user triggers them; `checked` has already been flipped for a
  * toggle), `on_changed` is the value of the slider, `on_icon_click` the
- * "icon-clicked" signal. An assignment made by Lua code never calls back
- * (README rule 7): the callbacks are emitted through
- * shell_lua_callback_emit (), which the handle layer silences while a
- * property is assigned.
+ * "icon-clicked" signal. Callbacks run whatever caused the change: assigning
+ * `value` calls `on_changed` back (README rule 7); assigning `checked` is not
+ * a click and calls nothing.
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  */

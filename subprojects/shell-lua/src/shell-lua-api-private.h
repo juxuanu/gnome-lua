@@ -74,8 +74,8 @@ void shell_lua_api_time_register  (ShellLuaState *state, lua_State *L);
  *
  * The rest of this file is what a module that wraps shell objects needs:
  * the extension of a state, capabilities, owned objects with a destroy rule
- * and a slot cap, callbacks bound to an owned object (silenced by
- * assignments, never run after disable begins), the "emitting" deferral of
+ * and a slot cap, callbacks bound to an owned object (never run after
+ * disable begins), the "emitting" deferral of
  * README rule 8, and the handle type registration (shell-lua-handle.h: a
  * parent type, methods with flags, properties and virtual properties).
  *
@@ -202,17 +202,17 @@ gulong            shell_lua_callback_connect (ShellLuaCallback *cb,
 /* Call the function as `fn(owner_handle, args...)` (shapes: "handles that are
  * something on screen pass the emitting handle first"). @nargs counts the
  * arguments pushed by @push_args, not the handle. Returns FALSE without
- * calling when the callback is dead, the extension is being disabled, or the
- * event was caused by an assignment made by Lua code (rule 7); also FALSE if
- * the call failed (already logged, counted and signalled). While it runs the
- * owner counts as emitting (rule 8). */
+ * calling when the callback is dead or the extension is being disabled; also
+ * FALSE if the call failed (already logged, counted and signalled). The
+ * callback runs whatever caused the event, an assignment made by Lua code
+ * included. While it runs the owner counts as emitting (rule 8). */
 gboolean          shell_lua_callback_emit  (ShellLuaCallback    *cb,
                                             int                  nargs,
                                             ShellLuaPushArgsFunc push_args,
                                             gpointer             user_data);
 
 /* Same without the handle: `fn(args...)` (one-shot completions, data
- * sources). The silence rule does not apply, the disable rule does. */
+ * sources). The disable rule applies. */
 gboolean          shell_lua_callback_emit_data (ShellLuaCallback    *cb,
                                                 int                  nargs,
                                                 ShellLuaPushArgsFunc push_args,
@@ -227,7 +227,7 @@ int               shell_lua_callback_push_connection (lua_State        *L,
                                                       gulong            handler_id);
 
 /* Run an event callback whose emitter is not a callback's owner, with the
- * same rules (blocked, silenced, emitting frame). The handle of @emitter is
+ * same rules (blocked, emitting frame). The handle of @emitter is
  * pushed first when @emitter is not NULL. */
 gboolean          shell_lua_emit_ref (ShellLuaState        *state,
                                       GObject              *emitter,
@@ -235,32 +235,6 @@ gboolean          shell_lua_emit_ref (ShellLuaState        *state,
                                       int                   nargs,
                                       ShellLuaPushArgsFunc  push_args,
                                       gpointer              user_data);
-
-/* ---- Rule 7 (no callback because of an assignment) ---------------------- */
-
-/* Assignments to handle properties are silenced by shell-lua-handle.c; a
- * module whose *method* changes shell state (`menu:clear()`, `b:add()`) wraps
- * the change the same way. @fn runs in a protected call (it may raise); a
- * raised error is rethrown after the silence ends. */
-typedef void (* ShellLuaSilencedFunc) (lua_State *L,
-                                       gpointer   user_data);
-void              shell_lua_call_silenced (lua_State           *L,
-                                           ShellLuaSilencedFunc fn,
-                                           gpointer             user_data);
-/* As above but returns FALSE with the error object on top of the stack, so
- * that the caller can clean up before lua_error(). */
-gboolean          shell_lua_try_silenced  (lua_State           *L,
-                                           ShellLuaSilencedFunc fn,
-                                           gpointer             user_data);
-/* Same, passing the top @nargs values of the stack (popped) to @fn, which
- * sees them at indexes 1..@nargs of its own frame. */
-gboolean          shell_lua_try_silenced_args (lua_State           *L,
-                                               int                  nargs,
-                                               ShellLuaSilencedFunc fn,
-                                               gpointer             user_data);
-/* Lower level pair; nothing between them may raise. */
-void              shell_lua_silence_enter (lua_State *L);
-void              shell_lua_silence_leave (lua_State *L);
 
 /* ---- Rule 8 (destroy / reparent the emitter) ---------------------------- */
 

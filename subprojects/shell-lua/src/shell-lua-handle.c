@@ -973,13 +973,15 @@ typedef struct {
   int                   idx;
 } VirtualSet;
 
-static void
-virtual_set_trampoline (lua_State *L,
-                        gpointer   data)
+/* (vs, value): the setter sees the value at index 1 */
+static int
+virtual_set_trampoline (lua_State *L)
 {
-  VirtualSet *vs = data;
+  VirtualSet *vs = lua_touserdata (L, 1);
 
+  lua_remove (L, 1);
   vs->set (L, vs->object, vs->idx);
+  return 0;
 }
 
 static int
@@ -1018,10 +1020,12 @@ handle_newindex (lua_State *L)
       vs.set = virt->set;
       vs.object = g_object_ref (h->object);
       vs.idx = 1;
-      /* Rule 7: nothing the setter provokes calls back into Lua. The value
-       * is the only argument of the silenced frame. */
+      /* The setter may raise: call it protected to drop the reference */
+      luaL_checkstack (L, 3, "virtual property");
+      lua_pushcfunction (L, virtual_set_trampoline);
+      lua_pushlightuserdata (L, &vs);
       lua_pushvalue (L, 3);
-      ok = shell_lua_try_silenced_args (L, 1, virtual_set_trampoline, &vs);
+      ok = lua_pcall (L, 2, 0, 0) == LUA_OK;
       g_object_unref (vs.object);
       if (!ok)
         return lua_error (L);   /* the error object is on top */
@@ -1060,9 +1064,7 @@ handle_newindex (lua_State *L)
 
   /* Setting may run arbitrary signal handlers, which can invalidate @h. */
   object = g_object_ref (h->object);
-  shell_lua_silence_enter (L);   /* rule 7; nothing below can raise */
   g_object_set_property (object, pspec->name, &value);
-  shell_lua_silence_leave (L);
   g_object_unref (object);
   g_value_unset (&value);
   return 0;

@@ -294,7 +294,7 @@ function ext.enable()
     raises(function() ind:on_click(function() end) end, nil, "on_click of an indicator with a menu")
   end)
 
-  case("indicator: assignments call nothing back (README rule 7)", function()
+  case("indicator: assignments that do not close an open menu (README rule 7)", function()
     local menu = ind.menu
     local calls = 0
 
@@ -303,7 +303,7 @@ function ext.enable()
     ind.visible = true
     ind.sensitive = false
     ind.sensitive = true
-    eq(calls, 0, "calls of a menu callback after assignments")
+    eq(calls, 0, "the menu was closed: no open state changed")
   end)
 
   -- -------------------------------------------------------------------
@@ -490,7 +490,7 @@ function ext.enable()
     end,
 
     ["menu-hide"] = function()
-      -- hiding an indicator closes its menu
+      -- hiding an indicator closes its menu, which calls back (README rule 7)
       ind.visible = false
       eq(ind.menu.is_open, false, "the menu is closed when the indicator is hidden")
       eq(ind.active, false, "active after the menu closed")

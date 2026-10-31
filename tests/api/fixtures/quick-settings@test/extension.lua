@@ -313,11 +313,14 @@ function ext.enable()
   -- -------------------------------------------------------------------
   -- Events: on_toggle, on_click and README rule 7
   -- -------------------------------------------------------------------
-  case("assignments do not call back (README rule 7)", function()
+  -- An assignment is not a click: on_toggle, on_click and on_icon_click stay
+  -- quiet. It changes the value of a slider: on_changed reports it.
+  case("what assignments call back (README rule 7)", function()
     local calls = 0
     local function count()
       calls = calls + 1
     end
+    local values = {}
 
     local t = qs.add_toggle { title = "R7", on_toggle = count }
     t.checked = true
@@ -340,18 +343,28 @@ function ext.enable()
     m.menu_enabled = false
     m.menu_enabled = true
 
-    local s = qs.add_slider { accessible_name = "R7s", on_changed = count, icon_reactive = true, on_icon_click = count }
+    local s = qs.add_slider {
+      accessible_name = "R7s", icon_reactive = true, on_icon_click = count,
+      on_changed = function(_, value) values[#values + 1] = string.format("%g", value) end,
+    }
     s.value = 0.5
     s.value = 0
+    s.value = 1
     s.value = 1
     s.icon_name = "alarm-symbolic"
     s.sensitive = false
     s.sensitive = true
 
-    eq(calls, 0, "callbacks called by assignments")
-    -- ... nor later, when the shell has processed what the assignments
-    -- caused: the step "assignments-later" of the script looks again
-    keep.r7 = { calls = function() return calls end, items = { t, c, m, s } }
+    eq(calls, 0, "click callbacks called by assignments")
+    eq(table.concat(values, ","), "0.5,0,1", "on_changed for each change of value")
+    -- ... and nothing more later, when the shell has processed what the
+    -- assignments caused: the step "assignments-later" of the script looks
+    -- again
+    keep.r7 = {
+      calls = function() return calls end,
+      values = function() return #values end,
+      items = { t, c, m, s },
+    }
   end)
 
   case("on_toggle and on_click as methods return connections", function()
@@ -719,7 +732,8 @@ function ext.enable()
   steps {
     -- The script waited for the shell to be idle
     ["assignments-later"] = function()
-      eq(keep.r7.calls(), 0, "callbacks called after the assignments")
+      eq(keep.r7.calls(), 0, "click callbacks called after the assignments")
+      eq(keep.r7.values(), 3, "on_changed of the slider after the assignments")
       for _, item in ipairs(keep.r7.items) do
         item:destroy()
       end

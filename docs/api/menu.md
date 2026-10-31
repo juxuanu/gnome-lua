@@ -104,7 +104,8 @@ top menu `close()`), except for a switch toggled with Space and a submenu item
 `MenuSwitchItem`: `state` (rw boolean), `status` (rw string or nil: when set
 the switch is replaced by that text and the row is not toggleable,
 `setStatus`; nil restores the switch). `on_toggled(self, state)` fires for
-user toggles only (README rule 7); `on_activate` fires after it for clicks.
+every change of `state`, the user's and assignments (README rule 7);
+`on_activate` fires after it for clicks.
 
 `MenuSubmenuItem`: `menu` (ro `shell.Menu`, level 2), `open` is
 `item.menu:open()`. `item.menu:on_open_state_changed` reports expansion.

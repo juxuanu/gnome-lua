@@ -222,7 +222,7 @@ fz_obj_set_property (GObject *object, guint id, const GValue *value, GParamSpec 
       break;
     case PROP_I:
       self->i = g_value_get_int (value);
-      /* a setter that provokes a signal: rule 7 must silence its callbacks */
+      /* a setter that provokes a signal: its callbacks run (rule 7) */
       g_signal_emit (self, obj_signals[SIG_POKED], 0, self->i);
       break;
     case PROP_U:
@@ -983,7 +983,7 @@ virt_get_boom (lua_State *L, GObject *object)
 static void
 virt_set_boom (lua_State *L, GObject *object, int idx)
 {
-  /* provoke a callback first: it must stay silent even though we then raise */
+  /* provoke a callback first, then raise: the callback has run */
   g_object_set (object, "i", 3, NULL);
   luaL_error (L, "boom-set");
 }
@@ -1154,8 +1154,8 @@ new_priv (void)
 /* Run @code; it must succeed. */
 #define DO(state, code) tu_do ((state), PRELUDE code)
 
-/* The state must be usable and have no leftover silence: a callback fires
- * for a user originated change, an assignment stays quiet. */
+/* The state must be usable: a callback fires for an assignment and for a
+ * poke. */
 static void
 assert_state_usable (ShellLuaState *s)
 {
@@ -1163,9 +1163,9 @@ assert_state_usable (ShellLuaState *s)
          "local n = 0\n"
          "local o = fz.new{name='probe', on_poked = function() n = n + 1 end}\n"
          "o.i = 4\n"
-         "assert(n == 0, 'assignment called back (guard stuck on?)')\n"
+         "assert(n == 1, 'no callback for an assignment')\n"
          "o:poke(1)\n"
-         "assert(n == 1, 'no callback for a poke (guard stuck?)')\n"
+         "assert(n == 2, 'no callback for a poke')\n"
          "o:destroy()\n"
          "assert(not o.alive)\n"
          "assert(fz.count() == fz.count())\n");
@@ -1515,10 +1515,12 @@ test_handles_assignment_matrix (void)
      "  if not ok then check_message(err, prop, '(read)') end\n"
      "end\n"
      "assert(accepted > 100 and rejected > 500, accepted .. '/' .. rejected)\n"
-     /* rule 7: not one of the assignments called the poked callback back, the rest of the guard holds */
-     "assert(hits_in_callback == 0, 'assignments called back ' .. hits_in_callback .. ' times')\n"
+     /* rule 7: the assignments that set i, directly or through a virtual,
+      * called the poked callback back */
+     "assert(hits_in_callback > 0, 'no assignment called back')\n"
+     "local hits = hits_in_callback\n"
      "o:poke(1)\n"
-     "assert(hits_in_callback == 1)\n"
+     "assert(hits_in_callback == hits + 1)\n"
      /* specific outcomes */
      "o.i = 5; assert(o.i == 5 and o.alias == 5 and o.double == 10)\n"
      "o.alias = 6; assert(o.i == 6)\n"
@@ -1546,10 +1548,11 @@ test_handles_assignment_matrix (void)
      "assert(select(2, pcall(function() o.hidden = 1 end)):find(\"property 'hidden' on fz.Obj is read-only\", 1, true))\n"
      "assert(o.hidden == nil)\n"
      "assert(select(2, pcall(function() return o.ghost end)):find(\"property 'ghost' of fz.Obj is not readable\", 1, true))\n"
+     "hits = hits_in_callback\n"
      "assert(select(2, pcall(function() o.boom = 1 end)):find('boom-set', 1, true))\n"
      "assert(select(2, pcall(function() return o.boom end)):find('boom-get', 1, true))\n"
-     "assert(hits_in_callback == 1, 'a raising virtual setter called back')\n"
-     "o:poke(2); assert(hits_in_callback == 2, 'the silence guard stuck after a raising setter')\n"
+     "assert(hits_in_callback == hits + 1, 'the change a raising virtual setter made did not call back')\n"
+     "o:poke(2); assert(hits_in_callback == hits + 2)\n"
      "o.any = 5; assert(o.any == 5)\n"
      "o.any = {1, 2, 3}; assert(#o.any == 3)\n"
      "assert(not pcall(function() o.any = nil end), 'a variant cannot be inferred from nil')\n"

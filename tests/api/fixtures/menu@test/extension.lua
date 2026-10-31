@@ -5,8 +5,9 @@
 -- (tests/api/README.md).
 --
 -- Not covered here: activation by the user (a click, Enter, Space), which
--- needs input; what is checked is that no callback runs because of an
--- assignment (README rule 7) and that the on_<event> methods connect.
+-- needs input; what is checked is what an assignment calls back (README
+-- rule 7: the callbacks of the state it changes, never those of a user
+-- action) and that the on_<event> methods connect.
 local shell = require("shell")
 local T = shell.test
 local ui = shell.ui
@@ -189,7 +190,7 @@ function ext.enable()
     raises(function() item.icon_name = "alarm-symbolic" end, "icon_name", "icon_name on a plain item")
     raises(function() item.icon_file = "icon.svg" end, "icon_file", "icon_file on a plain item")
 
-    -- rule 7: assignments call nobody
+    -- rule 7: an assignment is not an activation
     item.label = "Again"
     item.sensitive = false
     item.sensitive = true
@@ -266,10 +267,10 @@ function ext.enable()
     raises(function() m:add_switch{ label = "x", status = 5 } end, "status", "a number as status")
     raises(function() m:add_switch{ label = "x", ornament = "check" } end, "ornament", "ornament is not a switch field")
 
-    local toggles, activations = 0, 0
+    local toggles, activations = {}, 0
     local sw = m:add_switch{
       label = "Wi-Fi",
-      on_toggled = function(self, state) toggles = toggles + 1 end,
+      on_toggled = function(self, state) toggles[#toggles + 1] = tostring(state) end,
       on_activate = function() activations = activations + 1 end,
     }
     truthy(tostring(sw):find("shell.MenuSwitchItem", 1, true), "tostring")
@@ -279,11 +280,12 @@ function ext.enable()
     eq(sw.status, nil, "default status")
     eq(sw.sensitive, true, "sensitive")
 
-    -- rule 7: assignments do not call back
+    -- rule 7: each change of state calls on_toggled; it is not an activation
     sw.state = true
     eq(sw.state, true, "state after the assignment")
+    sw.state = true
     sw.state = false
-    eq(toggles, 0, "on_toggled is not called by an assignment")
+    eq(table.concat(toggles, ","), "true,false", "on_toggled for each change")
     eq(activations, 0, "on_activate is not called by an assignment")
     raises(function() sw.state = "on" end, "state", "a string as state")
 
@@ -464,7 +466,7 @@ function ext.enable()
     m:clear()
   end)
 
-  case("rule 7 and the menu callbacks", function()
+  case("assignments that neither open nor close the menu", function()
     local opened = {}
     local conn = m:on_open_state_changed(function(menu, open)
       opened[#opened + 1] = open
@@ -473,7 +475,7 @@ function ext.enable()
     m:add_item{ label = "x" }
     m.sensitive = false
     m.sensitive = true
-    eq(#opened, 0, "no callback because of an assignment")
+    eq(#opened, 0, "no open state changed")
     eq(conn:is_connected(), true, "the connection")
     conn:disconnect()
     raises(function() m:on_open_state_changed() end, nil, "no function")

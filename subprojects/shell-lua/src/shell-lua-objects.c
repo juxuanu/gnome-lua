@@ -2,10 +2,8 @@
  *
  * The owned-object registry of a ShellLuaState (docs/api/README.md
  * "Ownership and teardown"), the callbacks bound to those objects, and the
- * two rules that govern callbacks:
+ * rule that governs callbacks:
  *
- *   rule 7: no callback is invoked because of an assignment made by Lua code
- *           (silence counter, see shell_lua_call_silenced);
  *   rule 8: destroying or reparenting the object that is emitting is deferred
  *           until its callback returns (emitting frames + deferred queue).
  *
@@ -58,7 +56,6 @@ struct _Objects
   GQueue         order;      /* Entry, creation order */
   GHashTable    *by_object;  /* GObject* -> Entry* */
   gboolean       blocked;
-  int            silence;
   GPtrArray     *emitting;   /* GObject*, strong, innermost last */
   GQueue         deferred;   /* Deferred */
   gboolean       flushing;
@@ -401,8 +398,6 @@ emit_with (ShellLuaState        *state,
   o = objects_get (state, TRUE);
   if (o == NULL || o->blocked)
     return FALSE;
-  if (with_self && o->silence > 0)
-    return FALSE;
 
   if (emitter != NULL)
     g_ptr_array_add (o->emitting, g_object_ref (emitter));
@@ -523,83 +518,6 @@ shell_lua_callback_push_connection (lua_State        *L,
   connection = shell_lua_connection_new (state, LUA_NOREF, conn_disconnect, c);
   shell_lua_connection_own (connection);
   return shell_lua_connection_push_take (connection, L);
-}
-
-/* ------------------------------------------------------------------------ */
-/* Silence (rule 7)                                                          */
-/* ------------------------------------------------------------------------ */
-
-void
-shell_lua_silence_enter (lua_State *L)
-{
-  Objects *o = objects_from_L (L, TRUE);
-
-  if (o != NULL)
-    o->silence++;
-}
-
-void
-shell_lua_silence_leave (lua_State *L)
-{
-  Objects *o = objects_from_L (L, FALSE);
-
-  if (o != NULL && o->silence > 0)
-    o->silence--;
-}
-
-typedef struct
-{
-  ShellLuaSilencedFunc fn;
-  gpointer             data;
-} SilencedCall;
-
-static int
-silenced_trampoline (lua_State *L)
-{
-  SilencedCall *c = lua_touserdata (L, 1);
-
-  lua_remove (L, 1);   /* the function sees only its own arguments */
-  c->fn (L, c->data);
-  return 0;
-}
-
-gboolean
-shell_lua_try_silenced_args (lua_State           *L,
-                             int                  nargs,
-                             ShellLuaSilencedFunc fn,
-                             gpointer             user_data)
-{
-  SilencedCall call = { fn, user_data };
-  int status;
-
-  luaL_checkstack (L, 3, "silenced call");
-  lua_pushcfunction (L, silenced_trampoline);
-  lua_insert (L, -(nargs + 1));
-  lua_pushlightuserdata (L, &call);
-  lua_insert (L, -(nargs + 1));
-
-  shell_lua_silence_enter (L);
-  status = lua_pcall (L, nargs + 1, 0, 0);
-  shell_lua_silence_leave (L);
-
-  return status == LUA_OK;
-}
-
-gboolean
-shell_lua_try_silenced (lua_State           *L,
-                        ShellLuaSilencedFunc fn,
-                        gpointer             user_data)
-{
-  return shell_lua_try_silenced_args (L, 0, fn, user_data);
-}
-
-void
-shell_lua_call_silenced (lua_State           *L,
-                         ShellLuaSilencedFunc fn,
-                         gpointer             user_data)
-{
-  if (!shell_lua_try_silenced (L, fn, user_data))
-    lua_error (L);
 }
 
 /* ------------------------------------------------------------------------ */
