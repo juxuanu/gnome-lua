@@ -454,6 +454,7 @@ sniffer_proxy_ready_cb (GObject      *source_object,
   g_autoptr (GError) error = NULL;
   g_autoptr (GFile) root = NULL;
   g_autofree char *uri = NULL;
+  GCancellable *cancellable;
 
   sniffer = shell_hotplug_sniffer_proxy_new_for_bus_finish (res, &error);
   if (sniffer == NULL)
@@ -473,7 +474,10 @@ sniffer_proxy_ready_cb (GObject      *source_object,
 
   root = g_mount_get_root (data->mount);
   uri = g_file_get_uri (root);
-  shell_hotplug_sniffer_call_sniff_uri (sniffer, uri, data->self->cancellable,
+  /* Read before the call: its arguments are evaluated in any order, and
+   * the last one steals @data */
+  cancellable = data->self->cancellable;
+  shell_hotplug_sniffer_call_sniff_uri (sniffer, uri, cancellable,
                                         sniff_uri_cb, g_steal_pointer (&data));
 }
 

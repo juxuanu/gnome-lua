@@ -16,6 +16,18 @@ tests_dependencies = [
   data_resources_targets,
 ]
 
+# Calls that pass g_steal_pointer (&x) and read x in another argument: the
+# order of the arguments is unspecified, and the other one can read NULL
+test('steal-order', python,
+  args: [
+    files('check-steal-order.py'),
+    join_paths(meson.project_source_root(), 'src'),
+    join_paths(meson.project_source_root(), 'subprojects', 'shell-lua', 'src'),
+    join_paths(meson.project_source_root(), 'subprojects', 'extensions-tool', 'src'),
+  ],
+  suite: 'unit',
+)
+
 # GTest programs: they link libshell and drive the classes with an injected
 # environment (clock, idle monitor, settings, logind, ...), so they need
 # neither a session bus nor a display

@@ -4255,6 +4255,7 @@ screenshot_window_keybinding_cb (MetaDisplay        *display,
 {
   g_autoptr (ClutterContent) content = NULL;
   g_autoptr (GError) error = NULL;
+  CoglTexture *texture;
   GObject *actor;
 
   if (shutdown_seen || window == NULL)
@@ -4275,7 +4276,10 @@ screenshot_window_keybinding_cb (MetaDisplay        *display,
       return;
     }
 
-  shell_screenshot_capture_screenshot_async (clutter_texture_content_get_texture (CLUTTER_TEXTURE_CONTENT (content)),
+  /* Read before the call: its arguments are evaluated in any order, and
+   * the last one steals @content */
+  texture = clutter_texture_content_get_texture (CLUTTER_TEXTURE_CONTENT (content));
+  shell_screenshot_capture_screenshot_async (texture,
                                              NULL, 1, NULL, 0, 0, 1,
                                              SHELL_SCREENSHOT_KIND_WINDOW,
                                              NULL,
