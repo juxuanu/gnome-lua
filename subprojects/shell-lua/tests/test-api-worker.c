@@ -650,12 +650,19 @@ test_runaway_loop (void)
   tu_spin (200);
   tu_assert_eval_true (s, "e == nil and n == 0");
 
-  /* terminate () twice, destroy () after terminate (): one callback at most */
-  tu_do (s, START ("workers.loop", "") "w:post('go'); w:terminate(); w:terminate(); w:destroy()");
+  /* terminate () twice: the second does nothing */
+  tu_do (s, START ("workers.loop", "") "w:post('go'); w:terminate(); w:terminate()");
   wait_lua (s, "e ~= nil");
   tu_spin (200);
   tu_assert_eval_true (s, "e.code == 'terminated'");
   wait_threads_gone ();
+
+  /* destroy () after terminate (): the on_error that terminate () promised
+   * is dropped, no callback runs after destroy () */
+  tu_do (s, START ("workers.loop", "") "w:post('go'); w:terminate(); w:destroy(); w:destroy()");
+  wait_threads_gone ();
+  tu_spin (200);
+  tu_assert_eval_true (s, "e == nil and n == 0");
 
   g_source_remove (timer);
   env_free (env);

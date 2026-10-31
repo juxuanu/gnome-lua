@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later
  *
  * Fuzzing the Lua API boundary (docs/PLAN.md M8): malformed handles,
- * re-entrancy from hooks, disable during a callback, resource limits and
- * random sequences of API calls. The contract being checked is docs/api/
+ * re-entrancy from hooks, disable during a callback, resource limits,
+ * random sequences of API calls and random use of workers. The contract being checked is docs/api/
  * README.md (handles, ownership and teardown, deferred destroy, the
  * watchdog, the error policy); the runtime must never crash, never log a
  * critical, never leak a state or an object, and keep its registries
@@ -29,6 +29,7 @@
 #include <stdlib.h>
 
 #include "shell-hooks.h"
+#include "shell-lua-api-private.h"
 #include "shell-lua-extension.h"
 #include "shell-lua-extension-private.h"
 #include "shell-lua-handle.h"
@@ -3630,6 +3631,348 @@ test_random_extension_churn (void)
 }
 
 /* ======================================================================== */
+/* Workers (docs/api/worker.md)                                              */
+/* ======================================================================== */
+
+/* Random use of shell.worker by an extension: starts with good and bad
+ * modules and options, posts of good and bad values, terminate () and
+ * destroy () from anywhere (callbacks of the worker included), disable in
+ * the middle of everything. The choices of the main thread come from the
+ * random stream; what the worker threads do depends only on the messages
+ * they get, but their timing is real, so a run is not exactly reproducible.
+ *
+ * The callbacks check the promises of worker.md and report a broken one
+ * with fz.mark ("violation: ..."), which C reads even when the state is
+ * gone: an assert in a callback would only be a logged error. After each
+ * round the extension is disabled and the threads must exit on their own,
+ * giving back every byte. */
+
+static const char *const FUZZ_WORKER_LUA =
+  "local count, held = 0, nil\n"
+  "return { on_message = function(v)\n"
+  "  if type(v) ~= 'table' or v.op == nil then return v end\n"
+  "  local op = v.op\n"
+  "  if op == 'count' then count = count + 1; return { seq = count } end\n"
+  "  if op == 'progress' then for i = 1, v.n do shell.worker.post({ p = i }) end return 'done' end\n"
+  "  if op == 'flood' then for i = 1, 100 do shell.worker.post(i) end return 'flooded' end\n"
+  "  if op == 'bytes' then return string.char(0, 255, 128) .. string.rep('\\xff', v.n) end\n"
+  "  if op == 'nested' then local t = {} local c = t for i = 1, v.n do c.x = {} c = c.x end return t end\n"
+  "  if op == 'cycle' then local t = {} t.t = t return t end\n"
+  "  if op == 'mixed' then return { 1, 2, x = 3 } end\n"
+  "  if op == 'function' then return function() end end\n"
+  "  if op == 'error' then error('worker error') end\n"
+  "  if op == 'error-table' then error({ code = 1 }) end\n"
+  "  if op == 'post-nil' then shell.worker.post(nil) end\n"
+  "  if op == 'post-two' then shell.worker.post(1, 2) end\n"
+  "  if op == 'memory' then held = {} for i = 1, v.n do held[i] = string.rep('m', 65536) .. i end return 'held' end\n"
+  "  if op == 'free' then held = nil return 'freed' end\n"
+  "  if op == 'busy' then local t = shell.time.monotonic() while shell.time.monotonic() - t < 0.002 do end return 'busy' end\n"
+  "  if op == 'loop' then while true do end end\n"
+  "  if op == 'pcall-loop' then while true do pcall(function() while true do end end) end end\n"
+  "  if op == 'log' then shell.log.info('worker log'); shell.log.warning('worker warning'); print('worker print') return 'logged' end\n"
+  "  if op == 'require' then return (pcall(require, 'nonexistent')) end\n"
+  "  if op == 'env' then return shell.worker.start == nil and shell.timer == nil and shell.fz == nil end\n"
+  "  if op == 'big' then return string.rep('b', 17 * 1024 * 1024) end\n"
+  "  return v\n"
+  "end }\n";
+
+static const char *const FUZZ_WORKER_DRIVER =
+  "local shell = require('shell'); local fz = shell.fz\n"
+  "local R = fz.rand\n"
+  "local function coin(p) return fz.frand() < (p or 0.5) end\n"
+  "local function pick(t) return t[R(#t)] end\n"
+  "local function violation(what) fz.mark('violation: ' .. what) end\n"
+  "local entries, depth, in_terminate = {}, 0, false\n"
+  "local good = { 'workers.w', 'workers.ready' }\n"
+  "local bad = { 'workers.syntax', 'workers.raises', 'workers.notable', 'workers.missing', '../escape', '', 'a/b',\n"
+  "  'workers.w.', string.rep('m', 300) }\n"
+  "local ops = { 'count', 'count', 'count', 'progress', 'flood', 'bytes', 'nested', 'cycle', 'mixed', 'function',\n"
+  "  'error', 'error-table', 'post-nil', 'post-two', 'memory', 'free', 'busy', 'loop', 'pcall-loop', 'log',\n"
+  "  'require', 'env', 'big', 'echo' }\n"
+  "local function junk()\n"
+  "  local k = R(20)\n"
+  "  if k == 1 then return nil elseif k == 2 then return true elseif k == 3 then return R(1000) - 500\n"
+  "  elseif k == 4 then return fz.frand() * 1e6 elseif k == 5 then return 0 / 0 elseif k == 6 then return math.huge\n"
+  "  elseif k == 7 then return 'str' .. R(99) elseif k == 8 then return '\\0\\255\\254' .. string.rep('\\200', R(64))\n"
+  "  elseif k == 9 then return {} elseif k == 10 then return { R(9), 'x', true, { y = 1 } }\n"
+  "  elseif k == 11 then return { a = { b = { c = 'd' } }, n = 1.5 } elseif k == 12 then return { 1, nil, 3 }\n"
+  "  elseif k == 13 then return { 1, x = 2 } elseif k == 14 then return print\n"
+  "  elseif k == 15 then local e = pick(entries) return e and e.w elseif k == 16 then return fz.lud()\n"
+  "  elseif k == 17 then local t = {} t[1] = t return t\n"
+  "  elseif k == 18 then local t = {} local c = t for i = 1, 70 do c[1] = {} c = c[1] end return t\n"
+  "  elseif k == 19 then return coroutine.create(print) else return math.mininteger end\n"
+  "end\n"
+  "-- mostly a live worker: posts to dead ones only raise\n"
+  "local function some()\n"
+  "  if coin(0.8) then\n"
+  "    local live = {}\n"
+  "    for _, e in ipairs(entries) do if e.w.alive then live[#live + 1] = e end end\n"
+  "    if #live > 0 then return pick(live) end\n"
+  "  end\n"
+  "  return pick(entries)\n"
+  "end\n"
+  "local function message()\n"
+  "  if coin(0.25) then return junk() end\n"
+  "  local op = pick(ops)\n"
+  "  return { op = op, n = R(op == 'memory' and 40 or 80) }\n"
+  "end\n"
+  "local step\n"
+  "local function react(e)\n"
+  "  local r = R(16)\n"
+  "  if r == 1 then pcall(e.w.post, e.w, message())\n"
+  "  elseif r == 2 then if e.w.alive then e.terminated = true end; in_terminate = true; e.w:terminate(); in_terminate = false\n"
+  "  elseif r == 3 then e.destroyed = e.destroyed or (e.w.alive and 'alive' or 'dead'); e.w:destroy()\n"
+  "  elseif r == 4 and depth < 3 then depth = depth + 1; pcall(step); depth = depth - 1\n"
+  "  elseif r == 5 then error('callback failed')\n"
+  "  elseif r == 6 and coin(0.15) then fz.disable()\n"
+  "  elseif r == 7 then local o = some() if o then o.destroyed = o.destroyed or (o.w.alive and 'alive' or 'dead'); o.w:destroy() end end\n"
+  "end\n"
+  "local function start(force)\n"
+  "  local e = { last = 0, errors = 0 }\n"
+  "  local m = R(20)\n"
+  "  local opts = { module = m <= 16 and pick(good) or m <= 19 and pick(bad) or junk() }\n"
+  "  m = R(20)\n"
+  "  if m <= 5 then opts.max_memory = 1048576 elseif m <= 7 then opts.max_memory = 2097152\n"
+  "  elseif m == 8 then opts.max_memory = junk() end\n"
+  "  if coin(0.85) then\n"
+  "    opts.on_message = function(v)\n"
+  "      fz.hit()\n"
+  "      if e.destroyed then violation('on_message after destroy') end\n"
+  "      if e.terminated then violation('on_message after terminate') end\n"
+  "      if type(v) == 'table' and v.seq then\n"
+  "        if v.seq <= e.last then violation('messages out of order') end\n"
+  "        e.last = v.seq\n"
+  "      end\n"
+  "      local q = e.w.queued\n"
+  "      if q < 0 or q > 64 then violation('queued ' .. q) end\n"
+  "      react(e)\n"
+  "    end\n"
+  "  elseif coin(0.3) then opts.on_message = junk() end\n"
+  "  if coin(0.85) then\n"
+  "    opts.on_error = function(err)\n"
+  "      fz.hit()\n"
+  "      if in_terminate then violation('on_error inside terminate') end\n"
+  "      if e.destroyed then violation('on_error after destroy (' .. e.destroyed .. ' then, code ' .. tostring(err.code) .. ')') end\n"
+  "      e.errors = e.errors + 1\n"
+  "      fz.mark('code:' .. tostring(err.code))\n"
+  "      if e.errors > 1 then violation('on_error twice') end\n"
+  "      if e.w.alive then violation('alive inside on_error') end\n"
+  "      if type(err) ~= 'table' or type(err.message) ~= 'string' then violation('bad error value') end\n"
+  "      local codes = { load = true, error = true, memory = true, terminated = true }\n"
+  "      if not codes[err.code] then violation('error code ' .. tostring(err.code)) end\n"
+  "      if e.terminated and err.code ~= 'terminated' then violation('code after terminate: ' .. tostring(err.code)) end\n"
+  "      react(e)\n"
+  "      if coin(0.3) then pcall(start) end\n"
+  "    end\n"
+  "  elseif coin(0.3) then opts.on_error = junk() end\n"
+  "  if coin(0.03) then opts.bogus = 1 end\n"
+  "  if force then opts.module, opts.max_memory = force.module, force.max_memory end\n"
+  "  local w, err = shell.worker.start(opts)\n"
+  "  if w == nil then return end\n"
+  "  e.w = w\n"
+  "  entries[#entries + 1] = e\n"
+  "  if not w.alive then violation('a new worker is dead') end\n"
+  "  return e\n"
+  "end\n"
+  "local actions = {\n"
+  "  function() start() end,\n"
+  "  function() start() end,\n"
+  "  function() local e = start{ module = 'workers.w', max_memory = 1048576 } if e then e.w:post({ op = 'memory', n = 40 }) end end,\n"
+  "  function() local e = some() if e then e.w:post(message()) end end,\n"
+  "  function() local e = some() if e then e.w:post(message()) end end,\n"
+  "  function() local e = some() if e then e.w:post(message()) end end,\n"
+  "  function() local e = some() if e then e.w:post(message()) end end,\n"
+  "  function() local e = some() if e then for i = 1, R(70) do e.w:post({ op = 'count' }) end end end,\n"
+  "  function() local e = some() if e then e.w:post() end end,\n"
+  "  function() local e = some() if e then e.w:post(1, 2) end end,\n"
+  "  function() local e = some() if e then e.w.post(junk(), 1) end end,\n"
+  "  function() local e = some() if e then if e.w.alive then e.terminated = true end; in_terminate = true; e.w:terminate(); in_terminate = false end end,\n"
+  "  function() local e = some() if e then e.destroyed = e.destroyed or (e.w.alive and 'alive' or 'dead'); e.w:destroy() end end,\n"
+  "  function() local e = some() if e then local a, q, s = e.w.alive, e.w.queued, tostring(e.w) end end,\n"
+  "  function() local e = some() if e then e.w.alive = true end end,\n"
+  "  function() shell.worker.post(1) end,\n"
+  "  function() local l = shell.worker.limit if math.type(l) ~= 'integer' or l < 8 then violation('limit') end end,\n"
+  "  function() shell.worker.start(junk()) end,\n"
+  "}\n"
+  "step = function() pcall(pick(actions)) end\n"
+  "wfuzz = {}\n"
+  "function wfuzz.run(n) for i = 1, n do step() end end\n"
+  "function wfuzz.alive()\n"
+  "  local n = 0\n"
+  "  for _, e in ipairs(entries) do if e.w.alive then n = n + 1 end end\n"
+  "  return n\n"
+  "end\n";
+
+static void
+write_fuzz_workers (const char *dir)
+{
+  tu_write_file (dir, "workers/w.lua", FUZZ_WORKER_LUA);
+  tu_write_file (dir, "workers/ready.lua",
+                 "shell.worker.post('ready')\n"
+                 "return { on_message = function(v) return v end }");
+  tu_write_file (dir, "workers/syntax.lua", "return { on_message = function( }");
+  tu_write_file (dir, "workers/raises.lua", "error('at load time')");
+  tu_write_file (dir, "workers/notable.lua", "return 42");
+}
+
+static gboolean
+pred_no_live_workers (gpointer data)
+{
+  return shell_lua_worker_get_live_count () == 0;
+}
+
+/* How many on_error of each code the rounds saw: every path must be taken */
+static const char *const worker_codes[] = { "load", "error", "memory", "terminated" };
+static guint worker_code_counts[G_N_ELEMENTS (worker_codes)];
+
+static void
+assert_no_violations (void)
+{
+  guint i;
+
+  if (strstr (marks->str, "violation") != NULL)
+    g_error ("worker promises broken: %s", marks->str);
+  for (i = 0; i < G_N_ELEMENTS (worker_codes); i++)
+    {
+      g_autofree char *mark = g_strdup_printf ("code:%s,", worker_codes[i]);
+      const char *p = marks->str;
+
+      while ((p = strstr (p, mark)) != NULL)
+        {
+          worker_code_counts[i]++;
+          p += strlen (mark);
+        }
+    }
+  g_string_truncate (marks, 0);
+}
+
+static void
+worker_coverage_begin (void)
+{
+  memset (worker_code_counts, 0, sizeof worker_code_counts);
+}
+
+static void
+worker_coverage_end (const char *name)
+{
+  guint i;
+
+  g_test_message ("%s: %d callbacks; on_error load %u, error %u, memory %u, terminated %u", name, hits,
+                  worker_code_counts[0], worker_code_counts[1], worker_code_counts[2], worker_code_counts[3]);
+  g_assert_cmpint (hits, >, 100);
+  for (i = 0; i < G_N_ELEMENTS (worker_codes); i++)
+    if (worker_code_counts[i] == 0)
+      g_error ("%s: no worker ended with \"%s\"", name, worker_codes[i]);
+}
+
+/* After disable: no callback runs any more, every thread exits on its own
+ * and gives its memory back */
+static void
+assert_workers_gone (ShellLuaExtension *ext, ShellLuaState *state)
+{
+  ShellLuaWorkerStats stats = { 0 };
+  int hits_at_disable = hits;
+
+  g_assert_false (shell_lua_state_is_alive (state));
+  tu_spin (20);
+  g_assert_cmpint (hits, ==, hits_at_disable);
+  if (!tu_wait_for (pred_no_live_workers, NULL, 10000))
+    g_error ("worker threads are still there: %u", shell_lua_worker_get_live_count ());
+  shell_lua_extension_get_worker_stats (ext, &stats);
+  g_assert_cmpuint (stats.live, ==, 0);
+  g_assert_cmpint (stats.memory, ==, 0);
+  g_assert_cmpuint (shell_lua_state_get_memory_usage (state), ==, 0);
+  assert_no_violations ();
+}
+
+static ShellLuaExtension *
+install_worker_fuzz (Env *e, const char *uuid)
+{
+  g_autofree char *dir = g_build_filename (e->user, uuid, NULL);
+  ShellLuaExtension *ext;
+
+  ext = install (e, uuid, ", \"capabilities\": [\"worker\"]", "return {}\n");
+  write_fuzz_workers (dir);
+  return ext;
+}
+
+static void
+run_worker_rounds (Env *e, ShellLuaExtension *ext, const char *uuid, int rounds, gboolean disable_from_inside)
+{
+  int round;
+
+  for (round = 0; round < rounds; round++)
+    {
+      g_autoptr (ShellLuaState) state = NULL;
+      int batch;
+
+      /* the error policy may have put it in ERROR: enable () starts again */
+      enable_ok (e, uuid);
+      state = g_object_ref (shell_lua_extension_get_lua_state (ext));
+      tu_do (state, FUZZ_WORKER_DRIVER);
+
+      for (batch = 0; batch < 12 && shell_lua_extension_get_state (ext) == SHELL_LUA_EXTENSION_STATE_ACTIVE; batch++)
+        {
+          tu_do (state, disable_from_inside ? "wfuzz.run(8)" : "wfuzz.run(4)");
+          tu_spin (g_rand_int_range (rng, 0, 15));
+          if (shell_lua_extension_get_state (ext) == SHELL_LUA_EXTENSION_STATE_ACTIVE)
+            g_assert_cmpint (tu_eval_int (state, "wfuzz.alive()"), <=, 4);
+        }
+
+      if (shell_lua_extension_get_state (ext) == SHELL_LUA_EXTENSION_STATE_ACTIVE)
+        {
+          g_autoptr (GError) error = NULL;
+
+          g_assert_true (shell_lua_extension_manager_disable (e->manager, uuid, &error));
+          g_assert_no_error (error);
+        }
+      assert_workers_gone (ext, state);
+    }
+}
+
+static void
+test_worker_random (void)
+{
+  Env e;
+  g_autoptr (ShellLuaExtension) ext = NULL;
+
+  fixture_begin (71);
+  capture_begin ();
+  env_init (&e);
+  /* worker errors count: keep the extension up through most rounds */
+  shell_lua_extension_manager_set_error_limit (e.manager, G_MAXUINT);
+  ext = install_worker_fuzz (&e, "wfuzz@test");
+  worker_coverage_begin ();
+  run_worker_rounds (&e, ext, "wfuzz@test", 25, FALSE);
+  worker_coverage_end ("worker/random");
+  env_clear (&e);
+  capture_end ();
+  g_clear_object (&ext);
+  fixture_end ();
+}
+
+/* The same, with the default error policy (the errors of the workers
+ * disable the extension) and disables from inside the callbacks */
+static void
+test_worker_disable_midflight (void)
+{
+  Env e;
+  g_autoptr (ShellLuaExtension) ext = NULL;
+
+  fixture_begin (72);
+  capture_begin ();
+  env_init (&e);
+  ext = install_worker_fuzz (&e, "wdisable@test");
+  worker_coverage_begin ();
+  run_worker_rounds (&e, ext, "wdisable@test", 25, TRUE);
+  worker_coverage_end ("worker/disable-midflight");
+  env_clear (&e);
+  capture_end ();
+  g_clear_object (&ext);
+  fixture_end ();
+}
+
+/* ======================================================================== */
 
 int
 main (int argc, char *argv[])
@@ -3669,6 +4012,8 @@ main (int argc, char *argv[])
   g_test_add_func ("/shell-lua/fuzz/random/sandboxed", test_random_sandboxed);
   g_test_add_func ("/shell-lua/fuzz/random/destroyed-midway", test_random_destroyed_midway);
   g_test_add_func ("/shell-lua/fuzz/random/extension-churn", test_random_extension_churn);
+  g_test_add_func ("/shell-lua/fuzz/worker/random", test_worker_random);
+  g_test_add_func ("/shell-lua/fuzz/worker/disable-midflight", test_worker_disable_midflight);
 
   ret = g_test_run ();
   g_string_free (destroy_log, TRUE);

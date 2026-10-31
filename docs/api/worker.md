@@ -15,7 +15,9 @@ are looked at and before any thread is created.
 Status: implemented by `subprojects/shell-lua/src/shell-lua-api-worker.c`
 (GLib only; the worker's state is `SHELL_LUA_STATE_WORKER`, SANDBOX.md
 "Worker states"); unit tests `subprojects/shell-lua/tests/test-api-worker.c`
-and the `worker` group of `tests/test-state.c`; conformance test
+and the `worker` group of `tests/test-state.c`; random use, with the
+promises of this document checked from the callbacks, in the `worker` group
+of `tests/test-fuzz.c`; conformance test
 `tests/api/worker.lua` with the fixtures `tests/api/fixtures/worker@test` and
 `worker-nocap@test`; one more row and variant of the capability matrix
 (`capabilities-worker@test`). The last section ("Notes for implementers") is
@@ -109,7 +111,7 @@ against the cap of owned objects while it is alive.
 |---|---|---|---|
 | `worker:post(value)` | method | 1.2 | queues one value for the worker (see "Messages"). Exactly one argument; to send several values wrap them in a table. Raises when the value cannot cross, when it is too large, and when **64** messages are already queued: `too many queued messages (limit 64)`; the message is then not queued. Never waits |
 | `worker:terminate()` | method | 1.2 | asks the worker to stop and forgets its queues: the handle is dead when `terminate` returns, messages the worker had not handled are dropped, messages the worker posted and the extension had not received are dropped, and `on_error` runs once, later, from the main loop, with `code = "terminated"` (never inside `terminate`). Nothing waits for the thread (see "Stopping a worker"). Does nothing on a dead handle |
-| `worker:destroy()` | method | 1.2 | `terminate()` without the callback: **no** callback runs afterwards. Idempotent |
+| `worker:destroy()` | method | 1.2 | `terminate()` without the callback: **no** callback runs afterwards, also after a `terminate()` whose `on_error` has not run yet (it is dropped). Idempotent |
 | `worker.alive` | boolean, ro | 1.2 | `true` from `start` until the worker ends; `false` inside `on_error`, after `terminate()` and `destroy()`, and at disable |
 | `worker.queued` | integer, ro | 1.2 | messages posted with `post` that the worker has not started to handle. For backpressure: an extension that produces faster than its worker consumes looks at this before `post`, coalesces, or drops |
 

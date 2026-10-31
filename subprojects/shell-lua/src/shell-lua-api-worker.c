@@ -27,7 +27,9 @@
  *    its reference. The worker object is reference counted by both sides.
  *  - The callbacks are registry references kept here (as shell.spawn does),
  *    not ShellLuaCallbacks bound to the object: terminate () destroys the
- *    object at once and still runs on_error later, from the main loop.
+ *    object at once and still runs on_error later, from the main loop. A
+ *    dead handle no longer knows its object, so terminate () remembers which
+ *    worker the handle was: destroy () on it drops that on_error.
  *  - luaL_error () longjmps: nothing allocated is live when it is called,
  *    and the lock is never held across it.
  */
@@ -304,6 +306,7 @@ struct _ShellLuaWorker
   gboolean       destroyed;    /* the destroy rule ran: the handle is dead */
   gboolean       terminating;  /* terminate (): on_error "terminated" is on its way */
   gboolean       finished;     /* nothing of the main side runs any more */
+  gpointer       handle_key;   /* the handle terminate () killed, in terminated_handles */
 
   /* What the thread needs; written before it starts, read only after */
   char          *id;           /* "<uuid>/worker-<n>", the id of the worker's state */
@@ -423,6 +426,10 @@ stop_thread (ShellLuaWorker *worker)
   g_mutex_unlock (&worker->lock);
 }
 
+/* The handles that terminate () killed while their on_error is on its way
+ * (the userdata of the handle → the worker, not referenced). Main thread. */
+static GHashTable *terminated_handles;
+
 /* Nothing of the main side runs any more: the callbacks and the state are
  * released, the drain is gone. */
 static void
@@ -430,6 +437,10 @@ let_go (ShellLuaWorker *worker)
 {
   ShellLuaState *state = worker->state;
 
+  if (worker->handle_key != NULL &&
+      g_hash_table_lookup (terminated_handles, worker->handle_key) == worker)
+    g_hash_table_remove (terminated_handles, worker->handle_key);
+  worker->handle_key = NULL;
   worker->finished = TRUE;
   worker->state = NULL;
   release_ref (state, &worker->message_ref);
@@ -1028,6 +1039,10 @@ l_worker_terminate (lua_State *L)
   /* The handle dies now; on_error runs later, from the drain */
   g_object_ref (worker);
   worker->terminating = TRUE;
+  if (terminated_handles == NULL)
+    terminated_handles = g_hash_table_new (NULL, NULL);
+  worker->handle_key = lua_touserdata (L, 1);
+  g_hash_table_insert (terminated_handles, worker->handle_key, worker);
   shell_lua_destroy_object (L, object);
 
   g_mutex_lock (&worker->lock);
@@ -1036,6 +1051,23 @@ l_worker_terminate (lua_State *L)
   g_mutex_unlock (&worker->lock);
 
   g_object_unref (worker);
+  return 0;
+}
+
+/* destroy (): the destroy rule on a live handle. On a handle that terminate
+ * () killed, the on_error that is still on its way is dropped: no callback
+ * runs after destroy (). */
+static int
+l_worker_destroy (lua_State *L)
+{
+  ShellLuaWorker *worker;
+
+  if (shell_lua_handle_get (L, 1, "shell.Worker") != NULL)
+    return shell_lua_handle_destroy_method (L);
+
+  worker = terminated_handles != NULL ? g_hash_table_lookup (terminated_handles, lua_touserdata (L, 1)) : NULL;
+  if (worker != NULL && !worker->finished)
+    release_ref (worker->state, &worker->error_ref);
   return 0;
 }
 
@@ -1059,7 +1091,7 @@ static const luaL_Reg worker_methods[] = {
 
 static const ShellLuaHandleMethod worker_methods_ex[] = {
   { "terminate", l_worker_terminate,              SHELL_LUA_METHOD_DEAD_OK },
-  { "destroy",   shell_lua_handle_destroy_method, SHELL_LUA_METHOD_DEAD_OK },
+  { "destroy",   l_worker_destroy,                SHELL_LUA_METHOD_DEAD_OK },
   { NULL }
 };
 
