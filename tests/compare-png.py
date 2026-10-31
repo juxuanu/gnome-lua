@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # Compares the pixels of two PNG files (8 bits, RGB or RGBA; the alpha is
-# ignored): prints the size of each and how many pixels differ, and exits 1
-# when they differ or the sizes do not match. No dependency beyond Python.
+# ignored): prints the size of each and how many pixels differ, and where,
+# and exits 1 when they differ or the sizes do not match. A rectangle given
+# after the files is left out of the comparison. No dependency beyond Python.
 #
-# Usage: compare-png.py A.png B.png
+# Usage: compare-png.py A.png B.png [X Y WIDTH HEIGHT]
 #
 # SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -59,13 +60,20 @@ def load(path):
 
 def main():
     (wa, ha, a), (wb, hb, b) = load(sys.argv[1]), load(sys.argv[2])
+    ix, iy, iw, ih = (int(v) for v in sys.argv[3:7]) if len(sys.argv) >= 7 else (0, 0, 0, 0)
     if (wa, ha) != (wb, hb):
         print(f'sizes differ: {wa}x{ha} and {wb}x{hb}')
         return 1
-    differing = sum(1 for y in range(ha) for x in range(wa) if a[y][x] != b[y][x])
+    points = [(x, y) for y in range(ha) for x in range(wa)
+              if a[y][x] != b[y][x] and not (ix <= x < ix + iw and iy <= y < iy + ih)]
     colors = len({pixel for row in a for pixel in row})
-    print(f'{wa}x{ha}, {colors} colors, {differing} pixels differ')
-    return 1 if differing else 0
+    where = ''
+    if points:
+        xs = [x for x, _ in points]
+        ys = [y for _, y in points]
+        where = f', within {min(xs)},{min(ys)} to {max(xs)},{max(ys)}'
+    print(f'{wa}x{ha}, {colors} colors, {len(points)} pixels differ{where}')
+    return 1 if points else 0
 
 
 if __name__ == '__main__':
