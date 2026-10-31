@@ -3700,9 +3700,6 @@ msgstr "Sonidos del sistema"
 #~ "Si quita la extensión necesitará volver a descargarla si quiere activarla "
 #~ "de nuevo"
 
-#~ msgid "_Cancel"
-#~ msgstr "C_ancelar"
-
 #~ msgid "_Remove"
 #~ msgstr "Quita_r"
 
@@ -3744,9 +3741,6 @@ msgstr "Sonidos del sistema"
 
 #~ msgid "About Extensions"
 #~ msgstr "Acerca de extensiones"
-
-#~ msgid "Main Menu"
-#~ msgstr "Menú principal"
 
 #~ msgid "Search extensions"
 #~ msgstr "Buscar extensiones"
@@ -5812,3 +5806,228 @@ msgstr "Sonidos del sistema"
 #~ msgid "The user manager object this user is controlled by."
 #~ msgstr ""
 #~ "El objeto del administrador de usuarios que controla a este usuario."
+
+#, c-format
+msgid "%1$s is already used by %2$s"
+msgstr "%2$s ya usa %1$s"
+
+msgid "Press the key combination to add. Press Esc to cancel or Backspace to clear."
+msgstr "Pulse la combinación de teclas que quiere añadir. Pulse Esc para cancelar o Retroceso para borrar."
+
+msgid "Press the key combination to add. Press Esc to cancel."
+msgstr "Pulse la combinación de teclas que quiere añadir. Pulse Esc para cancelar."
+
+msgid "Press the new key combination. Press Esc to cancel or Backspace to clear."
+msgstr "Pulse la nueva combinación de teclas. Pulse Esc para cancelar o Retroceso para borrar."
+
+msgid "Press the new key combination. Press Esc to cancel."
+msgstr "Pulse la nueva combinación de teclas. Pulse Esc para cancelar."
+
+msgid "Set Shortcut"
+msgstr "Establecer atajo"
+
+msgid "_Cancel"
+msgstr "C_ancelar"
+
+msgid "Reset to Defaults?"
+msgstr "¿Restablecer los valores predeterminados?"
+
+msgid "All the settings of this extension on this page will be set back to their default values."
+msgstr "Toda la configuración de esta extensión en esta página volverá a sus valores predeterminados."
+
+msgid "_Reset"
+msgstr "_Restablecer"
+
+msgid "Reset to Defaults"
+msgstr "Restablecer los valores predeterminados"
+
+msgid "Main Menu"
+msgstr "Menú principal"
+
+msgid "Additional directories to search for Lua extensions"
+msgstr "Carpetas adicionales en las que buscar extensiones Lua"
+
+msgid "It asks for these permissions"
+msgstr "Pide estos permisos"
+
+msgid "Run programs"
+msgstr "Ejecutar programas"
+
+msgid "Any program, as you"
+msgstr "Cualquier programa, en su nombre"
+
+msgid "Talk to other programs and services"
+msgstr "Comunicarse con otros programas y servicios"
+
+msgid "Over D-Bus, as powerful as running programs"
+msgstr "Por D-Bus, tan potente como ejecutar programas"
+
+msgid "Read and change your files"
+msgstr "Leer y modificar sus archivos"
+
+msgid "Any file you can reach, not only its own"
+msgstr "Cualquier archivo a su alcance, no solo los propios"
+
+msgid "Use the network"
+msgstr "Usar la red"
+
+msgid "Any server on the internet or on your local network"
+msgstr "Cualquier servidor de Internet o de su red local"
+
+msgid "Change settings"
+msgstr "Cambiar la configuración"
+
+msgid "Of the system and of every application"
+msgstr "Del sistema y de todas las aplicaciones"
+
+msgid "See your searches"
+msgstr "Ver sus búsquedas"
+
+msgid "What you type in the overview search"
+msgstr "Lo que escribe en la búsqueda de la vista general"
+
+msgid "Run work in the background"
+msgstr "Trabajar en segundo plano"
+
+msgid "Long computations, with no other access"
+msgstr "Cálculos largos, sin ningún otro acceso"
+
+#, c-format
+msgid "Lua heap: %s"
+msgstr "Memoria de Lua: %s"
+
+#, c-format
+msgid "%u error"
+msgid_plural "%u errors"
+msgstr[0] "%u error"
+msgstr[1] "%u errores"
+
+#, c-format
+msgid "%lu callback, %.1f ms in total"
+msgid_plural "%lu callbacks, %.1f ms in total"
+msgstr[0] "%lu retorno de llamada (%.1f ms en total)"
+msgstr[1] "%lu retornos de llamada (%.1f ms en total)"
+
+#, c-format
+msgid "%lu longer than a frame"
+msgid_plural "%lu longer than a frame"
+msgstr[0] "%lu más largo que un fotograma"
+msgstr[1] "%lu más largos que un fotograma"
+
+#, c-format
+msgid "%s, longest %.1f ms (%s), %s"
+msgstr "%s, el más largo de %.1f ms (%s), %s"
+
+#, c-format
+msgid "%lu worker running"
+msgid_plural "%lu workers running"
+msgstr[0] "%lu hilo de trabajo en ejecución"
+msgstr[1] "%lu hilos de trabajo en ejecución"
+
+#, c-format
+msgid "%lu message handled in %.1f ms of their own time, longest %.1f ms"
+msgid_plural "%lu messages handled in %.1f ms of their own time, longest %.1f ms"
+msgstr[0] "%lu mensaje procesado en %.1f ms de tiempo propio, el más largo de %.1f ms"
+msgstr[1] "%lu mensajes procesados en %.1f ms de tiempo propio, el más largo de %.1f ms"
+
+#, c-format
+msgid "%s, %s, Lua memory: %s"
+msgstr "%s, %s, memoria de Lua: %s"
+
+#, c-format
+msgid "Could not compile the settings schema (run “glib-compile-schemas %s” once it is edited): %s\n"
+msgstr "No se pudo compilar el esquema de configuración (ejecute «glib-compile-schemas %s» cuando lo haya editado): %s\n"
+
+msgid "Include prefs.lua template"
+msgstr "Incluir la plantilla prefs.lua"
+
+msgid "An empty Lua extension"
+msgstr "Una extensión Lua vacía"
+
+msgid "EXTENSION"
+msgstr "EXTENSIÓN"
+
+msgid "CALLBACKS"
+msgstr "LLAMADAS"
+
+msgid "TOTAL"
+msgstr "TOTAL"
+
+msgid "LONGEST"
+msgstr "MÁS LARGA"
+
+msgid "SLOW"
+msgstr "LENTAS"
+
+msgid "MEMORY"
+msgstr "MEMORIA"
+
+msgid "WHERE"
+msgstr "DÓNDE"
+
+#, c-format
+msgid "%.1f ms"
+msgstr "%.1f ms"
+
+msgid "No extension is running"
+msgstr "No se está ejecutando ninguna extensión"
+
+msgid "Unknown sort key"
+msgstr "Clave de ordenación desconocida"
+
+msgid "Sort by: time (default), longest, slow, callbacks or memory"
+msgstr "Ordenar por: time (predeterminado), longest, slow, callbacks o memory"
+
+msgid "KEY"
+msgstr "CLAVE"
+
+msgid "Show what the running extensions cost: the time of their callbacks since they were enabled, the callbacks longer than a frame, and their memory with that of their workers"
+msgstr "Mostrar lo que cuestan las extensiones en ejecución: el tiempo de sus retornos de llamada desde que se activaron, los retornos de llamada más largos que un fotograma y su memoria junto con la de sus hilos de trabajo"
+
+msgid "Show what the running extensions cost"
+msgstr "Mostrar lo que cuestan las extensiones en ejecución"
+
+msgid "Callbacks"
+msgstr "Retornos de llamada"
+
+#, c-format
+msgid "%.0f, %.1f ms in total"
+msgstr "%.0f (%.1f ms en total)"
+
+msgid "Longest callback"
+msgstr "Retorno de llamada más largo"
+
+#, c-format
+msgid "%.1f ms (%s)"
+msgstr "%.1f ms (%s)"
+
+msgid "Callbacks longer than a frame"
+msgstr "Retornos de llamada más largos que un fotograma"
+
+msgid "Lua memory"
+msgstr "Memoria de Lua"
+
+#, c-format
+msgid "%lu running"
+msgid_plural "%lu running"
+msgstr[0] "%lu en ejecución"
+msgstr[1] "%lu en ejecución"
+
+#, c-format
+msgid "%lu message handled in %.1f ms"
+msgid_plural "%lu messages handled in %.1f ms"
+msgstr[0] "%lu mensaje procesado en %.1f ms"
+msgstr[1] "%lu mensajes procesados en %.1f ms"
+
+msgid "Workers"
+msgstr "Hilos de trabajo"
+
+#, c-format
+msgid "%s, %s"
+msgstr "%s, %s"
+
+msgid "Longest worker message"
+msgstr "Mensaje más largo de un hilo de trabajo"
+
+msgid "Worker memory"
+msgstr "Memoria de los hilos de trabajo"

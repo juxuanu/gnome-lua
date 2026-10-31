@@ -3824,7 +3824,7 @@ msgid "Read and change your files"
 msgstr "Llegir i modificar els vostres fitxers"
 
 msgid "Any file you can reach, not only its own"
-msgstr "Qualsevol fitxer al qual tingueu accés, no només els seus"
+msgstr "Qualsevol fitxer al vostre abast, no només els seus"
 
 msgid "Use the network"
 msgstr "Utilitzar la xarxa"
