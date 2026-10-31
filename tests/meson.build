@@ -35,10 +35,13 @@ c_unit_tests = {
   'break-manager': {},
   'extension-system': {},
   'file-utils': {
-    # The data directories that the collection of files reads
+    # The data directories that the collection of files reads. The home is
+    # in the source tree: local file access only, or gvfs writes its
+    # metadata there
     'env': {
       'XDG_DATA_DIRS': join_paths(meson.current_source_dir(), 'unit/fixtures/datadirs/system'),
       'XDG_DATA_HOME': join_paths(meson.current_source_dir(), 'unit/fixtures/datadirs/home'),
+      'GIO_USE_VFS': 'local',
     },
   },
   'highlighter': {},
