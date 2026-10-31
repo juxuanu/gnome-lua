@@ -1128,6 +1128,23 @@ shell_lua_extension_serialize (ShellLuaExtension *self)
   dict_take (dict, "canChange", g_variant_new_boolean (self->can_change));
   dict_take (dict, "sessionModes", g_variant_builder_end (&modes));
 
+  /* What the extension costs while it runs (since its last enable): the
+   * time of its calls in milliseconds, its Lua memory in bytes */
+  if (self->lua_state != NULL && shell_lua_state_is_alive (self->lua_state))
+    {
+      ShellLuaStats stats;
+
+      shell_lua_state_get_stats (self->lua_state, &stats);
+      dict_take (dict, "callbacks", g_variant_new_double (stats.calls));
+      dict_take (dict, "callbackTime", g_variant_new_double (stats.total_us / 1000.0));
+      dict_take (dict, "callbackLongest", g_variant_new_double (stats.longest_us / 1000.0));
+      dict_take (dict, "callbackLongestWhere",
+                 g_variant_new_string (stats.longest_where != NULL ? stats.longest_where : ""));
+      dict_take (dict, "slowCallbacks", g_variant_new_double (stats.slow_calls));
+      dict_take (dict, "memory",
+                 g_variant_new_double (shell_lua_state_get_memory_usage (self->lua_state)));
+    }
+
   g_variant_builder_init (&builder, G_VARIANT_TYPE_VARDICT);
   g_hash_table_iter_init (&iter, dict);
   while (g_hash_table_iter_next (&iter, &key, &value))

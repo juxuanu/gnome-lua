@@ -1798,6 +1798,7 @@ method_call_trampoline (lua_State *L,
   int base, n_results;
 
   shell_lua_state_push_ref (call->self->state, call->fn_ref);
+  shell_lua_state_note_callee (L, -1);
   lua_checkstack (L, (int) n_in + 4);
   push_tuple_children (L, call->parameters);
   base = lua_gettop (L) - (int) n_in - 1;   /* index below the function */

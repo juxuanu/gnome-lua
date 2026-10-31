@@ -1759,6 +1759,37 @@ extension_display_new (LgExtensions      *self,
       clutter_actor_add_child (meta_box, CLUTTER_ACTOR (st_label_new (usage)));
     }
 
+  /* What its callbacks cost since it was enabled: the line to look at when
+   * the desktop stutters */
+  if (lua_state != NULL && shell_lua_state_is_alive (lua_state))
+    {
+      ShellLuaStats stats;
+      g_autofree char *calls = NULL;
+      g_autofree char *slow = NULL;
+      g_autofree char *text = NULL;
+
+      shell_lua_state_get_stats (lua_state, &stats);
+      calls = g_strdup_printf (ngettext ("%lu callback, %.1f ms in total",
+                                         "%lu callbacks, %.1f ms in total",
+                                         (unsigned long) stats.calls),
+                               (unsigned long) stats.calls, stats.total_us / 1000.0);
+      slow = g_strdup_printf (ngettext ("%lu longer than a frame",
+                                        "%lu longer than a frame",
+                                        (unsigned long) stats.slow_calls),
+                              (unsigned long) stats.slow_calls);
+      if (stats.longest_where != NULL)
+        text = g_strdup_printf (_("%s, longest %.1f ms (%s), %s"), calls,
+                                stats.longest_us / 1000.0, stats.longest_where, slow);
+      else
+        text = g_strdup (calls);
+
+      clutter_actor_add_child (box, g_object_new (ST_TYPE_LABEL,
+                                                  "style-class", "lg-extension-stats",
+                                                  "text", text,
+                                                  "x-expand", TRUE,
+                                                  NULL));
+    }
+
   view_source = link_button_new (_("View Source"));
   g_object_set_data_full (G_OBJECT (view_source), "extension",
                           g_object_ref (extension), g_object_unref);
@@ -1838,6 +1869,17 @@ extensions_loaded_cb (ShellLuaExtensionManager *manager,
   lg_extensions_sync (self);
 }
 
+/* The figures of the rows are not live either: refresh them whenever the
+ * tab is shown */
+static void
+extensions_mapped_cb (LgExtensions *self,
+                      GParamSpec   *pspec,
+                      gpointer      user_data)
+{
+  if (clutter_actor_is_mapped (CLUTTER_ACTOR (self)))
+    lg_extensions_sync (self);
+}
+
 static void
 lg_extensions_dispose (GObject *object)
 {
@@ -1885,6 +1927,7 @@ lg_extensions_new (ShellLookingGlass *looking_glass)
                            G_CALLBACK (extension_state_changed_cb), self, 0);
   g_signal_connect_object (manager, "extensions-loaded",
                            G_CALLBACK (extensions_loaded_cb), self, 0);
+  g_signal_connect (self, "notify::mapped", G_CALLBACK (extensions_mapped_cb), NULL);
 
   return self;
 }

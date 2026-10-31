@@ -1,0 +1,7 @@
+{
+  "uuid": "extension-stats@test",
+  "name": "Tooling: what an extension costs",
+  "description": "Fixture of tests/api/extension-stats.lua: a callback longer than a frame, for the extension info and gnome-extensions stats",
+  "shell-api": "1.1",
+  "version": 1
+}

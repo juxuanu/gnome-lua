@@ -315,6 +315,7 @@ call_trampoline (lua_State *L)
     return luaL_error (L, "callback argument count mismatch (expected %d, pushed %d)",
                        ctx->nargs, lua_gettop (L) - top);
 
+  shell_lua_state_note_callee (L, top);
   lua_call (L, ctx->nargs, 0);
   return 0;
 }

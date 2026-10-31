@@ -20,6 +20,7 @@ SYNOPSIS
 |  **gnome-extensions** info *UUID*
 |  **gnome-extensions** show *UUID*
 |  **gnome-extensions** list [*OPTION*...]
+|  **gnome-extensions** stats [*OPTION*...]
 |  **gnome-extensions** prefs *UUID*
 |  **gnome-extensions** create [*OPTION*...]
 |  **gnome-extensions** pack [*OPTION*...]
@@ -76,11 +77,28 @@ COMMANDS
 ``info`` *UUID*
 
   Show details of the extension identified by *UUID*, including name,
-  description and state.
+  description and state, and for a running extension what it costs (see
+  ``stats``).
 
 ``show`` *UUID*
 
   Synonym of info.
+
+``stats`` [*OPTION*...]
+
+  Shows what the running extensions cost since they were enabled, the most
+  expensive first: the number of their callbacks and their time in total,
+  the longest callback and where it is defined, the callbacks longer than a
+  frame (16 ms, a dropped frame at 60 Hz) and their Lua memory. The shell
+  also logs each callback longer than a frame, at most once every 10
+  seconds per extension.
+
+  **Options**
+
+  ``--sort``, ``-s`` *KEY*
+
+    Sort by ``time`` (the default), ``longest``, ``slow``, ``callbacks`` or
+    ``memory``.
 
 ``list`` [*OPTION*...]
 

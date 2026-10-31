@@ -15,6 +15,7 @@ sources = [
   'command-info.c',
   'command-install.c',
   'command-list.c',
+  'command-stats.c',
   'command-pack.c',
   'command-prefs.c',
   'command-reset.c',

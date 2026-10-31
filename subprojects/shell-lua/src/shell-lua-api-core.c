@@ -573,6 +573,7 @@ timer_trampoline (lua_State *L,
   ShellLuaTimer *self = data;
 
   shell_lua_state_push_ref (self->state, self->callback_ref);
+  shell_lua_state_note_callee (L, -1);
   lua_call (L, 0, 1);
   return 1;
 }
@@ -1093,6 +1094,7 @@ changed_trampoline (lua_State *L,
   gboolean has_key;
 
   shell_lua_state_push_ref (call->state, call->ref);
+  shell_lua_state_note_callee (L, -1);
   lua_pushstring (L, call->key);
 
   g_object_get (call->settings, "settings-schema", &schema, NULL);

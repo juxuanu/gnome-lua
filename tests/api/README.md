@@ -17,6 +17,7 @@ change together.
 | `ui`, `menu`, `panel`, `dash`, `quick-settings`, `notify`, `window`, `dbus`, `keybindings`, `time` | the other documents | `<area>@test` |
 | `overview` | overview.md | `overview@test` |
 | `search` | search.md | `search@test`, `search-nocap@test` |
+| `extension-stats` | not an area: the time of the calls into an extension as `gnome-extensions info` and `stats` show it (docs/debugging.md); the script starts the service `org.gnome.Shell.Extensions` the tool talks to | `extension-stats@test` (a callback of 40 ms) |
 | `capabilities` | the capabilities of README.md: every gated function with and without its capability, also among the others | `capabilities-<variant>@test` for `none`, each capability alone and `all`: the same `fixtures/capabilities/extension.lua` (linked), a different `metadata.json` |
 
 ## How a test runs

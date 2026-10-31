@@ -52,6 +52,23 @@ typedef struct {
   gsize  memory_limit;         /* bytes the allocator may hand out; G_MAXSIZE = unlimited */
 } ShellLuaLimits;
 
+/* The time spent in the code of a state: each call into it from outside
+ * Lua (a callback, a hook, a timer, enable ()) counts once, at its
+ * outermost protected call, without the calls into other states made from
+ * inside it (those count for the other states). */
+typedef struct {
+  guint64     calls;          /* calls into the state */
+  gint64      total_us;       /* time spent in them, microseconds */
+  gint64      longest_us;     /* the longest one */
+  const char *longest_where;  /* the function it ran ("extension.lua:57",
+                               * "[C]"); NULL before the first call */
+  guint64     slow_calls;     /* calls of SHELL_LUA_SLOW_CALL_US or more */
+} ShellLuaStats;
+
+/* A call this long drops a frame at 60 Hz. Sandboxed states log such calls
+ * (at most one message every 10 seconds per state). */
+#define SHELL_LUA_SLOW_CALL_US (16 * 1000)
+
 #define SHELL_TYPE_LUA_STATE (shell_lua_state_get_type ())
 G_DECLARE_FINAL_TYPE (ShellLuaState, shell_lua_state, SHELL, LUA_STATE, GObject)
 
@@ -157,7 +174,9 @@ void               shell_lua_state_remove_teardown (ShellLuaState *self,
  * "destroyed". Idempotent. Also happens on dispose. */
 void               shell_lua_state_destroy        (ShellLuaState *self);
 
-/* Statistics, consumed by Looking Glass. */
+/* Statistics, consumed by Looking Glass and the extension info. */
+void               shell_lua_state_get_stats        (ShellLuaState *self,
+                                                     ShellLuaStats *stats);
 gsize              shell_lua_state_get_memory_usage (ShellLuaState *self);
 guint              shell_lua_state_get_error_count  (ShellLuaState *self);
 void               shell_lua_state_reset_error_count (ShellLuaState *self);

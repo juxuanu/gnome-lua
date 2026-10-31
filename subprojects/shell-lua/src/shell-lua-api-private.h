@@ -28,6 +28,13 @@ void shell_lua_api_populate  (ShellLuaState *state,
 /* Push the ShellLuaState that owns @L (from the registry). */
 ShellLuaState *shell_lua_state_from_L (lua_State *L);
 
+/* A trampoline that runs an extension's function from a protected call
+ * calls this right before lua_call () with the stack index of the function:
+ * the time accounting reports slow calls by the function they ran
+ * (ShellLuaStats.longest_where). Does nothing for a nested call. */
+void           shell_lua_state_note_callee (lua_State *L,
+                                            int        idx);
+
 /* Argument helpers for the "single options table" calling convention used by
  * every shell.* constructor: shell.timer.every{interval=..., callback=...}.
  * All of them raise a Lua error naming the field on type mismatch. */

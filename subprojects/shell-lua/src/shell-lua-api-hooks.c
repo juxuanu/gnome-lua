@@ -100,6 +100,7 @@ hook_trampoline (lua_State *L,
   Listener *d = call->listener;
 
   shell_lua_state_push_ref (d->state, d->ref);
+  shell_lua_state_note_callee (L, -1);
   if (call->payload != NULL)
     shell_lua_push_variant (L, call->payload);
   else

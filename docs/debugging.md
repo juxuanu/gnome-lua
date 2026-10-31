@@ -28,6 +28,31 @@ An error in the code of an extension is logged with its Lua traceback by the
 extension manager. In the Looking Glass evaluator (which is not sandboxed),
 `print (debug.traceback ('trace from do_something ()'))` logs a traceback.
 
+## An extension that makes the desktop stutter
+
+Extensions run on the main thread of the shell, which also draws the
+screen: a callback that takes longer than a frame (16 ms at 60 Hz) drops
+frames. The runtime measures every call into an extension (callbacks,
+hooks, timers, `enable ()`), from its enable on, without the time of other
+extensions' callbacks that run inside it:
+
+ * the journal gets a line for a call longer than a frame, at most one every
+   10 seconds per extension, with the function it ran:
+   `[clock@example.com] a call took 42 ms (extension.lua:57)`
+   (`journalctl --user -b _COMM=gnome-shell -g 'a call took'`);
+ * `gnome-extensions stats` lists the running extensions, the most expensive
+   first: the number of callbacks and their time in total, the longest one
+   and where it is defined, the callbacks longer than a frame and the Lua
+   memory (`--sort longest`, `slow`, `callbacks` or `memory`);
+ * `gnome-extensions info UUID` shows the same figures for one extension, and
+   the Extensions tab of Looking Glass under each extension (the figures are
+   those of when the tab was shown).
+
+The figures are the keys `callbacks`, `callbackTime`, `callbackLongest`
+(milliseconds), `callbackLongestWhere`, `slowCallbacks` and `memory` (bytes)
+of the extension info (`org.gnome.Shell.Extensions.GetExtensionInfo`);
+`ShellLuaStats` in `subprojects/shell-lua/src/shell-lua.h` in C.
+
 ## Debugging the session's gnome-shell proces
 
 It is possible to attach gdb to the gnome-shell process of the existing

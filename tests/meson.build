@@ -217,6 +217,20 @@ api_tests = [
   },
 ]
 
+# Not an area of the API: the tooling that finds the extensions that cost
+# frames (the extension info, gnome-extensions stats)
+if get_option('extensions_tool')
+  api_tests += [{
+    'name': 'extension-stats',
+    'env': {
+      'GNOME_EXTENSIONS_TOOL': join_paths(meson.project_build_root(),
+        'subprojects', 'extensions-tool', 'src', 'gnome-extensions'),
+      'GNOME_SHELL_EXTENSIONS_SERVICE': join_paths(meson.project_build_root(),
+        'src', 'dbus-services', 'extensions', 'org.gnome.Shell.Extensions'),
+    },
+  }]
+endif
+
 libgvc_path = fs.parent(libgvc.get_variable('libgvc').full_path())
 libshell_lua_path = fs.parent(libshell_lua.get_variable('libshell_lua').full_path())
 
@@ -279,6 +293,9 @@ foreach api_test : api_tests
 
   api_test_env = shell_testenv
   api_test_env.set('GNOME_SHELL_SESSION_MODE', 'user')
+  foreach var, value : api_test.get('env', {})
+    api_test_env.set(var, value)
+  endforeach
 
   test('api-@0@'.format(test_name), dbus_runner,
     suite: 'api',

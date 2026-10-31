@@ -52,6 +52,9 @@
 #define KEY_ORIG_REQUIRE "shell.lua.orig_require"
 #define KEY_KILLED       "shell.lua.killed"
 
+/* Slow calls are reported at most this often per state */
+#define SLOW_REPORT_INTERVAL_US (10 * G_USEC_PER_SEC)
+
 #define WATCHDOG_PREFIX "watchdog: "
 #define SANDBOX_PREFIX  "sandbox: "
 
@@ -89,6 +92,13 @@ struct _ShellLuaState
 
   gboolean destroy_pending;  /* destroy() requested during a pcall */
   gboolean destroying;
+
+  /* Time accounting (shell_lua_state_get_stats ()) */
+  ShellLuaStats stats;       /* stats.longest_where is longest_where */
+  char *longest_where;
+  gint64 outer_nested_us;    /* other states' calls inside the outermost one */
+  gint64 last_slow_report;
+  guint slow_unreported;
 };
 
 enum {
@@ -103,6 +113,7 @@ static gint n_states = 0;
 static gssize total_memory = 0;
 static GPtrArray *current_states = NULL;   /* innermost pcall last; not owned */
 static const char loading_sentinel = 0;    /* address used as require() "in progress" marker */
+static const char callee_key = 0;          /* registry: the function of the outermost call, or false */
 
 G_DEFINE_FINAL_TYPE (ShellLuaState, shell_lua_state, G_TYPE_OBJECT)
 
@@ -1045,6 +1056,11 @@ setup_state (lua_State *L)
   lua_pushlightuserdata (L, self);
   lua_setfield (L, LUA_REGISTRYINDEX, KEY_STATE);
 
+  /* Made now so that setting it later never allocates (it is set outside
+   * the protected call); it is never nil */
+  lua_pushboolean (L, 0);
+  lua_rawsetp (L, LUA_REGISTRYINDEX, &callee_key);
+
   lua_newtable (L);
   lua_setfield (L, LUA_REGISTRYINDEX, KEY_LOADED);
 
@@ -1120,6 +1136,7 @@ shell_lua_state_finalize (GObject *object)
   ShellLuaState *self = SHELL_LUA_STATE (object);
 
   g_clear_pointer (&self->teardowns, g_array_unref);
+  g_free (self->longest_where);
   g_free (self->id);
 
   G_OBJECT_CLASS (shell_lua_state_parent_class)->finalize (object);
@@ -1432,6 +1449,129 @@ classify_error (ShellLuaState *self,
   return SHELL_LUA_ERROR_RUNTIME;
 }
 
+/* ------------------------------------------------------------------------ */
+/* Time accounting                                                           */
+/* ------------------------------------------------------------------------ */
+
+void
+shell_lua_state_note_callee (lua_State *L,
+                             int        idx)
+{
+  ShellLuaState *self = shell_lua_state_from_L (L);
+
+  if (self == NULL || self->depth != 1)
+    return;
+
+  lua_pushvalue (L, idx);
+  lua_rawsetp (L, LUA_REGISTRYINDEX, &callee_key);
+}
+
+/* "extension.lua:57" for the function of the outermost call: its file
+ * relative to a root of the state, and the line where it is defined. */
+static char *
+callee_where (ShellLuaState *self)
+{
+  lua_State *L = self->L;
+  lua_Debug ar;
+  guint i;
+
+  if (!lua_checkstack (L, 2))
+    return g_strdup ("?");
+  if (lua_rawgetp (L, LUA_REGISTRYINDEX, &callee_key) != LUA_TFUNCTION)
+    {
+      lua_pop (L, 1);
+      return g_strdup ("?");
+    }
+  if (!lua_getinfo (L, ">S", &ar))
+    return g_strdup ("?");
+  if (strcmp (ar.what, "C") == 0)
+    return g_strdup ("[C]");
+
+  if (ar.source[0] == '@')
+    {
+      g_autoptr (GFile) file = g_file_new_for_path (ar.source + 1);
+
+      for (i = 0; i < self->roots->len; i++)
+        {
+          g_autofree char *rel = g_file_get_relative_path (g_ptr_array_index (self->roots, i), file);
+
+          if (rel != NULL)
+            return g_strdup_printf ("%s:%d", rel, ar.linedefined);
+        }
+    }
+  return g_strdup_printf ("%s:%d", ar.short_src, ar.linedefined);
+}
+
+static void
+report_slow_call (ShellLuaState *self,
+                  gint64         us,
+                  const char    *where)
+{
+  gint64 now = g_get_monotonic_time ();
+
+  if (self->last_slow_report != 0 && now - self->last_slow_report < SLOW_REPORT_INTERVAL_US)
+    {
+      self->slow_unreported++;
+      return;
+    }
+
+  if (self->slow_unreported > 0)
+    g_message ("[%s] a call took %" G_GINT64_FORMAT " ms (%s), and %u more took over %d ms "
+               "since the last report", self->id, us / 1000, where, self->slow_unreported,
+               SHELL_LUA_SLOW_CALL_US / 1000);
+  else
+    g_message ("[%s] a call took %" G_GINT64_FORMAT " ms (%s)", self->id, us / 1000, where);
+
+  self->last_slow_report = now;
+  self->slow_unreported = 0;
+}
+
+/* After the outermost call that began at @start, its frame popped. Its own
+ * time excludes the calls into other states made from inside it, which
+ * count for those states; the state around it, if any, gets the same
+ * treatment. */
+static void
+account_call (ShellLuaState *self,
+              gint64         start)
+{
+  gint64 elapsed = g_get_monotonic_time () - start;
+  gint64 own = MAX (elapsed - self->outer_nested_us, 0);
+  g_autofree char *where = NULL;
+
+  if (current_states != NULL && current_states->len > 0)
+    {
+      ShellLuaState *outer = g_ptr_array_index (current_states, current_states->len - 1);
+
+      outer->outer_nested_us += elapsed;
+    }
+
+  self->stats.calls++;
+  self->stats.total_us += own;
+
+  if (own > self->stats.longest_us)
+    {
+      where = callee_where (self);
+      self->stats.longest_us = own;
+      g_free (self->longest_where);
+      self->longest_where = g_strdup (where);
+      self->stats.longest_where = self->longest_where;
+    }
+
+  if (own >= SHELL_LUA_SLOW_CALL_US)
+    {
+      self->stats.slow_calls++;
+      if (is_sandboxed (self))
+        {
+          if (where == NULL)
+            where = callee_where (self);
+          report_slow_call (self, own, where);
+        }
+    }
+
+  lua_pushboolean (self->L, 0);
+  lua_rawsetp (self->L, LUA_REGISTRYINDEX, &callee_key);
+}
+
 gboolean
 shell_lua_state_pcall (ShellLuaState  *self,
                        int             nargs,
@@ -1441,7 +1581,8 @@ shell_lua_state_pcall (ShellLuaState  *self,
   lua_State *L;
   int base, status;
   guint trips_before;
-  gboolean ok;
+  gboolean ok, outermost;
+  gint64 start = 0;
 
   g_return_val_if_fail (SHELL_IS_LUA_STATE (self), FALSE);
   g_return_val_if_fail (nargs >= 0, FALSE);
@@ -1480,6 +1621,21 @@ shell_lua_state_pcall (ShellLuaState  *self,
     self->mem_refused = FALSE;
 
   base = lua_gettop (L) - nargs;
+
+  /* A Lua function called directly is the callee; a C trampoline names the
+   * function it runs with shell_lua_state_note_callee () */
+  outermost = self->depth == 0;
+  if (outermost)
+    {
+      start = g_get_monotonic_time ();
+      self->outer_nested_us = 0;
+      if (lua_isfunction (L, base) && !lua_iscfunction (L, base))
+        lua_pushvalue (L, base);
+      else
+        lua_pushboolean (L, 0);
+      lua_rawsetp (L, LUA_REGISTRYINDEX, &callee_key);
+    }
+
   lua_pushcfunction (L, msg_handler);
   lua_insert (L, base);
 
@@ -1510,6 +1666,9 @@ shell_lua_state_pcall (ShellLuaState  *self,
       report_failure (self, code, msg, error);
       ok = FALSE;
     }
+
+  if (outermost && self->L != NULL)
+    account_call (self, start);
 
   if (self->depth == 0 && self->destroy_pending)
     {
@@ -1731,6 +1890,24 @@ shell_lua_state_destroy (ShellLuaState *self)
 /* ------------------------------------------------------------------------ */
 /* Statistics and introspection                                              */
 /* ------------------------------------------------------------------------ */
+
+/**
+ * shell_lua_state_get_stats: (skip)
+ * @self: a #ShellLuaState
+ * @stats: (out caller-allocates): where to store the statistics
+ *
+ * The time spent in the code of the state since it was made.
+ * @stats->longest_where belongs to the state and changes with the next call.
+ */
+void
+shell_lua_state_get_stats (ShellLuaState *self,
+                           ShellLuaStats *stats)
+{
+  g_return_if_fail (SHELL_IS_LUA_STATE (self));
+  g_return_if_fail (stats != NULL);
+
+  *stats = self->stats;
+}
 
 gsize
 shell_lua_state_get_memory_usage (ShellLuaState *self)

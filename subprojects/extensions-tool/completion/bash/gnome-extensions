@@ -5,7 +5,7 @@
 ################################################################################
 
 __gnome_extensions() {
-  local commands="version enable disable reset info install show list create pack prefs uninstall upload"
+  local commands="version enable disable reset info install show list stats create pack prefs uninstall upload"
   local COMMAND=${COMP_WORDS[1]}
 
   _init_completion -s || return

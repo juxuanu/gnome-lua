@@ -1055,6 +1055,181 @@ test_privileged_stdlib (void)
   g_object_unref (s);
 }
 
+/* ------------------------------------------------------------------------ */
+/* Time accounting                                                           */
+/* ------------------------------------------------------------------------ */
+
+#define CALLBACKS_LUA \
+  "local M = {}\n" \
+  "function M.quick () end\n" \
+  "function M.busy (ms)\n" \
+  "  local t = shell.time.monotonic ()\n" \
+  "  while shell.time.monotonic () - t < ms / 1000 do end\n" \
+  "end\n" \
+  "return M\n"
+
+/* Pushes the module table of callbacks.lua, loaded from a root of @s */
+static void
+load_callbacks (ShellLuaState *s,
+                const char    *root)
+{
+  g_autofree char *path = g_build_filename (root, "callbacks.lua", NULL);
+  g_autoptr (GFile) file = g_file_new_for_path (path);
+  g_autoptr (GFile) root_file = g_file_new_for_path (root);
+  g_autoptr (GError) error = NULL;
+
+  shell_lua_state_add_search_root (s, root_file);
+  g_assert_true (shell_lua_state_load_file (s, file, &error));
+  g_assert_true (shell_lua_state_pcall (s, 0, 1, &error));
+  g_assert_no_error (error);
+}
+
+/* As the trampolines of the API: arg 1 is the function to run, the rest
+ * its arguments */
+static int
+callee_trampoline (lua_State *L)
+{
+  shell_lua_state_note_callee (L, 1);
+  lua_call (L, lua_gettop (L) - 1, 0);
+  return 0;
+}
+
+/* Calls M[name] (ms) from C, through a trampoline or directly */
+static void
+call_callback (ShellLuaState *s,
+               const char    *name,
+               int            ms,
+               gboolean       trampoline)
+{
+  lua_State *L = shell_lua_state_get_L (s);
+  g_autoptr (GError) error = NULL;
+
+  if (trampoline)
+    lua_pushcfunction (L, callee_trampoline);
+  lua_getfield (L, 1, name);
+  lua_pushinteger (L, ms);
+  g_assert_true (shell_lua_state_pcall (s, trampoline ? 2 : 1, 0, &error));
+  g_assert_no_error (error);
+}
+
+typedef struct {
+  guint  count;
+  char  *last;
+} Messages;
+
+static void
+count_message (const char     *domain,
+               GLogLevelFlags  level,
+               const char     *message,
+               gpointer        user_data)
+{
+  Messages *messages = user_data;
+
+  messages->count++;
+  g_free (messages->last);
+  messages->last = g_strdup (message);
+}
+
+static void
+test_stats (void)
+{
+  g_autofree char *tmp = tu_tmpdir_new ();
+  g_autofree char *root = g_build_filename (tmp, "root", NULL);
+  ShellLuaState *s = tu_state_new ("stats", SHELL_LUA_STATE_SANDBOXED);
+  Messages messages = { 0, NULL };
+  ShellLuaStats stats;
+  guint handler;
+
+  shell_lua_state_get_stats (s, &stats);
+  g_assert_cmpuint (stats.calls, ==, 0);
+  g_assert_null (stats.longest_where);
+
+  tu_write_file (root, "callbacks.lua", CALLBACKS_LUA);
+  load_callbacks (s, root);
+  shell_lua_state_get_stats (s, &stats);
+  g_assert_cmpuint (stats.calls, ==, 1);
+
+  handler = g_log_set_handler ("ShellLua", G_LOG_LEVEL_MESSAGE, count_message, &messages);
+
+  /* each call from outside Lua counts once */
+  call_callback (s, "quick", 0, TRUE);
+  call_callback (s, "quick", 0, FALSE);
+  shell_lua_state_get_stats (s, &stats);
+  g_assert_cmpuint (stats.calls, ==, 3);
+
+  /* a call longer than a frame: the longest, by the function it ran (a
+   * trampoline names it), reported */
+  call_callback (s, "busy", 30, TRUE);
+  shell_lua_state_get_stats (s, &stats);
+  g_assert_cmpuint (stats.calls, ==, 4);
+  g_assert_cmpint (stats.longest_us, >=, 30000);
+  g_assert_cmpint (stats.total_us, >=, stats.longest_us);
+  g_assert_cmpstr (stats.longest_where, ==, "callbacks.lua:3");
+  g_assert_cmpuint (stats.slow_calls, >=, 1);
+  g_assert_cmpuint (messages.count, ==, 1);
+  g_assert_true (g_pattern_match_simple ("[stats] a call took * ms (callbacks.lua:3)", messages.last));
+
+  /* called directly, the function is named too; a second slow call within
+   * 10 seconds is counted, not reported */
+  call_callback (s, "busy", 40, FALSE);
+  shell_lua_state_get_stats (s, &stats);
+  g_assert_cmpint (stats.longest_us, >=, 40000);
+  g_assert_cmpstr (stats.longest_where, ==, "callbacks.lua:3");
+  g_assert_cmpuint (stats.slow_calls, >=, 2);
+  g_assert_cmpuint (messages.count, ==, 1);
+
+  g_log_remove_handler ("ShellLua", handler);
+  g_free (messages.last);
+  g_object_unref (s);
+  tu_rm_rf (tmp);
+}
+
+static ShellLuaState *nested_state;
+
+/* A function of one state that calls into another, as a signal emitted by
+ * an API call can run another extension's callback */
+static int
+call_nested (lua_State *L)
+{
+  lua_State *nested_L = shell_lua_state_get_L (nested_state);
+  g_autoptr (GError) error = NULL;
+
+  lua_pushcfunction (nested_L, callee_trampoline);
+  lua_getfield (nested_L, 1, "busy");
+  lua_pushinteger (nested_L, 50);
+  g_assert_true (shell_lua_state_pcall (nested_state, 2, 0, &error));
+  return 0;
+}
+
+/* The time of the calls into another state counts for that state only */
+static void
+test_stats_nested (void)
+{
+  g_autofree char *tmp = tu_tmpdir_new ();
+  g_autofree char *root = g_build_filename (tmp, "root", NULL);
+  ShellLuaState *outer = tu_state_new ("outer", SHELL_LUA_STATE_PRIVILEGED);
+  ShellLuaStats outer_stats, inner_stats;
+
+  tu_write_file (root, "callbacks.lua", CALLBACKS_LUA);
+  nested_state = tu_state_new ("inner", SHELL_LUA_STATE_PRIVILEGED);
+  load_callbacks (nested_state, root);
+
+  lua_register (shell_lua_state_get_L (outer), "call_nested", call_nested);
+  tu_do (outer, "call_nested ()");
+
+  shell_lua_state_get_stats (outer, &outer_stats);
+  shell_lua_state_get_stats (nested_state, &inner_stats);
+  g_assert_cmpuint (outer_stats.calls, ==, 1);
+  g_assert_cmpuint (inner_stats.calls, ==, 2);
+  g_assert_cmpint (inner_stats.longest_us, >=, 50000);
+  g_assert_cmpstr (inner_stats.longest_where, ==, "callbacks.lua:3");
+  g_assert_cmpint (outer_stats.total_us, <, inner_stats.longest_us);
+
+  g_clear_object (&nested_state);
+  g_object_unref (outer);
+  tu_rm_rf (tmp);
+}
+
 int
 main (int argc, char **argv)
 {
@@ -1092,6 +1267,8 @@ main (int argc, char **argv)
   g_test_add_func ("/shell-lua/state/pcall/current-state", test_current_state);
   g_test_add_func ("/shell-lua/state/refs-and-owner", test_refs_and_owner);
   g_test_add_func ("/shell-lua/state/privileged/stdlib", test_privileged_stdlib);
+  g_test_add_func ("/shell-lua/state/stats", test_stats);
+  g_test_add_func ("/shell-lua/state/stats/nested", test_stats_nested);
 
   return g_test_run ();
 }

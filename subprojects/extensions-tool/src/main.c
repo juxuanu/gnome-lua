@@ -233,7 +233,7 @@ print_extension_info (GVariantDict  *info,
 {
   const char *uuid = "", *name = "", *desc = "", *path = "";
   const char *url, *author, *version_name;
-  double state, version;
+  double state, version, callbacks;
   gboolean has_version, has_version_name, enabled;
 
   g_variant_dict_lookup (info, "uuid", "&s", &uuid);
@@ -273,6 +273,27 @@ print_extension_info (GVariantDict  *info,
 
   g_variant_dict_lookup (info, "state", "d", &state);
   g_print ("  %s: %s\n", _("State"), extension_state_to_string (state));
+
+  /* What a running extension costs since it was enabled */
+  if (g_variant_dict_lookup (info, "callbacks", "d", &callbacks))
+    {
+      double time = 0, longest = 0, slow = 0, memory = 0;
+      const char *where = "";
+      g_autofree char *size = NULL;
+
+      g_variant_dict_lookup (info, "callbackTime", "d", &time);
+      g_variant_dict_lookup (info, "callbackLongest", "d", &longest);
+      g_variant_dict_lookup (info, "callbackLongestWhere", "&s", &where);
+      g_variant_dict_lookup (info, "slowCallbacks", "d", &slow);
+      g_variant_dict_lookup (info, "memory", "d", &memory);
+      size = g_format_size ((guint64) memory);
+
+      g_print ("  %s: %.0f, %.1f ms\n", _("Callbacks"), callbacks, time);
+      if (*where != '\0')
+        g_print ("  %s: %.1f ms (%s)\n", _("Longest callback"), longest, where);
+      g_print ("  %s: %.0f\n", _("Callbacks longer than a frame"), slow);
+      g_print ("  %s: %s\n", _("Lua memory"), size);
+    }
 }
 
 gboolean
@@ -345,6 +366,7 @@ usage (void)
   g_printerr ("  list      %s\n", _("List extensions"));
   g_printerr ("  info      %s\n", _("Show extension info"));
   g_printerr ("  show      %s\n", _("Show extension info"));
+  g_printerr ("  stats     %s\n", _("Show what the running extensions cost"));
   g_printerr ("  prefs     %s\n", _("Open extension preferences"));
   g_printerr ("  create    %s\n", _("Create extension"));
   g_printerr ("  pack      %s\n", _("Package extension"));
@@ -414,6 +436,8 @@ main (int argc, char *argv[])
     return handle_info (argc, argv, do_help);
   else if (g_str_equal (command, "show"))
     return handle_info (argc, argv, do_help);
+  else if (g_str_equal (command, "stats"))
+    return handle_stats (argc, argv, do_help);
   else if (g_str_equal (command, "prefs"))
     return handle_prefs (argc, argv, do_help);
   else if (g_str_equal (command, "create"))
