@@ -133,6 +133,9 @@ shell_tests = [
     'name': 'lockScreenNotifications',
   },
   {
+    'name': 'unlockDialog',
+  },
+  {
     'name': 'screencast',
     'env': {
       # Without a GPU the first pipeline of the service fails to negotiate

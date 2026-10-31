@@ -1099,8 +1099,8 @@ struct _ShellAuthMenuButtonIndicator
 {
   ShellAuthMenuButton parent;
 
-  ClutterActor *icons_box;
-  StLabel *description_label;
+  ClutterActor *icons_box;     /* weak */
+  StLabel *description_label;  /* weak */
 };
 
 G_DEFINE_FINAL_TYPE (ShellAuthMenuButtonIndicator, shell_auth_menu_button_indicator,
@@ -1123,6 +1123,8 @@ shell_auth_menu_button_indicator_constructed (GObject *object)
 {
   ShellAuthMenuButtonIndicator *self = SHELL_AUTH_MENU_BUTTON_INDICATOR (object);
   ClutterActor *container;
+  ClutterActor *icons_box;
+  StLabel *description_label;
 
   G_OBJECT_CLASS (shell_auth_menu_button_indicator_parent_class)->constructed (object);
 
@@ -1131,23 +1133,27 @@ shell_auth_menu_button_indicator_constructed (GObject *object)
                             "x-align", CLUTTER_ACTOR_ALIGN_START,
                             NULL);
 
-  self->icons_box = g_object_new (ST_TYPE_BOX_LAYOUT,
-                                  "style-class", "login-dialog-auth-menu-button-indicator-icons",
-                                  "x-expand", TRUE,
-                                  "x-align", CLUTTER_ACTOR_ALIGN_CENTER,
-                                  NULL);
-  clutter_actor_add_child (container, self->icons_box);
+  icons_box = g_object_new (ST_TYPE_BOX_LAYOUT,
+                            "style-class", "login-dialog-auth-menu-button-indicator-icons",
+                            "x-expand", TRUE,
+                            "x-align", CLUTTER_ACTOR_ALIGN_CENTER,
+                            NULL);
+  clutter_actor_add_child (container, icons_box);
+  g_set_weak_pointer (&self->icons_box, icons_box);
 
-  self->description_label = g_object_new (ST_TYPE_LABEL,
-                                          "style-class", "login-dialog-auth-menu-button-indicator-description",
-                                          "y-align", CLUTTER_ACTOR_ALIGN_CENTER,
-                                          NULL);
-  g_object_bind_property_full (self->description_label, "text",
-                               self->description_label, "visible",
+  description_label = g_object_new (ST_TYPE_LABEL,
+                                    "style-class", "login-dialog-auth-menu-button-indicator-description",
+                                    "y-align", CLUTTER_ACTOR_ALIGN_CENTER,
+                                    NULL);
+  g_object_bind_property_full (description_label, "text",
+                               description_label, "visible",
                                G_BINDING_SYNC_CREATE,
                                text_to_visible_cb, NULL, NULL, NULL);
-  clutter_actor_add_child (container, CLUTTER_ACTOR (self->description_label));
+  clutter_actor_add_child (container, CLUTTER_ACTOR (description_label));
+  g_set_weak_pointer (&self->description_label, description_label);
 
+  /* The child of the button: setting icon-name or label after this would
+   * replace it (shell_auth_menu_button_indicator_new () sets neither) */
   st_bin_set_child (ST_BIN (self), container);
 
   st_widget_add_style_class_name (ST_WIDGET (self), "login-dialog-auth-menu-button-indicator");
@@ -1158,8 +1164,8 @@ shell_auth_menu_button_indicator_dispose (GObject *object)
 {
   ShellAuthMenuButtonIndicator *self = SHELL_AUTH_MENU_BUTTON_INDICATOR (object);
 
-  self->icons_box = NULL;
-  self->description_label = NULL;
+  g_clear_weak_pointer (&self->icons_box);
+  g_clear_weak_pointer (&self->description_label);
 
   G_OBJECT_CLASS (shell_auth_menu_button_indicator_parent_class)->dispose (object);
 }
@@ -1291,9 +1297,10 @@ shell_auth_menu_button_indicator_new (gboolean animate_visibility)
 {
   static const char * const no_sections[] = { NULL };
 
+  /* No icon-name: GObject sets it after constructed (), and StButton would
+   * replace the icons and the description with the icon */
   return g_object_new (SHELL_TYPE_AUTH_MENU_BUTTON_INDICATOR,
                        "read-only", TRUE,
-                       "icon-name", "cog-wheel-symbolic",
                        "section-order", no_sections,
                        "animate-visibility", animate_visibility,
                        "style-class", "login-dialog-button login-dialog-auth-menu-button",
