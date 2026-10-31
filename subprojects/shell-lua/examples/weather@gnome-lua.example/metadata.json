@@ -1,0 +1,8 @@
+{
+  "uuid": "weather@gnome-lua.example",
+  "name": "Weather",
+  "description": "The weather in the top bar, from the one-line format of wttr.in, refreshed every half hour: the network capability.",
+  "shell-api": "1.1",
+  "capabilities": ["network"],
+  "version": 1
+}

@@ -27,6 +27,21 @@ foreach f : [
   'prefs@gnome-lua.example/extension.lua',
   'prefs@gnome-lua.example/prefs.lua',
   'prefs@gnome-lua.example/schemas/org.gnome-lua.example.prefs.gschema.xml',
+  'power-profile@gnome-lua.example/metadata.json',
+  'power-profile@gnome-lua.example/extension.lua',
+  'text-scale@gnome-lua.example/metadata.json',
+  'text-scale@gnome-lua.example/extension.lua',
+  'emoji-search@gnome-lua.example/metadata.json',
+  'emoji-search@gnome-lua.example/extension.lua',
+  'load-average@gnome-lua.example/metadata.json',
+  'load-average@gnome-lua.example/extension.lua',
+  'disk-space@gnome-lua.example/metadata.json',
+  'disk-space@gnome-lua.example/extension.lua',
+  'weather@gnome-lua.example/metadata.json',
+  'weather@gnome-lua.example/extension.lua',
+  'pi-digits@gnome-lua.example/metadata.json',
+  'pi-digits@gnome-lua.example/extension.lua',
+  'pi-digits@gnome-lua.example/workers/pi.lua',
 ]
   if fs.exists(f)
     shell_lua_examples += files(f)

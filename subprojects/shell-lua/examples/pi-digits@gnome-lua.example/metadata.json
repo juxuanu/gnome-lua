@@ -1,0 +1,8 @@
+{
+  "uuid": "pi-digits@gnome-lua.example",
+  "name": "Digits of pi",
+  "description": "Computes thousands of digits of pi in a worker, off the main thread, with its progress in the top bar: the worker capability.",
+  "shell-api": "1.2",
+  "capabilities": ["worker"],
+  "version": 1
+}

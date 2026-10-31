@@ -1,0 +1,8 @@
+{
+  "uuid": "emoji-search@gnome-lua.example",
+  "name": "Emoji search",
+  "description": "Emoji in the search of the overview: type a word, pick an emoji, it is copied to the clipboard. The search capability.",
+  "shell-api": "1.1",
+  "capabilities": ["search"],
+  "version": 1
+}

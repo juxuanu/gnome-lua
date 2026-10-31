@@ -1,0 +1,8 @@
+{
+  "uuid": "load-average@gnome-lua.example",
+  "name": "Load average",
+  "description": "The load average of the system in the top bar, read from /proc every few seconds: the fs capability.",
+  "shell-api": "1.1",
+  "capabilities": ["fs"],
+  "version": 1
+}

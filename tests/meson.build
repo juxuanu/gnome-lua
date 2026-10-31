@@ -218,6 +218,13 @@ api_tests = [
       join_paths(examples_dir, 'hooks-log@gnome-lua.example'),
       join_paths(examples_dir, 'prefs@gnome-lua.example'),
       join_paths(examples_dir, 'clock@gnome-lua.example'),
+      join_paths(examples_dir, 'power-profile@gnome-lua.example'),
+      join_paths(examples_dir, 'text-scale@gnome-lua.example'),
+      join_paths(examples_dir, 'emoji-search@gnome-lua.example'),
+      join_paths(examples_dir, 'load-average@gnome-lua.example'),
+      join_paths(examples_dir, 'disk-space@gnome-lua.example'),
+      join_paths(examples_dir, 'weather@gnome-lua.example'),
+      join_paths(examples_dir, 'pi-digits@gnome-lua.example'),
     ],
   },
 ]

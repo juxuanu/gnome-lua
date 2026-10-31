@@ -1,0 +1,8 @@
+{
+  "uuid": "disk-space@gnome-lua.example",
+  "name": "Free disk space",
+  "description": "The free space of the root and home file systems in the top bar, from df, refreshed every ten minutes: the spawn capability.",
+  "shell-api": "1.1",
+  "capabilities": ["spawn"],
+  "version": 1
+}

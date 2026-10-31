@@ -1,0 +1,8 @@
+{
+  "uuid": "power-profile@gnome-lua.example",
+  "name": "Power profile",
+  "description": "The power profile of power-profiles-daemon in the top bar, with a menu to change it, through D-Bus: the dbus capability.",
+  "shell-api": "1.1",
+  "capabilities": ["dbus"],
+  "version": 1
+}

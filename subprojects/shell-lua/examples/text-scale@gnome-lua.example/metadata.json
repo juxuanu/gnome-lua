@@ -1,0 +1,8 @@
+{
+  "uuid": "text-scale@gnome-lua.example",
+  "name": "Text size slider",
+  "description": "A quick-settings slider for the size of the text of the whole desktop, a setting of GNOME rather than of the extension: the settings capability.",
+  "shell-api": "1.1",
+  "capabilities": ["settings"],
+  "version": 1
+}

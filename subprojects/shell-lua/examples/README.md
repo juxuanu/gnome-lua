@@ -17,6 +17,19 @@ each of them in a headless shell.
 | `hooks-log@gnome-lua.example` | an extension that only listens to hooks and logs the lifecycle events of the shell, skipping the hooks the shell does not declare | hooks.md |
 | `prefs@gnome-lua.example` | a tour of `prefs.lua`: every kind of row, two pages, rows that depend on other keys | prefs.md |
 
+One example per capability (README.md of `docs/api`, "Capabilities"); each
+declares only the capability it shows:
+
+| Example | Capability | Shows | Documents |
+|---|---|---|---|
+| `power-profile@gnome-lua.example` | `dbus` | the power profile of power-profiles-daemon in the top bar, set from its menu: a proxy on the system bus, `watch_name` to follow the service, `get_property`, `set_property` and `on_properties_changed`; hidden while the daemon is not there | dbus.md, panel.md, menu.md |
+| `text-scale@gnome-lua.example` | `settings` | a quick-settings slider for `text-scaling-factor` of `org.gnome.desktop.interface`, a schema that is not the extension's own, kept in sync both ways without a loop (callbacks run for assignments too) | core.md (`shell.settings`), quick-settings.md |
+| `emoji-search@gnome-lua.example` | `search` | a search provider of the overview that answers with emoji; activating one copies it (`clipboard_text`) | search.md |
+| `load-average@gnome-lua.example` | `fs` | the load average in the top bar, read from `/proc/loadavg`, outside the extension's own directories, by a timer | fs.md, core.md (`shell.timer`) |
+| `disk-space@gnome-lua.example` | `spawn` | the free space of `/` and of the home file system from `df -Pk` (C locale, a timeout, the exit status and the output), every ten minutes and from the menu | spawn.md |
+| `weather@gnome-lua.example` | `network` | the weather from the one-line format of wttr.in: an HTTPS request with a timeout, the status and body of the response, the network errors; the first request waits for the network to come up | network.md |
+| `pi-digits@gnome-lua.example` | `worker` | 3000 digits of pi computed in a worker (`workers/pi.lua`), off the main thread: the progress posted while it runs, the answer as the return value, a notification, `terminate ()` from the menu | worker.md, notify.md |
+
 `hello@gnome-lua.example` has no `disable()` on purpose, to show that
 everything created through `shell.*` is torn down automatically; the others
 have none either, except `hooks-log`, which has one to show where it would go.

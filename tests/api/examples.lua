@@ -15,6 +15,14 @@ local EXAMPLES = {
   "dash-launcher@gnome-lua.example",
   "hooks-log@gnome-lua.example",
   "prefs@gnome-lua.example",
+  -- one per capability
+  "power-profile@gnome-lua.example",
+  "text-scale@gnome-lua.example",
+  "emoji-search@gnome-lua.example",
+  "load-average@gnome-lua.example",
+  "disk-space@gnome-lua.example",
+  "weather@gnome-lua.example",
+  "pi-digits@gnome-lua.example",
 }
 
 for _, uuid in ipairs (EXAMPLES) do
