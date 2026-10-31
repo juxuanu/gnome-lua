@@ -136,6 +136,9 @@ shell_tests = [
     'name': 'unlockDialog',
   },
   {
+    'name': 'screenshotUI',
+  },
+  {
     'name': 'screencast',
     # The script starts the service of the build
     'depends': [screencast_service],
