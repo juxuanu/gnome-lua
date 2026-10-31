@@ -1561,6 +1561,11 @@ typedef struct
 
   char *title;
   char *subtitle;
+
+  /* The icon set before constructed () made the StIcon (a binding with
+   * G_BINDING_SYNC_CREATE in the instance init of a subclass) */
+  char *pending_icon_name;
+  GIcon *pending_gicon;
 } ShellQuickTogglePrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (ShellQuickToggle, shell_quick_toggle,
@@ -1694,7 +1699,14 @@ shell_quick_toggle_set_icon_name (ShellQuickToggle *self,
 
   priv = shell_quick_toggle_get_instance_private (self);
   if (priv->icon != NULL)
-    st_icon_set_icon_name (priv->icon, icon_name);
+    {
+      st_icon_set_icon_name (priv->icon, icon_name);
+    }
+  else
+    {
+      g_set_str (&priv->pending_icon_name, icon_name);
+      g_clear_object (&priv->pending_gicon);
+    }
 }
 
 /**
@@ -1731,7 +1743,14 @@ shell_quick_toggle_set_gicon (ShellQuickToggle *self,
 
   priv = shell_quick_toggle_get_instance_private (self);
   if (priv->icon != NULL)
-    st_icon_set_gicon (priv->icon, gicon);
+    {
+      st_icon_set_gicon (priv->icon, gicon);
+    }
+  else
+    {
+      g_set_object (&priv->pending_gicon, gicon);
+      g_clear_pointer (&priv->pending_icon_name, g_free);
+    }
 }
 
 /**
@@ -1912,6 +1931,12 @@ shell_quick_toggle_constructed (GObject *object)
   clutter_actor_set_x_expand (CLUTTER_ACTOR (priv->icon), FALSE);
   clutter_actor_add_child (CLUTTER_ACTOR (priv->box), CLUTTER_ACTOR (priv->icon));
   g_object_add_weak_pointer (G_OBJECT (priv->icon), (gpointer *) &priv->icon);
+  if (priv->pending_gicon != NULL)
+    st_icon_set_gicon (priv->icon, priv->pending_gicon);
+  else if (priv->pending_icon_name != NULL)
+    st_icon_set_icon_name (priv->icon, priv->pending_icon_name);
+  g_clear_object (&priv->pending_gicon);
+  g_clear_pointer (&priv->pending_icon_name, g_free);
 
   /* StIcon links the two properties, so the toggle has the same behaviour */
   g_signal_connect_object (priv->icon, "notify::icon-name",
@@ -1987,6 +2012,8 @@ shell_quick_toggle_finalize (GObject *object)
 
   g_clear_pointer (&priv->title, g_free);
   g_clear_pointer (&priv->subtitle, g_free);
+  g_clear_pointer (&priv->pending_icon_name, g_free);
+  g_clear_object (&priv->pending_gicon);
 
   G_OBJECT_CLASS (shell_quick_toggle_parent_class)->finalize (object);
 }
@@ -2677,6 +2704,10 @@ typedef struct
   char *icon_label;
   gboolean menu_enabled;
   char *menu_button_accessible_name;
+
+  /* The icon set before constructed () made the StIcon */
+  char *pending_icon_name;
+  GIcon *pending_gicon;
 } ShellQuickSliderPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (ShellQuickSlider, shell_quick_slider,
@@ -2733,7 +2764,14 @@ shell_quick_slider_set_icon_name (ShellQuickSlider *self,
 
   priv = shell_quick_slider_get_instance_private (self);
   if (priv->icon != NULL)
-    st_icon_set_icon_name (priv->icon, icon_name);
+    {
+      st_icon_set_icon_name (priv->icon, icon_name);
+    }
+  else
+    {
+      g_set_str (&priv->pending_icon_name, icon_name);
+      g_clear_object (&priv->pending_gicon);
+    }
 }
 
 /**
@@ -2770,7 +2808,14 @@ shell_quick_slider_set_gicon (ShellQuickSlider *self,
 
   priv = shell_quick_slider_get_instance_private (self);
   if (priv->icon != NULL)
-    st_icon_set_gicon (priv->icon, gicon);
+    {
+      st_icon_set_gicon (priv->icon, gicon);
+    }
+  else
+    {
+      g_set_object (&priv->pending_gicon, gicon);
+      g_clear_pointer (&priv->pending_icon_name, g_free);
+    }
 }
 
 /**
@@ -3142,6 +3187,12 @@ shell_quick_slider_constructed (GObject *object)
 
   priv->icon = ST_ICON (st_icon_new ());
   g_object_add_weak_pointer (G_OBJECT (priv->icon), (gpointer *) &priv->icon);
+  if (priv->pending_gicon != NULL)
+    st_icon_set_gicon (priv->icon, priv->pending_gicon);
+  else if (priv->pending_icon_name != NULL)
+    st_icon_set_icon_name (priv->icon, priv->pending_icon_name);
+  g_clear_object (&priv->pending_gicon);
+  g_clear_pointer (&priv->pending_icon_name, g_free);
   g_signal_connect_object (priv->icon, "notify::icon-name",
                            G_CALLBACK (slider_icon_notify_cb), self, 0);
   g_signal_connect_object (priv->icon, "notify::gicon",
@@ -3238,6 +3289,8 @@ shell_quick_slider_finalize (GObject *object)
 
   g_clear_pointer (&priv->icon_label, g_free);
   g_clear_pointer (&priv->menu_button_accessible_name, g_free);
+  g_clear_pointer (&priv->pending_icon_name, g_free);
+  g_clear_object (&priv->pending_gicon);
 
   G_OBJECT_CLASS (shell_quick_slider_parent_class)->finalize (object);
 }

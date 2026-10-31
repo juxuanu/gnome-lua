@@ -139,6 +139,9 @@ shell_tests = [
     'name': 'screenshotUI',
   },
   {
+    'name': 'quickSettings',
+  },
+  {
     'name': 'screencast',
     # The script starts the service of the build
     'depends': [screencast_service],
