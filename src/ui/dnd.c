@@ -687,8 +687,8 @@ shell_drag_source_default_init (ShellDragSourceInterface *iface)
  * in its place (`getDragActor ()`). The drag adds it to the ui group and
  * destroys it when the drag ends.
  *
- * Returns: (transfer full) (nullable): a new actor, or %NULL to drag the
- *   actor of @source itself
+ * Returns: (transfer full) (nullable): a new actor, floating as new actors
+ *   are, or %NULL to drag the actor of @source itself
  */
 ClutterActor *
 shell_drag_source_get_drag_actor (ShellDragSource *source)
@@ -1409,6 +1409,9 @@ gesture_recognized_cb (ClutterGesture *gesture,
     {
       ClutterActor *source;
 
+      /* The new actor is floating: take our own reference before the ui
+       * group sinks the floating one, which is the group's to drop */
+      g_object_ref_sink (self->drag_actor);
       clutter_actor_add_child (ui_group, self->drag_actor);
       clutter_actor_set_child_above_sibling (ui_group, self->drag_actor, NULL);
       shell_util_set_hidden_from_pick (self->drag_actor, TRUE);

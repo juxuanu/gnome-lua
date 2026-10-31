@@ -86,6 +86,8 @@
  * Mutter's test library; has :destroy ()), test.create_virtual_device
  * (device type), test.press_accelerator (accelerator) (types a combination
  * such as "<Super><Alt>j" on a virtual keyboard; it does not wait),
+ * test.pointer_move (x, y), test.pointer_press (), test.pointer_release ()
+ * (a virtual pointer, the primary button; they do not wait either),
  * test.set_boolean (schema, key, value), test.expect_equal
  * (a, b, description), test.log (...), test.print (...); and for the
  * performance log (js/ui/scripting.js): test.define_event (name,
@@ -1774,6 +1776,64 @@ l_press_accelerator (lua_State *L)
   return 0;
 }
 
+/* test.pointer_move (x, y), test.pointer_press (), test.pointer_release ():
+ * moves a virtual pointer of the default seat to the stage coordinates, and
+ * presses or releases its primary button. They do not wait: the events
+ * reach the shell from the main loop. The pointer is made on the first
+ * call. */
+static ClutterVirtualInputDevice *test_pointer = NULL;
+
+static ClutterVirtualInputDevice *
+ensure_test_pointer (Runner *r)
+{
+  if (test_pointer == NULL)
+    {
+      ClutterStage *stage = shell_global_get_stage (shell_global_get ());
+      ClutterContext *context = clutter_actor_get_context (CLUTTER_ACTOR (stage));
+      ClutterSeat *seat = clutter_backend_get_default_seat (clutter_context_get_backend (context));
+      ClutterVirtualInputDevice *device =
+        clutter_seat_create_virtual_device (seat, CLUTTER_POINTER_DEVICE);
+
+      /* r->keep releases it when the runner goes */
+      g_ptr_array_add (r->keep, device);
+      g_set_weak_pointer (&test_pointer, device);
+    }
+
+  return test_pointer;
+}
+
+static int
+l_pointer_move (lua_State *L)
+{
+  lua_Number x = luaL_checknumber (L, 1);
+  lua_Number y = luaL_checknumber (L, 2);
+
+  clutter_virtual_input_device_notify_absolute_motion (ensure_test_pointer (the_runner),
+                                                       g_get_monotonic_time (), x, y);
+  return 0;
+}
+
+static int
+pointer_button (ClutterButtonState state)
+{
+  clutter_virtual_input_device_notify_button (ensure_test_pointer (the_runner),
+                                              g_get_monotonic_time (),
+                                              CLUTTER_BUTTON_PRIMARY, state);
+  return 0;
+}
+
+static int
+l_pointer_press (lua_State *L)
+{
+  return pointer_button (CLUTTER_BUTTON_STATE_PRESSED);
+}
+
+static int
+l_pointer_release (lua_State *L)
+{
+  return pointer_button (CLUTTER_BUTTON_STATE_RELEASED);
+}
+
 /* Virtual monitors: Mutter's test library is loaded when the first is made,
  * it is not a dependency of the shell */
 
@@ -1917,9 +1977,30 @@ l_actor_add_child (lua_State *L)
   return 0;
 }
 
+/* actor:get_children () -> array of ClutterActor, first to last */
+static int
+l_actor_get_children (lua_State *L)
+{
+  ClutterActor *actor = check_instance (L, 1, CLUTTER_TYPE_ACTOR);
+  ClutterActor *child;
+  int i = 1;
+
+  lua_newtable (L);
+  for (child = clutter_actor_get_first_child (actor);
+       child != NULL;
+       child = clutter_actor_get_next_sibling (child))
+    {
+      luaL_checkstack (L, 4, "get_children");
+      shell_lua_inspector_push_object (L, G_OBJECT (child));
+      lua_rawseti (L, -2, i++);
+    }
+  return 1;
+}
+
 static const luaL_Reg actor_methods[] = {
   { "get_transformed_position", l_actor_get_transformed_position },
   { "get_allocation_box", l_actor_get_allocation_box },
+  { "get_children", l_actor_get_children },
   { "queue_redraw", l_actor_queue_redraw },
   { "add_child", l_actor_add_child },
   { NULL, NULL }
@@ -3471,6 +3552,9 @@ static const luaL_Reg test_functions[] = {
   { "new_monitor", l_new_monitor },
   { "create_virtual_device", l_create_virtual_device },
   { "press_accelerator", l_press_accelerator },
+  { "pointer_move", l_pointer_move },
+  { "pointer_press", l_pointer_press },
+  { "pointer_release", l_pointer_release },
   { "set_boolean", l_set_boolean },
   { "extension_enable", l_extension_enable },
   { "extension_disable", l_extension_disable },

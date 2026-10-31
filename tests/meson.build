@@ -104,6 +104,14 @@ shell_tests = [
     'name': 'boxPointer',
   },
   {
+    'name': 'dnd',
+    'env': {
+      # Freed memory is filled (perturb; without the thread cache, which
+      # skips it), so that touching a freed actor crashes
+      'GLIBC_TUNABLES': 'glibc.malloc.tcache_count=0:glibc.malloc.perturb=165',
+    },
+  },
+  {
     'name': 'lockScreenNotifications',
   },
   {
