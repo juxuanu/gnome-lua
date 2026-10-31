@@ -3621,3 +3621,186 @@ msgstr[1] "%u entrades"
 #: subprojects/gvc/gvc-mixer-control.c:2872
 msgid "System Sounds"
 msgstr "Sons del sistema"
+
+# Lua extensions (gnome-lua): the preferences window, the tooling of
+# gnome-extensions and Looking Glass, workers
+
+#, c-format
+msgid "%1$s is already used by %2$s"
+msgstr "%2$s ja utilitza %1$s"
+
+msgid "Press the key combination to add. Press Esc to cancel or Backspace to clear."
+msgstr "Premeu la combinació de tecles que voleu afegir. Premeu Esc per a cancel·lar o Retrocés per a esborrar."
+
+msgid "Press the key combination to add. Press Esc to cancel."
+msgstr "Premeu la combinació de tecles que voleu afegir. Premeu Esc per a cancel·lar."
+
+msgid "Press the new key combination. Press Esc to cancel or Backspace to clear."
+msgstr "Premeu la combinació de tecles nova. Premeu Esc per a cancel·lar o Retrocés per a esborrar."
+
+msgid "Press the new key combination. Press Esc to cancel."
+msgstr "Premeu la combinació de tecles nova. Premeu Esc per a cancel·lar."
+
+msgid "Set Shortcut"
+msgstr "Estableix la drecera"
+
+msgid "_Cancel"
+msgstr "_Cancel·la"
+
+msgid "Reset to Defaults?"
+msgstr "Voleu restablir els valors predeterminats?"
+
+msgid "All the settings of this extension on this page will be set back to their default values."
+msgstr "Tots els paràmetres d'aquesta extensió en aquesta pàgina tornaran als seus valors predeterminats."
+
+msgid "_Reset"
+msgstr "_Restableix"
+
+msgid "Reset to Defaults"
+msgstr "Restableix els valors predeterminats"
+
+msgid "Main Menu"
+msgstr "Menú principal"
+
+msgid "Additional directories to search for Lua extensions"
+msgstr "Directoris addicionals on cercar extensions Lua"
+
+#, c-format
+msgid "Lua heap: %s"
+msgstr "Memòria Lua: %s"
+
+#, c-format
+msgid "%u error"
+msgid_plural "%u errors"
+msgstr[0] "%u error"
+msgstr[1] "%u errors"
+
+#, c-format
+msgid "%lu callback, %.1f ms in total"
+msgid_plural "%lu callbacks, %.1f ms in total"
+msgstr[0] "%lu crida de retorn (%.1f ms en total)"
+msgstr[1] "%lu crides de retorn (%.1f ms en total)"
+
+#, c-format
+msgid "%lu longer than a frame"
+msgid_plural "%lu longer than a frame"
+msgstr[0] "%lu més llarga que un fotograma"
+msgstr[1] "%lu més llargues que un fotograma"
+
+#, c-format
+msgid "%s, longest %.1f ms (%s), %s"
+msgstr "%s, la més llarga de %.1f ms (%s), %s"
+
+#, c-format
+msgid "%lu worker running"
+msgid_plural "%lu workers running"
+msgstr[0] "%lu fil de treball en execució"
+msgstr[1] "%lu fils de treball en execució"
+
+#, c-format
+msgid "%lu message handled in %.1f ms of their own time, longest %.1f ms"
+msgid_plural "%lu messages handled in %.1f ms of their own time, longest %.1f ms"
+msgstr[0] "%lu missatge gestionat en %.1f ms de temps propi, el més llarg de %.1f ms"
+msgstr[1] "%lu missatges gestionats en %.1f ms de temps propi, el més llarg de %.1f ms"
+
+#, c-format
+msgid "%s, %s, Lua memory: %s"
+msgstr "%s, %s, memòria Lua: %s"
+
+#, c-format
+msgid "Could not compile the settings schema (run “glib-compile-schemas %s” once it is edited): %s\n"
+msgstr "No s'ha pogut compilar l'esquema de paràmetres (executeu «glib-compile-schemas %s» un cop l'hàgiu editat): %s\n"
+
+msgid "Include prefs.lua template"
+msgstr "Inclou la plantilla prefs.lua"
+
+msgid "An empty Lua extension"
+msgstr "Una extensió Lua buida"
+
+msgid "EXTENSION"
+msgstr "EXTENSIÓ"
+
+msgid "CALLBACKS"
+msgstr "CRIDES"
+
+msgid "TOTAL"
+msgstr "TOTAL"
+
+msgid "LONGEST"
+msgstr "MÉS LLARGA"
+
+msgid "SLOW"
+msgstr "LENTES"
+
+msgid "MEMORY"
+msgstr "MEMÒRIA"
+
+msgid "WHERE"
+msgstr "ON"
+
+#, c-format
+msgid "%.1f ms"
+msgstr "%.1f ms"
+
+msgid "No extension is running"
+msgstr "No s'està executant cap extensió"
+
+msgid "Unknown sort key"
+msgstr "Clau d'ordenació desconeguda"
+
+msgid "Sort by: time (default), longest, slow, callbacks or memory"
+msgstr "Ordena per: time (predeterminat), longest, slow, callbacks o memory"
+
+msgid "KEY"
+msgstr "CLAU"
+
+msgid "Show what the running extensions cost: the time of their callbacks since they were enabled, the callbacks longer than a frame, and their memory with that of their workers"
+msgstr "Mostra el que costen les extensions en execució: el temps de les seves crides de retorn des que es van habilitar, les crides de retorn més llargues que un fotograma, i la seva memòria amb la dels seus fils de treball"
+
+msgid "Show what the running extensions cost"
+msgstr "Mostra el que costen les extensions en execució"
+
+msgid "Callbacks"
+msgstr "Crides de retorn"
+
+#, c-format
+msgid "%.0f, %.1f ms in total"
+msgstr "%.0f (%.1f ms en total)"
+
+msgid "Longest callback"
+msgstr "Crida de retorn més llarga"
+
+#, c-format
+msgid "%.1f ms (%s)"
+msgstr "%.1f ms (%s)"
+
+msgid "Callbacks longer than a frame"
+msgstr "Crides de retorn més llargues que un fotograma"
+
+msgid "Lua memory"
+msgstr "Memòria Lua"
+
+#, c-format
+msgid "%lu running"
+msgid_plural "%lu running"
+msgstr[0] "%lu en execució"
+msgstr[1] "%lu en execució"
+
+#, c-format
+msgid "%lu message handled in %.1f ms"
+msgid_plural "%lu messages handled in %.1f ms"
+msgstr[0] "%lu missatge gestionat en %.1f ms"
+msgstr[1] "%lu missatges gestionats en %.1f ms"
+
+msgid "Workers"
+msgstr "Fils de treball"
+
+#, c-format
+msgid "%s, %s"
+msgstr "%s, %s"
+
+msgid "Longest worker message"
+msgstr "Missatge més llarg d'un fil de treball"
+
+msgid "Worker memory"
+msgstr "Memòria dels fils de treball"
