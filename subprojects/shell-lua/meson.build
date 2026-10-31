@@ -41,7 +41,6 @@ if get_option('buildtype') != 'plain'
     '-Wpointer-arith',
     '-Wmissing-declarations',
     '-Wimplicit-function-declaration',
-    '-Wno-unused-parameter',
     '-Wformat=2',
     '-Wformat-nonliteral',
     '-Wformat-security',
@@ -86,6 +85,10 @@ if get_option('buildtype') != 'plain'
   add_project_arguments(cc.get_supported_arguments(shell_lua_warn_args),
                         language: 'c')
 endif
+
+# warning_level=2 has -Wextra in every build type, plain (the distributions'
+# packages) included: the GObject callbacks have parameters they do not use
+add_project_arguments('-Wno-unused-parameter', language: 'c')
 
 add_project_arguments(
   '-D_GNU_SOURCE',

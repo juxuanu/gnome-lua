@@ -14,7 +14,11 @@ project('lua', 'c',
 
 cc = meson.get_compiler('c')
 
-lua_c_args = []
+# Without LTO, as Lua's own makefile builds it: with the flags of the Arch
+# package (-O3, _FORTIFY_SOURCE, -flto=auto), GCC 16 inlines luaL_addlstring
+# () (lauxlib.c) into str_gsub () (lstrlib.c) when it links libshell-lua and
+# reads one of its memcpy ('%0') as 2^64 - 2 bytes, a false positive
+lua_c_args = cc.get_supported_arguments('-fno-lto')
 if host_machine.system() == 'linux'
   lua_c_args += '-DLUA_USE_LINUX'
 elif host_machine.system() == 'darwin'
