@@ -80,6 +80,7 @@ typedef struct {
   guint64 messages;      /* messages its workers handled */
   gint64  total_us;      /* CPU time of the worker threads in them, microseconds */
   gint64  longest_us;    /* the longest handler */
+  gint64  memory;        /* bytes the Lua states of its live workers use now */
 } ShellLuaWorkerStats;
 
 gboolean                shell_lua_extension_get_worker_stats (ShellLuaExtension   *self,

@@ -43,7 +43,8 @@ extensions' callbacks that run inside it:
  * `gnome-extensions stats` lists the running extensions, the most expensive
    first: the number of callbacks and their time in total, the longest one
    and where it is defined, the callbacks longer than a frame and the Lua
-   memory (`--sort longest`, `slow`, `callbacks` or `memory`);
+   memory, its workers' included (`--sort longest`, `slow`, `callbacks` or
+   `memory`);
  * `gnome-extensions info UUID` shows the same figures for one extension, and
    the Extensions tab of Looking Glass under each extension (the figures are
    those of when the tab was shown).
@@ -55,11 +56,12 @@ of the extension info (`org.gnome.Shell.Extensions.GetExtensionInfo`);
 
 An extension with workers (`docs/api/worker.md`) runs code off the main
 thread too; that time costs no frames and is shown apart, never added to the
-figures above: `gnome-extensions info` prints a `Workers` line (running,
-messages handled, their CPU time in total and the longest), Looking Glass a
-line of its own, and the extension info carries `workers`, `workerMessages`,
-`workerTime` and `workerLongest` (milliseconds; `ShellLuaWorkerStats` in
-`shell-lua-extension.h`). What a worker does cost the main thread, the
+figures above: `gnome-extensions info` prints `Workers` (running, messages
+handled, their CPU time in total), `Longest worker message` and `Worker
+memory` (the Lua memory of the workers that run now), Looking Glass a line
+of its own, and the extension info carries `workers`, `workerMessages`,
+`workerTime` and `workerLongest` (milliseconds) and `workerMemory` (bytes;
+`ShellLuaWorkerStats` in `shell-lua-extension.h`). What a worker does cost the main thread, the
 conversion of its messages and the `on_message` callbacks, is in the callback
 figures like any other callback.
 

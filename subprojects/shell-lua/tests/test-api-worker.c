@@ -126,6 +126,7 @@ static const char *const ECHO_LUA =
   "    if v.op == 'bad' then return function() end end\n"
   "    if v.op == 'nothing' then return nil end\n"
   "    if v.op == 'count' then count = count + 1; return count end\n"
+  "    if v.op == 'hold' then held = string.rep('x', v.bytes); return 'held' end\n"
   "    if v.op == 'loop' then while true do end end\n"
   "    if v.op == 'flood' then for i = 1, v.n do shell.worker.post(i) end return 'flooded' end\n"
   "    if v.op == 'big' then return string.rep('x', v.n) end\n"
@@ -817,6 +818,37 @@ test_cpu_accounted (void)
   env_free (env);
 }
 
+/* The Lua memory of the live workers, kept by their allocators: it grows
+ * with what a worker holds, and is back to nothing once the threads are
+ * gone. (When it shrinks depends on the collector, which a worker cannot
+ * run: the sandbox allows only collectgarbage ("count").) */
+static void
+test_memory_accounted (void)
+{
+  Env *env = env_new ();
+  ShellLuaState *s = worker_state (env, "workermem@test");
+  ShellLuaWorkerStats workers;
+  gint64 base;
+
+  tu_do (s, START ("workers.echo", "") "w:post('ready')");
+  wait_lua (s, "n == 1");
+  shell_lua_worker_get_stats (s, &workers);
+  g_assert_cmpint (workers.memory, >, 0);
+  base = workers.memory;
+
+  tu_do (s, "w:post{ op = 'hold', bytes = 4 * 1024 * 1024 }");
+  wait_lua (s, "n == 2");
+  shell_lua_worker_get_stats (s, &workers);
+  g_assert_cmpint (workers.memory, >=, base + 4 * 1024 * 1024);
+
+  tu_do (s, "w:destroy()");
+  wait_threads_gone ();
+  shell_lua_worker_get_stats (s, &workers);
+  g_assert_cmpint (workers.memory, ==, 0);
+
+  env_free (env);
+}
+
 int
 main (int argc, char **argv)
 {
@@ -835,6 +867,7 @@ main (int argc, char **argv)
   g_test_add_func ("/shell-lua/worker/stop/at-disable", test_teardown_at_disable);
   g_test_add_func ("/shell-lua/worker/limits/count", test_limits);
   g_test_add_func ("/shell-lua/worker/time/cpu-accounted", test_cpu_accounted);
+  g_test_add_func ("/shell-lua/worker/memory-accounted", test_memory_accounted);
 
   return g_test_run ();
 }

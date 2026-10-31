@@ -627,7 +627,8 @@ shell_lua_extension_get_lua_state (ShellLuaExtension *self)
  *
  * What the workers of the extension (docs/api/worker.md) did since it was
  * enabled: how many messages they handled, the CPU time of their threads in
- * them, the longest handler. Returns %FALSE, and zeroes, when the extension
+ * them, the longest handler; and the Lua memory of the workers that run
+ * now. Returns %FALSE, and zeroes, when the extension
  * is not running or never started a worker.
  */
 gboolean
@@ -1180,6 +1181,7 @@ shell_lua_extension_serialize (ShellLuaExtension *self)
           dict_take (dict, "workerMessages", g_variant_new_double (workers.messages));
           dict_take (dict, "workerTime", g_variant_new_double (workers.total_us / 1000.0));
           dict_take (dict, "workerLongest", g_variant_new_double (workers.longest_us / 1000.0));
+          dict_take (dict, "workerMemory", g_variant_new_double (workers.memory));
         }
     }
 

@@ -288,9 +288,19 @@ print_extension_info (GVariantDict  *info,
       g_variant_dict_lookup (info, "memory", "d", &memory);
       size = g_format_size ((guint64) memory);
 
-      g_print ("  %s: %.0f, %.1f ms\n", _("Callbacks"), callbacks, time);
+      g_print ("  %s: ", _("Callbacks"));
+      /* TRANSLATORS: the number of callbacks of an extension and their
+       * time in milliseconds */
+      g_print (_("%.0f, %.1f ms in total"), callbacks, time);
+      g_print ("\n");
       if (*where != '\0')
-        g_print ("  %s: %.1f ms (%s)\n", _("Longest callback"), longest, where);
+        {
+          g_print ("  %s: ", _("Longest callback"));
+          /* TRANSLATORS: a time in milliseconds, and where the function is
+           * defined ("extension.lua:57") */
+          g_print (_("%.1f ms (%s)"), longest, where);
+          g_print ("\n");
+        }
       g_print ("  %s: %.0f\n", _("Callbacks longer than a frame"), slow);
       g_print ("  %s: %s\n", _("Lua memory"), size);
     }
@@ -299,15 +309,34 @@ print_extension_info (GVariantDict  *info,
    * the figures above */
   if (g_variant_dict_lookup (info, "workerMessages", "d", &messages))
     {
-      double workers = 0, time = 0, longest = 0;
+      double workers = 0, time = 0, longest = 0, memory = 0;
+      g_autofree char *running = NULL;
+      g_autofree char *handled = NULL;
+      g_autofree char *size = NULL;
 
       g_variant_dict_lookup (info, "workers", "d", &workers);
       g_variant_dict_lookup (info, "workerTime", "d", &time);
       g_variant_dict_lookup (info, "workerLongest", "d", &longest);
+      g_variant_dict_lookup (info, "workerMemory", "d", &memory);
+      size = g_format_size ((guint64) memory);
 
-      g_print ("  %s: %.0f %s, %.0f %s, %.1f ms\n", _("Workers"),
-               workers, _("running"), messages, _("messages"), time);
-      g_print ("  %s: %.1f ms\n", _("Longest worker message"), longest);
+      /* TRANSLATORS: the number of workers of an extension that run */
+      running = g_strdup_printf (ngettext ("%lu running", "%lu running",
+                                           (unsigned long) workers),
+                                 (unsigned long) workers);
+      handled = g_strdup_printf (ngettext ("%lu message handled in %.1f ms",
+                                           "%lu messages handled in %.1f ms",
+                                           (unsigned long) messages),
+                                 (unsigned long) messages, time);
+      g_print ("  %s: ", _("Workers"));
+      /* TRANSLATORS: "1 running" and "5 messages handled in 210.0 ms" */
+      g_print (_("%s, %s"), running, handled);
+      g_print ("\n");
+      g_print ("  %s: ", _("Longest worker message"));
+      /* TRANSLATORS: a time in milliseconds */
+      g_print (_("%.1f ms"), longest);
+      g_print ("\n");
+      g_print ("  %s: %s\n", _("Worker memory"), size);
     }
 }
 

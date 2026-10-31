@@ -1796,17 +1796,23 @@ extension_display_new (LgExtensions      *self,
   if (shell_lua_extension_get_worker_stats (extension, &workers))
     {
       g_autofree char *running = NULL;
+      g_autofree char *handled = NULL;
+      g_autofree char *memory = g_format_size (workers.memory);
       g_autofree char *text = NULL;
 
       running = g_strdup_printf (ngettext ("%lu worker running",
                                            "%lu workers running",
                                            (unsigned long) workers.live),
                                  (unsigned long) workers.live);
-      text = g_strdup_printf (ngettext ("%s, %lu message handled in %.1f ms of their own time, longest %.1f ms",
-                                        "%s, %lu messages handled in %.1f ms of their own time, longest %.1f ms",
-                                        (unsigned long) workers.messages),
-                              running, (unsigned long) workers.messages,
-                              workers.total_us / 1000.0, workers.longest_us / 1000.0);
+      handled = g_strdup_printf (ngettext ("%lu message handled in %.1f ms of their own time, longest %.1f ms",
+                                           "%lu messages handled in %.1f ms of their own time, longest %.1f ms",
+                                           (unsigned long) workers.messages),
+                                 (unsigned long) workers.messages,
+                                 workers.total_us / 1000.0, workers.longest_us / 1000.0);
+      /* TRANSLATORS: what the workers of an extension cost in Looking Glass:
+       * "2 workers running", "5 messages handled in …", and the Lua memory
+       * of the workers ("1.2 MB") */
+      text = g_strdup_printf (_("%s, %s, Lua memory: %s"), running, handled, memory);
 
       clutter_actor_add_child (box, g_object_new (ST_TYPE_LABEL,
                                                   "style-class", "lg-extension-stats",

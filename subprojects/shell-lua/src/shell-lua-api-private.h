@@ -60,6 +60,13 @@ typedef void (* ShellLuaMessageSink) (lua_State      *L,
 void           shell_lua_state_set_message_sink (ShellLuaState       *state,
                                                  ShellLuaMessageSink  sink,
                                                  gpointer             data);
+/* Keeps *@counter (atomic, bytes) in step with the memory of @state, from
+ * now until the state is closed, which takes all of it back: another thread
+ * can read what the state uses without touching it. The counter must
+ * outlive the state; the state's thread is the only writer of the state's
+ * share. Set once. */
+void           shell_lua_state_set_memory_counter (ShellLuaState *state,
+                                                   gssize        *counter);
 gboolean       shell_lua_state_sink_message     (ShellLuaState  *state,
                                                  lua_State      *L,
                                                  GLogLevelFlags  level,

@@ -18,8 +18,9 @@
 
 /* What the running extensions cost: the time of their callbacks since they
  * were enabled, the longest one and where it is, the callbacks longer than a
- * frame, and their Lua memory (the "callback*", "slowCallbacks" and "memory"
- * keys of the extension info). The most expensive first. */
+ * frame, and their Lua memory with that of their workers (the "callback*",
+ * "slowCallbacks", "memory" and "workerMemory" keys of the extension info).
+ * The most expensive first. */
 
 #include "config.h"
 
@@ -79,6 +80,30 @@ compare_rows (gconstpointer a,
   return g_strcmp0 (ra->uuid, rb->uuid);
 }
 
+/* The columns after the extension: their widths, in characters */
+static const int widths[] = { 10, 11, 10, 6, 9 };
+
+/* Prints @cells (the extension, five figures, where) as a row of the table;
+ * pads by characters, not bytes: the headers are translated */
+static void
+print_row (int          width,
+           const char **cells)
+{
+  int i;
+
+  for (i = 0; i < 6; i++)
+    {
+      int column = i == 0 ? width : widths[i - 1];
+      int pad = MAX (column - (int) g_utf8_strlen (cells[i], -1), 0);
+
+      if (i == 0)
+        g_print ("%s%*s", cells[i], pad, "");
+      else
+        g_print (" %*s%s", pad, "", cells[i]);
+    }
+  g_print ("  %s\n", cells[6]);
+}
+
 static gboolean
 show_stats (const char *sort)
 {
@@ -90,7 +115,7 @@ show_stats (const char *sort)
   GVariantIter iter;
   GVariant *value;
   char *uuid;
-  int width = strlen (_("EXTENSION"));
+  int width = g_utf8_strlen (_("EXTENSION"), -1);
   guint i;
 
   proxy = get_shell_proxy (&error);
@@ -119,6 +144,7 @@ show_stats (const char *sort)
       g_autoptr (GVariantDict) info = g_variant_dict_new (value);
       Row *row;
       const char *where = "";
+      double worker_memory = 0;
 
       if (!g_variant_dict_contains (info, "callbacks"))
         continue;
@@ -131,10 +157,12 @@ show_stats (const char *sort)
       g_variant_dict_lookup (info, "callbackLongestWhere", "&s", &where);
       g_variant_dict_lookup (info, "slowCallbacks", "d", &row->slow);
       g_variant_dict_lookup (info, "memory", "d", &row->memory);
+      if (g_variant_dict_lookup (info, "workerMemory", "d", &worker_memory))
+        row->memory += worker_memory;
       row->where = g_strdup (where);
       g_ptr_array_add (rows, row);
 
-      width = MAX (width, (int) strlen (uuid));
+      width = MAX (width, (int) g_utf8_strlen (uuid, -1));
     }
 
   if (rows->len == 0)
@@ -147,20 +175,22 @@ show_stats (const char *sort)
 
   /* TRANSLATORS: the column headers of “gnome-extensions stats”: the
    * extension, the number of its callbacks, their time in total, the
-   * longest one, the callbacks longer than a frame, its Lua memory, and
-   * where the longest callback is defined */
-  g_print ("%-*s %10s %11s %10s %6s %9s  %s\n", width, _("EXTENSION"),
-           _("CALLBACKS"), _("TOTAL"), _("LONGEST"), _("SLOW"), _("MEMORY"), _("WHERE"));
+   * longest one, the callbacks longer than a frame, the Lua memory of the
+   * extension and its workers, and where the longest callback is defined */
+  print_row (width, (const char *[]) { _("EXTENSION"), _("CALLBACKS"), _("TOTAL"), _("LONGEST"),
+                                        _("SLOW"), _("MEMORY"), _("WHERE") });
 
   for (i = 0; i < rows->len; i++)
     {
       Row *row = g_ptr_array_index (rows, i);
+      g_autofree char *calls = g_strdup_printf ("%.0f", row->callbacks);
+      /* TRANSLATORS: a time in milliseconds */
+      g_autofree char *total = g_strdup_printf (_("%.1f ms"), row->time);
+      g_autofree char *longest = g_strdup_printf (_("%.1f ms"), row->longest);
+      g_autofree char *slow = g_strdup_printf ("%.0f", row->slow);
       g_autofree char *memory = g_format_size ((guint64) row->memory);
-      g_autofree char *total = g_strdup_printf ("%.1f ms", row->time);
-      g_autofree char *longest = g_strdup_printf ("%.1f ms", row->longest);
 
-      g_print ("%-*s %10.0f %11s %10s %6.0f %9s  %s\n", width, row->uuid,
-               row->callbacks, total, longest, row->slow, memory, row->where);
+      print_row (width, (const char *[]) { row->uuid, calls, total, longest, slow, memory, row->where });
     }
 
   return TRUE;
@@ -187,7 +217,8 @@ handle_stats (int argc, char *argv[], gboolean do_help)
   g_option_context_set_summary (context,
                                 _("Show what the running extensions cost: the time "
                                   "of their callbacks since they were enabled, the "
-                                  "callbacks longer than a frame, and their memory"));
+                                  "callbacks longer than a frame, and their memory "
+                                  "with that of their workers"));
   g_option_context_add_main_entries (context, entries, GETTEXT_PACKAGE);
   g_option_context_add_group (context, get_option_group());
 

@@ -75,7 +75,7 @@ harness.run {
 
     -- enable (), the callback, and nothing longer than the callback
     local info = gnome_extensions { "info", uuid }
-    local calls, total = (field (info, "Callbacks") or ""):match ("^(%d+), ([%d.]+) ms$")
+    local calls, total = (field (info, "Callbacks") or ""):match ("^(%d+), ([%d.]+) ms in total$")
     local longest, where = (field (info, "Longest callback") or ""):match ("^([%d.]+) ms %((.*)%)$")
     local slow = field (info, "Callbacks longer than a frame")
 

@@ -139,6 +139,7 @@ typedef struct {
   gint     ref_count;
   gint     live;          /* atomic: the state's workers whose thread runs */
   guint    next_id;       /* main thread */
+  gssize   memory;        /* atomic: the Lua memory of its live workers */
   GMutex   lock;          /* the statistics */
   guint64  messages;
   gint64   total_us;
@@ -210,6 +211,7 @@ shell_lua_worker_get_stats (ShellLuaState       *state,
   stats->longest_us = group->longest_us;
   g_mutex_unlock (&group->lock);
   stats->live = (guint64) g_atomic_int_get (&group->live);
+  stats->memory = MAX ((gssize) g_atomic_pointer_get (&group->memory), 0);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -854,6 +856,9 @@ worker_run (ShellLuaWorker  *worker,
 
   shell_lua_state_set_owner (state, worker);
   shell_lua_state_set_message_sink (state, worker_sink, worker);
+  /* the group outlives the state: the worker holds it, and the thread
+   * closes the state before it lets go of the worker */
+  shell_lua_state_set_memory_counter (state, &worker->group->memory);
   for (i = 0; i < worker->roots->len; i++)
     shell_lua_state_add_search_root (state, g_ptr_array_index (worker->roots, i));
   L = shell_lua_state_get_L (state);

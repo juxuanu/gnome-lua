@@ -89,7 +89,8 @@ COMMANDS
   Shows what the running extensions cost since they were enabled, the most
   expensive first: the number of their callbacks and their time in total,
   the longest callback and where it is defined, the callbacks longer than a
-  frame (16 ms, a dropped frame at 60 Hz) and their Lua memory. The shell
+  frame (16 ms, a dropped frame at 60 Hz) and their Lua memory with that of
+  their workers. The shell
   also logs each callback longer than a frame, at most once every 10
   seconds per extension. The workers of an extension (threads of their own,
   which cost no frames) are not in these figures; ``info`` shows them on a

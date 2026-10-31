@@ -283,9 +283,13 @@ ones). A worker's CPU time is **reported next to those, never added to
 them**: it does not cost frames, which is the point. The thread measures its
 own time with `CLOCK_THREAD_CPUTIME_ID` around each `on_message` and around
 the module load, and the runtime keeps, per extension: messages handled,
-total worker CPU time, the longest handler. Looking Glass shows them on the
-line of the extension, after the callback figures. Nothing is logged for a
-slow handler: there is no budget to exceed.
+total worker CPU time, the longest handler, and the Lua memory of its live
+workers (each worker's allocator keeps an atomic counter of the extension up
+to date, so a worker that grows in the middle of a message shows at once).
+Looking Glass and `gnome-extensions info` show them after the callback
+figures; the memory column of `gnome-extensions stats` counts the workers'
+memory with the extension's. Nothing is logged for a slow handler: there is
+no budget to exceed.
 
 What a worker **does** cost the main thread is accounted where it is spent:
 the conversion of an outgoing message inside `post` (a call made by a

@@ -92,6 +92,7 @@ struct _ShellLuaState
 
   /* Memory accounting */
   gsize mem_used;
+  gssize *memory_counter;    /* also kept here, atomically, when set (workers) */
   gsize memory_limit;        /* G_MAXSIZE = unlimited */
   gboolean mem_refused;      /* allocator refused something since the outermost pcall began */
 
@@ -154,6 +155,8 @@ lua_alloc (void   *ud,
           free (ptr);
           self->mem_used -= old;
           g_atomic_pointer_add (&total_memory, -(gssize) old);
+          if (self->memory_counter != NULL)
+            g_atomic_pointer_add (self->memory_counter, -(gssize) old);
         }
       return NULL;
     }
@@ -180,6 +183,8 @@ lua_alloc (void   *ud,
   self->mem_used += nsize;
   self->mem_used -= old;
   g_atomic_pointer_add (&total_memory, (gssize) nsize - (gssize) old);
+  if (self->memory_counter != NULL)
+    g_atomic_pointer_add (self->memory_counter, (gssize) nsize - (gssize) old);
   return newp;
 }
 
@@ -766,6 +771,17 @@ shell_lua_state_set_message_sink (ShellLuaState       *self,
 
   self->message_sink = sink;
   self->message_sink_data = data;
+}
+
+void
+shell_lua_state_set_memory_counter (ShellLuaState *self,
+                                    gssize        *counter)
+{
+  g_return_if_fail (SHELL_IS_LUA_STATE (self));
+  g_return_if_fail (self->memory_counter == NULL);
+
+  self->memory_counter = counter;
+  g_atomic_pointer_add (counter, (gssize) self->mem_used);
 }
 
 gboolean
@@ -2011,6 +2027,8 @@ destroy_now (ShellLuaState *self)
     {
       g_debug ("[%s] %" G_GSIZE_FORMAT " bytes still accounted after close", self->id, self->mem_used);
       g_atomic_pointer_add (&total_memory, -(gssize) self->mem_used);
+      if (self->memory_counter != NULL)
+        g_atomic_pointer_add (self->memory_counter, -(gssize) self->mem_used);
       self->mem_used = 0;
     }
   g_atomic_int_dec_and_test (&n_states);
