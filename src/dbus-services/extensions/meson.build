@@ -30,7 +30,7 @@ extensions_service_includes = [
 ]
 
 # The executable has the name of the launcher that js/dbusServices installed
-executable('org.gnome.Shell.Extensions',
+extensions_service = executable('org.gnome.Shell.Extensions',
   [
     dbus_service_base,
     extension_prefs_schema_sources,

@@ -655,7 +655,10 @@ function ext.enable()
       case("minimize () returns nothing", function()
         eq(returned.n, 0, "values returned")
       end)
-      return wait_for(function() return w.minimized end, "the window to be minimized", function()
+      -- The property changes at once; the hook comes from the minimize effect,
+      -- which Mutter runs later: wait for both (a missing hook times out)
+      return wait_for(function() return w.minimized and find_event("window.minimized", id, from) ~= nil end,
+                      "the window to be minimized and window.minimized", function()
         case("window.minimized, and a minimized window is still listed", function()
           truthy(find_event("window.minimized", id, from), "window.minimized was emitted")
           local found = false
@@ -678,7 +681,9 @@ function ext.enable()
       case("activate () returns nothing", function()
         eq(returned.n, 0, "values returned")
       end)
-      return wait_for(function() return not w.minimized and w.focused end, "the window to be active", function()
+      return wait_for(function()
+                        return not w.minimized and w.focused and find_event("window.unminimized", id, from) ~= nil
+                      end, "the window to be active and window.unminimized", function()
         case("window.unminimized, the focus", function()
           truthy(find_event("window.unminimized", id, from), "window.unminimized was emitted")
           eq(shell.windows.focused() ~= nil and shell.windows.focused().id == id, true, "windows.focused ()")

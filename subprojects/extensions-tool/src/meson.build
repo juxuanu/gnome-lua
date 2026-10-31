@@ -32,7 +32,7 @@ resources = gnome.compile_resources('resources',
   dependencies: template_deps,
 )
 
-executable('gnome-extensions',
+gnome_extensions = executable('gnome-extensions',
   sources, resources,
   dependencies: [gio_dep, gio_unix_dep, autoar_dep, json_dep, soup_dep],
   install: true

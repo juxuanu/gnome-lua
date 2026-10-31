@@ -69,7 +69,7 @@ executable('org.gnome.Shell.Notifications',
   install: true
 )
 
-executable('org.gnome.Shell.Screencast',
+screencast_service = executable('org.gnome.Shell.Screencast',
   [
     dbus_service_base,
     'screencast-service.c',

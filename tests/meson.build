@@ -137,6 +137,8 @@ shell_tests = [
   },
   {
     'name': 'screencast',
+    # The script starts the service of the build
+    'depends': [screencast_service],
     'env': {
       # Without a GPU the first pipeline of the service fails to negotiate
       # its formats, which Mutter warns about; the service falls back to
@@ -272,11 +274,11 @@ api_tests = [
 if get_option('extensions_tool')
   api_tests += [{
     'name': 'extension-stats',
+    # The script runs the command line tool and the service it talks to
+    'depends': [extensions_service, extension_tool.get_variable('gnome_extensions')],
     'env': {
-      'GNOME_EXTENSIONS_TOOL': join_paths(meson.project_build_root(),
-        'subprojects', 'extensions-tool', 'src', 'gnome-extensions'),
-      'GNOME_SHELL_EXTENSIONS_SERVICE': join_paths(meson.project_build_root(),
-        'src', 'dbus-services', 'extensions', 'org.gnome.Shell.Extensions'),
+      'GNOME_EXTENSIONS_TOOL': extension_tool.get_variable('gnome_extensions').full_path(),
+      'GNOME_SHELL_EXTENSIONS_SERVICE': extensions_service.full_path(),
     },
   }]
 endif
@@ -317,6 +319,7 @@ foreach shell_test : shell_tests
       gnome_shell_binary,
       gnome_shell_perf_helper,
       tests_dependencies,
+      shell_test.get('depends', []),
     ],
     env: local_test_env,
     timeout: shell_test.get('timeout', 30),
@@ -360,6 +363,7 @@ foreach api_test : api_tests
       gnome_shell_binary,
       gnome_shell_perf_helper,
       tests_dependencies,
+      api_test.get('depends', []),
     ],
     env: api_test_env,
     timeout: 120,
