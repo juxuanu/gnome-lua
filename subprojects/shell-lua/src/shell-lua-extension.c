@@ -109,7 +109,9 @@ set_error_message (ShellLuaExtension *self,
                    const char        *message)
 {
   g_free (self->error);
-  self->error = g_strdup (message);
+  /* The message of an error () of the extension can hold any bytes; it goes
+   * to D-Bus (ExtensionStatusChanged, ListExtensions) as a string */
+  self->error = message != NULL ? g_utf8_make_valid (message, -1) : NULL;
 }
 
 /* ------------------------------------------------------------------ */

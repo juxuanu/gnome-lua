@@ -272,7 +272,7 @@ set_accessible_name (lua_State *L,
   const char *name;
 
   luaL_checktype (L, idx, LUA_TSTRING);
-  name = lua_tostring (L, idx);
+  name = shell_lua_check_utf8 (L, idx, "accessible_name");
   if (name[0] == '\0')
     luaL_error (L, "accessible_name must not be empty");
   clutter_actor_set_accessible_name (CLUTTER_ACTOR (object), name);

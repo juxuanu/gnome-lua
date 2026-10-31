@@ -185,6 +185,25 @@ shell_lua_check_plain_table (lua_State  *L,
     luaL_error (L, "%s must be a plain table (it has a metatable)", what);
 }
 
+/* Text that GLib shows or sends must be UTF-8: GLib reads past the end of
+ * a string with a bad sequence (g_utf8_strlen ()) or refuses it with a
+ * critical (g_variant_new_string ()). Bytes have fields of their own (spawn,
+ * fs, network bodies, worker messages). */
+const char *
+shell_lua_check_utf8 (lua_State  *L,
+                      int         idx,
+                      const char *what)
+{
+  size_t len;
+  const char *s = lua_tolstring (L, idx, &len);
+
+  if (s == NULL)
+    luaL_error (L, "%s must be a string, got %s", what, luaL_typename (L, idx));
+  if (!g_utf8_validate (s, (gssize) len, NULL))
+    luaL_error (L, "%s is not valid UTF-8 text", what);
+  return s;
+}
+
 int
 shell_lua_rawgetfield (lua_State  *L,
                        int         tbl,
@@ -248,6 +267,8 @@ shell_lua_opt_string (lua_State  *L,
 
   if (lua_type (L, -1) != LUA_TSTRING)
     luaL_error (L, "field '%s' must be a string, got %s", field, luaL_typename (L, -1));
+  if (!g_utf8_validate (lua_tostring (L, -1), (gssize) lua_rawlen (L, -1), NULL))
+    luaL_error (L, "field '%s' is not valid UTF-8 text", field);
 
   /* The table keeps the string alive, so the pointer stays valid as long as
    * the field is not reassigned: the caller runs no Lua code of the

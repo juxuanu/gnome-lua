@@ -210,6 +210,7 @@ api_tests = [
   },
   {
     'name': 'arguments',
+    'fixtures': ['arguments@test', 'utf8-error@test'],
   },
   {
     'name': 'search',

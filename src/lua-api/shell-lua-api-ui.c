@@ -150,7 +150,7 @@ check_string_arg (lua_State  *L,
 {
   if (lua_type (L, idx) != LUA_TSTRING)
     luaL_error (L, "%s must be a string, got %s", what, luaL_typename (L, idx));
-  return lua_tostring (L, idx);
+  return shell_lua_check_utf8 (L, idx, what);
 }
 
 /* The numeric counterparts: the error names the field, and a string is never
@@ -886,7 +886,7 @@ static int
 l_label_set_markup (lua_State *L)
 {
   StLabel *label = ST_LABEL (shell_lua_handle_check (L, 1, "shell.Label"));
-  const char *markup = (luaL_checktype (L, 2, LUA_TSTRING), lua_tostring (L, 2));
+  const char *markup = (luaL_checktype (L, 2, LUA_TSTRING), shell_lua_check_utf8 (L, 2, "markup"));
   GError *error = NULL;
 
   if (!pango_parse_markup (markup, -1, 0, NULL, NULL, NULL, &error))

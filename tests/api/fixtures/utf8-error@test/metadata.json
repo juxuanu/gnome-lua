@@ -1,0 +1,7 @@
+{
+  "uuid": "utf8-error@test",
+  "name": "API conformance: an error that is not UTF-8",
+  "description": "Fixture of tests/api/arguments.lua: enable () raises an error whose message has a byte that is not UTF-8",
+  "shell-api": "1.2",
+  "version": 1
+}

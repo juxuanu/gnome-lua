@@ -643,6 +643,11 @@ gvalue_from_lua (lua_State *L,
           *err = type_mismatch (L, idx, "string");
           return FALSE;
         }
+      if (!g_utf8_validate (lua_tostring (L, idx), (gssize) lua_rawlen (L, idx), NULL))
+        {
+          *err = g_strdup ("is not valid UTF-8 text");
+          return FALSE;
+        }
       g_value_set_string (v, lua_tostring (L, idx));
       return TRUE;
     case G_TYPE_ENUM:

@@ -762,6 +762,7 @@ add_error (ShellExtensionManager *self,
            const char            *message)
 {
   GPtrArray *errors = g_hash_table_lookup (self->errors, uuid);
+  g_autofree char *valid = NULL;
 
   if (errors == NULL)
     {
@@ -769,10 +770,13 @@ add_error (ShellExtensionManager *self,
       g_hash_table_insert (self->errors, g_strdup (uuid), errors);
     }
 
-  if (errors->len > 0 && strcmp (g_ptr_array_index (errors, errors->len - 1), message) == 0)
+  /* error () of the extension can hold any bytes; GetExtensionErrors sends
+   * them as strings */
+  valid = g_utf8_make_valid (message, -1);
+  if (errors->len > 0 && strcmp (g_ptr_array_index (errors, errors->len - 1), valid) == 0)
     return;
 
-  g_ptr_array_add (errors, g_strdup (message));
+  g_ptr_array_add (errors, g_steal_pointer (&valid));
 }
 
 static void

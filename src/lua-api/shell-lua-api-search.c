@@ -702,6 +702,8 @@ raw_string (lua_State  *L,
     }
   if (lua_type (L, -1) != LUA_TSTRING)
     luaL_error (L, "field '%s' must be a string, got %s", field, luaL_typename (L, -1));
+  if (!g_utf8_validate (lua_tostring (L, -1), (gssize) lua_rawlen (L, -1), NULL))
+    luaL_error (L, "field '%s' is not valid UTF-8 text", field);
 
   value = lua_tostring (L, -1);
   lua_pop (L, 1);

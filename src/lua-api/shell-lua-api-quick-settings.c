@@ -600,7 +600,7 @@ set_subtitle (lua_State *L,
     {
       if (lua_type (L, idx) != LUA_TSTRING)
         luaL_error (L, "subtitle must be a string or nil");
-      subtitle = lua_tostring (L, idx);
+      subtitle = shell_lua_check_utf8 (L, idx, "subtitle");
       if (subtitle[0] == '\0')
         subtitle = NULL;
     }
@@ -654,7 +654,7 @@ set_slider_accessible_name (lua_State *L,
 
   if (lua_type (L, idx) != LUA_TSTRING)
     luaL_error (L, "accessible_name must be a string");
-  clutter_actor_set_accessible_name (slider, lua_tostring (L, idx));
+  clutter_actor_set_accessible_name (slider, shell_lua_check_utf8 (L, idx, "accessible_name"));
 }
 
 static void
@@ -693,7 +693,7 @@ set_indicator_accessible_name (lua_State *L,
 {
   if (lua_type (L, idx) != LUA_TSTRING)
     luaL_error (L, "accessible_name must be a string");
-  clutter_actor_set_accessible_name (CLUTTER_ACTOR (object), lua_tostring (L, idx));
+  clutter_actor_set_accessible_name (CLUTTER_ACTOR (object), shell_lua_check_utf8 (L, idx, "accessible_name"));
 }
 
 /* ------------------------------------------------------------------------ */

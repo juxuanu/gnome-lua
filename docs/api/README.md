@@ -71,7 +71,14 @@ from outside the extension directory.
    raises `... must be a plain table (it has a metatable)` (**impl**:
    `shell_lua_check_plain_table`; conformance test `tests/api/arguments.lua`).
    So no code of the extension runs while a call checks and uses its
-   arguments. Positional forms
+   arguments. Text (labels, titles, bodies, accessible names, markup, the
+   fields of search results, every string property assigned through a
+   handle) must be valid UTF-8: a string that is not raises `... is not valid
+   UTF-8 text`, since GLib cannot show or send it (**impl**:
+   `shell_lua_check_utf8`). Bytes have fields of their own: spawn arguments
+   and input, file contents and paths, network bodies, worker messages. The
+   message of an extension's error is repaired (`g_utf8_make_valid`) before
+   the shell sends it over D-Bus. Positional forms
    exist only where core.md defines them (`hooks.on(name, fn)`,
    `timer.after(ms, fn)`, `settings:on_changed(key, fn)`) and for one-argument
    getters/setters such as `windows.get(id)`.

@@ -101,6 +101,10 @@ void           shell_lua_state_note_callee (lua_State *L,
 /* Raises unless the value at @idx is a table without a metatable; @what
  * names it in the message ("field 'actions'"). */
 void        shell_lua_check_plain_table (lua_State *L, int idx, const char *what);
+/* The string at @idx, which must be valid UTF-8 text (raises "<what> is not
+ * valid UTF-8 text"; "<what> must be a string" for a value that is not one).
+ * shell_lua_opt_string () checks the same. */
+const char *shell_lua_check_utf8 (lua_State *L, int idx, const char *what);
 /* lua_getfield () without metamethods: pushes @tbl[@field], returns its type */
 int         shell_lua_rawgetfield (lua_State *L, int tbl, const char *field);
 const char *shell_lua_opt_string  (lua_State *L, int tbl, const char *field, const char *def);

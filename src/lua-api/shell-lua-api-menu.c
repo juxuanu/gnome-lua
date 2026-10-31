@@ -73,7 +73,7 @@ check_string_arg (lua_State  *L,
 {
   if (lua_type (L, idx) != LUA_TSTRING)
     luaL_error (L, "%s must be a string, got %s", what, luaL_typename (L, idx));
-  return lua_tostring (L, idx);
+  return shell_lua_check_utf8 (L, idx, what);
 }
 
 static ShellPopupMenuBase *

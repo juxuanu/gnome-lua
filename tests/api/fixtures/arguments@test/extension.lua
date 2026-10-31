@@ -4,7 +4,8 @@
 -- runs while the API checks and uses its arguments: the metamethods used to
 -- destroy a widget between its check and its use, or to answer a second read
 -- with something the first one did not see. The shorthand fields of the panel
--- use the constructors of shell.ui, not the (writable) shell table.
+-- use the constructors of shell.ui, not the (writable) shell table. Text
+-- must be valid UTF-8.
 local shell = require("shell")
 local T = shell.test
 
@@ -126,6 +127,22 @@ function ext.enable()
     eq(a.child.text, "hi", "the label")
     a:destroy()
     b:destroy()
+  end)
+
+  -- GLib reads past the end of a bad UTF-8 sequence (labels) or refuses it
+  -- with a critical (notifications, hooks): text must be valid UTF-8
+  case("text that is not UTF-8 is refused", function()
+    raises(function() shell.ui.label{ text = "\xF0" } end, "UTF-8", "a label")
+    local label = shell.ui.label{ text = "ok" }
+    raises(function() label.text = "bad \xC3" end, "UTF-8", "assigning text")
+    eq(label.text, "ok", "the text after a refused assignment")
+    label.text = "àèï 😀"
+    eq(label.text, "àèï 😀", "UTF-8 text")
+    label:destroy()
+    raises(function() shell.notify{ title = "\xC3" } end, { "title", "UTF-8" }, "a notification title")
+    raises(function() shell.notify{ title = "t", body = "a\xFFb" } end, { "body", "UTF-8" }, "a notification body")
+    raises(function() shell.panel.add_indicator{ name = "args-utf8", accessible_name = "\xE2\x82" } end,
+           "UTF-8", "an accessible name")
   end)
 
   case("pairs of shell.overview ends on a key it does not know", function()
