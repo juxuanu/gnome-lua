@@ -476,8 +476,15 @@ complete_pending_message_tasks (ShellGdmUserVerifier *self)
 static void
 finish_message_queue (ShellGdmUserVerifier *self)
 {
+  /* A handler of no-more-messages can end the last reference (an unlock
+   * that destroys the dialog, the prompt and the verifier when the
+   * animations are off) */
+  g_autoptr (ShellGdmUserVerifier) keep = NULL;
+
   if (self->message_queue->len == 0)
     return;
+
+  keep = g_object_ref (self);
 
   g_ptr_array_set_size (self->message_queue, 0);
 

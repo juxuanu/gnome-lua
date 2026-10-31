@@ -2281,6 +2281,7 @@ shell_auth_prompt_reset (ShellAuthPrompt *self,
                          gboolean         reuse_entry_text,
                          gboolean         soft_reset)
 {
+  g_autoptr (ShellAuthPrompt) keep = NULL;
   ShellAuthPromptStatus old_status;
   ShellAuthPromptResetType reset_type;
 
@@ -2288,6 +2289,10 @@ shell_auth_prompt_reset (ShellAuthPrompt *self,
 
   if (self->entry == NULL)
     return;
+
+  /* The handlers of failed and cancelled can destroy the prompt (the unlock
+   * dialog going back to the clock, at once when the animations are off) */
+  keep = g_object_ref (self);
 
   old_status = self->verification_status;
   set_verification_status (self, SHELL_AUTH_PROMPT_STATUS_NOT_VERIFYING);
@@ -2316,6 +2321,10 @@ shell_auth_prompt_reset (ShellAuthPrompt *self,
     g_signal_emit (self, signals[FAILED], 0);
   else if (old_status == SHELL_AUTH_PROMPT_STATUS_VERIFICATION_CANCELLED)
     g_signal_emit (self, signals[CANCELLED], 0);
+
+  /* dispose () clears the entry */
+  if (self->entry == NULL)
+    return;
 
   if (self->mode == SHELL_AUTH_PROMPT_MODE_UNLOCK_ONLY)
     {

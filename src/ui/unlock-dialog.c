@@ -1983,9 +1983,15 @@ static void
 select_auth_mechanism (ShellUnlockDialog *self,
                        GVariant          *auth_mechanism)
 {
-  g_autoptr (GVariant) old_mechanism = self->selected_auth_mechanism;
+  g_autoptr (GVariant) old_mechanism = NULL;
   g_autofree char *hint = NULL;
 
+  /* The login options stay at the clock page, where the prompt is gone
+   * (upstream raises a TypeError here): nothing to select a mechanism in */
+  if (self->auth_prompt == NULL)
+    return;
+
+  old_mechanism = self->selected_auth_mechanism;
   self->selected_auth_mechanism = NULL;
 
   if (!shell_auth_prompt_select_mechanism (self->auth_prompt, auth_mechanism))

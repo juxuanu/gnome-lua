@@ -1666,24 +1666,27 @@ conflicting_session_data_free (ConflictingSessionData *data)
   g_free (data);
 }
 
+/* The conflicting-session dialog owns @data: closing it can free it at
+ * once (when the close is not animated, the dialog is destroyed before
+ * shell_modal_dialog_close () returns), so the callbacks below take what
+ * they need from @data before they close it. */
 static gboolean
 conflicting_session_timeout_source_cb (gpointer user_data)
 {
   ConflictingSessionData *data = user_data;
+  g_autoptr (ShellLoginDialog) login_dialog = NULL;
+  ShellConflictingSessionDialog *dialog = data->dialog;
 
   data->close_dialog_timeout_id = 0;
-
   if (data->login_dialog != NULL)
-    {
-      notify_conflicting_session_dialog_closed (data->login_dialog);
-      if (data->dialog != NULL)
-        shell_modal_dialog_close (SHELL_MODAL_DIALOG (data->dialog));
-      shell_auth_prompt_reset (data->login_dialog->auth_prompt, FALSE, FALSE);
-    }
-  else if (data->dialog != NULL)
-    {
-      shell_modal_dialog_close (SHELL_MODAL_DIALOG (data->dialog));
-    }
+    login_dialog = g_object_ref (data->login_dialog);
+
+  if (login_dialog != NULL)
+    notify_conflicting_session_dialog_closed (login_dialog);
+  if (dialog != NULL)
+    shell_modal_dialog_close (SHELL_MODAL_DIALOG (dialog));
+  if (login_dialog != NULL)
+    shell_auth_prompt_reset (login_dialog->auth_prompt, FALSE, FALSE);
 
   return G_SOURCE_REMOVE;
 }
@@ -1716,20 +1719,28 @@ conflicting_session_removed_cb (ShellLoginManager      *login_manager,
                                 ConflictingSessionData *data)
 {
   StartSessionData *start_data;
+  ShellLoginDialog *login_dialog;
 
   if (g_strcmp0 (session_id, data->conflicting_session_id) != 0)
     return;
 
+  /* Before the close, which can free @data */
+  start_data = g_new0 (StartSessionData, 1);
+  if (data->login_dialog != NULL)
+    start_data->login_dialog = g_object_ref (data->login_dialog);
+  start_data->service_name = g_strdup (data->service_name);
+
   if (data->dialog != NULL)
     shell_modal_dialog_close (SHELL_MODAL_DIALOG (data->dialog));
 
-  if (data->login_dialog == NULL)
-    return;
+  if (start_data->login_dialog == NULL)
+    {
+      start_session_data_free (start_data);
+      return;
+    }
 
-  start_data = g_new0 (StartSessionData, 1);
-  start_data->login_dialog = g_object_ref (data->login_dialog);
-  start_data->service_name = g_strdup (data->service_name);
-  shell_auth_prompt_finish (data->login_dialog->auth_prompt,
+  login_dialog = start_data->login_dialog;
+  shell_auth_prompt_finish (login_dialog->auth_prompt,
                             finish_start_session_cb, start_data,
                             (GDestroyNotify) start_session_data_free);
 }

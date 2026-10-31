@@ -462,7 +462,10 @@ struct _ShellKeyringComponent
 
 G_DEFINE_FINAL_TYPE (ShellKeyringComponent, shell_keyring_component, G_TYPE_OBJECT)
 
-/* The `new-prompt` handler of the constructor of the JS prompter */
+/* The `new-prompt` handler of the constructor of the JS prompter. The
+ * signal returns a reference (transfer full in Gcr-4.gir), which the
+ * prompter drops when the exchange is over: the dialog and the dummy
+ * prompt keep their own. */
 static GcrPrompt *
 component_new_prompt_cb (GcrSystemPrompter     *prompter,
                          ShellKeyringComponent *self)
@@ -492,7 +495,7 @@ component_new_prompt_cb (GcrSystemPrompter     *prompter,
   g_clear_weak_pointer (&self->current_prompt);
   g_set_weak_pointer (&self->current_prompt, prompt);
 
-  return prompt;
+  return g_object_ref (prompt);
 }
 
 static void

@@ -406,6 +406,9 @@ on_conversation_stopped (GdmUserVerifier      *verifier,
                          const char           *service_name,
                          ShellGdmAuthServices *self)
 {
+  /* A handler of filter-messages can end the last reference */
+  g_autoptr (ShellGdmAuthServices) keep = g_object_ref (self);
+
   g_hash_table_remove (self->active_services, service_name);
 
   g_signal_emit (self, signals[FILTER_MESSAGES], 0,
