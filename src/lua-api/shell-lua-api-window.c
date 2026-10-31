@@ -139,11 +139,13 @@ typedef struct
   ActionRect rect;
 } Action;
 
-/* The 1.1 actions call Mutter functions that g_return_if_fail () on an
+/* The actions call Mutter functions that g_return_if_fail () on an
  * override-redirect window, and on one that is being unmanaged (an action
  * that was deferred to idle can find the window gone: the handle died with
- * it, but the weak reference to the object holds until it is finalized). That
- * is a critical, so check first: Mutter "may ignore" the actions anyway. */
+ * it, but the weak reference to the object holds until it is finalized, and
+ * the close effect keeps it a while). That is a critical, or a crash
+ * (meta_window_move_to_monitor () reads the monitor a closing window no
+ * longer has), so check first: Mutter "may ignore" the actions anyway. */
 static gboolean
 window_accepts_actions (MetaWindow *window)
 {
@@ -167,6 +169,8 @@ perform_action (GObject          *object,
   ShellMain *main = shell_main_get_default ();
 
   if (global == NULL)
+    return;
+  if (META_IS_WINDOW (object) && !window_accepts_actions (META_WINDOW (object)))
     return;
 
   switch (kind)
@@ -199,13 +203,24 @@ perform_action (GObject          *object,
       break;
 
     case ACTION_MOVE_TO_WORKSPACE:
-      meta_window_change_workspace_by_index (META_WINDOW (object), arg, FALSE);
+      {
+        MetaDisplay *display = shell_global_get_display (global);
+
+        /* checked when it was asked; a deferred one runs later */
+        if (arg >= meta_workspace_manager_get_n_workspaces (meta_display_get_workspace_manager (display)))
+          break;
+        meta_window_change_workspace_by_index (META_WINDOW (object), arg, FALSE);
+      }
       break;
 
     case ACTION_MOVE_TO_MONITOR:
       {
         MetaWindow *window = META_WINDOW (object);
         MetaWorkspace *workspace = meta_window_get_workspace (window);
+        ShellLayoutManager *layout = main != NULL ? shell_main_get_layout_manager (main) : NULL;
+
+        if (layout == NULL || arg >= (int) shell_layout_manager_get_n_monitors (layout))
+          break;
 
         if (main != NULL && workspace != NULL && !meta_window_is_on_all_workspaces (window))
           shell_main_move_window_to_monitor_and_workspace (main, window, arg,
@@ -216,7 +231,16 @@ perform_action (GObject          *object,
       break;
 
     case ACTION_ACTIVATE_WORKSPACE:
-      meta_workspace_activate (META_WORKSPACE (object), shell_global_get_current_time (global));
+      {
+        MetaWorkspace *workspace = META_WORKSPACE (object);
+        MetaWorkspaceManager *manager =
+          meta_display_get_workspace_manager (shell_global_get_display (global));
+
+        /* removed since it was asked */
+        if (g_list_find (meta_workspace_manager_get_workspaces (manager), workspace) == NULL)
+          break;
+        meta_workspace_activate (workspace, shell_global_get_current_time (global));
+      }
       break;
 
     case ACTION_MOVE:
