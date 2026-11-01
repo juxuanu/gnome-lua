@@ -1880,8 +1880,8 @@ auth_prompt_mechanisms_changed_cb (ShellAuthPrompt   *prompt,
   shell_auth_menu_button_indicator_update_description_label (self->auth_indicator_button);
 }
 
-/* `_ensureAuthPrompt ()` */
-static void
+/* `_ensureAuthPrompt ()`: FALSE when the prompt is gone after all */
+static gboolean
 ensure_auth_prompt (ShellUnlockDialog *self)
 {
   ShellAuthPromptStatus status;
@@ -1910,6 +1910,11 @@ ensure_auth_prompt (ShellUnlockDialog *self)
     case SHELL_AUTH_PROMPT_STATUS_VERIFICATION_CANCELLED:
     case SHELL_AUTH_PROMPT_STATUS_VERIFICATION_FAILED:
       shell_auth_prompt_reset (self->auth_prompt, FALSE, FALSE);
+      /* The reset of a failed verification emits ::failed, which goes back
+       * to the clock, and that destroys the prompt when the animations are
+       * off (upstream raises a TypeError here, which stops the caller too) */
+      if (self->auth_prompt == NULL)
+        return FALSE;
       shell_auth_prompt_update_sensitivity (self->auth_prompt,
                                             status == SHELL_AUTH_PROMPT_STATUS_NOT_VERIFYING);
       break;
@@ -1922,6 +1927,7 @@ ensure_auth_prompt (ShellUnlockDialog *self)
     }
 
   update_auth_blocked (self);
+  return TRUE;
 }
 
 /* `_maybeDestroyAuthPrompt ()` */
@@ -1968,7 +1974,8 @@ unlock_dialog_show_clock (ShellUnlockDialog *self)
 static void
 unlock_dialog_show_prompt (ShellUnlockDialog *self)
 {
-  ensure_auth_prompt (self);
+  if (!ensure_auth_prompt (self))
+    return;
 
   if (self->active_page == self->prompt_box)
     return;
@@ -2099,7 +2106,8 @@ swipe_begin_cb (ShellSwipeTracker *tracker,
 
   st_adjustment_remove_transition (self->adjustment, "value");
 
-  ensure_auth_prompt (self);
+  if (!ensure_auth_prompt (self))
+    return;
 
   progress = st_adjustment_get_value (self->adjustment);
   shell_swipe_tracker_confirm_swipe (tracker,

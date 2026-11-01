@@ -448,28 +448,36 @@ get_interval_for_message (const char *message)
                   get_message_time_multiplier ());
 }
 
+static gboolean
+return_message_task (gpointer user_data)
+{
+  GTask *task = user_data;
+  g_autoptr (GCancellable) cancellable = g_object_steal_data (G_OBJECT (task), "message-cancellable");
+
+  if (cancellable != NULL && g_cancellable_is_cancelled (cancellable))
+    g_task_return_new_error (task, G_IO_ERROR, G_IO_ERROR_CANCELLED,
+                             "Operation was cancelled");
+  else
+    g_task_return_boolean (task, TRUE);
+
+  return G_SOURCE_REMOVE;
+}
+
+/* The waiters get their answer after the code that ended the messages, as
+ * the JS's promises did, not inside it: a clear goes on to cancel the
+ * verification, which the waiter must see, and a waiter that resets the
+ * prompt would reset inside the reset that cleared the messages */
 static void
 complete_pending_message_tasks (ShellGdmUserVerifier *self)
 {
-  GList *tasks = self->pending_message_tasks;
-
-  self->pending_message_tasks = NULL;
+  GList *tasks = g_steal_pointer (&self->pending_message_tasks);
 
   while (tasks != NULL)
     {
-      GTask *task = tasks->data;
-      GCancellable *cancellable = g_object_steal_data (G_OBJECT (task), "message-cancellable");
+      guint id = g_idle_add_full (G_PRIORITY_DEFAULT, return_message_task, tasks->data, g_object_unref);
 
+      g_source_set_name_by_id (id, "[gnome-shell] UserVerifier pending messages");
       tasks = g_list_delete_link (tasks, tasks);
-
-      if (cancellable != NULL && g_cancellable_is_cancelled (cancellable))
-        g_task_return_new_error (task, G_IO_ERROR, G_IO_ERROR_CANCELLED,
-                                 "Operation was cancelled");
-      else
-        g_task_return_boolean (task, TRUE);
-
-      g_clear_object (&cancellable);
-      g_object_unref (task);
     }
 }
 
@@ -607,6 +615,9 @@ queue_message (ShellGdmUserVerifier *self,
 static void
 clear_message_queue (ShellGdmUserVerifier *self)
 {
+  /* A handler of no-more-messages can end the last reference */
+  g_autoptr (ShellGdmUserVerifier) keep = g_object_ref (self);
+
   finish_message_queue (self);
 
   g_clear_handle_id (&self->message_queue_timeout_id, g_source_remove);
@@ -626,6 +637,7 @@ queue_priority_message (ShellGdmUserVerifier *self,
                         ShellGdmMessageType   type,
                         gboolean              wiggle)
 {
+  g_autoptr (ShellGdmUserVerifier) keep_self = g_object_ref (self);
   GPtrArray *new_queue = g_ptr_array_new_with_free_func ((GDestroyNotify) queued_message_unref);
   QueuedMessage *current = self->message_queue->len > 0
     ? g_ptr_array_index (self->message_queue, 0)
@@ -753,6 +765,8 @@ verifier_verification_failed (ShellGdmUserVerifier *self,
                               const char           *service_name,
                               gboolean              can_retry)
 {
+  g_autoptr (ShellGdmUserVerifier) keep = g_object_ref (self);
+
   filter_service_messages (self, service_name, SHELL_GDM_MESSAGE_TYPE_ERROR);
 
   if (!self->shutting_down)

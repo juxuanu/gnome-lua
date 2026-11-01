@@ -305,6 +305,7 @@ class Session:
         elif method == 'AnswerQuery':
             self._answer(*args)
         elif method == 'Cancel':
+            log('verification cancelled')
             self.conversations.clear()
         elif method == 'GetTimedLoginDetails':
             invocation.return_value(GLib.Variant('(bsi)', (False, '', 0)))
