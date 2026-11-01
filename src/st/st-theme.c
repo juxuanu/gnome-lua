@@ -1072,6 +1072,37 @@ _st_theme_get_matched_properties (StTheme        *theme,
  * stylesheet, not a device or a FIFO elsewhere that would never finish
  * loading. NULL when the URL does not resolve.
  */
+/* The file a custom (extension) stylesheet refers to, once its symbolic
+ * links are followed: a regular file that is still under @dir, or %NULL.
+ * St reads it at paint, synchronously: a link to a FIFO or to /dev/zero
+ * would block the compositor, and one to a file of the user's would show
+ * what the extension cannot read */
+static GFile *
+resolve_custom_file (GFile *dir,
+                     GFile *file)
+{
+  g_autofree char *dir_path = g_file_get_path (dir);
+  g_autofree char *path = g_file_get_path (file);
+  g_autofree char *real_dir = NULL;
+  g_autofree char *real = NULL;
+  size_t len;
+
+  if (dir_path == NULL || path == NULL)
+    return NULL;
+
+  real_dir = realpath (dir_path, NULL);
+  real = realpath (path, NULL);
+  if (real_dir == NULL || real == NULL)
+    return NULL;
+
+  len = strlen (real_dir);
+  if (strncmp (real, real_dir, len) != 0 || real[len] != G_DIR_SEPARATOR ||
+      !g_file_test (real, G_FILE_TEST_IS_REGULAR))
+    return NULL;
+
+  return g_file_new_for_path (real);
+}
+
 GFile *
 _st_theme_resolve_url (StTheme      *theme,
                        CRStyleSheet *base_stylesheet,
@@ -1117,6 +1148,13 @@ _st_theme_resolve_url (StTheme      *theme,
 
       if (parent == NULL || !g_file_has_prefix (resource, parent))
         g_clear_object (&resource);
+      else
+        {
+          GFile *real = resolve_custom_file (parent, resource);
+
+          g_object_unref (resource);
+          resource = real;
+        }
     }
 
   return resource;

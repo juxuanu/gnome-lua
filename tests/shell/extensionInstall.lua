@@ -4,7 +4,12 @@
 -- and asks, in a dialog that lists the capabilities the archive asks for.
 -- Nothing is installed before the user agrees; Install installs and enables
 -- it, Cancel leaves nothing behind, and an archive the manager would refuse
--- (an unknown capability) fails before any dialog.
+-- (an unknown capability) fails before any dialog, as one that holds a
+-- symbolic link does (St and the loader would read through it).
+--
+-- The check for updates offers the installed extensions to the index, but
+-- not one whose directory is a link to a local copy: the update would
+-- replace the files of the copy.
 
 local TIMEOUT = 20000
 
@@ -18,6 +23,8 @@ local results = {
   installed = false,
   cancelled = false,
   refused = false,
+  link_refused = false,
+  linked_not_updated = false,
 }
 
 test.finish (function ()
@@ -26,6 +33,8 @@ test.finish (function ()
   assert (results.installed, "Install did not install and enable the extension")
   assert (results.cancelled, "Cancel did not leave the extension uninstalled")
   assert (results.refused, "An extension with an unknown capability was offered")
+  assert (results.link_refused, "An archive with a symbolic link was offered")
+  assert (results.linked_not_updated, "The check for updates offered a linked extension")
 end)
 
 local function exists (path)
@@ -38,11 +47,8 @@ local function exists (path)
   return false
 end
 
--- The archive of an extension, as the index serves it: metadata.json and
--- extension.lua at the top
-local function make_archive (uuid, capabilities)
-  local dir = work_dir .. "/" .. uuid
-  local zip = work_dir .. "/" .. uuid .. ".zip"
+-- Writes an extension to @dir: metadata.json and extension.lua
+local function write_extension (dir, uuid, capabilities)
   local quoted = {}
 
   for i, capability in ipairs (capabilities) do
@@ -57,9 +63,28 @@ local function make_archive (uuid, capabilities)
   local script = assert (io.open (dir .. "/extension.lua", "w"))
   script:write ("return {}\n")
   script:close ()
+end
 
+-- The archive of an extension, as the index serves it: metadata.json and
+-- extension.lua at the top, and @links ({name = target}) as symbolic links
+local function make_archive (uuid, capabilities, links)
+  local dir = work_dir .. "/" .. uuid
+  local zip = work_dir .. "/" .. uuid .. ".zip"
+
+  write_extension (dir, uuid, capabilities)
   assert (os.execute (string.format ("cd '%s' && python3 -m zipfile -c '%s' metadata.json extension.lua",
                                      dir, zip)))
+  for name, target in pairs (links or {}) do
+    -- zipfile has no symbolic links: an entry with their mode, which is
+    -- what zip -y writes
+    assert (os.execute (string.format ("python3 -c 'import sys, zipfile\n"
+                                       .. "with zipfile.ZipFile (sys.argv[1], \"a\") as z:\n"
+                                       .. "  i = zipfile.ZipInfo (sys.argv[2])\n"
+                                       .. "  i.create_system = 3\n"
+                                       .. "  i.external_attr = 0o120777 << 16\n"
+                                       .. "  z.writestr (i, sys.argv[3])' '%s' '%s' '%s'",
+                                       zip, name, target)))
+  end
   local file = assert (io.open (zip, "rb"))
   local bytes = file:read ("a")
   file:close ()
@@ -132,13 +157,14 @@ local server = test.http_server {
     ["/extension-info/"] = { body = '{"name": "Test extension"}', content_type = "application/json" },
   },
 }
-for uuid, capabilities in pairs {
-  ["install-caps@test"] = { "worker", "network", "spawn" },
-  ["install-plain@test"] = {},
-  ["install-unknown@test"] = { "network", "teleport" },
+for uuid, archive in pairs {
+  ["install-caps@test"] = { { "worker", "network", "spawn" } },
+  ["install-plain@test"] = { {} },
+  ["install-unknown@test"] = { { "network", "teleport" } },
+  ["install-link@test"] = { {}, { ["stylesheet.css"] = "/dev/zero" } },
 } do
   server:route ("/download-extension/" .. uuid .. ".shell-extension.zip",
-                { body = make_archive (uuid, capabilities), content_type = "application/zip" })
+                { body = make_archive (uuid, archive[1], archive[2]), content_type = "application/zip" })
 end
 test.extension_index (server.url)
 
@@ -196,6 +222,60 @@ assert (done ().stderr:find ("teleport", 1, true), "the error does not name the 
 assert (not shown, "a dialog offered the extension")
 test.wait_for (function () return #leftovers () == 0 end, "the downloaded archive to be removed", TIMEOUT)
 results.refused = not exists (extensions_dir .. "/install-unknown@test")
+
+test.log ("Installing an extension whose archive holds a symbolic link")
+shown = false
+added = main.layout_manager.modal_dialog_group:connect ("child-added", function () shown = true end)
+done = install ("install-link@test")
+test.wait_for (done, "InstallRemoteExtension () to answer", TIMEOUT)
+main.layout_manager.modal_dialog_group:disconnect (added)
+assert (done ().status ~= 0, "InstallRemoteExtension () accepted an archive with a symbolic link")
+assert (done ().stderr:find ("stylesheet.css", 1, true), "the error does not name the link: " .. done ().stderr)
+assert (not shown, "a dialog offered the extension")
+test.wait_for (function () return #leftovers () == 0 end, "the downloaded archive to be removed", TIMEOUT)
+results.link_refused = not exists (extensions_dir .. "/install-link@test")
+
+-- Updates are checked for when an application installs them
+test.log ("Checking for updates with a linked extension")
+local apps_dir = data_home .. "/applications"
+assert (os.execute (string.format ("mkdir -p '%s'", apps_dir)))
+local desktop = assert (io.open (apps_dir .. "/org.gnome.Extensions.desktop", "w"))
+desktop:write ("[Desktop Entry]\nType=Application\nName=Extensions\nExec=true\n")
+desktop:close ()
+test.wait_for (function () return global:get_app_system ():lookup_app ("org.gnome.Extensions.desktop") ~= nil end,
+               "the application that installs the updates", TIMEOUT)
+
+write_extension (work_dir .. "/checkout", "linked@test", {})
+assert (os.execute (string.format ("ln -s '%s/checkout' '%s/linked@test'", work_dir, extensions_dir)))
+test.extension_enable ("linked@test")
+test.wait_for (function ()
+  local state = test.extension_state ("linked@test")
+  return state ~= nil and state.state == "active"
+end, "the linked extension to be active", TIMEOUT)
+
+server:route ("/update-info/", { body = "{}", content_type = "application/json" })
+local checked
+local proc, err = shell.spawn {
+  argv = { "gdbus", "call", "--session", "--dest", "org.gnome.Shell", "--object-path", "/org/gnome/Shell",
+           "--method", "org.gnome.Shell.Extensions.CheckForUpdates" },
+  on_exit = function (r) checked = r end,
+}
+assert (proc, err)
+test.wait_for (function () return checked ~= nil end, "CheckForUpdates () to answer", TIMEOUT)
+assert (checked.status == 0, "CheckForUpdates () failed: " .. checked.stderr)
+local offered
+test.wait_for (function ()
+  for _, request in ipairs (server:requests ()) do
+    if request.path:find ("^/update%-info/") then
+      offered = request.body
+      return true
+    end
+  end
+  return false
+end, "the index to be asked for updates", TIMEOUT)
+test.log ("Offered for updates: " .. offered)
+assert (offered:find ('"install-caps@test"', 1, true), "the installed extension was not offered: " .. offered)
+results.linked_not_updated = not offered:find ('"linked@test"', 1, true)
 
 server:stop ()
 

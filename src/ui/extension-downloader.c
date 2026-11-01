@@ -339,13 +339,73 @@ extract_archive_resume (GTask    *task,
                                              "The installation was declined"));
 }
 
+/* Autoar extracts the entries as they are: a symbolic link can point
+ * anywhere, and St, the loader and the workers would read through it (a
+ * FIFO or /dev/zero blocks the compositor, a file of the user's shows what
+ * the extension has no capability for); a device or a FIFO has no place
+ * in an extension either. Only folders and regular files are accepted. */
+static gboolean
+check_staged_tree (GFile   *root,
+                   GFile   *dir,
+                   GError **error)
+{
+  g_autoptr (GFileEnumerator) children = NULL;
+
+  children = g_file_enumerate_children (dir,
+                                        G_FILE_ATTRIBUTE_STANDARD_NAME ","
+                                        G_FILE_ATTRIBUTE_STANDARD_TYPE,
+                                        G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
+                                        NULL, error);
+  if (children == NULL)
+    return FALSE;
+
+  while (TRUE)
+    {
+      GFileInfo *info;
+      GFile *child;
+
+      if (!g_file_enumerator_iterate (children, &info, &child, NULL, error))
+        return FALSE;
+      if (info == NULL)
+        return TRUE;
+
+      switch (g_file_info_get_file_type (info))
+        {
+        case G_FILE_TYPE_REGULAR:
+          break;
+
+        case G_FILE_TYPE_DIRECTORY:
+          if (!check_staged_tree (root, child, error))
+            return FALSE;
+          break;
+
+        default:
+          {
+            g_autofree char *name = g_file_get_relative_path (root, child);
+
+            g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_REGULAR_FILE,
+                         "The archive holds %s, which is neither a file nor a folder",
+                         name);
+            return FALSE;
+          }
+        }
+    }
+}
+
 static void
 on_extractor_completed (AutoarExtractor *extractor,
                         ExtractData     *data)
 {
   GTask *task = g_object_get_data (G_OBJECT (extractor), "task");
+  g_autoptr (GError) error = NULL;
 
   g_signal_handlers_disconnect_by_data (extractor, data);
+
+  if (!check_staged_tree (data->staged, data->staged, &error))
+    {
+      extract_fail (task, g_steal_pointer (&error));
+      return;
+    }
 
   if (data->staged_func != NULL)
     data->staged_func (task, data->staged, data->staged_data);
@@ -1240,6 +1300,12 @@ shell_extension_downloader_check_for_updates_async (ShellExtensionDownloader *se
           shell_lua_extension_get_extension_type (extension) != SHELL_LUA_EXTENSION_TYPE_PER_USER)
         continue;
       if (shell_extension_manager_has_update (self->manager, uuids[i]))
+        continue;
+      /* A link to a local copy (a developer's checkout): the update would
+       * replace its files, as an installation would (see
+       * extract_archive_async ()) */
+      if (g_file_query_file_type (shell_lua_extension_get_dir (extension),
+                                  G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL) == G_FILE_TYPE_SYMBOLIC_LINK)
         continue;
 
       metadata = shell_lua_extension_get_metadata (extension);

@@ -27,7 +27,10 @@
 #include "st-button.h"
 #include <glib/gstdio.h>
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <meta-test/meta-context-test.h>
 #include <meta/meta-backend.h>
 
@@ -458,10 +461,16 @@ test_url_resolution (StThemeContext *theme_context,
   g_autofree char *ext_dir = g_build_filename (dir, "extension", NULL);
   g_autofree char *css_path = g_build_filename (ext_dir, "stylesheet.css", NULL);
   g_autofree char *other_path = g_build_filename (ext_dir, "other.css", NULL);
-  g_autofree char *in_path = g_build_filename (ext_dir, "img", "in.png", NULL);
+  g_autofree char *img_dir = g_build_filename (ext_dir, "img", NULL);
+  g_autofree char *in_path = g_build_filename (img_dir, "in.png", NULL);
+  g_autofree char *out_path = g_build_filename (dir, "out.png", NULL);
+  g_autofree char *link_in_path = g_build_filename (img_dir, "link-in.png", NULL);
+  g_autofree char *link_out_path = g_build_filename (img_dir, "link-out.png", NULL);
+  g_autofree char *fifo_path = g_build_filename (img_dir, "fifo.png", NULL);
   g_autoptr (GFile) css = NULL;
   g_autoptr (GFile) in = NULL;
   StThemeNode *inline_http, *inline_path, *custom_in, *custom_out, *custom_http, *custom_import;
+  StThemeNode *custom_missing, *custom_link_in, *custom_link_out, *custom_fifo;
 
   test = "url_resolution";
 
@@ -477,19 +486,34 @@ test_url_resolution (StThemeContext *theme_context,
   }
 
   g_assert_no_error (error);
-  g_assert_cmpint (g_mkdir_with_parents (ext_dir, 0700), ==, 0);
+  g_assert_cmpint (g_mkdir_with_parents (img_dir, 0700), ==, 0);
+  g_assert_true (g_file_set_contents (in_path, "", -1, NULL));
+  g_assert_true (g_file_set_contents (out_path, "", -1, NULL));
+  /* links are followed: to a file of the directory, out of it, to a FIFO */
+  g_assert_cmpint (symlink ("in.png", link_in_path), ==, 0);
+  g_assert_cmpint (symlink ("../../out.png", link_out_path), ==, 0);
+  g_assert_cmpint (mkfifo (fifo_path, 0600), ==, 0);
   g_assert_true (g_file_set_contents (other_path, ".lua-import { background-image: url('img/in.png'); }", -1, NULL));
   g_assert_true (g_file_set_contents (css_path,
                                       "@import url('other.css');\n"
                                       ".lua-in { background-image: url('img/in.png'); }\n"
                                       ".lua-out { background-image: url('../out.png'); }\n"
-                                      ".lua-http { background-image: url('http://example.org/x.png'); }\n",
+                                      ".lua-http { background-image: url('http://example.org/x.png'); }\n"
+                                      ".lua-missing { background-image: url('img/missing.png'); }\n"
+                                      ".lua-link-in { background-image: url('img/link-in.png'); }\n"
+                                      ".lua-link-out { background-image: url('img/link-out.png'); }\n"
+                                      ".lua-fifo { background-image: url('img/fifo.png'); }\n",
                                       -1, NULL));
   css = g_file_new_for_path (css_path);
   if (!st_theme_load_stylesheet (theme, css, &error))
     g_error ("loading %s: %s", css_path, error->message);
 
-  in = g_file_new_for_path (in_path);
+  {
+    /* custom stylesheets resolve to the real file */
+    g_autofree char *real_in = realpath (in_path, NULL);
+
+    in = g_file_new_for_path (real_in);
+  }
   custom_in = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, "lua-in", NULL, NULL);
   assert_url (custom_in, "custom, under its directory", in);
   custom_out = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, "lua-out", NULL, NULL);
@@ -498,6 +522,14 @@ test_url_resolution (StThemeContext *theme_context,
   assert_url (custom_http, "custom, http", NULL);
   custom_import = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, "lua-import", NULL, NULL);
   assert_url (custom_import, "custom, imported", NULL);
+  custom_missing = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, "lua-missing", NULL, NULL);
+  assert_url (custom_missing, "custom, missing", NULL);
+  custom_link_in = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, "lua-link-in", NULL, NULL);
+  assert_url (custom_link_in, "custom, link inside its directory", in);
+  custom_link_out = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, "lua-link-out", NULL, NULL);
+  assert_url (custom_link_out, "custom, link out of its directory", NULL);
+  custom_fifo = st_theme_node_new (theme_context, root, NULL, CLUTTER_TYPE_ACTOR, NULL, "lua-fifo", NULL, NULL);
+  assert_url (custom_fifo, "custom, FIFO", NULL);
 
   st_theme_unload_stylesheet (theme, css);
   g_object_unref (inline_http);
@@ -506,8 +538,18 @@ test_url_resolution (StThemeContext *theme_context,
   g_object_unref (custom_out);
   g_object_unref (custom_http);
   g_object_unref (custom_import);
+  g_object_unref (custom_missing);
+  g_object_unref (custom_link_in);
+  g_object_unref (custom_link_out);
+  g_object_unref (custom_fifo);
   g_unlink (css_path);
   g_unlink (other_path);
+  g_unlink (in_path);
+  g_unlink (link_in_path);
+  g_unlink (link_out_path);
+  g_unlink (fifo_path);
+  g_unlink (out_path);
+  g_rmdir (img_dir);
   g_rmdir (ext_dir);
   g_rmdir (dir);
 }

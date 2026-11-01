@@ -1506,6 +1506,12 @@ install_extension_updates (ShellExtensionManager *self)
            * uninstalled would bring it back (upstream does) */
           if (!g_file_query_exists (extension_dir, NULL))
             g_message ("Not installing the update of %s: the extension is no longer installed", uuid);
+          /* The deletion would go through the link and empty the local
+           * copy it points to (a developer's checkout) */
+          else if (g_file_query_file_type (extension_dir, G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS, NULL) ==
+                   G_FILE_TYPE_SYMBOLIC_LINK)
+            g_message ("Not installing the update of %s: %s is a link to a local copy of the extension",
+                       uuid, extension_path);
           else if (!shell_extension_recursively_delete_dir (extension_dir, FALSE, &error) ||
                    !shell_extension_recursively_move_dir (dir, extension_dir, &error))
             g_message ("Failed to install extension updates for %s", uuid);

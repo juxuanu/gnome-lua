@@ -56,7 +56,9 @@
  *
  *   test.extension_enable (uuid)  adds the extension to enabled-extensions
  *                                 (it starts from the main loop: wait for
- *                                 its state) and forgets its report
+ *                                 its state) and forgets its report; one
+ *                                 the script wrote to the extensions
+ *                                 directory is loaded first
  *   test.extension_disable (uuid) removes it from enabled-extensions
  *   test.extension_state (uuid)   {state = "active" ..., error = string or
  *                                 nil, errors = number of Lua errors since
@@ -2719,6 +2721,16 @@ l_extension_enable (lua_State *L)
   ShellExtensionManager *manager = check_extension_manager (L);
 
   g_hash_table_remove (r->reports, uuid);
+  if (shell_extension_manager_lookup (manager, uuid) == NULL)
+    {
+      g_autoptr (GError) error = NULL;
+
+      /* written to the extensions directory by the script: found as an
+       * installation finds it */
+      if (!shell_extension_manager_add_installed (manager, uuid, &error))
+        return luaL_error (L, "extension %s is not installed: %s", uuid, error->message);
+      return 0;
+    }
   if (!shell_extension_manager_enable_extension (manager, uuid))
     return luaL_error (L, "extension %s is not installed", uuid);
 
