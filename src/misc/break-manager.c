@@ -35,7 +35,12 @@
 #include "st.h"
 
 #define BREAK_OVERDUE_TIME_SECONDS 60 /* time after a break is due when the user is notified it is overdue */
-#define BREAK_UPCOMING_NOTIFICATION_TIME_SECONDS 2 * 60 /* notify the user 2min before a break is due */
+#define BREAK_UPCOMING_NOTIFICATION_TIME_SECONDS (2 * 60) /* notify the user 2min before a break is due */
+/* How late the timer of a warning may fire and the warning still shows:
+ * g_timeout_add_seconds () rounds to whole seconds (up to a second late),
+ * the clock counts whole seconds here (the JS's had fractions, and allowed
+ * up to a second), and the main loop may be busy */
+#define TIMER_LATENESS_SECONDS 5
 #define BREAK_COUNTDOWN_TIME_SECONDS 60
 
 #define BRIGHTNESS_FADE_TIME_SECONDS 3
@@ -1673,6 +1678,7 @@ struct _BreakNotificationSource
   ShellMessageTray *message_tray;    /* weak */
   ShellBreakManager *manager;        /* weak */
   guint timer_id;
+  gint64 upcoming_shown_for;         /* the due time of the break whose warning was shown */
 
   ShellBreakState previous_state;
   gboolean destroyed;
@@ -1949,15 +1955,17 @@ notification_source_update_state (BreakNotificationSource *self)
                                                                  remaining_secs - notification_time);
                       break;
                     }
-                  else if (remaining_secs == notification_time)
+                  else if (remaining_secs > notification_time - TIMER_LATENESS_SECONDS &&
+                           self->upcoming_shown_for != next_break_due_time)
                     {
                       g_autofree char *remaining_text = NULL;
                       g_autofree char *body_text = NULL;
                       const char *title_text;
                       gint64 remaining_value, unused;
 
-                      /* Bang on time to show this notification. */
-                      remaining_text = format_time_span (remaining_secs, &remaining_value, &unused);
+                      /* Bang on time to show this notification (or a
+                       * little late: it says the time it was meant for). */
+                      remaining_text = format_time_span (notification_time, &remaining_value, &unused);
                       body_text = g_strdup_printf (ngettext (
                           /* Translators: %s will be replaced with a string that describes a time interval, such as “2 minutes”, “40 seconds” or “1 hour” */
                           "It will be time for a break in %s",
@@ -1974,6 +1982,7 @@ notification_source_update_state (BreakNotificationSource *self)
                       notification_source_ensure_notification (self, title_text, body_text,
                                                                urgency_for_break_type (self, next_break_type),
                                                                TRUE, TRUE, FALSE);
+                      self->upcoming_shown_for = next_break_due_time;
 
                       /* Continue to the next iteration, to schedule an update
                        * for the next-biggest notification. */

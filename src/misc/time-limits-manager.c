@@ -67,6 +67,11 @@
 
 #define LIMIT_UPCOMING_NOTIFICATION_TIME_SECONDS (10 * 60) /* notify the user 10min before their limit is reached */
 #define PARENTAL_CONTROLS_LIMIT_UPCOMING_NOTIFICATION_TIME_SECONDS 60 /* notify the child 60s before their limit is reached */
+/* How late the timer of a warning may fire and the warning still shows:
+ * g_timeout_add_seconds () rounds to whole seconds (up to a second late),
+ * the clock counts whole seconds, and the main loop may be busy. The JS
+ * compared the exact second, and a late timer lost the warning. */
+#define TIMER_LATENESS_SECONDS 5
 #define GRAYSCALE_FADE_TIME_SECONDS 3
 #define GRAYSCALE_SATURATION 1.0 /* saturation ([0.0, 1.0]) when grayscale mode is activated, 1.0 means full desaturation */
 
@@ -3032,6 +3037,7 @@ struct _TimeLimitsNotificationSource
   ShellMessageTray *message_tray;      /* weak */
   ShellTimeLimitsManager *manager;     /* weak */
   guint timer_id;
+  gint64 upcoming_shown_for;           /* the limit time whose warning was shown */
 
   ShellTimeLimitsState previous_state;
   gboolean destroyed;
@@ -3240,7 +3246,9 @@ time_limits_notification_source_update_state (TimeLimitsNotificationSource *self
             tl_source_schedule_update_state (self, remaining_secs - timeout_limit);
             break;
           }
-        else if (remaining_secs == timeout_limit)
+        /* The timer may fire late (see TIMER_LATENESS_SECONDS) */
+        else if (remaining_secs > timeout_limit - TIMER_LATENESS_SECONDS &&
+                 self->upcoming_shown_for != limit_due_time)
           {
             g_autofree char *title_text = NULL;
             g_autofree char *body_text = NULL;
@@ -3268,6 +3276,7 @@ time_limits_notification_source_update_state (TimeLimitsNotificationSource *self
 
             tl_source_ensure_notification (self, title_text, body_text,
                                            SHELL_NOTIFICATION_URGENCY_HIGH);
+            self->upcoming_shown_for = limit_due_time;
           }
       }
       break;
