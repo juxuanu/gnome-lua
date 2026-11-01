@@ -59,6 +59,10 @@ end
 
 assert (os.execute (string.format ("mkdir -p '%s'", work_dir)))
 
+-- Each screenshot notifies; its banner, under the top bar, would be in one
+-- capture and not in the next (slowly, under ASan in CI)
+test.set_boolean ("org.gnome.desktop.notifications", "show-banners", false)
+
 -- Something in the middle of the screen, smaller than the selection: its
 -- edges and the background around them show a capture of the wrong place
 test.create_window { width = 200, height = 100 }
@@ -158,8 +162,9 @@ same ("selection", capture_with_ui (nil),
                          "area"))
 
 -- The top bar is not compared: between the two, the notification of the
--- previous screenshot puts a dot next to the clock, and the unsafe mode
--- that the D-Bus call needs shows its indicator
+-- previous screenshot puts a dot next to the clock (there is no banner,
+-- see above), and the unsafe mode that the D-Bus call needs shows its
+-- indicator
 test.log ("Capturing the screen")
 local panel_x, panel_y = main.panel:get_transformed_position ()
 local panel = main.panel:get_allocation_box ()
