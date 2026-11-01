@@ -173,6 +173,30 @@ json_get_array (JsonObject *object,
   return json_node_get_array (node);
 }
 
+/* json_array_get_object_element () and json_array_get_string_element ()
+ * are criticals for an element of another type */
+static JsonObject *
+json_array_object_at (JsonArray *array,
+                      guint      index)
+{
+  JsonNode *node = json_array_get_element (array, index);
+
+  return node != NULL && JSON_NODE_HOLDS_OBJECT (node) ? json_node_get_object (node) : NULL;
+}
+
+static const char *
+json_array_string_at (JsonArray *array,
+                      guint      index)
+{
+  JsonNode *node = json_array_get_element (array, index);
+
+  if (node == NULL || !JSON_NODE_HOLDS_VALUE (node) ||
+      json_node_get_value_type (node) != G_TYPE_STRING)
+    return NULL;
+
+  return json_node_get_string (node);
+}
+
 static const char *
 mechanism_string (const ShellGdmAuthMechanism *mechanism,
                   const char                  *name)
@@ -416,7 +440,7 @@ smartcard_choice_handler (ShellGdmAuthServices *services,
   certificates = json_get_array (services->selected_mechanism->json, "certificates");
   for (i = 0; certificates != NULL && i < json_array_get_length (certificates); i++)
     {
-      JsonObject *cert = json_array_get_object_element (certificates, i);
+      JsonObject *cert = json_array_object_at (certificates, i);
 
       if (cert != NULL && g_strcmp0 (json_get_string (cert, "keyId"), key) == 0)
         {
@@ -447,7 +471,7 @@ start_smartcard_login (ShellGdmAuthServicesSSSDSwitchable *self)
 
   if (n_certificates == 1)
     {
-      JsonObject *cert = json_array_get_object_element (certificates, 0);
+      JsonObject *cert = json_array_object_at (certificates, 0);
       g_autofree char *pin_prompt = g_strdup (json_get_string (cert, "pinPrompt"));
 
       g_clear_pointer (&self->selected_smartcard, json_object_unref);
@@ -462,7 +486,7 @@ start_smartcard_login (ShellGdmAuthServicesSSSDSwitchable *self)
   g_variant_builder_init (&builder, G_VARIANT_TYPE ("a(sa{sv})"));
   for (i = 0; i < n_certificates; i++)
     {
-      JsonObject *cert = json_array_get_object_element (certificates, i);
+      JsonObject *cert = json_array_object_at (certificates, i);
       const char *key_id = json_get_string (cert, "keyId");
 
       if (key_id == NULL)
@@ -1034,7 +1058,7 @@ sssd_handle_update_enabled_mechanisms (ShellGdmAuthServices *services)
   if (selected == NULL && self->priority_list != NULL &&
       json_array_get_length (self->priority_list) > 0)
     {
-      const char *first = json_array_get_string_element (self->priority_list, 0);
+      const char *first = json_array_string_at (self->priority_list, 0);
 
       for (i = 0; first != NULL && i < services->enabled_mechanisms->len; i++)
         {
