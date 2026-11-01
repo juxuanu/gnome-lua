@@ -86,6 +86,10 @@
 #define INDEX_OPERATION_DOWNGRADE "downgrade"
 
 #define DISABLE_VERSION_VALIDATION_KEY "disable-extension-version-validation"
+/* What an archive may hold once extracted: a small archive can expand to
+ * fill the home directory (a zip bomb) */
+#define MAX_EXTRACTED_SIZE  (256 * 1024 * 1024)
+#define MAX_EXTRACTED_FILES 20000
 #define ALLOW_EXTENSION_INSTALLATION_KEY "allow-extension-installation"
 
 struct _ShellExtensionDownloader
@@ -171,6 +175,10 @@ typedef struct
   GFile *tmp_dir;                /* a directory of its own, next to @dir */
   GFile *staged;                 /* where it is extracted to: @tmp_dir/<name of @dir> */
   AutoarExtractor *extractor;
+  GCancellable *cancellable;     /* the extraction's, which the task's cancels */
+  GCancellable *task_cancellable;
+  gulong cancel_id;
+  gboolean too_big;              /* the extraction was cancelled for that */
   ExtractStagedFunc staged_func;
   gpointer staged_data;
 } ExtractData;
@@ -181,6 +189,10 @@ extract_data_free (ExtractData *data)
   if (data->extractor != NULL)
     g_signal_handlers_disconnect_by_data (data->extractor, data);
   g_clear_object (&data->extractor);
+  if (data->task_cancellable != NULL)
+    g_cancellable_disconnect (data->task_cancellable, data->cancel_id);
+  g_clear_object (&data->task_cancellable);
+  g_clear_object (&data->cancellable);
   g_clear_pointer (&data->bytes, g_bytes_unref);
   g_clear_object (&data->dir);
   g_clear_object (&data->archive);
@@ -431,8 +443,51 @@ on_extractor_cancelled (AutoarExtractor *extractor,
   GTask *task = g_object_get_data (G_OBJECT (extractor), "task");
 
   g_signal_handlers_disconnect_by_data (extractor, data);
-  extract_fail (task, g_error_new_literal (G_IO_ERROR, G_IO_ERROR_CANCELLED,
-                                           "Operation was cancelled"));
+  if (data->too_big)
+    extract_fail (task, g_error_new (G_IO_ERROR, G_IO_ERROR_NO_SPACE,
+                                     "The archive holds more than %d files or %d MiB",
+                                     MAX_EXTRACTED_FILES, MAX_EXTRACTED_SIZE / (1024 * 1024)));
+  else
+    extract_fail (task, g_error_new_literal (G_IO_ERROR, G_IO_ERROR_CANCELLED,
+                                             "Operation was cancelled"));
+}
+
+static void
+extract_check_size (ExtractData *data,
+                    guint64      size,
+                    guint        files)
+{
+  if (data->too_big || (size <= MAX_EXTRACTED_SIZE && files <= MAX_EXTRACTED_FILES))
+    return;
+
+  data->too_big = TRUE;
+  g_cancellable_cancel (data->cancellable);
+}
+
+/* What the entries say they hold, before anything is written */
+static void
+on_extractor_scanned (AutoarExtractor *extractor,
+                      guint            files,
+                      ExtractData     *data)
+{
+  extract_check_size (data, autoar_extractor_get_total_size (extractor), files);
+}
+
+/* What was written: the sizes the entries give need not be true */
+static void
+on_extractor_progress (AutoarExtractor *extractor,
+                       guint64          completed_size,
+                       guint            completed_files,
+                       ExtractData     *data)
+{
+  extract_check_size (data, completed_size, completed_files);
+}
+
+static void
+cancel_extraction_cb (GCancellable *task_cancellable,
+                      GCancellable *cancellable)
+{
+  g_cancellable_cancel (cancellable);
 }
 
 static void
@@ -479,7 +534,18 @@ extract_written_cb (GObject      *source,
   g_signal_connect (data->extractor, "error", G_CALLBACK (on_extractor_error), data);
   g_signal_connect (data->extractor, "completed", G_CALLBACK (on_extractor_completed), data);
   g_signal_connect (data->extractor, "cancelled", G_CALLBACK (on_extractor_cancelled), data);
-  autoar_extractor_start_async (data->extractor, g_task_get_cancellable (task));
+  g_signal_connect (data->extractor, "scanned", G_CALLBACK (on_extractor_scanned), data);
+  g_signal_connect (data->extractor, "progress", G_CALLBACK (on_extractor_progress), data);
+
+  data->cancellable = g_cancellable_new ();
+  if (g_task_get_cancellable (task) != NULL)
+    {
+      data->task_cancellable = g_object_ref (g_task_get_cancellable (task));
+      data->cancel_id = g_cancellable_connect (data->task_cancellable,
+                                               G_CALLBACK (cancel_extraction_cb),
+                                               g_object_ref (data->cancellable), g_object_unref);
+    }
+  autoar_extractor_start_async (data->extractor, data->cancellable);
 }
 
 /* Extracts the zip in @bytes to @dir, replacing what is there. With

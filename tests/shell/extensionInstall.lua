@@ -5,7 +5,8 @@
 -- Nothing is installed before the user agrees; Install installs and enables
 -- it, Cancel leaves nothing behind, and an archive the manager would refuse
 -- (an unknown capability) fails before any dialog, as one that holds a
--- symbolic link does (St and the loader would read through it).
+-- symbolic link does (St and the loader would read through it), and one
+-- that expands to more than the downloader takes (a zip bomb).
 --
 -- The check for updates offers the installed extensions to the index, but
 -- not one whose directory is a link to a local copy: the update would
@@ -24,6 +25,7 @@ local results = {
   cancelled = false,
   refused = false,
   link_refused = false,
+  bomb_refused = false,
   linked_not_updated = false,
 }
 
@@ -34,6 +36,7 @@ test.finish (function ()
   assert (results.cancelled, "Cancel did not leave the extension uninstalled")
   assert (results.refused, "An extension with an unknown capability was offered")
   assert (results.link_refused, "An archive with a symbolic link was offered")
+  assert (results.bomb_refused, "An archive that expands to too much was offered")
   assert (results.linked_not_updated, "The check for updates offered a linked extension")
 end)
 
@@ -66,8 +69,9 @@ local function write_extension (dir, uuid, capabilities)
 end
 
 -- The archive of an extension, as the index serves it: metadata.json and
--- extension.lua at the top, and @links ({name = target}) as symbolic links
-local function make_archive (uuid, capabilities, links)
+-- extension.lua at the top, @links ({name = target}) as symbolic links and
+-- a file of @zeros MiB of zeros
+local function make_archive (uuid, capabilities, links, zeros)
   local dir = work_dir .. "/" .. uuid
   local zip = work_dir .. "/" .. uuid .. ".zip"
 
@@ -84,6 +88,13 @@ local function make_archive (uuid, capabilities, links)
                                        .. "  i.external_attr = 0o120777 << 16\n"
                                        .. "  z.writestr (i, sys.argv[3])' '%s' '%s' '%s'",
                                        zip, name, target)))
+  end
+  if zeros ~= nil then
+    assert (os.execute (string.format ("python3 -c 'import sys, zipfile\n"
+                                       .. "with zipfile.ZipFile (sys.argv[1], \"a\", zipfile.ZIP_DEFLATED) as z:\n"
+                                       .. "  with z.open (\"zeros\", \"w\") as f:\n"
+                                       .. "    for _ in range (int (sys.argv[2])): f.write (bytes (1 << 20))' '%s' %d",
+                                       zip, zeros)))
   end
   local file = assert (io.open (zip, "rb"))
   local bytes = file:read ("a")
@@ -162,9 +173,10 @@ for uuid, archive in pairs {
   ["install-plain@test"] = { {} },
   ["install-unknown@test"] = { { "network", "teleport" } },
   ["install-link@test"] = { {}, { ["stylesheet.css"] = "/dev/zero" } },
+  ["install-bomb@test"] = { {}, nil, 300 },
 } do
   server:route ("/download-extension/" .. uuid .. ".shell-extension.zip",
-                { body = make_archive (uuid, archive[1], archive[2]), content_type = "application/zip" })
+                { body = make_archive (uuid, archive[1], archive[2], archive[3]), content_type = "application/zip" })
 end
 test.extension_index (server.url)
 
@@ -234,6 +246,18 @@ assert (done ().stderr:find ("stylesheet.css", 1, true), "the error does not nam
 assert (not shown, "a dialog offered the extension")
 test.wait_for (function () return #leftovers () == 0 end, "the downloaded archive to be removed", TIMEOUT)
 results.link_refused = not exists (extensions_dir .. "/install-link@test")
+
+test.log ("Installing an extension whose archive expands to 300 MiB")
+shown = false
+added = main.layout_manager.modal_dialog_group:connect ("child-added", function () shown = true end)
+done = install ("install-bomb@test")
+test.wait_for (done, "InstallRemoteExtension () to answer", TIMEOUT)
+main.layout_manager.modal_dialog_group:disconnect (added)
+assert (done ().status ~= 0, "InstallRemoteExtension () accepted an archive that expands to 300 MiB")
+assert (done ().stderr:find ("MiB", 1, true), "the error does not say the archive is too big: " .. done ().stderr)
+assert (not shown, "a dialog offered the extension")
+test.wait_for (function () return #leftovers () == 0 end, "the extraction to be removed", TIMEOUT)
+results.bomb_refused = not exists (extensions_dir .. "/install-bomb@test")
 
 -- Updates are checked for when an application installs them
 test.log ("Checking for updates with a linked extension")

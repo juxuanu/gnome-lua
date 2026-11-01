@@ -242,15 +242,20 @@ shell_extension_recursively_move_dir (GFile    *source,
 
   while (TRUE)
     {
-      g_autoptr (GFileInfo) info = g_file_enumerator_next_file (children, NULL, error);
+      g_autoptr (GError) local_error = NULL;
+      g_autoptr (GFileInfo) info = g_file_enumerator_next_file (children, NULL, &local_error);
       g_autoptr (GFile) source_child = NULL;
       g_autoptr (GFile) destination_child = NULL;
       GFileType type;
 
+      /* (@error may be NULL) */
       if (info == NULL)
         {
-          if (*error != NULL)
-            return FALSE;
+          if (local_error != NULL)
+            {
+              g_propagate_error (error, g_steal_pointer (&local_error));
+              return FALSE;
+            }
           break;
         }
 
