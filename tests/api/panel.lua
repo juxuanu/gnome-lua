@@ -21,9 +21,22 @@ local function x_of (name)
   return (indicator:get_transformed_position ())
 end
 
--- The indicators of the list are in this order from the start of the bar
+-- The indicators of the list are in this order from the start of the bar.
+-- An indicator just added has no position (NaN) until the next layout,
+-- which a loaded machine can run after the shell went idle.
 local function expect_order (names, what)
   local previous
+
+  test.wait_for (function ()
+    for _, name in ipairs (names) do
+      local x = x_of (name)
+
+      if x ~= x then
+        return false
+      end
+    end
+    return true
+  end, what .. ": the indicators to be laid out")
 
   for _, name in ipairs (names) do
     local x = x_of (name)
