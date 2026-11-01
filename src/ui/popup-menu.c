@@ -469,7 +469,7 @@ shell_switch_init (ShellSwitch *self)
  *
  * Creates a new #ShellSwitch (the `PopupMenu.Switch` of old).
  *
- * Returns: (transfer none): a new #ShellSwitch
+ * Returns: (transfer floating): a new #ShellSwitch
  */
 ShellSwitch *
 shell_switch_new (gboolean state)
@@ -3692,9 +3692,13 @@ switch_item_switch_state_changed_cb (GObject                  *object,
 {
   ShellPopupSwitchMenuItemPrivate *priv =
     shell_popup_switch_menu_item_get_instance_private (self);
+  /* A handler of ::toggled can destroy the item */
+  g_autoptr (ShellPopupSwitchMenuItem) keep = g_object_ref (self);
 
   g_signal_emit (self, switch_item_signals[SWITCH_ITEM_TOGGLED], 0,
                  shell_switch_get_state (priv->switch_actor));
+  if (priv->switch_actor == NULL)
+    return;
   g_object_notify_by_pspec (G_OBJECT (self), switch_item_props[SWITCH_ITEM_PROP_STATE]);
   switch_item_check_accessible_state (self);
 }

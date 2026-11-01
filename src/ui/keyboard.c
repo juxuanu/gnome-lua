@@ -1418,6 +1418,7 @@ emoji_sections_populate (GPtrArray *sections)
   g_autoptr (GFile) file = g_file_new_for_uri (OSK_LAYOUTS_URI "emoji.json");
   g_autofree char *contents = NULL;
   g_autoptr (GStrvBuilder) variants = g_strv_builder_new ();
+  g_autoptr (GPtrArray) named = g_ptr_array_new ();
   EmojiSection *current_section = NULL;
   JsonArray *emoji;
   gsize length;
@@ -1429,21 +1430,27 @@ emoji_sections_populate (GPtrArray *sections)
       !JSON_NODE_HOLDS_ARRAY (json_parser_get_root (parser)))
     return;
 
+  /* The entries without a name are left out first: skipped in the loop,
+   * a first one stopped every key, and a last one lost the last key */
   emoji = json_node_get_array (json_parser_get_root (parser));
-  n_emoji = json_array_get_length (emoji);
+  for (i = 0; i < json_array_get_length (emoji); i++)
+    {
+      JsonObject *item = json_array_peek_object (emoji, i);
+
+      if (json_object_peek_string (item, "name") != NULL)
+        g_ptr_array_add (named, item);
+    }
+  n_emoji = named->len;
 
   for (i = 0; i < n_emoji; i++)
     {
-      JsonObject *item = json_array_peek_object (emoji, i);
-      JsonObject *key_item = json_array_peek_object (emoji, current_key);
+      JsonObject *item = g_ptr_array_index (named, i);
+      JsonObject *key_item = g_ptr_array_index (named, current_key);
       const char *name = json_object_peek_string (item, "name");
       const char *key_name = json_object_peek_string (key_item, "name");
       EmojiSection *new_section;
       EmojiKey *key;
       const char *key_char;
-
-      if (name == NULL || key_name == NULL)
-        continue;
 
       /* Group variants of a same emoji so they appear on the key popover */
       if (g_str_has_prefix (name, key_name))
@@ -3400,19 +3407,16 @@ osk_update_level_from_hints (ShellOsk *self,
 
 /* ---- language menu --------------------------------------------------- */
 
-/* The position is the index of the input source in the list of the input
- * source manager */
+/* @user_data is the input source of the item, as upstream kept it: its
+ * position in the list would name another one once a source is added or
+ * removed while the menu is open */
 static void
 language_item_activate_cb (const ClutterEvent *event,
                            gpointer            user_data)
 {
-  GPtrArray *sources = shell_input_source_manager_get_input_sources (shell_input_source_manager_get_default ());
-  int position = GPOINTER_TO_INT (user_data);
-
-  if (position >= 0 && (guint) position < sources->len)
-    shell_input_source_manager_activate_input_source (shell_input_source_manager_get_default (),
-                                                      g_ptr_array_index (sources, position),
-                                                      TRUE);
+  shell_input_source_manager_activate_input_source (shell_input_source_manager_get_default (),
+                                                    SHELL_INPUT_SOURCE (user_data),
+                                                    TRUE);
 }
 
 static void
@@ -3448,7 +3452,7 @@ osk_popup_language_menu (ShellOsk     *self,
 
       item = shell_popup_menu_base_add_action (base, shell_input_source_get_display_name (source),
                                                language_item_activate_cb,
-                                               GINT_TO_POINTER (i), NULL);
+                                               g_object_ref (source), g_object_unref);
       st_widget_set_can_focus (ST_WIDGET (item), FALSE);
       shell_popup_base_menu_item_set_ornament (item,
                                                source == current_source

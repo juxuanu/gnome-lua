@@ -411,6 +411,7 @@ typedef struct
                                    * when the list is disposed */
   ClutterActor *clone;         /* strong */
   ClutterActor *source;        /* weak, the window actor */
+  MetaWindow *window;          /* compared only: which item is the clone's */
   gulong destroy_id;
 } ThumbnailClone;
 
@@ -523,22 +524,33 @@ thumbnail_list_remove_thumbnail (ShellAltTabThumbnailList *self,
 {
   g_autoptr (ShellAltTabThumbnailList) keep_alive = g_object_ref (self);
   ShellSwitcherList *list = SHELL_SWITCHER_LIST (self);
-  guint index;
+  MetaWindow *window = thumbnail->window;
+  guint clone_index, index;
 
-  if (!g_ptr_array_find (self->clones, thumbnail, &index))
+  if (!g_ptr_array_find (self->clones, thumbnail, &clone_index))
     return;
 
-  g_ptr_array_remove_index (self->clones, index);
-  if (self->windows != NULL && index < self->windows->len)
-    g_ptr_array_remove_index (self->windows, index);
-  if (index < self->labels->len)
-    g_ptr_array_remove_index (self->labels, index);
-  if ((int) index < shell_switcher_list_get_n_items (list))
-    shell_switcher_list_remove_item (list, index);
+  g_ptr_array_remove_index (self->clones, clone_index);   /* frees @thumbnail */
 
-  if (self->clones->len > 0)
+  /* A window without an actor has an item and no clone (upstream takes
+   * the index of the clone for the item, and removes another one): the
+   * item is the one of the window */
+  if (self->windows != NULL && g_ptr_array_find (self->windows, window, &index))
+    {
+      g_ptr_array_remove_index (self->windows, index);
+      if (index < self->labels->len)
+        g_ptr_array_remove_index (self->labels, index);
+      if ((int) index < shell_switcher_list_get_n_items (list))
+        shell_switcher_list_remove_item (list, index);
+    }
+  else
+    {
+      index = clone_index;
+    }
+
+  if (self->clones->len > 0 && shell_switcher_list_get_n_items (list) > 0)
     shell_switcher_list_highlight (list,
-                                   shell_switcher_popup_mod (index, self->clones->len),
+                                   shell_switcher_popup_mod (index, shell_switcher_list_get_n_items (list)),
                                    FALSE);
   else
     clutter_actor_destroy (CLUTTER_ACTOR (self));
@@ -613,6 +625,7 @@ thumbnail_list_add_clones (ShellAltTabThumbnailList *self,
       thumbnail = g_new0 (ThumbnailClone, 1);
       thumbnail->list = self;
       thumbnail->clone = g_object_ref (clone);
+      thumbnail->window = window;
       g_set_weak_pointer (&thumbnail->source, CLUTTER_ACTOR (window_actor));
       thumbnail->destroy_id = g_signal_connect (window_actor, "destroy",
                                                 G_CALLBACK (window_actor_destroyed_cb),
@@ -1174,6 +1187,16 @@ thumbnail_fade (ShellAppSwitcherPopup *self,
                     NULL);
 }
 
+static void window_activated_cb (ShellSwitcherList     *thumbnail_list,
+                                 int                    n,
+                                 ShellAppSwitcherPopup *self);
+static void window_entered_cb (ShellSwitcherList     *thumbnail_list,
+                               int                    n,
+                               ShellAppSwitcherPopup *self);
+static void window_removed_cb (ShellSwitcherList     *thumbnail_list,
+                               int                    n,
+                               ShellAppSwitcherPopup *self);
+
 static void
 destroy_thumbnails (ShellAppSwitcherPopup *self)
 {
@@ -1182,6 +1205,12 @@ destroy_thumbnails (ShellAppSwitcherPopup *self)
   int selected = app_popup_get_selected (self);
 
   self->thumbnails = NULL;
+  /* The list fades out: its windows are not the ones of the selected icon
+   * any more, for which a removal or the pointer resting on it would
+   * select a window */
+  g_signal_handlers_disconnect_by_func (thumbnails, window_activated_cb, self);
+  g_signal_handlers_disconnect_by_func (thumbnails, window_entered_cb, self);
+  g_signal_handlers_disconnect_by_func (thumbnails, window_removed_cb, self);
   thumbnail_fade (self, thumbnails, 0, TRUE);
 
   if (list != NULL && shell_switcher_list_get_item (SHELL_SWITCHER_LIST (list), selected) != NULL)

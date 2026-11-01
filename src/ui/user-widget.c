@@ -786,7 +786,7 @@ shell_user_widget_init (ShellUserWidget *self)
  * Creates a widget with the avatar and the name of @user (`new UserWidget
  * (user, orientation)`). Its #StWidget:label-actor is the label of the name.
  *
- * Returns: (transfer full): a new #ShellUserWidget
+ * Returns: (transfer floating): a new #ShellUserWidget
  */
 ShellUserWidget *
 shell_user_widget_new (ActUser            *user,

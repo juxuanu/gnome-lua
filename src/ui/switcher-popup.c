@@ -714,7 +714,9 @@ real_highlight (ShellSwitcherList *self,
   StButton *item = shell_switcher_list_get_item (self, index);
   StAdjustment *adjustment;
   ClutterActorBox item_box;
-  float abs_item_x, pos_x, pos_y, container_width;
+  /* transform_stage_point () leaves them when it fails (an actor scaled to
+   * zero); GJS gave the JS 0 then */
+  float abs_item_x, pos_x = 0, pos_y = 0, container_width;
   double value;
 
   if (old_item != NULL)
