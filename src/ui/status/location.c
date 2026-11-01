@@ -464,7 +464,9 @@ app_authorizer_new (ShellGeoclueAgent    *agent,
 
   self->ref_count = 1;
   self->agent = agent;
-  self->invocation = g_object_ref (invocation);
+  /* The handler's reference, which answering consumes: one more would
+   * never be dropped */
+  self->invocation = invocation;
   self->desktop_id = g_strdup (desktop_id);
   self->req_accuracy_level = req_accuracy_level;
   self->perm_store = agent->perm_store != NULL ? g_object_ref (agent->perm_store) : NULL;
@@ -483,7 +485,7 @@ app_authorizer_disconnect_dialog (AppAuthorizer *self)
 }
 
 /* The agent does not wait for the authorizer any more; the request of the
- * client stays unanswered unless @error_message is given */
+ * client is answered with @error_message */
 static void
 app_authorizer_detach (AppAuthorizer *self,
                        const char    *error_message)
@@ -1054,8 +1056,10 @@ shell_geoclue_agent_dispose (GObject *object)
     g_cancellable_cancel (self->cancellable);
   g_clear_handle_id (&self->watch_id, g_bus_unwatch_name);
 
+  /* Geoclue would wait for these answers until its call times out */
   for (i = 0; i < self->authorizers->len; i++)
-    app_authorizer_detach (g_ptr_array_index (self->authorizers, i), NULL);
+    app_authorizer_detach (g_ptr_array_index (self->authorizers, i),
+                           "The location agent is gone");
   g_ptr_array_set_size (self->authorizers, 0);
 
   if (self->manager_proxy != NULL)

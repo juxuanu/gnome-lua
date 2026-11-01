@@ -635,6 +635,15 @@ on_sender_checked (GObject      *source,
       return;
     }
 
+  /* The check is a round trip to the bus: the shell may have begun to shut
+   * down meanwhile, and the handlers would find it half destroyed */
+  if (call->self->shutting_down)
+    {
+      g_dbus_method_invocation_return_error_literal (call->invocation, G_IO_ERROR, G_IO_ERROR_CANCELLED,
+                                                     "The shell is shutting down");
+      return;
+    }
+
   run_method (call->self, call->invocation, call->method);
 }
 
