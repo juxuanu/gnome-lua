@@ -1382,6 +1382,15 @@ handle_push_impl (lua_State  *L,
               lua_remove (L, -2);
               return PUSH_OK;
             }
+          /* No type asked for (a property, a callback argument, an object
+           * of the inspector): the handle there is (shell.Widget of an API
+           * next to the generic chain of the inspector, which share GTypes)
+           * keeps the object's identity */
+          if (type_name == NULL)
+            {
+              lua_remove (L, -2);
+              return PUSH_OK;
+            }
           *detail = c->type->name;
           lua_pop (L, 2);
           return PUSH_CONFLICT;

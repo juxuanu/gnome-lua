@@ -349,6 +349,11 @@ static ShellLuaHandleType sub_type = {
 static ShellLuaHandleType other_type = {
   .name = "test.Other", .methods = other_methods, .properties = no_properties,
 };
+/* A second chain for TestThing, as the inspector's generic types are next
+ * to the API's: the GType keeps test.Thing, the first registered */
+static ShellLuaHandleType alias_type = {
+  .name = "test.Alias", .methods = other_methods, .properties = no_properties,
+};
 
 /* Lua-callable probes of the C helpers */
 static int
@@ -397,9 +402,11 @@ new_state (ShellLuaStateKind kind)
   thing_type.gtype = TEST_TYPE_THING;
   sub_type.gtype = TEST_TYPE_SUB_THING;
   other_type.gtype = TEST_TYPE_OTHER;
+  alias_type.gtype = TEST_TYPE_THING;
   shell_lua_handle_register_type (L, &thing_type);
   shell_lua_handle_register_type (L, &sub_type);
   shell_lua_handle_register_type (L, &other_type);
+  shell_lua_handle_register_type (L, &alias_type);
   /* registering twice is harmless */
   shell_lua_handle_register_type (L, &thing_type);
 
@@ -914,6 +921,30 @@ test_subtype_upgrade_keeps_identity (void)
   g_object_unref (sub);
 }
 
+/* An object wrapped as a type of another chain for its GType (an API's
+ * shell.Widget, then the inspector reaching it as gobject.StWidget) is
+ * still the same handle when no type is asked for; asking for the other
+ * chain's type is a conflict */
+static void
+test_other_chain_keeps_identity (void)
+{
+  ShellLuaState *s = new_state (SHELL_LUA_STATE_PRIVILEGED);
+  GObject *thing = g_object_new (TEST_TYPE_THING, NULL);
+  g_autofree char *err = NULL;
+
+  push (s, "a", "test.Alias", thing);
+  push (s, "b", NULL, thing);
+  tu_assert_eval_true (s, "rawequal(a, b) and tostring(b):find('^<test%.Alias ') ~= nil");
+
+  err = try_push (s, "c", "test.Thing", thing);
+  g_assert_nonnull (err);
+  g_assert_nonnull (strstr (err, "already wrapped as test.Alias"));
+  tu_assert_eval_str (s, "c", "nil");
+
+  g_object_unref (s);
+  g_object_unref (thing);
+}
+
 static void
 test_gc_and_lifetimes (void)
 {
@@ -977,6 +1008,7 @@ main (int argc, char **argv)
   g_test_add_func ("/shell-lua/handle/invalidate", test_invalidate);
   g_test_add_func ("/shell-lua/handle/types/resolution", test_subtype_resolution);
   g_test_add_func ("/shell-lua/handle/types/upgrade-keeps-identity", test_subtype_upgrade_keeps_identity);
+  g_test_add_func ("/shell-lua/handle/types/other-chain-keeps-identity", test_other_chain_keeps_identity);
   g_test_add_func ("/shell-lua/handle/gc-and-lifetimes", test_gc_and_lifetimes);
   g_test_add_func ("/shell-lua/handle/sandboxed", test_sandboxed_state);
 
