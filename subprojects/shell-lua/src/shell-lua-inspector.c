@@ -383,7 +383,7 @@ l_r (lua_State *L)
   return 1;
 }
 
-/* arg 1: lightuserdata ShellLuaInspector; arg 2: name; arg 3: GObject */
+/* arg 1: name; arg 2: lightuserdata GObject (NULL clears the global) */
 static int
 set_global_object_cb (lua_State *L)
 {
@@ -1158,26 +1158,30 @@ store_result (lua_State    *L,
               StoreContext *ctx)
 {
   guint64 id;
-  g_autofree char *type_name = NULL;
-  g_autofree char *summary = NULL;
+  char *type_name;
+  char *summary;
 
   idx = lua_absindex (L, idx);
 
-  /* summarize () can raise: before the value takes an id */
-  type_name = type_name_of (L, idx);
+  /* summarize () can raise (a __tostring), which jumps over the cleanup of
+   * the function: first, before anything is allocated or takes an id */
   g_string_truncate (ctx->scratch, 0);
   summarize (L, idx, ctx->scratch);
-  summary = one_line (ctx->scratch);
 
+  type_name = type_name_of (L, idx);
+  summary = one_line (ctx->scratch);
   id = ctx->self->next_result++;
+  g_variant_builder_add (&ctx->builder, "(tss)", id, type_name, summary);
+  g_free (type_name);
+  g_free (summary);
+
   store_value (L, idx, id);
 
-  g_variant_builder_add (&ctx->builder, "(tss)", id, type_name, summary);
-
-  /* `it` */
+  /* `it`, raw: a __newindex the code gave the global table could raise */
   lua_pushglobaltable (L);
+  lua_pushliteral (L, "it");
   lua_pushvalue (L, idx);
-  lua_setfield (L, -2, "it");
+  lua_rawset (L, -3);
   lua_pop (L, 1);
 }
 
