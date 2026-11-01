@@ -598,7 +598,14 @@ drain_dispatch (GSource     *source,
                                        item->level, item->text);
       break;
     case ITEM_ENDED:
-      worker_finish (worker, item->code, item->text);
+      /* After terminate () the end is "terminated" (docs/api/worker.md),
+       * also when the thread ended otherwise at the same time: its end
+       * can come between the clearing of the queues and the "terminated"
+       * of terminate (), and is then the first */
+      if (worker->terminating)
+        worker_finish (worker, "terminated", "the worker was terminated");
+      else
+        worker_finish (worker, item->code, item->text);
       break;
     }
   item_free (item);

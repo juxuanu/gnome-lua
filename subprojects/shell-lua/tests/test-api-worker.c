@@ -550,6 +550,18 @@ test_load_errors (void)
   tu_assert_eval_str (s, "e.code", "terminated");
   g_assert_cmpuint (shell_lua_extension_get_error_count (ext), ==, 5);
 
+  /* a worker that failed before terminate (), whose end the main loop has
+   * not taken yet (the handle is still alive): the end is "terminated",
+   * and the failure is not counted (the fuzz test meets the race of a
+   * failure at the moment of terminate ()) */
+  tu_do (s, START ("workers.raises", ""));
+  g_usleep (300 * G_TIME_SPAN_MILLISECOND);
+  tu_assert_eval_true (s, "w.alive == true");
+  tu_do (s, "w:terminate()");
+  wait_lua (s, "e ~= nil");
+  tu_assert_eval_str (s, "e.code", "terminated");
+  g_assert_cmpuint (shell_lua_extension_get_error_count (ext), ==, 5);
+
   env_free (env);
 }
 
