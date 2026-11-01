@@ -207,6 +207,27 @@ test_eval_errors (void)
   g_object_unref (inspector);
 }
 
+/* eval () (org.gnome.Shell.Eval) answers with what the code printed, then
+ * its values; the output does not stay for Looking Glass's next result */
+static void
+test_eval_print (void)
+{
+  ShellLuaInspector *inspector = new_inspector ();
+  g_autofree char *output = NULL;
+  g_autoptr (GVariant) result = NULL;
+  g_autoptr (GError) error = NULL;
+
+  ASSERT_EVAL (inspector, "print('hello', 2) return 3", "hello\t2\n3");
+  ASSERT_EVAL (inspector, "print('only')", "only\n");
+  g_assert_null (shell_lua_inspector_eval (inspector, "print('lost') error('x')", NULL));
+
+  result = shell_lua_inspector_evaluate (inspector, "1", &output, &error);
+  g_assert_no_error (error);
+  g_assert_cmpstr (output, ==, "");
+
+  g_object_unref (inspector);
+}
+
 static void
 test_reset (void)
 {
@@ -525,6 +546,30 @@ test_evaluate_print_and_errors (void)
   entries = evaluate_ok (inspector, "'one\\ntwo'", NULL);
   g_assert_cmpstr (g_array_index (entries, Entry, 0).summary, ==, "one\\ntwo");
   entries_free (entries);
+
+  /* a value that fails to render takes the results stored before it: none
+   * is left behind, and the next result has the number they had */
+  entries = evaluate_ok (inspector, "'next'", NULL);
+  {
+    guint64 next = g_array_index (entries, Entry, 0).id + 1;
+    g_autofree char *gone = NULL;
+
+    entries_free (entries);
+    g_clear_error (&error);
+    result = shell_lua_inspector_evaluate (inspector,
+                                           "'kept?', setmetatable({}, {__tostring = function() error('no') end})",
+                                           NULL, &error);
+    g_assert_null (result);
+    g_assert_nonnull (strstr (error->message, "no"));
+    g_clear_error (&error);
+    gone = g_strdup_printf ("r(%" G_GUINT64_FORMAT ")", next);
+    g_clear_error (&error);
+    g_assert_null (shell_lua_inspector_eval (inspector, gone, NULL));
+
+    entries = evaluate_ok (inspector, "'after'", NULL);
+    g_assert_cmpuint (g_array_index (entries, Entry, 0).id, ==, next);
+    entries_free (entries);
+  }
 
   g_object_unref (inspector);
 }
@@ -930,6 +975,7 @@ main (int argc, char **argv)
   g_test_add_func ("/shell-lua/inspector/eval/tables", test_eval_tables);
   g_test_add_func ("/shell-lua/inspector/eval/handles", test_eval_handles);
   g_test_add_func ("/shell-lua/inspector/eval/errors", test_eval_errors);
+  g_test_add_func ("/shell-lua/inspector/eval/print", test_eval_print);
   g_test_add_func ("/shell-lua/inspector/reset", test_reset);
   g_test_add_func ("/shell-lua/inspector/get-states", test_get_states);
   g_test_add_func ("/shell-lua/inspector/get-states-extensions", test_get_states_lists_extensions);

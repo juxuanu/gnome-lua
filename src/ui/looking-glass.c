@@ -1330,7 +1330,7 @@ lg_picker_populate (LgPicker *self)
   g_signal_connect_object (action, "key-press", G_CALLBACK (picker_key_press_cb), self, 0);
   clutter_actor_add_action (event_handler, action);
 
-  self->grab = g_object_ref (clutter_stage_grab (stage, event_handler));
+  self->grab = clutter_stage_grab (stage, event_handler);   /* transfer full */
   clutter_actor_grab_key_focus (event_handler);
 }
 
@@ -3158,14 +3158,24 @@ lg_push_single_result (ShellLookingGlass *self,
     }
 }
 
+/* Code of the evaluator (or a __tostring it defined) destroyed Looking Glass */
+static gboolean
+lg_is_disposed (ShellLookingGlass *self)
+{
+  return self->inspector == NULL || self->results_area == NULL || self->entry == NULL;
+}
+
 static void
 lg_insert_value (ShellLookingGlass *self,
                  guint64            id)
 {
+  g_autoptr (ShellLookingGlass) keep = g_object_ref (self);
   g_autoptr (GError) error = NULL;
   g_autoptr (GVariant) entry = NULL;
 
   entry = shell_lua_inspector_insert (self->inspector, id, &error);
+  if (lg_is_disposed (self))
+    return;
   lg_push_single_result (self, "<insert>", entry, error);
 }
 
@@ -3402,6 +3412,7 @@ static void
 lg_evaluate (ShellLookingGlass *self,
              const char        *input)
 {
+  g_autoptr (ShellLookingGlass) keep = NULL;
   g_autoptr (GError) error = NULL;
   g_autoptr (GVariant) entries = NULL;
   g_autofree char *command = NULL;
@@ -3411,7 +3422,13 @@ lg_evaluate (ShellLookingGlass *self,
   if (command[0] == '\0')
     return;
 
+  /* The code can destroy Looking Glass (main.looking_glass:destroy (), the
+   * ui group): it is disposed then, and nothing of it may be used */
+  keep = g_object_ref (self);
   entries = shell_lua_inspector_evaluate (self->inspector, command, &output, &error);
+  if (lg_is_disposed (self))
+    return;
+
   lg_push_result (self, command, output, entries,
                   error != NULL ? error->message : NULL);
 
@@ -3444,6 +3461,7 @@ picker_target_cb (LgPicker          *picker,
                   double             stage_y,
                   ShellLookingGlass *self)
 {
+  g_autoptr (ShellLookingGlass) keep = g_object_ref (self);
   g_autoptr (GError) error = NULL;
   g_autoptr (GVariant) entry = NULL;
   g_autofree char *command = NULL;
@@ -3452,6 +3470,8 @@ picker_target_cb (LgPicker          *picker,
                              (int) floor (stage_x + 0.5), (int) floor (stage_y + 0.5));
   entry = shell_lua_inspector_add_object_result (self->inspector, G_OBJECT (target),
                                                  &error);
+  if (lg_is_disposed (self))
+    return;
   lg_push_single_result (self, command, entry, error);
 }
 

@@ -2784,9 +2784,12 @@ dbus_eval_requested_cb (ShellDBusService       *service,
   ShellLuaInspector *inspector = shell_global_get_lua_inspector (shell_global_get ());
   g_autoptr (GError) error = NULL;
   g_autofree char *result = shell_lua_inspector_eval (inspector, code, &error);
+  /* The reply is a D-Bus string: Lua values and errors are bytes ("\xff",
+   * the contents of a file), which g_variant_new_string () refuses, and the
+   * caller would never get an answer */
+  g_autofree char *reply = g_utf8_make_valid (result != NULL ? result : error->message, -1);
 
-  shell_dbus_service_complete_eval (service, invocation, result != NULL,
-                                    result != NULL ? result : error->message);
+  shell_dbus_service_complete_eval (service, invocation, result != NULL, reply);
 }
 
 static void

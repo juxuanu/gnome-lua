@@ -133,6 +133,12 @@ shell_tests = [
     'name': 'lockScreenNotifications',
   },
   {
+    'name': 'lookingGlass',
+    'env': {
+      'GLIBC_TUNABLES': 'glibc.malloc.tcache_count=0:glibc.malloc.perturb=165',
+    },
+  },
+  {
     'name': 'unlockDialog',
   },
   {

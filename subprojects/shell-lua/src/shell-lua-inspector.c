@@ -863,6 +863,7 @@ shell_lua_inspector_eval (ShellLuaInspector  *self,
   ShellLuaState *state;
   lua_State *L;
   GString *out;
+  gsize printed_from;
   int base, n, i;
 
   g_return_val_if_fail (SHELL_IS_LUA_INSPECTOR (self), NULL);
@@ -873,11 +874,19 @@ shell_lua_inspector_eval (ShellLuaInspector  *self,
   L = shell_lua_state_get_L (state);
   base = lua_gettop (L);
 
+  /* What the code prints is part of its answer, before the values; what was
+   * printed before (by the callbacks of an earlier Looking Glass session)
+   * stays for Looking Glass */
+  printed_from = self->output->len;
   n = run_chunk (self, code, error);
   if (n < 0)
-    return NULL;
+    {
+      g_string_truncate (self->output, printed_from);
+      return NULL;
+    }
 
-  out = g_string_new (NULL);
+  out = g_string_new_len (self->output->str + printed_from, self->output->len - printed_from);
+  g_string_truncate (self->output, printed_from);
 
   if (n > 0)
     {
@@ -1112,6 +1121,7 @@ typedef struct
   ShellLuaInspector *self;
   GVariantBuilder    builder;   /* a(tss) */
   GString           *scratch;
+  guint64            first_id;  /* the id of the first value stored */
 } StoreContext;
 
 static void
@@ -1120,12 +1130,23 @@ store_context_init (StoreContext       *ctx,
 {
   ctx->self = self;
   ctx->scratch = g_string_new (NULL);
+  ctx->first_id = self->next_result;
   g_variant_builder_init (&ctx->builder, G_VARIANT_TYPE ("a(tss)"));
 }
 
+/* The storing failed (a __tostring raised): the values stored so far are
+ * nobody's (no result shows them, nothing would release them), and their
+ * ids are given again */
 static void
 store_context_clear (StoreContext *ctx)
 {
+  lua_State *L = shell_lua_state_get_L (ctx->self->state);
+  guint64 id;
+
+  for (id = ctx->first_id; id < ctx->self->next_result; id++)
+    forget_value (L, id);
+  ctx->self->next_result = ctx->first_id;
+
   g_variant_builder_clear (&ctx->builder);
   g_string_free (ctx->scratch, TRUE);
 }
@@ -1141,13 +1162,15 @@ store_result (lua_State    *L,
   g_autofree char *summary = NULL;
 
   idx = lua_absindex (L, idx);
-  id = ctx->self->next_result++;
-  store_value (L, idx, id);
 
+  /* summarize () can raise: before the value takes an id */
   type_name = type_name_of (L, idx);
   g_string_truncate (ctx->scratch, 0);
   summarize (L, idx, ctx->scratch);
   summary = one_line (ctx->scratch);
+
+  id = ctx->self->next_result++;
+  store_value (L, idx, id);
 
   g_variant_builder_add (&ctx->builder, "(tss)", id, type_name, summary);
 
@@ -1739,6 +1762,14 @@ shell_lua_inspector_inspect (ShellLuaInspector  *self,
     }
   else
     {
+      /* The pins of the members listed before the failure are nobody's */
+      for (i = 0; i < ctx.members->len; i++)
+        {
+          Member *member = g_ptr_array_index (ctx.members, i);
+
+          if (member->pin != 0)
+            forget_value (L, member->pin);
+        }
       g_propagate_error (error, g_steal_pointer (&local_error));
       result = NULL;
     }
