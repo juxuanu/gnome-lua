@@ -1315,7 +1315,11 @@ ensure_helper_started (Runner  *r,
     directory = GNOME_SHELL_LIBEXECDIR;
 
   command = g_build_filename (directory, "gnome-shell-perf-helper", NULL);
-  r->helper = g_subprocess_new (G_SUBPROCESS_FLAGS_NONE, error, command, NULL);
+  /* The helper exits, and its windows go, 30 s after the last call by
+   * default: a script can keep its windows longer than that (slowly, under
+   * ASan in CI). It still exits when asked to, or when the display closes. */
+  r->helper = g_subprocess_new (G_SUBPROCESS_FLAGS_NONE, error, command,
+                                "--idle-timeout=3600", NULL);
   if (r->helper == NULL)
     return FALSE;
 
